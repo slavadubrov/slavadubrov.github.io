@@ -463,9 +463,18 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#16-expert-parallelism-or-mixture-of-experts" class="md-nav__link">
+  <a href="#16-expert-parallelism-mixture-of-experts-moe" class="md-nav__link">
     <span class="md-ellipsis">
-      1.6 Expert Parallelism (or Mixture of Experts)
+      1.6 Expert Parallelism (Mixture of Experts - MoE)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quick-comparison-which-parallelism-should-you-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quick Comparison: Which Parallelism Should You Use?
     </span>
   </a>
   
@@ -505,9 +514,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#23-large-cluster-hundreds-gpus" class="md-nav__link">
+  <a href="#23-large-cluster-hundreds-or-thousands-of-gpus" class="md-nav__link">
     <span class="md-ellipsis">
-      2.3 Large Cluster (hundreds+ GPUs)
+      2.3 Large Cluster (Hundreds or Thousands of GPUs)
     </span>
   </a>
   
@@ -528,9 +537,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#4-making-the-right-choice-a-simple-decision-tree" class="md-nav__link">
+  <a href="#4-making-the-right-choice-a-decision-framework" class="md-nav__link">
     <span class="md-ellipsis">
-      4. Making the Right Choice: A Simple Decision Tree
+      4. Making the Right Choice: A Decision Framework
     </span>
   </a>
   
@@ -655,29 +664,31 @@
 <!-- more -->
 
 <h2 id="why-scaling-matters">Why Scaling Matters</h2>
-<p>Before diving into techniques, let's understand why this matters:</p>
+<p>Modern LLMs have outgrown single GPUs. Here's why scaling is no longer optional:</p>
 <ul>
-<li><strong>Model size</strong>: A 70B parameter model requires ~140GB just to store in FP16 - far beyond any single GPU</li>
-<li><strong>Training time</strong>: Even with 8 A100s, training a 13B model from scratch takes weeks</li>
-<li><strong>Context length</strong>: Processing long contexts (32k+ tokens) often exceeds single-GPU memory</li>
-<li><strong>Inference speed</strong>: Distributing inference can reduce latency for demanding applications</li>
+<li><strong>Model size</strong>: A 70B parameter model needs ~140GB in FP16 format - that's nearly 2x what an A100 (80GB) can hold</li>
+<li><strong>Training time</strong>: Even with 8 top-tier A100 GPUs, training a 13B model from scratch takes weeks</li>
+<li><strong>Context length</strong>: Long contexts (32k+ tokens) easily exceed single-GPU memory limits</li>
+<li><strong>Inference speed</strong>: For production workloads, distributing inference reduces latency and increases throughput</li>
 </ul>
-<p>Let's explore how to overcome these challenges.</p>
+<p>The solution? Split the workload across multiple GPUs. Let's explore how.</p>
 <h2 id="1-parallelism-techniques-explained-simply">1. Parallelism Techniques Explained Simply</h2>
 <h3 id="11-data-parallelism-dp">1.1 Data Parallelism (DP)</h3>
-<p>Think of this as multiple workers all having the same instruction manual (model), but each working on different examples.</p>
+<p><strong>The idea:</strong> Multiple workers with identical instruction manuals (the model), each working on different examples.</p>
 <p><strong>How it works:</strong></p>
-<ul>
-<li>Each GPU gets an identical copy of the model</li>
-<li>Each processes different data samples</li>
-<li>Results are combined by averaging gradients</li>
-</ul>
+<ol>
+<li>Each GPU gets a complete copy of the model</li>
+<li>Each GPU processes different batches of data</li>
+<li>After computing gradients, all GPUs synchronize by averaging their gradients</li>
+<li>Everyone updates their model copy with the averaged gradients</li>
+</ol>
 <p><strong>When to use it:</strong></p>
 <ul>
-<li>Your model fits on a single GPU</li>
-<li>You want to process more data in parallel</li>
-<li>You need a simple solution with minimal code changes</li>
+<li>Your model fits comfortably on a single GPU</li>
+<li>You want to process more data faster</li>
+<li>You need the simplest distributed setup with minimal code changes</li>
 </ul>
+<p><strong>Limitation:</strong> Memory inefficient - every GPU stores the full model, so you're not saving memory, just increasing throughput.</p>
 <pre class="mermaid"><code>flowchart LR
     subgraph DataLoader
         D[Global batch] --&gt; |split| MB1[Micro-batch 1]
@@ -697,17 +708,22 @@
     G[All-reduce -&gt; average gradients] --&gt; U[Synchronised weight update]</code></pre>
 <p><strong>Tools</strong>: <a href="https://pytorch.org/docs/stable/notes/ddp.html">PyTorch DDP</a>, <a href="https://horovod.ai/">Horovod</a>.</p>
 <h3 id="12-fully-sharded-data-parallelism-fsdp">1.2 Fully Sharded Data Parallelism (FSDP)</h3>
-<p>FSDP is like DP but more memory-efficient - imagine each worker only keeping part of the instruction manual and borrowing pages from colleagues when needed.</p>
+<p><strong>The idea:</strong> Like Data Parallelism, but memory-efficient. Each worker keeps only part of the instruction manual and borrows pages from colleagues when needed.</p>
 <p><strong>How it works:</strong></p>
+<ol>
+<li>Model parameters, gradients, and optimizer states are <strong>sharded</strong> (split) across all GPUs</li>
+<li>During forward pass: each GPU gathers the parameters it needs from other GPUs</li>
+<li>After using them, it discards those borrowed parameters to save memory</li>
+<li>During backward pass: same gathering happens for gradient computation</li>
+<li>After backward pass: gradients are reduced and each GPU updates only its own parameter shard</li>
+</ol>
+<p><strong>When to use it:</strong></p>
 <ul>
-<li>Model parameters, gradients, and optimizer states are split across GPUs</li>
-<li>During computation, GPUs gather needed parameters from others</li>
-<li>After backward pass, each GPU only updates its part</li>
+<li>Your model is too large for a single GPU (typically &gt;10B parameters)</li>
+<li>You want to train bigger models without changing your code much</li>
+<li>You're working on a single machine with multiple GPUs</li>
 </ul>
-<p><strong>Real-world impact:</strong></p>
-<ul>
-<li>Training very large models (&gt; 10 B parameters) that do not fit on a single GPU.</li>
-</ul>
+<p><strong>Real-world impact:</strong> FSDP lets you train models 4-8x larger than what fits on one GPU.</p>
 <pre class="mermaid"><code>flowchart TD
     %% GPU-local state
     subgraph "GPU 1"
@@ -743,19 +759,21 @@
     PN -.-&gt; gather</code></pre>
 <p><strong>Tools</strong>: <a href="https://pytorch.org/docs/stable/fsdp.html">PyTorch FSDP</a>, <a href="https://www.deepspeed.ai/tutorials/zero/">DeepSpeed ZeRO-3</a>.</p>
 <h3 id="13-tensor-parallelism-tp">1.3 Tensor Parallelism (TP)</h3>
-<p>Tensor parallelism splits individual layers across GPUs - like dividing a massive spreadsheet calculation across multiple people.</p>
+<p><strong>The idea:</strong> Split individual layers across GPUs - like dividing a massive spreadsheet calculation where each person computes a few columns.</p>
 <p><strong>How it works:</strong></p>
+<ol>
+<li>Take a single layer's weight matrix and split it into chunks</li>
+<li>Each GPU gets one chunk and computes its portion of the output</li>
+<li>Results are combined (via all-reduce or concatenation) before passing to the next layer</li>
+<li>This happens at <strong>every</strong> layer in the model</li>
+</ol>
+<p><strong>When to use it:</strong></p>
 <ul>
-<li>Individual weight matrices are split across GPUs</li>
-<li>Each GPU computes part of each layer's output</li>
-<li>Results are combined before moving to the next layer</li>
+<li>Individual layers are too large even with FSDP (e.g., huge attention or FFN layers)</li>
+<li>You have fast GPU-to-GPU connections (NVLink/NVSwitch)</li>
+<li>You're working within a single node (TP doesn't scale well across nodes due to communication overhead)</li>
 </ul>
-<p><strong>Best for:</strong></p>
-<ul>
-<li>Massive attention layers and FFNs</li>
-<li>When FSDP alone isn't enough</li>
-<li>Works well inside a node with fast GPU-GPU connections</li>
-</ul>
+<p><strong>Sweet spot:</strong> TP degree of 2-8 within a single machine with NVLink.</p>
 <pre class="mermaid"><code>flowchart LR
     A[X activations] --&gt; |broadcast| X1[GPU1]
     A --&gt; |broadcast| X2[GPU2]
@@ -771,19 +789,21 @@
     P1 &amp; P2 &amp; PN --&gt; C[Concat / reduce -&gt; Y]</code></pre>
 <p><strong>Tools</strong>: <a href="https://github.com/NVIDIA/Megatron-LM">Megatron-LM</a>, <a href="https://github.com/NVIDIA/TensorRT-LLM">TensorRT-LLM</a>, <a href="https://github.com/hpcaitech/ColossalAI">ColossalAI</a>.</p>
 <h3 id="14-pipeline-parallelism-pp">1.4 Pipeline Parallelism (PP)</h3>
-<p>Pipeline parallelism splits the model across its depth - like an assembly line where each station handles different layers.</p>
+<p><strong>The idea:</strong> Split the model vertically by layers - like an assembly line where each station handles specific layers.</p>
 <p><strong>How it works:</strong></p>
+<ol>
+<li>Divide your model into stages (e.g., layers 1-10, 11-20, 21-30)</li>
+<li>Assign each stage to a different GPU</li>
+<li>Send micro-batches through the pipeline: GPU 1 processes batch 1, sends output to GPU 2, then starts on batch 2</li>
+<li>Multiple micro-batches flow through simultaneously to keep all GPUs busy</li>
+</ol>
+<p><strong>When to use it:</strong></p>
 <ul>
-<li>Different layers run on different GPUs</li>
-<li>Data flows through the pipeline in micro-batches</li>
-<li>Each GPU only stores its assigned layers</li>
+<li>Very deep models that don't fit on available GPUs even with FSDP</li>
+<li>Multi-node training where inter-node bandwidth is limited</li>
+<li>Combined with TP and FSDP for massive models</li>
 </ul>
-<p><strong>When to use:</strong></p>
-<ul>
-<li>Very deep models</li>
-<li>When you need to scale beyond a single node</li>
-<li>Combined with other techniques for maximum scaling</li>
-</ul>
+<p><strong>Challenge:</strong> Pipeline "bubbles" (idle time) at the start and end of each batch. Use multiple micro-batches to minimize this.</p>
 <pre class="mermaid"><code>sequenceDiagram
     participant S0 as GPU-Stage 0 (Layers 1-4)
     participant S1 as GPU-Stage 1 (Layers 5-8)
@@ -797,19 +817,21 @@
     S2-&gt;&gt;S2: Fwd/Bwd µ-batch 0</code></pre>
 <p><strong>Tools</strong>: <a href="https://www.deepspeed.ai/tutorials/pipeline/">DeepSpeed PP</a>, <a href="https://github.com/NVIDIA/Megatron-LM">Megatron-LM</a>, <a href="https://arxiv.org/abs/1811.06965">GPipe</a>.</p>
 <h3 id="15-context-parallelism-cp">1.5 Context Parallelism (CP)</h3>
-<p>For handling extremely long sequences - imagine different people each reading different paragraphs of a book, then sharing key information.</p>
+<p><strong>The idea:</strong> For handling extremely long sequences - different people read different paragraphs of a book, then share key information.</p>
 <p><strong>How it works:</strong></p>
+<ol>
+<li>Split a long sequence (e.g., 64K tokens) across multiple GPUs (e.g., 4 GPUs × 16K tokens each)</li>
+<li>Each GPU runs self-attention on its local chunk</li>
+<li>GPUs exchange keys and values to compute cross-attention (how tokens in one chunk relate to tokens in other chunks)</li>
+<li>Results are merged to produce the final output</li>
+</ol>
+<p><strong>When to use it:</strong></p>
 <ul>
-<li>Sequence/context length is split across GPUs</li>
-<li>Each GPU processes a chunk of the input sequence</li>
-<li>GPUs exchange information for cross-attention</li>
+<li>Processing very long contexts (64K, 128K, or even 1M+ tokens)</li>
+<li>Document analysis, long-form code generation, or book-length reasoning</li>
+<li>When context length is the bottleneck, not model size</li>
 </ul>
-<p><strong>Real-world use case:</strong></p>
-<ul>
-<li>Enables processing 100K+ tokens on consumer hardware</li>
-<li>Critical for document QA, code generation, and long-context reasoning</li>
-<li>Becoming essential as context windows expand</li>
-</ul>
+<p><strong>Real-world impact:</strong> Context Parallelism enables 100K+ token processing on consumer hardware that would otherwise max out at 8K tokens.</p>
 <pre class="mermaid"><code>flowchart LR
     subgraph Input["Input Sequence"]
         S[Sequence 0-8191 tokens]
@@ -846,20 +868,23 @@
     A0 --&gt; M
     A1 --&gt; M</code></pre>
 <p><strong>Tools</strong>: <a href="https://github.com/huggingface/picotron">Picotron</a>, <a href="https://github.com/huggingface/nanotron">Nanotron</a>.</p>
-<h3 id="16-expert-parallelism-or-mixture-of-experts">1.6 Expert Parallelism (or Mixture of Experts)</h3>
-<p>MoE models act like specialized consultants - rather than activating the entire model for every input, each token gets routed to only the "experts" it needs.</p>
+<h3 id="16-expert-parallelism-mixture-of-experts-moe">1.6 Expert Parallelism (Mixture of Experts - MoE)</h3>
+<p><strong>The idea:</strong> Specialized consultants - instead of activating the entire model for every input, each token gets routed only to the "experts" it needs.</p>
 <p><strong>How it works:</strong></p>
+<ol>
+<li>Replace dense feed-forward layers with multiple "expert" networks (e.g., 8 or 64 experts)</li>
+<li>A gating network decides which experts (usually top-2) should process each token</li>
+<li>Only those selected experts activate for that token</li>
+<li>Different experts can live on different GPUs</li>
+</ol>
+<p><strong>When to use it:</strong></p>
 <ul>
-<li>Multiple specialized sub-networks (experts) exist within the model</li>
-<li>A routing mechanism determines which experts to use for each token</li>
-<li>Only a small subset of parameters is used for any given token</li>
+<li>You want a model with 100B+ total parameters but only want to activate 13B per token</li>
+<li>You need better parameter efficiency than dense models</li>
+<li>You're okay with more complex training dynamics</li>
 </ul>
-<p><strong>Why it matters:</strong></p>
-<ul>
-<li>Scales to massive models (1T+ parameters) without proportional compute costs</li>
-<li>Allows more efficient use of parameters</li>
-<li>Models like Mixtral and Grok use this approach</li>
-</ul>
+<p><strong>Real-world examples:</strong> Mixtral-8x7B (56B total params, 13B active), Grok, DeepSeek-V2.</p>
+<p><strong>Trade-off:</strong> More parameters with less compute per token, but training can be trickier due to load balancing between experts.</p>
 <pre class="mermaid"><code>flowchart LR
     subgraph Input_Tokens["Input Tokens"]
         T1["T₁"]
@@ -881,139 +906,256 @@
     G --&gt;|top-k routes| E3
     E1 &amp; E2 &amp; E3 --&gt; O["Concatenate + Mix"]</code></pre>
 <p><strong>Tools</strong>: <a href="https://github.com/huggingface/picotron">Picotron</a>, <a href="https://github.com/huggingface/nanotron">Nanotron</a>.</p>
+<h3 id="quick-comparison-which-parallelism-should-you-use">Quick Comparison: Which Parallelism Should You Use?</h3>
+<table>
+<thead>
+<tr>
+<th>Technique</th>
+<th>What It Splits</th>
+<th>Best For</th>
+<th>Memory Savings</th>
+<th>Communication Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Data Parallelism (DP)</strong></td>
+<td>Data batches</td>
+<td>Models that fit on 1 GPU</td>
+<td>None (copies model)</td>
+<td>Low (only gradients)</td>
+</tr>
+<tr>
+<td><strong>FSDP</strong></td>
+<td>Model + optimizer + gradients</td>
+<td>Models too big for 1 GPU</td>
+<td>High (4-8x)</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td><strong>Tensor Parallelism (TP)</strong></td>
+<td>Individual layers</td>
+<td>Huge layers, fast GPUs</td>
+<td>Medium</td>
+<td>High (per layer)</td>
+</tr>
+<tr>
+<td><strong>Pipeline Parallelism (PP)</strong></td>
+<td>Layer groups (stages)</td>
+<td>Very deep models</td>
+<td>Medium</td>
+<td>Low (between stages)</td>
+</tr>
+<tr>
+<td><strong>Context Parallelism (CP)</strong></td>
+<td>Sequence length</td>
+<td>Long contexts (64K+ tokens)</td>
+<td>High (for activations)</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td><strong>Expert Parallelism (MoE)</strong></td>
+<td>Experts in MoE layers</td>
+<td>Massive sparse models</td>
+<td>None (more params, less FLOPs)</td>
+<td>Medium</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Rule of thumb:</strong> Start with FSDP. Add TP if individual layers are too big. Add PP if you need multiple nodes. Add CP if context length is your bottleneck.</p>
 <h2 id="2-practical-training-strategies">2. Practical Training Strategies</h2>
-<p>For most practitioners, here's what I recommend based on your hardware:</p>
+<p>Now that you understand the techniques, here's what to actually do based on your hardware setup.</p>
 <h3 id="21-single-machine-2-8-gpus">2.1 Single Machine (2-8 GPUs)</h3>
-<p><strong>Best approach:</strong> FSDP + small TP</p>
+<p><strong>Recommended approach:</strong> FSDP, optionally + TP</p>
+<p><strong>What to do:</strong></p>
+<ol>
+<li>Start with pure FSDP using PyTorch FSDP or DeepSpeed ZeRO-2/ZeRO-3</li>
+<li>If your model has huge attention or FFN layers that still don't fit, add TP=2</li>
+<li>Use Hugging Face <code>accelerate</code> or PyTorch <code>torchrun</code> for easy setup</li>
+</ol>
+<p><strong>Hardware-specific tips:</strong></p>
 <ul>
-<li>Start with pure FSDP using PyTorch or DeepSpeed</li>
-<li>If your model has huge layers, add TP=2 inside the node</li>
-<li>Use <code>accelerate</code> or <code>torchrun</code> for the simplest setup</li>
+<li>Consumer GPUs (RTX 4090, etc.) with PCIe: Stick to TP=1 or TP=2 max</li>
+<li>Server GPUs (A100, H100) with NVLink: You can efficiently use TP=2 to TP=4</li>
+<li>8 GPUs in one box: FSDP alone often works great for models up to 70B</li>
 </ul>
-<p><strong>Real-world tip:</strong> On consumer hardware with PCIe connections, stick to TP≤2. On servers with NVLink, you can go up to TP=4 efficiently.</p>
 <h3 id="22-small-cluster-2-16-nodes-128-gpus">2.2 Small Cluster (2-16 nodes, ≤128 GPUs)</h3>
-<p><strong>Best approach:</strong> "TP inside, DP across" + optional PP</p>
+<p><strong>Recommended approach:</strong> 2D or 3D parallelism (TP + FSDP, optionally + PP)</p>
+<p><strong>What to do:</strong></p>
+<ol>
+<li>Use TP within each node (e.g., TP=4 or TP=8 per node with NVLink)</li>
+<li>Use FSDP across nodes for data parallelism</li>
+<li>If your model is extremely deep, add PP to split it vertically across nodes</li>
+</ol>
+<p><strong>Why this works:</strong></p>
 <ul>
-<li>Keep TP groups within each node (utilizing fast NVLink)</li>
-<li>Use DP or FSDP across nodes</li>
-<li>Add PP when model depth exceeds single-node capacity</li>
+<li>Fast intra-node connections (NVLink) handle TP's high communication needs</li>
+<li>Slower inter-node connections (InfiniBand) only need to sync FSDP shards</li>
+<li>Minimizes cross-node bandwidth requirements</li>
 </ul>
-<p><strong>Pro tip:</strong> When using PP, set micro-batch size to 4x your PP degree to minimize pipeline bubbles.</p>
-<h3 id="23-large-cluster-hundreds-gpus">2.3 Large Cluster (hundreds+ GPUs)</h3>
-<p><strong>Best approach:</strong> 4D parallelism (DPxTPxPPxCP)</p>
+<p><strong>Pro tip:</strong> When using Pipeline Parallelism, set your number of micro-batches to at least 4× your pipeline degree to keep GPUs busy and minimize "bubbles."</p>
+<h3 id="23-large-cluster-hundreds-or-thousands-of-gpus">2.3 Large Cluster (Hundreds or Thousands of GPUs)</h3>
+<p><strong>Recommended approach:</strong> 4D parallelism (DP × TP × PP × CP)</p>
+<p><strong>What to do:</strong></p>
+<ol>
+<li>Combine all four parallelism strategies to handle the largest models</li>
+<li>Carefully map parallelism strategies to your hardware topology</li>
+<li>Use tools like Megatron-LM or Nanotron that support 4D parallelism out of the box</li>
+</ol>
+<p><strong>When you need this:</strong></p>
 <ul>
-<li>Necessary for 70B+ models with 32k+ context windows</li>
-<li>Requires careful mapping to hardware topology</li>
-<li>Expect ~75% scaling efficiency with good InfiniBand networking</li>
+<li>Training models with 70B+ parameters and 32K+ context windows</li>
+<li>Pretraining from scratch (not fine-tuning)</li>
+<li>Production-scale model training at big labs</li>
 </ul>
-<p><strong>Real-world example:</strong> Training a 70B model with 32k context might use:</p>
+<p><strong>Performance expectations:</strong></p>
 <ul>
-<li>TP=8 (within each node)</li>
-<li>PP=4 (across nodes)</li>
-<li>CP=4 (for long sequence handling)</li>
-<li>DP=4 (for throughput)</li>
-<li>Total: 512 GPUs organized in a 4D grid</li>
+<li>With good InfiniBand networking: ~70-80% scaling efficiency</li>
+<li>With excellent setup and tuning: ~85% scaling efficiency possible</li>
+</ul>
+<p><strong>Real-world example:</strong> Training a 70B model with 32K context on 512 GPUs:</p>
+<ul>
+<li>TP=8 (within each 8-GPU node)</li>
+<li>PP=4 (pipeline across 4 nodes)</li>
+<li>CP=4 (split context across 4 chunks)</li>
+<li>DP=4 (data parallelism for throughput)</li>
+<li>Total: 8 × 4 × 4 × 4 = 512 GPUs</li>
 </ul>
 <h2 id="3-practical-tools-worth-learning">3. Practical Tools Worth Learning</h2>
+<p>Here's a quick guide to the most useful tools and when to reach for them:</p>
 <table>
 <thead>
 <tr>
 <th>Tool</th>
 <th>When to Use It</th>
 <th>Learning Curve</th>
+<th>Best For</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>PyTorch FSDP</td>
-<td>Training medium-large models (1-20B) on a single node</td>
-<td>★★☆☆☆</td>
-</tr>
-<tr>
-<td>DeepSpeed ZeRO</td>
-<td>Multi-node training with simple setup</td>
-<td>★★★☆☆</td>
-</tr>
-<tr>
-<td>Megatron-LM</td>
-<td>Production training of very large models</td>
-<td>★★★★☆</td>
-</tr>
-<tr>
-<td>vLLM</td>
-<td>Fast inference with attention caching</td>
-<td>★★☆☆☆</td>
-</tr>
-<tr>
-<td>TensorRT-LLM</td>
-<td>Production inference with NVIDIA GPUs</td>
-<td>★★★★☆</td>
-</tr>
-<tr>
-<td>Hugging Face Accelerate</td>
-<td>Simple distributed training with minimal code changes</td>
+<td><strong>Hugging Face Accelerate</strong></td>
+<td>Any distributed training with minimal code changes</td>
 <td>★☆☆☆☆</td>
+<td>Beginners, quick prototypes</td>
 </tr>
 <tr>
-<td>Nanotron</td>
-<td>Research and education on 3D parallelism</td>
+<td><strong>PyTorch FSDP</strong></td>
+<td>Medium-large models (1-30B) on single node</td>
+<td>★★☆☆☆</td>
+<td>Most common use case</td>
+</tr>
+<tr>
+<td><strong>DeepSpeed ZeRO</strong></td>
+<td>Multi-node training with good documentation</td>
 <td>★★★☆☆</td>
+<td>Production training</td>
+</tr>
+<tr>
+<td><strong>Megatron-LM</strong></td>
+<td>Very large models (70B+), 3D/4D parallelism</td>
+<td>★★★★☆</td>
+<td>Advanced/production at scale</td>
+</tr>
+<tr>
+<td><strong>Nanotron</strong></td>
+<td>Learning/research on modern parallelism strategies</td>
+<td>★★★☆☆</td>
+<td>Education, experimentation</td>
+</tr>
+<tr>
+<td><strong>vLLM</strong></td>
+<td>Fast inference with PagedAttention and KV caching</td>
+<td>★★☆☆☆</td>
+<td>Serving models in production</td>
+</tr>
+<tr>
+<td><strong>TensorRT-LLM</strong></td>
+<td>Maximum inference speed on NVIDIA GPUs</td>
+<td>★★★★☆</td>
+<td>Production inference optimization</td>
 </tr>
 </tbody>
 </table>
-<h2 id="4-making-the-right-choice-a-simple-decision-tree">4. Making the Right Choice: A Simple Decision Tree</h2>
-<ol>
-<li>
-<p><strong>Does your model fit on a single GPU?</strong></p>
+<p><strong>My recommendation for getting started:</strong> Start with Hugging Face Accelerate for learning, then graduate to PyTorch FSDP or DeepSpeed when you need more control.</p>
+<h2 id="4-making-the-right-choice-a-decision-framework">4. Making the Right Choice: A Decision Framework</h2>
+<p>Still not sure what to use? Follow this decision tree:</p>
+<p><strong>Step 1: Does your model fit on a single GPU?</strong></p>
 <ul>
-<li>Yes -&gt; Use standard training</li>
-<li>No -&gt; Continue to question 2</li>
+<li>✅ <strong>Yes</strong> → Use standard training (no parallelism needed)</li>
+<li>❌ <strong>No</strong> → Continue to Step 2</li>
 </ul>
-</li>
-<li>
-<p><strong>Do you have multiple GPUs in one machine?</strong></p>
+<p><strong>Step 2: Do you have multiple GPUs in one machine?</strong></p>
 <ul>
-<li>Yes -&gt; Try FSDP first</li>
-<li>No -&gt; Skip to question 4</li>
+<li>✅ <strong>Yes</strong> → Start with FSDP</li>
+<li>❌ <strong>No</strong> → You'll need a cluster or smaller model (skip to Step 4)</li>
 </ul>
-</li>
-<li>
-<p><strong>Is FSDP still not enough?</strong></p>
+<p><strong>Step 3: Is FSDP alone enough?</strong></p>
 <ul>
-<li>Add TP=2 inside the node</li>
-<li>If still insufficient, add CP for long contexts</li>
+<li>✅ <strong>Yes</strong> → You're done! Use pure FSDP</li>
+<li>❌ <strong>No, individual layers are too big</strong> → Add TP=2 or TP=4</li>
+<li>❌ <strong>No, context is too long</strong> → Add CP</li>
 </ul>
-</li>
-<li>
-<p><strong>Training across multiple nodes?</strong></p>
+<p><strong>Step 4: Training across multiple nodes?</strong></p>
 <ul>
-<li>Start with "TP inside nodes, DP across nodes"</li>
-<li>Add PP when model depth exceeds a single node</li>
-<li>For very large models with long contexts, consider 4D parallelism</li>
+<li>Start with: TP within nodes + FSDP across nodes</li>
+<li>If model is very deep: Add PP to split layers across nodes</li>
+<li>If you have 100+ GPUs and long contexts: Consider 4D parallelism (TP + PP + DP + CP)</li>
 </ul>
-</li>
-</ol>
-<p><strong>Diagram for visualization</strong></p>
+<p><strong>Visual decision tree:</strong></p>
 <pre class="mermaid"><code>flowchart TD
-    start([LLM Scaling Decision]) --&gt; fit{Does model fit on single GPU?}
-    fit --&gt;|Yes| dp[Use standard training]
-    fit --&gt;|No| multiple{Multiple GPUs in one machine?}
-    multiple --&gt;|Yes| fsdp[Try FSDP first]
-    multiple --&gt;|No| multinode[Training across multiple nodes]
-    fsdp --&gt; enough{Is FSDP still not enough?}
-    enough --&gt;|Yes| tp[Add TP=2 inside the node]
-    tp --&gt; context{Need longer contexts?}
-    context --&gt;|Yes| cp[Add CP for long contexts]
-    multinode --&gt; hybrid[Start with TP inside nodes, DP across nodes]
-    hybrid --&gt; depth{Model depth exceeds single node?}
-    depth --&gt;|Yes| pp[Add PP when model depth exceeds a single node]
-    pp --&gt; large{Very large model with long contexts?}
-    large --&gt;|Yes| d4[Consider 4D parallelism]</code></pre>
+    start([Start: Need to scale LLM?]) --&gt; fit{Model fits on&lt;br/&gt;single GPU?}
+
+    fit --&gt;|Yes| done1[✅ Standard training&lt;br/&gt;No parallelism needed]
+    fit --&gt;|No| multi{Multiple GPUs&lt;br/&gt;in one machine?}
+
+    multi --&gt;|No| cluster[Need cluster or&lt;br/&gt;smaller model]
+    multi --&gt;|Yes| fsdp[Start with FSDP]
+
+    fsdp --&gt; enough{FSDP enough?}
+    enough --&gt;|Yes| done2[✅ Use pure FSDP]
+    enough --&gt;|Layers too big| tp[Add TP=2 or TP=4&lt;br/&gt;within node]
+    enough --&gt;|Context too long| cp[Add Context&lt;br/&gt;Parallelism]
+
+    tp --&gt; done3[✅ Use FSDP + TP]
+    cp --&gt; done4[✅ Use FSDP + CP]
+
+    cluster --&gt; multinode[Multi-node setup]
+    multinode --&gt; hybrid[TP inside nodes&lt;br/&gt;+ FSDP across nodes]
+
+    hybrid --&gt; depth{Model very&lt;br/&gt;deep?}
+    depth --&gt;|No| done5[✅ Use 2D: TP + FSDP]
+    depth --&gt;|Yes| pp[Add Pipeline&lt;br/&gt;Parallelism]
+
+    pp --&gt; scale{100+ GPUs +&lt;br/&gt;long context?}
+    scale --&gt;|No| done6[✅ Use 3D: TP + PP + FSDP]
+    scale --&gt;|Yes| done7[✅ Use 4D: TP + PP + DP + CP]
+
+    style done1 fill:#90EE90
+    style done2 fill:#90EE90
+    style done3 fill:#90EE90
+    style done4 fill:#90EE90
+    style done5 fill:#90EE90
+    style done6 fill:#90EE90
+    style done7 fill:#90EE90</code></pre>
 <h2 id="5-the-ultra-scale-cheatsheet">5. The Ultra-Scale Cheatsheet</h2>
-<p>This visual guide from HuggingFace's team summarizes the key decision points:</p>
+<p>For a comprehensive visual summary, check out this guide from Hugging Face's team:</p>
 <p><img alt="Ultra-Scale LLM Cheatsheet" src="https://nanotron-ultrascale-playbook.static.hf.space/dist/assets/images/ultra-cheatsheet.svg" /></p>
 <h2 id="conclusion">Conclusion</h2>
-<p>Scaling LLMs is both an art and a science. While these techniques may seem complex at first, they follow logical patterns based on hardware constraints and model structure. Start simple with FSDP and add more dimensions of parallelism only as needed.</p>
+<p>Scaling LLMs is both an art and a science. The key takeaways:</p>
+<ol>
+<li><strong>Start simple:</strong> Most people should begin with FSDP. It handles the majority of use cases.</li>
+<li><strong>Add complexity only when needed:</strong> Don't jump straight to 4D parallelism unless you're training at massive scale.</li>
+<li><strong>Match strategy to hardware:</strong> TP works best within nodes, FSDP across nodes, PP for extreme depth.</li>
+<li><strong>Tools matter:</strong> Use Accelerate to learn, FSDP or DeepSpeed for production.</li>
+</ol>
+<p>The techniques here follow logical patterns based on hardware constraints and model architecture. With the right approach, you can scale from a single GPU to thousands, training models that would have been impossible just a few years ago.</p>
+<p><strong>Further resources:</strong></p>
+<ul>
+<li><a href="https://huggingface.co/spaces/nanotron/ultrascale-playbook">Hugging Face Ultra-Scale Playbook</a> - Interactive guide with more details</li>
+<li><a href="https://pytorch.org/tutorials/intermediate/FSDP_tutorial.html">PyTorch FSDP Tutorial</a> - Official getting started guide</li>
+<li><a href="https://www.deepspeed.ai/tutorials/">DeepSpeed Tutorials</a> - Comprehensive DeepSpeed documentation</li>
+</ul>
 
 
 
