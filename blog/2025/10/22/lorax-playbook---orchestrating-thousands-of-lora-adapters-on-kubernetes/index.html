@@ -401,6 +401,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#background-what-is-lora" class="md-nav__link">
+    <span class="md-ellipsis">
+      Background: What is LoRA?
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-problem-lorax-solves" class="md-nav__link">
     <span class="md-ellipsis">
       The problem LoRAX solves
@@ -578,11 +587,71 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#alternatives-lorax-vs-vllm" class="md-nav__link">
+    <span class="md-ellipsis">
+      Alternatives: LoRAX vs. vLLM
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#getting-started-a-practical-roadmap" class="md-nav__link">
     <span class="md-ellipsis">
       Getting started: a practical roadmap
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Getting started: a practical roadmap">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-start-small" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Start small
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-measure-and-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Measure and profile
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-optimize-for-your-workload" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Optimize for your workload
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-scale-horizontally" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Scale horizontally
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-monitor-continuously" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. Monitor continuously
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -689,91 +758,56 @@
 
 
 <h1 id="lorax-playbook-orchestrating-thousands-of-lora-adapters-on-kubernetes">LoRAX Playbook - Orchestrating Thousands of LoRA Adapters on Kubernetes</h1>
-<p>Serving dozens of fine-tuned large language models used to mean provisioning one GPU per model. LoRAX (LoRA eXchange) flips that math on its head: keep a single base model in memory and hot-swap lightweight LoRA adapters per request.</p>
-<p>This guide shows you how LoRAX achieves near-constant cost per token regardless of how many fine-tunes you're serving, when it makes sense to use it, how to deploy it on Kubernetes with Helm, and how to call it through REST, Python, and OpenAI-compatible APIs.</p>
+<p>Serving dozens of fine-tuned large language models used to mean provisioning one GPU per model. <strong>LoRAX (LoRA eXchange)</strong> flips that math on its head: keep a single base model in memory and hot-swap lightweight LoRA adapters per request.</p>
+<p>This guide shows you how LoRAX achieves <strong>near-constant cost per token</strong> regardless of how many fine-tunes you're serving. We'll cover:</p>
+<ul>
+<li><strong>What LoRA is</strong> and why it's a game-changer.</li>
+<li><strong>LoRAX vs. vLLM</strong>: When to use which.</li>
+<li><strong>Kubernetes Deployment</strong>: A production-ready Helm guide.</li>
+<li><strong>API Usage</strong>: REST, Python, and OpenAI-compatible examples.</li>
+</ul>
 <!-- more -->
 
+<h2 id="background-what-is-lora">Background: What is LoRA?</h2>
+<p><strong>Low-Rank Adaptation (LoRA)</strong> is a fine-tuning technique that freezes the pre-trained model weights and injects trainable rank decomposition matrices into each layer of the Transformer architecture.</p>
+<p>In simple terms: instead of retraining the entire model (which is slow and produces massive files), LoRA trains a tiny set of "diffs" that represent the new knowledge.</p>
+<ul>
+<li><strong>Full Fine-tuning</strong>: Produces a 20GB+ file for a 7B model.</li>
+<li><strong>LoRA Fine-tuning</strong>: Produces a ~100MB adapter file.</li>
+</ul>
+<p>This massive size reduction is what makes dynamic serving possible. You can store thousands of adapters on disk and load them into GPU memory in milliseconds.</p>
 <h2 id="the-problem-lorax-solves">The problem LoRAX solves</h2>
 <p>Traditional multi-model serving is expensive. Each fine-tuned model needs its own GPU memory allocation, which means serving 50 customer-specific models requires 50 separate deployments—or at least 50x the memory. The costs scale linearly with every new variant you add.</p>
 <p>LoRAX is an Apache 2.0 project from <a href="https://github.com/predibase/lorax">Predibase</a> that extends the <a href="https://github.com/huggingface/text-generation-inference">Hugging Face Text Generation Inference server</a> with three critical features: dynamic adapter loading, tiered weight caching, and multi-adapter batching. These let you serve hundreds of tenant-specific LoRA adapters on a single Ampere-class GPU without sacrificing throughput or latency.</p>
 <p>Here's the key insight: LoRA fine-tuning produces small delta weights (adapters) rather than full model copies. LoRAX exploits this by loading just the base model into GPU memory and injecting adapter weights on demand. Unused adapters consume zero VRAM.</p>
 <h2 id="how-it-works-four-core-innovations">How it works: four core innovations</h2>
-<p><strong>1. Dynamic adapter loading</strong><br />
+<p><strong>1. Dynamic adapter loading</strong>
 Adapter weights are injected just-in-time for each request. The base model stays resident in GPU memory while adapters load on the fly without blocking other requests. This means you can catalog thousands of adapters but only pay memory costs for the ones actively serving traffic.</p>
-<p><strong>2. Tiered weight caching</strong><br />
+<p><strong>2. Tiered weight caching</strong>
 LoRAX stages adapters across three layers: GPU VRAM for hot adapters, CPU RAM for warm ones, and disk for cold storage. This hierarchy prevents out-of-memory crashes while keeping swap times fast enough that users don't notice the difference.</p>
-<p><strong>3. Continuous multi-adapter batching</strong><br />
+<p><strong>3. Continuous multi-adapter batching</strong>
 Here's where the magic happens. LoRAX extends continuous batching strategies to work across different adapters in parallel. Requests targeting different fine-tunes can share the same forward pass, keeping the GPU fully utilized. Benchmarks from Predibase show that processing 1M tokens spread across 32 different adapters takes about the same time as 1M tokens on a single model.</p>
-<p><strong>4. Battle-tested foundation</strong><br />
+<p><strong>4. Battle-tested foundation</strong>
 LoRAX builds on Hugging Face's Text Generation Inference (TGI) server, inheriting production-grade optimizations: FlashAttention 2, paged attention, SGMV kernels for multi-adapter inference, and streaming responses. You get the stability of TGI plus the flexibility of dynamic adapter switching.</p>
 <h3 id="the-economics-near-constant-cost-scaling">The economics: near-constant cost scaling</h3>
 <p>The chart below demonstrates the cost advantage. While traditional dedicated deployments (dark gray) scale linearly—double the models means double the cost—LoRAX (orange) keeps per-token costs nearly flat regardless of how many adapters you serve. Even hosted API fine-tunes from providers like OpenAI (light gray) can't match this efficiency for multi-model scenarios.</p>
 <p><img alt="LoRAX cost per million tokens vs number of models" src="https://slavadubrov.github.io/blog/assets/2025-10-22-lorax-serving-guide/lorax-performance.png" /></p>
 <p><em>Cost per million tokens as the number of fine-tuned models increases. LoRAX maintains near-constant costs through efficient multi-adapter batching, while dedicated deployments scale linearly. Source: <a href="https://github.com/predibase/lorax">LoRAX GitHub</a></em></p>
 <h3 id="request-flow-diagram">Request flow diagram</h3>
-<pre class="mermaid"><code>sequenceDiagram
-    participant Client
-    participant Scheduler
-    participant Cache
-    participant GPU as Base Model (GPU)
-
-    Client-&gt;&gt;Scheduler: POST /generate (adapter_id: tenant-42)
-    Scheduler-&gt;&gt;Cache: Check if tenant-42 adapter loaded
-
-    alt Adapter not in GPU
-        Cache-&gt;&gt;Cache: Load from CPU/disk
-        Cache-&gt;&gt;GPU: Inject LoRA weights
-    end
-
-    Scheduler-&gt;&gt;GPU: Batch with other adapter requests
-    GPU-&gt;&gt;GPU: Forward pass (multi-adapter)
-    GPU--&gt;&gt;Scheduler: Stream tokens
-    Scheduler--&gt;&gt;Client: Streamed response</code></pre>
+<p><img alt="LoRAX Request Flow" src="../../../../assets/2025-10-22-lorax-serving-guide/lorax-request-flow.svg" /></p>
 <h2 id="when-to-use-lorax">When to use LoRAX</h2>
 <p>LoRAX makes economic and operational sense in specific scenarios. Here's when it shines:</p>
-<p><strong>Multi-tenant SaaS applications</strong><br />
+<p><strong>Multi-tenant SaaS applications</strong>
 You're building a platform where each of your 500 customers gets a customized chatbot fine-tuned on their data. Traditional serving would require 500 model deployments. LoRAX serves all 500 from a single GPU by loading the relevant adapter when a customer request arrives.</p>
-<p><strong>Domain-specific expert routers</strong><br />
+<p><strong>Domain-specific expert routers</strong>
 Your company maintains specialized LLMs for law, medicine, finance, and engineering. Instead of four separate 13B model deployments, LoRAX runs one base LLaMA 2 13B instance and routes to the appropriate adapter based on the incoming request domain.</p>
-<p><strong>Rapid experimentation and A/B testing</strong><br />
+<p><strong>Rapid experimentation and A/B testing</strong>
 Testing 10 different fine-tuning approaches in production? With LoRAX you deploy once and switch between variants by changing the <code>adapter_id</code> parameter. No infrastructure changes, no service restarts.</p>
-<p><strong>Resource-constrained or edge deployments</strong><br />
+<p><strong>Resource-constrained or edge deployments</strong>
 On-prem installations or edge devices often have limited GPU resources. A single NVIDIA A10G can host a quantized 7B base model plus dozens of task-specific adapters, eliminating the need for one GPU per model.</p>
 <h2 id="architecture-memory-hierarchy-and-request-scheduling">Architecture: memory hierarchy and request scheduling</h2>
 <p>The core of LoRAX is its three-tier memory hierarchy. Understanding this helps you predict performance and plan capacity.</p>
-<pre class="mermaid"><code>flowchart TB
-    subgraph Requests["Incoming Requests"]
-        R1[Client A: adapter-law]
-        R2[Client B: adapter-finance]
-        R3[Client C: adapter-medical]
-    end
-
-    subgraph Scheduler["LoRAX Scheduler"]
-        S[Request batcher]
-    end
-
-    subgraph Tiers["Memory Hierarchy"]
-        subgraph GPU["GPU VRAM (Hot)"]
-            Base[Base Model: 13B params]
-            A1[adapter-law: 50MB]
-            A2[adapter-finance: 50MB]
-        end
-
-        subgraph RAM["CPU RAM (Warm)"]
-            A3[adapter-medical: 50MB]
-            A4[adapter-engineering: 50MB]
-        end
-
-        subgraph Disk["Disk / HF Hub (Cold)"]
-            A5[100+ cached adapters]
-        end
-    end
-
-    Requests --&gt; Scheduler
-    Scheduler &lt;--&gt;|"Fast: ~1ms"| GPU
-    Scheduler &lt;--&gt;|"Medium: ~10ms"| RAM
-    Scheduler &lt;--&gt;|"Slow: first-time download"| Disk
-    GPU --&gt; Response[Streamed tokens]</code></pre>
+<p><img alt="LoRAX Memory Hierarchy" src="../../../../assets/2025-10-22-lorax-serving-guide/lorax-memory-hierarchy.svg" /></p>
 <p>LoRAX treats each adapter as a lightweight "view" on the shared base model. The scheduler coalesces requests so that serving 32 different adapters can be as fast as serving one—even across a million tokens of throughput. Adapters typically weigh 10-200MB each, compared to multi-gigabyte full models.</p>
 <h2 id="deploy-lorax-on-kubernetes">Deploy LoRAX on Kubernetes</h2>
 <p>LoRAX ships with production-ready Helm charts and Docker images, making Kubernetes deployment straightforward.</p>
@@ -837,14 +871,14 @@ On-prem installations or edge devices often have limited GPU resources. A single
 </code></pre></div>
 <p>Run those commands from the cloned <code>lorax/</code> repository so Helm can locate the chart directory.</p>
 <p>LoRAX supports popular open-source models out of the box: LLaMA 2, CodeLlama, Mistral, Mixtral, Qwen, and others. Check the <a href="https://github.com/predibase/lorax">model compatibility list</a> for the latest additions.</p>
-<p><strong>Exposing the service</strong><br />
+<p><strong>Exposing the service</strong>
 The default Service type is ClusterIP, which only allows access within the cluster. For external traffic, either:</p>
 <ul>
 <li>Create a LoadBalancer Service (on cloud providers)</li>
 <li>Set up an Ingress with TLS termination</li>
 <li>Place an API gateway in front for authentication and rate limiting</li>
 </ul>
-<p><strong>Cleanup</strong><br />
+<p><strong>Cleanup</strong>
 When you're done testing, free up the GPU resources:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>helm<span class="w"> </span>uninstall<span class="w"> </span>mistral-7b-release
 </code></pre></div>
@@ -853,15 +887,16 @@ When you're done testing, free up the GPU resources:</p>
 <p>Once deployed, LoRAX exposes three ways to interact with it: a REST API compatible with Hugging Face TGI, a Python client library, and an OpenAI-compatible endpoint. All three methods support dynamic adapter switching.</p>
 <h3 id="rest-api">REST API</h3>
 <p>The <code>/generate</code> endpoint accepts JSON payloads with your prompt and optional parameters. Using the base model without any adapter:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8080/generate<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="s1">    &quot;inputs&quot;: &quot;Write a short poem about the sea.&quot;,</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="s1">    &quot;parameters&quot;: {</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="s1">      &quot;max_new_tokens&quot;: 64,</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="s1">      &quot;temperature&quot;: 0.7</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="s1">    }</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="s1">  }&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Basic request to the base model (no adapter)</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8080/generate<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="s1">    &quot;inputs&quot;: &quot;Write a short poem about the sea.&quot;,</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="s1">    &quot;parameters&quot;: {</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="s1">      &quot;max_new_tokens&quot;: 64,</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="s1">      &quot;temperature&quot;: 0.7</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="s1">    }</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="s1">  }&#39;</span>
 </code></pre></div>
 <p>The response includes the generated text and metadata like token counts and timing information.</p>
 <p><strong>Loading a specific adapter</strong></p>
@@ -884,22 +919,23 @@ When you're done testing, free up the GPU resources:</p>
 <p>The client wraps the REST API with a clean interface:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">lorax</span><span class="w"> </span><span class="kn">import</span> <span class="n">Client</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># Connect to your LoRAX instance</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># Connect to your LoRAX instance (default port 8080)</span>
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">client</span> <span class="o">=</span> <span class="n">Client</span><span class="p">(</span><span class="s2">&quot;http://localhost:8080&quot;</span><span class="p">)</span>
 <a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
 <a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="n">prompt</span> <span class="o">=</span> <span class="s2">&quot;Explain the significance of the moon landing in 1969.&quot;</span>
 <a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="c1"># Generate using the base model</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="c1"># 1. Generate using the base model (no adapter loaded)</span>
 <a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="n">base_response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">max_new_tokens</span><span class="o">=</span><span class="mi">80</span><span class="p">)</span>
 <a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Base model:&quot;</span><span class="p">,</span> <span class="n">base_response</span><span class="o">.</span><span class="n">generated_text</span><span class="p">)</span>
 <a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="c1"># Generate using a fine-tuned adapter</span>
-<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="n">adapter_response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>    <span class="n">prompt</span><span class="p">,</span>
-<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>    <span class="n">max_new_tokens</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span>
-<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>    <span class="n">adapter_id</span><span class="o">=</span><span class="s2">&quot;alignment-handbook/zephyr-7b-dpo-lora&quot;</span><span class="p">,</span>
-<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="p">)</span>
-<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;With adapter:&quot;</span><span class="p">,</span> <span class="n">adapter_response</span><span class="o">.</span><span class="n">generated_text</span><span class="p">)</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="c1"># 2. Generate using a fine-tuned adapter</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="c1"># The adapter_id can be a Hugging Face repo ID or a local path</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="n">adapter_response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>    <span class="n">prompt</span><span class="p">,</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>    <span class="n">max_new_tokens</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>    <span class="n">adapter_id</span><span class="o">=</span><span class="s2">&quot;alignment-handbook/zephyr-7b-dpo-lora&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="p">)</span>
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;With adapter:&quot;</span><span class="p">,</span> <span class="n">adapter_response</span><span class="o">.</span><span class="n">generated_text</span><span class="p">)</span>
 </code></pre></div>
 <p>The client supports streaming responses, adjusting decoding parameters (temperature, top-p, repetition penalty), and accessing token-level details. Check the <a href="https://github.com/predibase/lorax">client reference</a> for advanced usage patterns.</p>
 <h3 id="openai-compatible-endpoint">OpenAI-compatible endpoint</h3>
@@ -908,20 +944,21 @@ When you're done testing, free up the GPU resources:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">openai</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="c1"># Point the OpenAI client at LoRAX</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">openai</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="s2">&quot;EMPTY&quot;</span>  <span class="c1"># not used but required by the SDK</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">openai</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="s2">&quot;EMPTY&quot;</span>  <span class="c1"># LoRAX doesn&#39;t require an API key by default</span>
 <a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">openai</span><span class="o">.</span><span class="n">api_base</span> <span class="o">=</span> <span class="s2">&quot;http://localhost:8080/v1&quot;</span>
 <a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
 <a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># The model parameter becomes the adapter_id</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="n">response</span> <span class="o">=</span> <span class="n">openai</span><span class="o">.</span><span class="n">ChatCompletion</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>    <span class="n">model</span><span class="o">=</span><span class="s2">&quot;alignment-handbook/zephyr-7b-dpo-lora&quot;</span><span class="p">,</span>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>    <span class="n">messages</span><span class="o">=</span><span class="p">[</span>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>        <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;system&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;You are a friendly chatbot who speaks like a pirate.&quot;</span><span class="p">},</span>
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>        <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;How many parrots can a person own?&quot;</span><span class="p">},</span>
-<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>    <span class="p">],</span>
-<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>    <span class="n">max_tokens</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
-<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="p">)</span>
-<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>
-<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="p">[</span><span class="s2">&quot;choices&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s2">&quot;message&quot;</span><span class="p">][</span><span class="s2">&quot;content&quot;</span><span class="p">])</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="c1"># This allows seamless integration with tools like LangChain</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="n">response</span> <span class="o">=</span> <span class="n">openai</span><span class="o">.</span><span class="n">ChatCompletion</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>    <span class="n">model</span><span class="o">=</span><span class="s2">&quot;alignment-handbook/zephyr-7b-dpo-lora&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>    <span class="n">messages</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>        <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;system&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;You are a friendly chatbot who speaks like a pirate.&quot;</span><span class="p">},</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>        <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;How many parrots can a person own?&quot;</span><span class="p">},</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>    <span class="p">],</span>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>    <span class="n">max_tokens</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="p">)</span>
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="p">[</span><span class="s2">&quot;choices&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s2">&quot;message&quot;</span><span class="p">][</span><span class="s2">&quot;content&quot;</span><span class="p">])</span>
 </code></pre></div>
 <p>This compatibility unlocks two powerful use cases:</p>
 <ol>
@@ -931,43 +968,82 @@ When you're done testing, free up the GPU resources:</p>
 <p>Note that the first request to a new adapter may have higher latency while LoRAX downloads and loads it. Plan for this in user-facing applications by preloading popular adapters or showing loading states.</p>
 <h2 id="trade-offs-to-consider">Trade-offs to consider</h2>
 <h3 id="what-lorax-does-well">What LoRAX does well</h3>
-<p><strong>Dramatic cost reduction for multi-model scenarios</strong><br />
+<p><strong>Dramatic cost reduction for multi-model scenarios</strong>
 Serve hundreds or thousands of fine-tuned models on a single GPU. Traditional approaches would require separate deployments for each model, multiplying infrastructure costs linearly. LoRAX keeps costs nearly constant as you add adapters.</p>
-<p><strong>Zero memory waste</strong><br />
+<p><strong>Zero memory waste</strong>
 Adapters are loaded just-in-time when requests arrive. Unused models consume no VRAM. This means you can maintain a catalog of 1,000+ specialized models but only pay for the handful actively serving traffic at any moment.</p>
-<p><strong>Production-grade performance</strong><br />
+<p><strong>Production-grade performance</strong>
 Continuous multi-adapter batching keeps latency and throughput comparable to single-model serving. Predibase benchmarks show that serving 32 different adapters simultaneously adds minimal overhead compared to serving one model.</p>
-<p><strong>Proven foundation</strong><br />
+<p><strong>Proven foundation</strong>
 Built on Hugging Face TGI, LoRAX inherits battle-tested optimizations: FlashAttention 2, paged attention, streaming token generation, and SGMV kernels for efficient multi-adapter inference.</p>
-<p><strong>Deployment maturity</strong><br />
+<p><strong>Deployment maturity</strong>
 Ships with Docker images, Helm charts, Prometheus metrics, and OpenTelemetry tracing. The Apache 2.0 license means you can use it commercially without restrictions.</p>
-<p><strong>Broad model support</strong><br />
+<p><strong>Broad model support</strong>
 Works with popular open-source architectures: LLaMA 2, CodeLlama, Mistral, Mixtral, Qwen, and more. Supports quantization (4-bit via bitsandbytes, GPTQ, AWQ) to reduce memory footprint.</p>
 <h3 id="limitations-and-constraints">Limitations and constraints</h3>
-<p><strong>Tied to LoRA-based fine-tuning</strong><br />
+<p><strong>Tied to LoRA-based fine-tuning</strong>
 All your adapters must come from LoRA-style fine-tuning of the same base model. Full fine-tunes that produce standalone models won't work without conversion. If you have completely different model architectures, you'll need separate LoRAX deployments for each base.</p>
-<p><strong>Cold start latency</strong><br />
+<p><strong>Cold start latency</strong>
 The first request after startup loads the base model into GPU memory (can take 30-90 seconds for larger models). First-time adapter requests also incur a download delay if pulling from Hugging Face. Plan for this with health checks and preloading strategies.</p>
-<p><strong>Cache thrashing under bursty load</strong><br />
+<p><strong>Cache thrashing under bursty load</strong>
 If traffic suddenly hits dozens of different adapters, LoRAX may shuffle weights between GPU, CPU RAM, and disk. While adapter swaps are fast (~10ms from RAM), a very large working set can cause temporary slowdowns. Monitor GPU memory and adapter cache hit rates.</p>
-<p><strong>Fast-moving project</strong><br />
+<p><strong>Fast-moving project</strong>
 LoRAX forked from TGI in late 2023 and evolves rapidly. Expect frequent updates and occasional breaking changes as the maintainers track upstream TGI improvements and add new features. Pin versions carefully in production.</p>
+<h2 id="alternatives-lorax-vs-vllm">Alternatives: LoRAX vs. vLLM</h2>
+<p><a href="https://github.com/vllm-project/vllm">vLLM</a> is another popular high-throughput serving engine that recently added multi-LoRA support. How do they compare?</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Feature</th>
+<th style="text-align: left;">LoRAX</th>
+<th style="text-align: left;">vLLM</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Primary Focus</strong></td>
+<td style="text-align: left;"><strong>Massive Scale</strong>: Serving hundreds/thousands of adapters.</td>
+<td style="text-align: left;"><strong>High Throughput</strong>: Maximum tokens/sec for fewer active adapters.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Architecture</strong></td>
+<td style="text-align: left;"><strong>Dynamic Swapping</strong>: Aggressively offloads to CPU/disk.</td>
+<td style="text-align: left;"><strong>Batching</strong>: Optimized for concurrent execution of active adapters.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Best For</strong></td>
+<td style="text-align: left;"><strong>Long-tail SaaS</strong>: 1000s of tenants, sporadic usage.</td>
+<td style="text-align: left;"><strong>High-traffic tiers</strong>: 5-10 heavily used adapters.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Base</strong></td>
+<td style="text-align: left;">Hugging Face TGI</td>
+<td style="text-align: left;">Custom Paged Attention Engine</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Choose LoRAX if:</strong> You have a "long tail" of adapters (e.g., one per user) where most are idle at any given time. LoRAX's tiered caching excels here.</p>
+<p><strong>Choose vLLM if:</strong> You have a small set of highly active adapters and raw throughput is your top priority.</p>
 <h2 id="getting-started-a-practical-roadmap">Getting started: a practical roadmap</h2>
 <p>If LoRAX fits your use case, here's how to move from prototype to production:</p>
-<p><strong>1. Start small</strong><br />
-Deploy LoRAX with the base model you're already using and 3-5 representative adapters. Verify that adapter loading works and measure baseline latency for your workload.</p>
-<p><strong>2. Measure and profile</strong><br />
-- Track adapter cache hit rates and GPU memory usage under realistic traffic patterns
-- Identify your "hot" adapters (top 20% by request volume) and consider preloading them at startup
-- Measure P50, P95, and P99 latency for both cached and cold adapter loads</p>
-<p><strong>3. Optimize for your workload</strong><br />
-- If you have a few very popular adapters, increase GPU memory allocation to keep more adapters hot
-- If you have long-tail usage across hundreds of adapters, tune the tiered cache settings to balance RAM and disk
-- Use quantization (4-bit bitsandbytes or GPTQ) if VRAM is tight</p>
-<p><strong>4. Scale horizontally</strong><br />
-Once you understand single-instance behavior, add replicas for high availability. Place a load balancer in front that routes based on <code>adapter_id</code> to improve cache locality—requests for the same adapter hitting the same replica means better cache utilization.</p>
-<p><strong>5. Monitor continuously</strong><br />
-Set up dashboards for GPU utilization, adapter cache metrics, and request latency broken down by adapter. Watch for cache thrashing during traffic spikes and adjust your scaling strategy accordingly.</p>
+<h3 id="1-start-small">1. Start small</h3>
+<p>Deploy LoRAX with the base model you're already using and 3-5 representative adapters. Verify that adapter loading works and measure baseline latency for your workload.</p>
+<h3 id="2-measure-and-profile">2. Measure and profile</h3>
+<ul>
+<li>Track adapter cache hit rates and GPU memory usage under realistic traffic patterns</li>
+<li>Identify your "hot" adapters (top 20% by request volume) and consider preloading them at startup</li>
+<li>Measure P50, P95, and P99 latency for both cached and cold adapter loads</li>
+</ul>
+<h3 id="3-optimize-for-your-workload">3. Optimize for your workload</h3>
+<ul>
+<li>If you have a few very popular adapters, increase GPU memory allocation to keep more adapters hot</li>
+<li>If you have long-tail usage across hundreds of adapters, tune the tiered cache settings to balance RAM and disk</li>
+<li>Use quantization (4-bit bitsandbytes or GPTQ) if VRAM is tight</li>
+</ul>
+<h3 id="4-scale-horizontally">4. Scale horizontally</h3>
+<p>Once you understand single-instance behavior, add replicas for high availability. Place a load balancer in front that routes based on <code>adapter_id</code> to improve cache locality—requests for the same adapter hitting the same replica means better cache utilization.</p>
+<h3 id="5-monitor-continuously">5. Monitor continuously</h3>
+<p>Set up dashboards for GPU utilization, adapter cache metrics, and request latency broken down by adapter. Watch for cache thrashing during traffic spikes and adjust your scaling strategy accordingly.</p>
 <p>With LoRAX, orchestrating specialized LLM experiences becomes a matter of routing adapter IDs—not provisioning endless GPUs. The economics shift from linear scaling to near-constant costs, making multi-model serving viable even for small teams.</p>
 
 

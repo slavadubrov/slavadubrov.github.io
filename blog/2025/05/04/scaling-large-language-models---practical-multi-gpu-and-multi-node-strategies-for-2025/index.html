@@ -403,6 +403,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      Prerequisites
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#why-scaling-matters" class="md-nav__link">
     <span class="md-ellipsis">
       Why Scaling Matters
@@ -436,6 +445,21 @@
       1.2 Fully Sharded Data Parallelism (FSDP)
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="1.2 Fully Sharded Data Parallelism (FSDP)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-enabling-fsdp-in-pytorch" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example: Enabling FSDP in PyTorch
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -538,6 +562,21 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="3. Practical Tools Worth Learning">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-accelerate-config-for-fsdp" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example: Accelerate Config for FSDP
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -611,7 +650,7 @@
                       <li class="md-nav__item">
                         <div class="md-nav__link">
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M15 13h1.5v2.82l2.44 1.41-.75 1.3L15 16.69zm4-5H5v11h4.67c-.43-.91-.67-1.93-.67-3a7 7 0 0 1 7-7c1.07 0 2.09.24 3 .67zM5 21a2 2 0 0 1-2-2V5c0-1.11.89-2 2-2h1V1h2v2h8V1h2v2h1a2 2 0 0 1 2 2v6.1c1.24 1.26 2 2.99 2 4.9a7 7 0 0 1-7 7c-1.91 0-3.64-.76-4.9-2zm11-9.85A4.85 4.85 0 0 0 11.15 16c0 2.68 2.17 4.85 4.85 4.85A4.85 4.85 0 0 0 20.85 16c0-2.68-2.17-4.85-4.85-4.85"/></svg>
-                          <time datetime="2025-05-04 00:00:00+00:00" class="md-ellipsis">May 4, 2025</time>
+                          <time datetime="2025-11-24 00:00:00+00:00" class="md-ellipsis">November 24, 2025</time>
                         </div>
                       </li>
                     
@@ -674,6 +713,13 @@
 <p>This guide walks through practical strategies for scaling LLMs across multiple GPUs and nodes, incorporating insights from Hugging Face's <a href="https://huggingface.co/spaces/nanotron/ultrascale-playbook">Ultra-Scale Playbook</a>.</p>
 <!-- more -->
 
+<h2 id="prerequisites">Prerequisites</h2>
+<p>Before diving in, you should be familiar with:</p>
+<ul>
+<li><strong>Basic Deep Learning</strong>: Backpropagation, gradients, and optimizers (AdamW).</li>
+<li><strong>Transformer Architecture</strong>: Attention mechanisms, Feed-Forward Networks (FFN).</li>
+<li><strong>PyTorch Basics</strong>: <code>nn.Module</code>, <code>DataLoader</code>, and the training loop.</li>
+</ul>
 <h2 id="why-scaling-matters">Why Scaling Matters</h2>
 <p>Modern LLMs have outgrown single GPUs. Here's why scaling is no longer optional:</p>
 <ul>
@@ -700,23 +746,7 @@
 <li>You need the simplest distributed setup with minimal code changes</li>
 </ul>
 <p><strong>Limitation:</strong> Memory inefficient - every GPU stores the full model, so you're not saving memory, just increasing throughput.</p>
-<pre class="mermaid"><code>flowchart LR
-    subgraph DataLoader
-        D[Global batch] --&gt; |split| MB1[Micro-batch 1]
-        D[Global batch] --&gt; |split| MB2[Micro-batch 2]
-        D[Global batch] --&gt; |split| MBN[Micro-batch N]
-    end
-    subgraph GPU1
-        MB1[Micro-batch 1] --&gt; M1[Model copy]
-    end
-    subgraph GPU2
-        MB2[Micro-batch 2] --&gt; M2[Model copy]
-    end
-    subgraph GPUN
-        MBN[Micro-batch N] --&gt; MN[Model copy]
-    end
-    M1[Model copy] &amp; M2[Model copy] &amp; MN[Model copy] --&gt; G[All-reduce -&gt; average gradients]
-    G[All-reduce -&gt; average gradients] --&gt; U[Synchronised weight update]</code></pre>
+<p><img alt="Data Parallelism" src="../../../../assets/2025-05-04-scaling-llms/data_parallelism.svg" /></p>
 <p><strong>Tools</strong>: <a href="https://pytorch.org/docs/stable/notes/ddp.html">PyTorch DDP</a>, <a href="https://horovod.ai/">Horovod</a>.</p>
 <h3 id="12-fully-sharded-data-parallelism-fsdp">1.2 Fully Sharded Data Parallelism (FSDP)</h3>
 <p><strong>The idea:</strong> Like Data Parallelism, but memory-efficient. Each worker keeps only part of the instruction manual and borrows pages from colleagues when needed.</p>
@@ -735,39 +765,30 @@
 <li>You're working on a single machine with multiple GPUs</li>
 </ul>
 <p><strong>Real-world impact:</strong> FSDP lets you train models 4-8x larger than what fits on one GPU.</p>
-<pre class="mermaid"><code>flowchart TD
-    %% GPU-local state
-    subgraph "GPU 1"
-        direction TB
-        P1[Param shard P₁]
-        G1[Grad shard G₁]
-        O1[Opt shard O₁]
-    end
-    subgraph "GPU 2"
-        direction TB
-        P2[Param shard P₂]
-        G2[Grad shard G₂]
-        O2[Opt shard O₂]
-    end
-    subgraph "GPU N"
-        direction TB
-        PN[Param shard Pₙ]
-        GN[Grad shard Gₙ]
-        ON[Opt shard Oₙ]
-    end
-
-    %% Mini-batch pipeline
-    start([Start micro-batch]) --&gt; gather[Step 1: All-Gather]
-    gather --&gt; fwd[Step 2: Forward compute]
-    fwd --&gt; reshard[Step 3: Re-shard P]
-    reshard --&gt; bwd[Step 4: Backward compute]
-    bwd --&gt; reduce[Step 5: Reduce-Scatter]
-    reduce --&gt; update[Step 6: Optimizer update]
-
-    %% Collective edges (dotted to indicate broadcast)
-    P1 -.-&gt; gather
-    P2 -.-&gt; gather
-    PN -.-&gt; gather</code></pre>
+<p><img alt="FSDP" src="../../../../assets/2025-05-04-scaling-llms/fsdp.svg" /></p>
+<blockquote>
+<p>[!NOTE] &gt; <strong>Understanding ZeRO Stages</strong>
+FSDP is often described in terms of "ZeRO stages" (Zero Redundancy Optimizer):</p>
+<ul>
+<li><strong>Stage 1</strong>: Shard optimizer states only (4x memory savings).</li>
+<li><strong>Stage 2</strong>: Shard gradients + optimizer states (8x memory savings).</li>
+<li><strong>Stage 3</strong>: Shard parameters + gradients + optimizer states (Linear memory savings with N GPUs).</li>
+</ul>
+<p>PyTorch FSDP defaults to Stage 3 behavior.</p>
+</blockquote>
+<h4 id="example-enabling-fsdp-in-pytorch">Example: Enabling FSDP in PyTorch</h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">torch.distributed.fsdp</span><span class="w"> </span><span class="kn">import</span> <span class="n">FullyShardedDataParallel</span> <span class="k">as</span> <span class="n">FSDP</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># 1. Wrap your model</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">model</span> <span class="o">=</span> <span class="n">MyLLM</span><span class="p">()</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">model</span> <span class="o">=</span> <span class="n">FSDP</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># 2. Train as usual</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">output</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">loss</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+</code></pre></div>
 <p><strong>Tools</strong>: <a href="https://pytorch.org/docs/stable/fsdp.html">PyTorch FSDP</a>, <a href="https://www.deepspeed.ai/tutorials/zero/">DeepSpeed ZeRO-3</a>.</p>
 <h3 id="13-tensor-parallelism-tp">1.3 Tensor Parallelism (TP)</h3>
 <p><strong>The idea:</strong> Split individual layers across GPUs - like dividing a massive spreadsheet calculation where each person computes a few columns.</p>
@@ -785,19 +806,7 @@
 <li>You're working within a single node (TP doesn't scale well across nodes due to communication overhead)</li>
 </ul>
 <p><strong>Sweet spot:</strong> TP degree of 2-8 within a single machine with NVLink.</p>
-<pre class="mermaid"><code>flowchart LR
-    A[X activations] --&gt; |broadcast| X1[GPU1]
-    A --&gt; |broadcast| X2[GPU2]
-    A --&gt; |broadcast| XN[GPUN]
-    subgraph ShardedWeights
-        W1[W shard₁] --- X1
-        W2[W shard₂] --- X2
-        WN[W shardₙ] --- XN
-    end
-    X1 --&gt; P1[Partial Y₁]
-    X2 --&gt; P2[Partial Y₂]
-    XN --&gt; PN[Partial Yₙ]
-    P1 &amp; P2 &amp; PN --&gt; C[Concat / reduce -&gt; Y]</code></pre>
+<p><img alt="Tensor Parallelism" src="../../../../assets/2025-05-04-scaling-llms/tensor_parallelism.svg" /></p>
 <p><strong>Tools</strong>: <a href="https://github.com/NVIDIA/Megatron-LM">Megatron-LM</a>, <a href="https://github.com/NVIDIA/TensorRT-LLM">TensorRT-LLM</a>, <a href="https://github.com/hpcaitech/ColossalAI">ColossalAI</a>.</p>
 <h3 id="14-pipeline-parallelism-pp">1.4 Pipeline Parallelism (PP)</h3>
 <p><strong>The idea:</strong> Split the model vertically by layers - like an assembly line where each station handles specific layers.</p>
@@ -815,17 +824,7 @@
 <li>Combined with TP and FSDP for massive models</li>
 </ul>
 <p><strong>Challenge:</strong> Pipeline "bubbles" (idle time) at the start and end of each batch. Use multiple micro-batches to minimize this.</p>
-<pre class="mermaid"><code>sequenceDiagram
-    participant S0 as GPU-Stage 0 (Layers 1-4)
-    participant S1 as GPU-Stage 1 (Layers 5-8)
-    participant S2 as GPU-Stage 2 (Layers 9-12)
-    Note over S0,S2: ← time -&gt;
-    S0-&gt;&gt;S0: Fwd/Bwd µ-batch 0
-    S0-&gt;&gt;S1: send activations
-    S1-&gt;&gt;S1: Fwd/Bwd µ-batch 0
-    S1-&gt;&gt;S2: send activations
-    S0-&gt;&gt;S0: Fwd/Bwd µ-batch 1
-    S2-&gt;&gt;S2: Fwd/Bwd µ-batch 0</code></pre>
+<p><img alt="Pipeline Parallelism" src="../../../../assets/2025-05-04-scaling-llms/pipeline_parallelism.svg" /></p>
 <p><strong>Tools</strong>: <a href="https://www.deepspeed.ai/tutorials/pipeline/">DeepSpeed PP</a>, <a href="https://github.com/NVIDIA/Megatron-LM">Megatron-LM</a>, <a href="https://arxiv.org/abs/1811.06965">GPipe</a>.</p>
 <h3 id="15-context-parallelism-cp">1.5 Context Parallelism (CP)</h3>
 <p><strong>The idea:</strong> For handling extremely long sequences - different people read different paragraphs of a book, then share key information.</p>
@@ -843,41 +842,7 @@
 <li>When context length is the bottleneck, not model size</li>
 </ul>
 <p><strong>Real-world impact:</strong> Context Parallelism enables 100K+ token processing on consumer hardware that would otherwise max out at 8K tokens.</p>
-<pre class="mermaid"><code>flowchart LR
-    subgraph Input["Input Sequence"]
-        S[Sequence 0-8191 tokens]
-    end
-
-    subgraph CrossGPU["Cross-GPU Processing"]
-        direction LR
-        subgraph GPU1["GPU 1"]
-            direction TB
-            T0[Tokens 0-4095]
-            A0[Self-Attention Block]
-            T0 --&gt; A0
-        end
-
-        subgraph GPU2["GPU 2"]
-            direction TB
-            T1[Tokens 4096-8191]
-            A1[Self-Attention Block]
-            T1 --&gt; A1
-        end
-
-        GPU1 &lt;--&gt;|Exchange Keys/Values| GPU2
-    end
-
-    subgraph Output["Output Processing"]
-        M[Merge Logits]
-        O[Output Sequence]
-        M --&gt; O
-    end
-
-    S --&gt; |Split| T0
-    S --&gt; |Split| T1
-
-    A0 --&gt; M
-    A1 --&gt; M</code></pre>
+<p><img alt="Context Parallelism" src="../../../../assets/2025-05-04-scaling-llms/context_parallelism.svg" /></p>
 <p><strong>Tools</strong>: <a href="https://github.com/huggingface/picotron">Picotron</a>, <a href="https://github.com/huggingface/nanotron">Nanotron</a>.</p>
 <h3 id="16-expert-parallelism-mixture-of-experts-moe">1.6 Expert Parallelism (Mixture of Experts - MoE)</h3>
 <p><strong>The idea:</strong> Specialized consultants - instead of activating the entire model for every input, each token gets routed only to the "experts" it needs.</p>
@@ -896,26 +861,7 @@
 </ul>
 <p><strong>Real-world examples:</strong> Mixtral-8x7B (56B total params, 13B active), Grok, DeepSeek-V2.</p>
 <p><strong>Trade-off:</strong> More parameters with less compute per token, but training can be trickier due to load balancing between experts.</p>
-<pre class="mermaid"><code>flowchart LR
-    subgraph Input_Tokens["Input Tokens"]
-        T1["T₁"]
-        T2["T₂"]
-        T3["T₃"]
-    end
-    G["Gating Network"]
-    subgraph Experts["Experts"]
-        E1["Expert 1"]
-        E2["Expert 2"]
-        E3["Expert 3"]
-        E4["⋯"]
-    end
-    T1 --&gt; G
-    T2 --&gt; G
-    T3 --&gt; G
-    G --&gt;|top-k routes| E1
-    G --&gt;|top-k routes| E2
-    G --&gt;|top-k routes| E3
-    E1 &amp; E2 &amp; E3 --&gt; O["Concatenate + Mix"]</code></pre>
+<p><img alt="Mixture of Experts" src="../../../../assets/2025-05-04-scaling-llms/moe.svg" /></p>
 <p><strong>Tools</strong>: <a href="https://github.com/huggingface/picotron">Picotron</a>, <a href="https://github.com/huggingface/nanotron">Nanotron</a>.</p>
 <h3 id="quick-comparison-which-parallelism-should-you-use">Quick Comparison: Which Parallelism Should You Use?</h3>
 <table>
@@ -1088,6 +1034,23 @@
 </tr>
 </tbody>
 </table>
+<h4 id="example-accelerate-config-for-fsdp">Example: Accelerate Config for FSDP</h4>
+<p>To get started with FSDP using Hugging Face Accelerate, you can run <code>accelerate config</code> or create a <code>config.yaml</code> like this:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">compute_environment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LOCAL_MACHINE</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nt">distributed_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">FSDP</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nt">fsdp_config</span><span class="p">:</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">fsdp_auto_wrap_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRANSFORMER_BASED_WRAP</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">fsdp_backward_prefetch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">BACKWARD_PRE</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">fsdp_state_dict_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SHARDED_STATE_DICT</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="nt">machine_rank</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="nt">main_process_ip</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="nt">main_process_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="nt">main_training_function</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="nt">mixed_precision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bf16</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="nt">num_machines</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="nt">num_processes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="nt">use_cpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</code></pre></div>
 <p><strong>My recommendation for getting started:</strong> Start with Hugging Face Accelerate for learning, then graduate to PyTorch FSDP or DeepSpeed when you need more control.</p>
 <h2 id="4-making-the-right-choice-a-decision-framework">4. Making the Right Choice: A Decision Framework</h2>
 <p>Still not sure what to use? Follow this decision tree:</p>
@@ -1114,44 +1077,10 @@
 <li>If you have 100+ GPUs and long contexts: Consider 4D parallelism (TP + PP + DP + CP)</li>
 </ul>
 <p><strong>Visual decision tree:</strong></p>
-<pre class="mermaid"><code>flowchart TD
-    start([Start: Need to scale LLM?]) --&gt; fit{Model fits on&lt;br/&gt;single GPU?}
-
-    fit --&gt;|Yes| done1[✅ Standard training&lt;br/&gt;No parallelism needed]
-    fit --&gt;|No| multi{Multiple GPUs&lt;br/&gt;in one machine?}
-
-    multi --&gt;|No| cluster[Need cluster or&lt;br/&gt;smaller model]
-    multi --&gt;|Yes| fsdp[Start with FSDP]
-
-    fsdp --&gt; enough{FSDP enough?}
-    enough --&gt;|Yes| done2[✅ Use pure FSDP]
-    enough --&gt;|Layers too big| tp[Add TP=2 or TP=4&lt;br/&gt;within node]
-    enough --&gt;|Context too long| cp[Add Context&lt;br/&gt;Parallelism]
-
-    tp --&gt; done3[✅ Use FSDP + TP]
-    cp --&gt; done4[✅ Use FSDP + CP]
-
-    cluster --&gt; multinode[Multi-node setup]
-    multinode --&gt; hybrid[TP inside nodes&lt;br/&gt;+ FSDP across nodes]
-
-    hybrid --&gt; depth{Model very&lt;br/&gt;deep?}
-    depth --&gt;|No| done5[✅ Use 2D: TP + FSDP]
-    depth --&gt;|Yes| pp[Add Pipeline&lt;br/&gt;Parallelism]
-
-    pp --&gt; scale{100+ GPUs +&lt;br/&gt;long context?}
-    scale --&gt;|No| done6[✅ Use 3D: TP + PP + FSDP]
-    scale --&gt;|Yes| done7[✅ Use 4D: TP + PP + DP + CP]
-
-    style done1 fill:#90EE90
-    style done2 fill:#90EE90
-    style done3 fill:#90EE90
-    style done4 fill:#90EE90
-    style done5 fill:#90EE90
-    style done6 fill:#90EE90
-    style done7 fill:#90EE90</code></pre>
+<p><img alt="Scaling Decision Tree" src="../../../../assets/2025-05-04-scaling-llms/scaling_decision_tree.svg" /></p>
 <h2 id="5-the-ultra-scale-cheatsheet">5. The Ultra-Scale Cheatsheet</h2>
 <p>For a comprehensive visual summary, check out this guide from Hugging Face's team:</p>
-<p><img alt="Ultra-Scale LLM Cheatsheet" src="https://nanotron-ultrascale-playbook.static.hf.space/dist/assets/images/ultra-cheatsheet.svg" /></p>
+<p><img alt="Ultra-Scale LLM Cheatsheet" src="https://nanotron-ultrascale-playbook.static.hf.space/assets/images/ultra-cheatsheet.svg" /></p>
 <h2 id="conclusion">Conclusion</h2>
 <p>Scaling LLMs is both an art and a science. The key takeaways:</p>
 <ol>
