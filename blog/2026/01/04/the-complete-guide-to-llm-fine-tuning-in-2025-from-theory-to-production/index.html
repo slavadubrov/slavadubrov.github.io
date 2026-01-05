@@ -1757,14 +1757,25 @@ It's not just VRAM—it's <strong>FP8 precision</strong>. H100s support native F
 <h2 id="fine-tuning-frameworks">Fine-Tuning Frameworks</h2>
 <p>The ecosystem has consolidated around four major tools:</p>
 <h3 id="unsloth-speed-efficiency-champion">Unsloth — Speed &amp; Efficiency Champion</h3>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">unsloth</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastLanguageModel</span>
+<p>Unsloth uses HuggingFace packages (<code>trl</code> and <code>transformers</code>) under the hood but adds additional optimizations:</p>
+<ul>
+<li><strong>Custom Triton kernels</strong> — Hand-written GPU kernels for attention, RoPE, and cross-entropy that bypass PyTorch overhead</li>
+<li><strong>Memory-efficient backpropagation</strong> — Recomputes activations during backward pass instead of storing them</li>
+<li><strong>Fused operations</strong> — Combines multiple operations (layer norm + linear, etc.) into single GPU calls</li>
+<li><strong>4-bit quantization integration</strong> — Seamless QLoRA with optimized dequantization</li>
+</ul>
+<blockquote>
+<p>[!IMPORTANT] <strong>Import Order Matters</strong>
+Because Unsloth patches HuggingFace packages, you <strong>must</strong> import and initialize Unsloth's <code>FastLanguageModel</code> <strong>before</strong> importing <code>trl</code> or <code>transformers</code>. Incorrect import order will cause failures.</p>
+</blockquote>
+<div class="highlight"><pre><span></span><code><span class="c1"># ✅ Correct order</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">unsloth</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastLanguageModel</span>  <span class="c1"># Must be first!</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">trl</span><span class="w"> </span><span class="kn">import</span> <span class="n">SFTTrainer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">transformers</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrainingArguments</span>
 
-<span class="c1"># 2x faster training, 60% less VRAM</span>
-<span class="n">model</span><span class="p">,</span> <span class="n">tokenizer</span> <span class="o">=</span> <span class="n">FastLanguageModel</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span>
-    <span class="n">model_name</span><span class="o">=</span><span class="s2">&quot;unsloth/llama-3-8b-bnb-4bit&quot;</span><span class="p">,</span>
-    <span class="n">max_seq_length</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span>
-    <span class="n">load_in_4bit</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<span class="p">)</span>
+<span class="c1"># ❌ Wrong order - will fail</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">trl</span><span class="w"> </span><span class="kn">import</span> <span class="n">SFTTrainer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">unsloth</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastLanguageModel</span>  <span class="c1"># Too late!</span>
 </code></pre></div>
 <p><strong>Best for:</strong> Single-GPU training, prototyping, Colab notebooks, anyone paying for GPU hours.</p>
 <p><strong>Key advantage:</strong> Custom Triton kernels make it 2-5x faster than standard HuggingFace implementations.</p>
@@ -1908,6 +1919,10 @@ Industry best practice in 2025: set <strong>alpha = 2 × rank</strong> (e.g., ra
 </code></pre></div>
 <hr />
 <h2 id="fine-tuning-with-axolotl">Fine-Tuning with Axolotl</h2>
+<blockquote>
+<p>[!NOTE] <strong>Demo Coming Soon</strong>
+I'm currently working on a hands-on Axolotl demo—stay tuned! In the meantime, check out the <a href="https://huggingface.co/blog/accelerate-nd-parallel">Accelerate n-D Parallelism Guide</a> from Hugging Face for multi-GPU training strategies.</p>
+</blockquote>
 <p>For production and multi-GPU setups, Axolotl's config-first approach excels:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># axolotl_config.yaml</span>
 <span class="nt">base_model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">meta-llama/Meta-Llama-3-8B</span>
@@ -2093,6 +2108,7 @@ ollama<span class="w"> </span>run<span class="w"> </span>my-function-model
 <ul>
 <li><a href="https://github.com/slavadubrov/unsloth-finetune-demo">Demo Repository</a> — Practical fine-tuning example</li>
 <li><a href="https://notebooklm.google.com/notebook/f6bfdb56-8949-4929-87e4-ab6dee31a4a8">LLM Fine-Tuning. Theoretical Intuition and Practical Implementation</a> — NotebookLM research notebook</li>
+<li><a href="https://huggingface.co/blog/accelerate-nd-parallel">Accelerate n-D Parallelism Guide</a> — Hugging Face multi-GPU training strategies</li>
 </ul>
 
 
