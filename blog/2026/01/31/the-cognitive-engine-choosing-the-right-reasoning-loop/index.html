@@ -1,0 +1,1999 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Part 1 of Engineering the Agentic Stack – comparing ReAct, ReWOO, and Plan-and-Execute patterns with production code">
+      
+      
+        <meta name="author" content="Viacheslav Dubrov">
+      
+      
+        <link rel="canonical" href="https://slavadubrov.github.io/blog/2026/01/31/the-cognitive-engine-choosing-the-right-reasoning-loop/">
+      
+      
+        <link rel="prev" href="../../21/mhc-how-deepseek-scaled-residual-connections-without-breaking-training/">
+      
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="RSS feed" href="../../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="RSS feed of updated content" href="../../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../../assets/favicon-eoc.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.23">
+    
+    
+      
+        <title>The Cognitive Engine: Choosing the Right Reasoning Loop - Edge of Context: Practical AI Engineering</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/brand.css">
+    
+      <link rel="stylesheet" href="../../../../../assets/blog-sidebar.css">
+    
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+     
+<style>
+  /* Header social icons */
+  .md-header__social {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 0.5rem;
+  }
+  .md-header__social a {
+    color: var(--md-primary-bg-color);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+  .md-header__social a:hover {
+    opacity: 1;
+  }
+  .md-header__social svg {
+    width: 1.2rem;
+    height: 1.2rem;
+    fill: currentColor;
+  }
+  /* Adjust search to make room for social icons */
+  .md-search {
+    margin-right: 0;
+  }
+</style>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#the-cognitive-engine-choosing-the-right-reasoning-loop" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+     
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../../.." title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Edge of Context: Practical AI Engineering
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              The Cognitive Engine: Choosing the Right Reasoning Loop
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../../../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Blog
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../about/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  About
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+<script>
+  // Inject social icons into header after DOM loads
+  document.addEventListener("DOMContentLoaded", function () {
+    const header = document.querySelector(".md-header__inner");
+    if (header) {
+      const social = document.createElement("div");
+      social.className = "md-header__social";
+      social.innerHTML = `
+      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
+      </a>
+      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
+      </a>
+      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+      </a>
+    `;
+      header.appendChild(social);
+    }
+  });
+</script>
+
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../.." title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    Edge of Context: Practical AI Engineering
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    Blog
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Blog
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Archive
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            Archive
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../archive/2026/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2026
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../archive/2025/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2025
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Topics
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            Topics
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/ai-engineering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AI Engineering
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/agentic-ai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Agentic AI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/infrastructure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Infrastructure
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/paper-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Paper Review
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/python/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Python
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/tooling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tooling
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    About
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-shift-from-prompts-to-systems" class="md-nav__link">
+    <span class="md-ellipsis">
+      The Shift from Prompts to Systems
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#three-reasoning-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Three Reasoning Patterns
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Three Reasoning Patterns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#react-think-act-observe-repeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      ReAct: Think, Act, Observe, Repeat
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rewoo-plan-everything-upfront" class="md-nav__link">
+    <span class="md-ellipsis">
+      ReWOO: Plan Everything Upfront
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plan-and-execute-the-best-of-both" class="md-nav__link">
+    <span class="md-ellipsis">
+      Plan-and-Execute: The Best of Both
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-decision-framework" class="md-nav__link">
+    <span class="md-ellipsis">
+      The Decision Framework
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Decision Framework">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-react-the-think-as-you-go-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. ReAct: The "Think-as-you-go" Pattern
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-plan-and-execute-the-mission-oriented-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Plan-and-Execute: The "Mission-Oriented" Pattern
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-rewoo-reasoning-without-observation-the-compiler-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. ReWOO (Reasoning Without Observation): The "Compiler" Pattern
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#summary-which-to-choose" class="md-nav__link">
+    <span class="md-ellipsis">
+      Summary: Which to choose?
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#real-world-context-the-market-analyst-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      Real-World Context: The Market Analyst Agent
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Real-World Context: The Market Analyst Agent">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#state-definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      State Definition
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattern-1-plan-and-execute-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pattern 1: Plan-and-Execute Implementation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattern-2-react-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pattern 2: ReAct Execution
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattern-3-rewoo-for-fast-snapshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pattern 3: ReWOO for Fast Snapshots
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pattern 3: ReWOO for Fast Snapshots">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#understanding-the-code-how-each-pattern-works-differently" class="md-nav__link">
+    <span class="md-ellipsis">
+      Understanding the Code: How Each Pattern Works Differently
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#putting-it-all-together-wiring-the-graph" class="md-nav__link">
+    <span class="md-ellipsis">
+      Putting It All Together: Wiring the Graph
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automatic-pattern-selection-with-a-router" class="md-nav__link">
+    <span class="md-ellipsis">
+      Automatic Pattern Selection with a Router
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Takeaways
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#whats-next" class="md-nav__link">
+    <span class="md-ellipsis">
+      What's Next
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      References
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+<div class="md-content md-content--post" data-md-component="content">
+  <div
+    class="md-sidebar md-sidebar--post"
+    data-md-component="sidebar"
+    data-md-type="navigation"
+  >
+    <div class="md-sidebar__scrollwrap">
+      <div class="md-sidebar__inner md-post">
+        <nav class="md-nav md-nav--primary">
+          <div class="md-post__back">
+            <div class="md-nav__title md-nav__container">
+              <a href="../../../../" class="md-nav__link">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+                <span class="md-ellipsis"> Back to index </span>
+              </a>
+            </div>
+          </div>
+
+          
+          <ul class="md-post__meta md-nav__list">
+            <li class="md-nav__item md-nav__item--section">
+              <div class="md-post__title">
+                <span class="md-ellipsis">Topics</span>
+              </div>
+              <nav class="md-nav">
+                  
+                     
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      ></span
+                    >
+                    <span class="blog-category-name">AI
+                Engineering</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                       
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section blog-category-section--active"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🦾</span
+                    >
+                    <span class="blog-category-name">Agentic AI</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post blog-category-post--active"
+                    >
+                      <a href="./">The Cognitive Engine: Choosing the Right Reasoning Loop</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../11/enterprise-rag-challenge-3-winning-approaches-for-autonomous-ai-agents/">Enterprise RAG Challenge 3: Winning Approaches for Autonomous AI Agents</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/12/28/schema-guided-reasoning-on-vllm--turning-llms-into-reliable-business-logic-engines/">Schema-Guided Reasoning on vLLM — Turning LLMs into Reliable Business Logic Engines</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/20/domain-driven-design-for-ai-agents-a-beginner-friendly-guide/">Domain-driven design for AI agents: a beginner-friendly guide</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/05/context-engineering-in-the-agenticai-era--and-how-to-cook-it/">Context Engineering in the Agentic‑AI Era — and How to Cook It</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🔧</span
+                    >
+                    <span class="blog-category-name">Infrastructure</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/06/mlops-in-the-age-of-foundation-models-evolving-infrastructure-for-llms-and-beyond/">MLOps in the Age of Foundation Models. Evolving Infrastructure for LLMs and Beyond</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >📄</span
+                    >
+                    <span class="blog-category-name">Paper Review</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../21/mhc-how-deepseek-scaled-residual-connections-without-breaking-training/">mHC: How DeepSeek Scaled Residual Connections Without Breaking Training</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🐍</span
+                    >
+                    <span class="blog-category-name">Python</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/08/the-ultimate-guide-to-pyprojecttoml/">The Ultimate Guide to `pyproject.toml`</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/04/17/quick-guide-managing-python-on-macos-with-uv/">Quick Guide: Managing Python on macOS with uv</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🛠️</span
+                    >
+                    <span class="blog-category-name">Tooling</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/06/10/building-a-custom-featurestorelite-mcp-server-using-uv/">Building a Custom FeatureStoreLite MCP Server Using uv</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/10/quick-guide-on-local-stable-diffusion-toolkits-for-macos/">Quick-guide on Local Stable-Diffusion Toolkits for macOS</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/07/mastering-zsh-startup-zprofile-vs-zshrc-/">Mastering Zsh Startup: ~/.zprofile vs ~/.zshrc 🚀</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/04/19/quick-guide-on-setting-up-a-macbook-for-ai-engineering/">Quick-Guide on setting up a MacBook for AI Engineering</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                
+              </nav>
+            </li>
+          </ul>
+
+          
+        </nav>
+        
+      </div>
+    </div>
+  </div>
+  <article class="md-content__inner md-typeset">
+     
+  
+
+
+
+
+<h1 id="the-cognitive-engine-choosing-the-right-reasoning-loop">The Cognitive Engine: Choosing the Right Reasoning Loop</h1>
+<p><strong>Part 1 of the Engineering the Agentic Stack series</strong></p>
+<p>Building production AI agents is no longer about prompt engineering—it's about <em>system engineering</em>. The difference between a demo that impresses and a product that delivers comes down to one critical decision: how your agent thinks.</p>
+<p>This post introduces three reasoning loop architectures and shows you how to choose between them. I'll use a production-grade Market Analyst Agent as the running example, with code you can use today.</p>
+<!-- more -->
+
+<h2 id="the-shift-from-prompts-to-systems">The Shift from Prompts to Systems</h2>
+<p>A year ago, making an LLM useful meant crafting the perfect prompt. Today, that's table stakes. The agents that work in production are <em>systems</em>—carefully orchestrated graphs of reasoning, tool use, and memory.</p>
+<p>🧠 At the heart of every agent system sits the <strong>cognitive engine</strong>: the reasoning loop that determines how your agent thinks, acts, and adapts. Choose wrong, and you'll burn tokens on unnecessary LLM calls, frustrate users with latency, or watch your agent crumble at the first unexpected tool result.</p>
+<h2 id="three-reasoning-patterns">Three Reasoning Patterns</h2>
+<p><img alt="Reasoning Patterns Comparison" src="../../../../assets/2026-01-31-reasoning-loops/reasoning-patterns-comparison.svg" /></p>
+<h3 id="react-think-act-observe-repeat">ReAct: Think, Act, Observe, Repeat</h3>
+<p>Considered the foundational design pattern for interactive AI agents (Yao et al., 2022), <a href="https://arxiv.org/abs/2210.03629">ReAct</a> mimics human problem-solving through a continuous cycle:</p>
+<ol>
+<li><strong>Thought</strong>: The agent generates a "thought" to break down the goal and plan the next step.</li>
+<li><strong>Action</strong>: Based on the thought, it calls a tool.</li>
+<li><strong>Observation</strong>: The agent sees the result, which updates its understanding.</li>
+</ol>
+<p><img alt="ReAct Pattern" src="../../../../assets/2026-01-31-reasoning-loops/react-pattern.svg" /></p>
+<p><strong>Pros:</strong></p>
+<ul>
+<li><strong>Reduced Hallucinations:</strong> Grounding in observations reduces the likelihood of making up facts.</li>
+<li><strong>Adaptability:</strong> The agent can adjust its strategy on the fly based on previous steps.</li>
+<li><strong>Explainability:</strong> The "scratchpad" offers a transparent audit trail of the agent's reasoning.</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li><strong>Latency and Cost:</strong> History accumulates and must be re-processed at every step.</li>
+<li><strong>Inefficient for predictable tasks:</strong> Patterns like <strong>ReWOO</strong> are better when tool calls can be planned upfront.</li>
+<li><strong>Looping structure:</strong> Can act indefinitely without proper constraints.</li>
+</ul>
+<p>🔍 <strong>Best for:</strong> Exploratory tasks, debugging, situations requiring real-time adaptation.</p>
+<h3 id="rewoo-plan-everything-upfront">ReWOO: Plan Everything Upfront</h3>
+<p><a href="https://arxiv.org/abs/2305.18323">ReWOO</a> (Reasoning WithOut Observation) is an optimization of the ReAct paradigm designed to improve efficiency by decoupling reasoning from tool execution. While ReAct stops to observe the result of every action, ReWOO plans the entire sequence of tool calls in a single pass.</p>
+<ol>
+<li><strong>Plan (Upfront Reasoning)</strong>: The agent generates a full plan of tool calls using variable placeholders (e.g., <code>#E1</code>, <code>#E2</code>) to represent future outputs.</li>
+<li><strong>Worker (Execution)</strong>: A separate module executes the planned tool calls in sequence (or parallel), filling the placeholders with real data.</li>
+<li><strong>Solver (Synthesis)</strong>: A final LLM call takes all gathered observations and synthesizes the final answer.</li>
+</ol>
+<p><img alt="ReWOO Pattern" src="../../../../assets/2026-01-31-reasoning-loops/rewoo-pattern.svg" /></p>
+<p><strong>Pros:</strong></p>
+<ul>
+<li><strong>Token Efficiency:</strong> Can achieve up to 5x token efficiency by avoiding repetitive "Thought-Action-Observation" loops.</li>
+<li><strong>Low Latency:</strong> Eliminates the need to re-submit history at every step.</li>
+<li><strong>Modular Training:</strong> The planner can be fine-tuned independently without a live environment.</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li><strong>Rigidity:</strong> Assumes tools will work as expected; less forgiving of unexpected results.</li>
+<li><strong>Predictability Requirement:</strong> Best for routine, templated workflows.</li>
+<li><strong>Error Handling:</strong> A naive agent may fail if a plan is flawed unless fallback logic is added.</li>
+</ul>
+<p>⚡ <strong>Best for:</strong> Quick snapshots, status checks, dashboards—tasks with predictable tool results.</p>
+<h3 id="plan-and-execute-the-best-of-both">Plan-and-Execute: The Best of Both</h3>
+<p><a href="https://arxiv.org/abs/2305.04091">Plan-and-Execute</a> sits at the sweet spot. The paper defines the core logic that modern agent architectures follow:</p>
+<ol>
+<li><strong>Planning Phase</strong>: The agent first generates a plan to divide a task into smaller sub-tasks.</li>
+<li><strong>Execution Phase</strong>: The agent then carries out those sub-tasks according to the generated plan.</li>
+</ol>
+<p>While the original paper focused on zero-shot prompting, modern implementations (like LangGraph) have expanded this into a full orchestration pattern with <strong>sequential execution</strong> and <strong>model specialization</strong>.</p>
+<p><img alt="Plan-and-Execute Pattern" src="../../../../assets/2026-01-31-reasoning-loops/plan-execute-pattern.svg" /></p>
+<p><strong>Pros:</strong></p>
+<ul>
+<li><strong>Hierarchical reasoning:</strong> Mimics how experts work</li>
+<li><strong>Dynamic re-planning:</strong> Can pause and reassess if a step returns unexpected results</li>
+<li><strong>Model efficiency:</strong> Use a high-reasoning model for planning and a cheaper one for execution</li>
+<li><strong>Resilience:</strong> Bounded complexity with clear checkpoints</li>
+</ul>
+<p><strong>Cons:</strong></p>
+<ul>
+<li><strong>Higher latency:</strong> Sequential execution steps are slower than ReWOO</li>
+<li><strong>Implementation complexity:</strong> Requires nuanced state management</li>
+<li><strong>Overkill:</strong> Too heavy for simple queries</li>
+</ul>
+<p>🎯 <strong>Best for:</strong> Complex multi-step analysis, research tasks, anything requiring synthesis.</p>
+<h2 id="the-decision-framework">The Decision Framework</h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th><strong>ReAct</strong> (2022)</th>
+<th><strong>Plan-and-Execute</strong> (2023)</th>
+<th><strong>ReWOO</strong> (2023)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Core Philosophy</strong></td>
+<td><strong>Improviser</strong>: Act, then decide what to do next based on the result.</td>
+<td><strong>Architect</strong>: Build a full blueprint, execute it, then review.</td>
+<td><strong>Optimizer</strong>: Create a "script" with variables and run it all at once.</td>
+</tr>
+<tr>
+<td><strong>Workflow</strong></td>
+<td>Iterative loop: Thought → Action → Observation.</td>
+<td>Two-stage: Phase 1 (Planning), Phase 2 (Execution).</td>
+<td>Decoupled: Planner creates a graph of tool calls; Worker runs them.</td>
+</tr>
+<tr>
+<td><strong>Adaptability</strong></td>
+<td><strong>Highest</strong>: Can change direction after every single tool call.</td>
+<td><strong>Medium</strong>: Typically re-plans only after a set of steps is completed.</td>
+<td><strong>Lowest</strong>: Usually follows the initial script unless the Solver fails.</td>
+</tr>
+<tr>
+<td><strong>Efficiency</strong></td>
+<td><strong>Low</strong>: High token usage; must re-read entire history for every step.</td>
+<td><strong>Medium</strong>: Saves tokens by not "re-thinking" during execution.</td>
+<td><strong>High</strong>: Minimal LLM calls; can parallelize tool execution for speed.</td>
+</tr>
+<tr>
+<td><strong>Best For</strong></td>
+<td>Open-ended exploration or tasks where results are unpredictable.</td>
+<td>Long-horizon tasks that require a steady goal (e.g., writing a paper).</td>
+<td>Structured, repeatable workflows (e.g., checking weather in 5 cities).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="1-react-the-think-as-you-go-pattern">1. ReAct: The "Think-as-you-go" Pattern</h3>
+<ul>
+<li><strong>How it feels:</strong> Like a human debugging a problem. "I'll try this... okay, that didn't work, let me try that instead."</li>
+<li><strong>Advantage:</strong> It handles "unknown unknowns" perfectly. If a search result reveals a new topic, ReAct can immediately pivot.</li>
+<li><strong>Weakness:</strong> It is prone to "looping" (repeating the same failed action) and is the most expensive in terms of token costs.</li>
+</ul>
+<h3 id="2-plan-and-execute-the-mission-oriented-pattern">2. Plan-and-Execute: The "Mission-Oriented" Pattern</h3>
+<ul>
+<li><strong>How it feels:</strong> Like a project manager. "Here is the 5-step plan. Let's do steps 1 through 5, then see if we're done."</li>
+<li><strong>Advantage:</strong> Prevents the agent from getting "distracted" by minor details. It maintains a high-level view of the goal, which leads to better success rates on very complex tasks.</li>
+<li><strong>Weakness:</strong> If Step 1 fails in a way that makes Steps 2-5 impossible, the agent may waste time finishing the "broken" plan before re-evaluating.</li>
+</ul>
+<h3 id="3-rewoo-reasoning-without-observation-the-compiler-pattern">3. ReWOO (Reasoning Without Observation): The "Compiler" Pattern</h3>
+<ul>
+<li><strong>How it feels:</strong> Like writing a computer program. "I need data from Tool A and Tool B, then I'll combine them in Tool C."</li>
+<li><strong>Advantage:</strong> Massively faster and cheaper. Because it plans everything upfront using placeholders (e.g., <code>#E1</code> for the first tool's output), it doesn't need to call the LLM again until all data is gathered.</li>
+<li><strong>Weakness:</strong> It is "blind" during execution. If the result of the first tool is "I can't find that person," a ReWOO agent will still blindly try to execute the next steps that depend on that person existing.</li>
+</ul>
+<h3 id="summary-which-to-choose">Summary: Which to choose?</h3>
+<ul>
+<li>Choose <strong>ReAct</strong> if your agent is chatting with a user and needs to be highly flexible.</li>
+<li>Choose <strong>Plan-and-Execute</strong> if you are automating a large, complex job (like a multi-step research report).</li>
+<li>Choose <strong>ReWOO</strong> if you have a predictable pipeline and want to save 80% on your API bill.</li>
+</ul>
+<h2 id="real-world-context-the-market-analyst-agent">Real-World Context: The Market Analyst Agent</h2>
+<p>To see these patterns in action, I built a <strong>Market Analyst Agent</strong> (available in my <a href="https://github.com/slavadubrov/market-analyst-agent">demo repository</a>). This production-grade agent demonstrates all three reasoning patterns in a realistic market research context.</p>
+<p>The agent uses <code>LangGraph</code> to orchestrate these patterns, with a shared state foundation that captures everything needed across different execution modes:</p>
+<p><img alt="Plan-and-Execute Architecture" src="../../../../assets/2026-01-31-reasoning-loops/plan-execute-architecture.svg" /></p>
+<h3 id="state-definition">State Definition</h3>
+<p>The foundation is a well-structured state that captures everything the agent needs:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">PlanStep</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A single step in the research plan.&quot;&quot;&quot;</span>
+    <span class="n">step_number</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">tool_hint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">completed</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">result</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">AgentState</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Main state for the Market Analyst Agent graph.&quot;&quot;&quot;</span>
+
+    <span class="c1"># Message history with LangGraph&#39;s add_messages reducer</span>
+    <span class="n">messages</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">list</span><span class="p">,</span> <span class="n">add_messages</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+
+    <span class="c1"># Execution mode (set by router)</span>
+    <span class="n">execution_mode</span><span class="p">:</span> <span class="n">ExecutionMode</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># Plan-and-Execute state</span>
+    <span class="n">plan</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">PlanStep</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+    <span class="n">current_step_index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1"># ReWOO state</span>
+    <span class="n">rewoo_plan</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ReWOOPlanStep</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+
+    <span class="c1"># Research results</span>
+    <span class="n">research_data</span><span class="p">:</span> <span class="n">ResearchData</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># HITL output</span>
+    <span class="n">draft_report</span><span class="p">:</span> <span class="n">DraftReport</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">report_approved</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+<h3 id="pattern-1-plan-and-execute-implementation">Pattern 1: Plan-and-Execute Implementation</h3>
+<p>The <strong>Plan-and-Execute</strong> pattern is perfect for complex research tasks that require multi-step synthesis. The key is separating the "planning" phase from the "execution" phase—using a powerful model to think strategically upfront, then a ReAct loop to execute each step adaptively.</p>
+<p><strong>How this reflects the Plan-and-Execute pattern:</strong></p>
+<ol>
+<li><strong>Single upfront planning phase</strong>: One LLM call creates the entire plan as a list of text descriptions</li>
+<li><strong>Structured output</strong>: Uses Schema-Guided Reasoning to guarantee valid JSON</li>
+<li><strong>No tool execution yet</strong>: The planner only decides <em>what</em> to do, not <em>how</em></li>
+<li><strong>Human-readable steps</strong>: Each step is a description that an executor will interpret</li>
+</ol>
+<div class="highlight"><pre><span></span><code><span class="c1"># System prompt guides the LLM to think like a research analyst</span>
+<span class="c1"># creating a strategic plan, not immediate tool calls</span>
+<span class="n">PLANNER_SYSTEM_PROMPT</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;You are a senior investment research analyst.</span>
+<span class="s2">Break down stock analysis requests into 4-6 research steps covering:</span>
+<span class="s2">1. Current price and basic metrics</span>
+<span class="s2">2. Recent news and announcements</span>
+<span class="s2">3. Competitor analysis (if relevant)</span>
+<span class="s2">4. Financial health assessment</span>
+<span class="s2">5. Risk factors</span>
+<span class="s2">6. Investment thesis synthesis</span>
+
+<span class="s2">Output as JSON with step_number, description, and tool_hint.&quot;&quot;&quot;</span>
+
+<span class="c1"># Schema-Guided Reasoning: Enforce structure with Pydantic</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PlanOutput</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Structured output for the planner.&quot;&quot;&quot;</span>
+
+    <span class="n">steps</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">PlanStep</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Research steps to execute&quot;</span><span class="p">)</span>
+    <span class="n">ticker</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;The stock ticker being analyzed&quot;</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">planner_node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate a research plan from the user&#39;s request.</span>
+
+<span class="sd">    This is Phase 1 of Plan-and-Execute: creating the high-level strategy.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Use a powerful model for strategic planning</span>
+    <span class="n">llm</span> <span class="o">=</span> <span class="n">ChatAnthropic</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;claude-sonnet-4-5-20250929&quot;</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="c1"># Apply Schema-Guided Reasoning to guarantee valid plan structure</span>
+    <span class="c1"># This prevents common formatting errors that would break execution</span>
+    <span class="n">structured_llm</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">with_structured_output</span><span class="p">(</span><span class="n">PlanOutput</span><span class="p">)</span>
+
+    <span class="c1"># Context from long-term memory personalizes the plan</span>
+    <span class="n">profile_context</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">User Profile:</span>
+<span class="s2">- Risk Tolerance: </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">user_profile</span><span class="o">.</span><span class="n">risk_tolerance</span><span class="si">}</span>
+<span class="s2">- Investment Horizon: </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">user_profile</span><span class="o">.</span><span class="n">investment_horizon</span><span class="si">}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+    <span class="c1"># Single LLM call creates the complete plan</span>
+    <span class="n">result</span><span class="p">:</span> <span class="n">PlanOutput</span> <span class="o">=</span> <span class="n">structured_llm</span><span class="o">.</span><span class="n">invoke</span><span class="p">([</span>
+        <span class="n">SystemMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">PLANNER_SYSTEM_PROMPT</span> <span class="o">+</span> <span class="n">profile_context</span><span class="p">),</span>
+        <span class="n">HumanMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Create a research plan for: </span><span class="si">{</span><span class="n">last_user_message</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">),</span>
+    <span class="p">])</span>
+
+    <span class="c1"># State update: Store the plan and initialize tracking</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;plan&quot;</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">steps</span><span class="p">,</span>           <span class="c1"># The sequential steps to execute</span>
+        <span class="s2">&quot;current_step_index&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>        <span class="c1"># Start at step 0</span>
+        <span class="s2">&quot;research_data&quot;</span><span class="p">:</span> <span class="n">ResearchData</span><span class="p">(</span><span class="n">ticker</span><span class="o">=</span><span class="n">result</span><span class="o">.</span><span class="n">ticker</span><span class="p">),</span>  <span class="c1"># Initialize data container</span>
+    <span class="p">}</span>
+</code></pre></div>
+<p>✨ Notice the <code>llm.with_structured_output(PlanOutput)</code> line? This applies <strong>Schema-Guided Reasoning (SGR)</strong>—a pattern I've described in my <a href="https://slavadubrov.com/blog/2025/12/25/schema-guided-reasoning-with-vllm/">previous articles</a>. By strictly enforcing the <code>PlanOutput</code> schema, we guarantee the planner always returns a valid list of steps, preventing common formatting errors. LangGraph supports this natively, using these reliable structured outputs to drive deterministic control flow through conditional edges.</p>
+<h3 id="pattern-2-react-execution">Pattern 2: ReAct Execution</h3>
+<p>Once we have a plan, the executor uses the <strong>ReAct</strong> pattern to handle one step at a time with full adaptability. This is Phase 2 of Plan-and-Execute: executing each step with the flexibility to react to tool results.</p>
+<p><strong>How this reflects the ReAct pattern:</strong></p>
+<ol>
+<li><strong>Iterative execution</strong>: One step at a time, with observation feedback</li>
+<li><strong>Thought-Action-Observation loop</strong>: The <code>create_react_agent</code> handles the cycle internally</li>
+<li><strong>Context accumulation</strong>: Previous step results inform current reasoning</li>
+<li><strong>Tool selection</strong>: The agent chooses which tools to call based on the step description</li>
+<li><strong>Adaptability</strong>: Can adjust approach mid-step based on tool results</li>
+</ol>
+<div class="highlight"><pre><span></span><code><span class="c1"># Tools available for the ReAct agent to choose from</span>
+<span class="n">TOOLS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">get_stock_price</span><span class="p">,</span>
+    <span class="n">get_company_metrics</span><span class="p">,</span>
+    <span class="n">get_price_history</span><span class="p">,</span>
+    <span class="n">search_news</span><span class="p">,</span>
+    <span class="n">search_competitors</span><span class="p">,</span>
+<span class="p">]</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">executor_node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Execute the current step using a ReAct agent.</span>
+
+<span class="sd">    This is Phase 2 of Plan-and-Execute: adaptive execution of each planned step.</span>
+<span class="sd">    Each step runs as a mini ReAct loop until completion.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Get the current step from the plan</span>
+    <span class="n">current_step</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">plan</span><span class="p">[</span><span class="n">state</span><span class="o">.</span><span class="n">current_step_index</span><span class="p">]</span>
+
+    <span class="c1"># Build context from what we&#39;ve learned so far</span>
+    <span class="c1"># This is crucial: each step builds on previous observations</span>
+    <span class="n">previous_context</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">plan</span><span class="p">[:</span><span class="n">state</span><span class="o">.</span><span class="n">current_step_index</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">step</span><span class="o">.</span><span class="n">result</span><span class="p">:</span>
+            <span class="n">previous_context</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Step </span><span class="si">{</span><span class="n">step</span><span class="o">.</span><span class="n">step_number</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">step</span><span class="o">.</span><span class="n">result</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+
+    <span class="c1"># Create a ReAct agent for this step</span>
+    <span class="c1"># LangGraph&#39;s create_react_agent implements the full Thought-Action-Observation loop:</span>
+    <span class="c1"># 1. Agent generates a &quot;thought&quot; about what tool to call</span>
+    <span class="c1"># 2. Agent calls the tool (&quot;action&quot;)</span>
+    <span class="c1"># 3. Tool returns result (&quot;observation&quot;)</span>
+    <span class="c1"># 4. Agent decides: call another tool or finish</span>
+    <span class="n">react_agent</span> <span class="o">=</span> <span class="n">create_react_agent</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">=</span><span class="n">ChatAnthropic</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;claude-sonnet-4-5-20250929&quot;</span><span class="p">),</span>
+        <span class="n">tools</span><span class="o">=</span><span class="n">TOOLS</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Invoke the ReAct loop for this single step</span>
+    <span class="c1"># The agent will loop internally until it completes the step</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">react_agent</span><span class="o">.</span><span class="n">invoke</span><span class="p">({</span>
+        <span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="n">SystemMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">EXECUTOR_SYSTEM_PROMPT</span><span class="p">),</span>
+            <span class="n">HumanMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;&quot;&quot;Execute Step </span><span class="si">{</span><span class="n">current_step</span><span class="o">.</span><span class="n">step_number</span><span class="si">}</span><span class="s2">:</span>
+<span class="si">{</span><span class="n">current_step</span><span class="o">.</span><span class="n">description</span><span class="si">}</span>
+
+<span class="s2">Ticker: </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">research_data</span><span class="o">.</span><span class="n">ticker</span><span class="si">}</span>
+<span class="s2">Previous findings: </span><span class="si">{</span><span class="n">previous_context</span><span class="si">}</span><span class="s2">&quot;&quot;&quot;</span><span class="p">),</span>
+        <span class="p">]</span>
+    <span class="p">})</span>
+
+    <span class="c1"># Extract the final answer from the ReAct agent&#39;s message history</span>
+    <span class="c1"># The last message contains the synthesis after all tool calls</span>
+    <span class="n">updated_plan</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">plan</span><span class="p">)</span>
+    <span class="n">updated_plan</span><span class="p">[</span><span class="n">state</span><span class="o">.</span><span class="n">current_step_index</span><span class="p">]</span> <span class="o">=</span> <span class="n">PlanStep</span><span class="p">(</span>
+        <span class="n">step_number</span><span class="o">=</span><span class="n">current_step</span><span class="o">.</span><span class="n">step_number</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="n">current_step</span><span class="o">.</span><span class="n">description</span><span class="p">,</span>
+        <span class="n">completed</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">result</span><span class="o">=</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;messages&quot;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">content</span><span class="p">,</span>  <span class="c1"># Final observation</span>
+    <span class="p">)</span>
+
+    <span class="c1"># State update: Mark step complete and advance to next</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;plan&quot;</span><span class="p">:</span> <span class="n">updated_plan</span><span class="p">,</span>
+        <span class="s2">&quot;current_step_index&quot;</span><span class="p">:</span> <span class="n">state</span><span class="o">.</span><span class="n">current_step_index</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="p">}</span>
+</code></pre></div>
+<p>This demonstrates the core <strong>Plan-and-Execute</strong> flow: use a powerful model to create the plan, then execute each step sequentially using ReAct for maximum adaptability.</p>
+<h3 id="pattern-3-rewoo-for-fast-snapshots">Pattern 3: ReWOO for Fast Snapshots</h3>
+<p>For quick briefings, <strong>ReWOO</strong> skips the interleaved reasoning and executes everything in parallel. Unlike ReAct, ReWOO creates a "compiled script" of all tool calls upfront and runs them without LLM involvement.</p>
+<p><strong>How this reflects the ReWOO pattern:</strong></p>
+<ol>
+<li><strong>Three distinct phases</strong>: Planner → Worker → Solver (no loops)</li>
+<li><strong>Variable placeholders</strong>: Tool calls reference <code>#E1</code>, <code>#E2</code> for future results</li>
+<li><strong>No LLM during execution</strong>: Worker just runs tools, no reasoning</li>
+<li><strong>Parallel execution</strong>: Independent tools run concurrently</li>
+<li><strong>Single synthesis</strong>: Solver makes ONE final LLM call with all data</li>
+</ol>
+<p><strong>Phase 1: ReWOO Planner</strong> (creates the complete execution graph upfront)</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ReWOOPlanStep</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A step in the ReWOO plan with variable placeholders.</span>
+
+<span class="sd">    Key difference from Plan-and-Execute&#39;s PlanStep:</span>
+<span class="sd">    - Contains actual tool_name and tool_args (not just description)</span>
+<span class="sd">    - Uses variable references (#E1) for dependencies</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">step_id</span><span class="p">:</span> <span class="nb">str</span>  <span class="c1"># e.g., &quot;#E1&quot; - becomes a variable</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">tool_name</span><span class="p">:</span> <span class="nb">str</span>     <span class="c1"># Exact tool to call</span>
+    <span class="n">tool_args</span><span class="p">:</span> <span class="nb">dict</span>    <span class="c1"># May contain variable refs like {&quot;price&quot;: &quot;#E1&quot;}</span>
+    <span class="n">depends_on</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># For dependency ordering</span>
+    <span class="n">result</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ReWOOPlanOutput</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Structured output for ReWOO planner.&quot;&quot;&quot;</span>
+    <span class="n">steps</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ReWOOPlanStep</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Planned tool calls with variables&quot;</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">rewoo_planner_node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate a complete plan of tool calls upfront.</span>
+
+<span class="sd">    This is the key difference from Plan-and-Execute: instead of creating</span>
+<span class="sd">    human-readable step descriptions, we create EXACT tool calls that</span>
+<span class="sd">    the worker will execute blindly.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">llm</span> <span class="o">=</span> <span class="n">ChatAnthropic</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;claude-sonnet-4-5-20250929&quot;</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="c1"># Schema-Guided Reasoning ensures valid tool call specifications</span>
+    <span class="n">structured_llm</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">with_structured_output</span><span class="p">(</span><span class="n">ReWOOPlanOutput</span><span class="p">)</span>
+
+    <span class="n">ticker</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">research_data</span><span class="o">.</span><span class="n">ticker</span> <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">research_data</span> <span class="k">else</span> <span class="s2">&quot;UNKNOWN&quot;</span>
+
+    <span class="c1"># Single LLM call to plan ALL tool executions</span>
+    <span class="n">result</span><span class="p">:</span> <span class="n">ReWOOPlanOutput</span> <span class="o">=</span> <span class="n">structured_llm</span><span class="o">.</span><span class="n">invoke</span><span class="p">([</span>
+        <span class="n">SystemMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">REWOO_PLANNER_PROMPT</span><span class="p">),</span>
+        <span class="n">HumanMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;&quot;&quot;Create a ReWOO plan for: </span><span class="si">{</span><span class="n">query</span><span class="si">}</span>
+
+<span class="s2">Ticker: </span><span class="si">{</span><span class="n">ticker</span><span class="si">}</span>
+
+<span class="s2">Output tool calls with:</span>
+<span class="s2">- step_id: Variable name (#E1, #E2, etc.)</span>
+<span class="s2">- description: What this accomplishes</span>
+<span class="s2">- tool_name: Exact tool from the list</span>
+<span class="s2">- tool_args: Dictionary of arguments</span>
+<span class="s2">- depends_on: List of step_ids this depends on&quot;&quot;&quot;</span><span class="p">),</span>
+    <span class="p">])</span>
+
+    <span class="c1"># State update: Store the complete execution plan</span>
+    <span class="c1"># Worker will execute this without any LLM involvement</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;rewoo_plan&quot;</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">steps</span><span class="p">}</span>
+</code></pre></div>
+<p><strong>Phase 2: ReWOO Worker</strong> (executes tools without LLM reasoning)</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">rewoo_worker_node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Execute all planned tools in parallel (no LLM calls).</span>
+
+<span class="sd">    This is the key efficiency: Worker is &quot;dumb&quot; - it just runs tools</span>
+<span class="sd">    according to the plan. No LLM calls = massive token savings.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># Store results keyed by step_id (e.g., &quot;#E1&quot;: &quot;$150.23&quot;)</span>
+
+    <span class="c1"># Execute ALL independent steps in parallel using ThreadPoolExecutor</span>
+    <span class="c1"># This is where ReWOO gets its speed advantage</span>
+    <span class="k">with</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="n">max_workers</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span> <span class="k">as</span> <span class="n">executor</span><span class="p">:</span>
+        <span class="n">futures</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">execute_tool</span><span class="p">,</span> <span class="n">step</span><span class="p">):</span> <span class="n">step</span>
+            <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">rewoo_plan</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">step</span><span class="o">.</span><span class="n">depends_on</span>  <span class="c1"># Only independent tools for parallel batch</span>
+        <span class="p">}</span>
+
+        <span class="c1"># Collect results as they complete</span>
+        <span class="k">for</span> <span class="n">future</span> <span class="ow">in</span> <span class="n">as_completed</span><span class="p">(</span><span class="n">futures</span><span class="p">):</span>
+            <span class="n">step</span> <span class="o">=</span> <span class="n">futures</span><span class="p">[</span><span class="n">future</span><span class="p">]</span>
+            <span class="n">results</span><span class="p">[</span><span class="n">step</span><span class="o">.</span><span class="n">step_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">future</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+            <span class="c1"># No LLM reasoning here - just store the raw tool output</span>
+
+    <span class="c1"># State update: Store results for the Solver phase</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;rewoo_plan&quot;</span><span class="p">:</span> <span class="n">updated_steps</span><span class="p">}</span>
+</code></pre></div>
+<p><strong>Phase 3: ReWOO Solver</strong> (synthesizes all results in ONE LLM call)</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">rewoo_solver_node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Synthesize all tool results into a flash briefing.</span>
+
+<span class="sd">    This is the second efficiency gain: Instead of interleaving</span>
+<span class="sd">    LLM calls with tool execution (like ReAct), we make ONE</span>
+<span class="sd">    final synthesis call with all gathered data.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Build context from ALL tool results at once</span>
+    <span class="n">tool_results</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">rewoo_plan</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">step</span><span class="o">.</span><span class="n">result</span><span class="p">:</span>
+            <span class="n">tool_results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;### </span><span class="si">{</span><span class="n">step</span><span class="o">.</span><span class="n">description</span><span class="si">}</span><span class="se">\n</span><span class="si">{</span><span class="n">step</span><span class="o">.</span><span class="n">result</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">context</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tool_results</span><span class="p">)</span>
+
+    <span class="c1"># Single LLM call to synthesize everything</span>
+    <span class="n">structured_llm</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">with_structured_output</span><span class="p">(</span><span class="n">FlashBriefingOutput</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">structured_llm</span><span class="o">.</span><span class="n">invoke</span><span class="p">([</span>
+        <span class="n">SystemMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">REWOO_SOLVER_PROMPT</span><span class="p">),</span>
+        <span class="n">HumanMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;Create a flash briefing from this data:</span><span class="se">\n\n</span><span class="si">{</span><span class="n">context</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">),</span>
+    <span class="p">])</span>
+
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;draft_report&quot;</span><span class="p">:</span> <span class="n">result</span><span class="p">}</span>
+</code></pre></div>
+<p><strong>Key Difference:</strong> ReWOO plans all tool calls upfront using placeholders (<code>#E1</code>, <code>#E2</code>), executes them in parallel without LLM intervention, then synthesizes the results in a single final call. This makes it incredibly token-efficient for predictable workflows.</p>
+<h4 id="understanding-the-code-how-each-pattern-works-differently">Understanding the Code: How Each Pattern Works Differently</h4>
+<p>The three patterns differ fundamentally in <em>when</em> and <em>how</em> they invoke the LLM:</p>
+<table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th><strong>LLM Calls During Execution</strong></th>
+<th><strong>State Updates</strong></th>
+<th><strong>Key Code Pattern</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Plan-and-Execute</strong></td>
+<td>1 for planning + 1 per step</td>
+<td>Sequential step completion</td>
+<td><code>planner_node()</code> → loop: <code>executor_node()</code> → <code>reporter_node()</code></td>
+</tr>
+<tr>
+<td><strong>ReAct</strong> (within each step)</td>
+<td>Multiple per step (thought-action cycles)</td>
+<td>Accumulated message history</td>
+<td><code>create_react_agent()</code> loops internally until step complete</td>
+</tr>
+<tr>
+<td><strong>ReWOO</strong></td>
+<td>1 for planning + 0 during execution + 1 for synthesis</td>
+<td>Parallel tool completion</td>
+<td><code>rewoo_planner_node()</code> → <code>rewoo_worker_node()</code> → <code>rewoo_solver_node()</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>What makes each pattern unique in code:</strong></p>
+<p>The key difference is <strong>what the planner produces</strong> - this determines everything that follows:</p>
+<ol>
+<li>
+<p><strong>Plan-and-Execute</strong> creates human-readable step descriptions:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Planner output (list of PlanStep objects)</span>
+<span class="n">plan</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">PlanStep</span><span class="p">(</span>
+        <span class="n">step_number</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Get current price and key financial metrics&quot;</span><span class="p">,</span>
+        <span class="n">tool_hint</span><span class="o">=</span><span class="s2">&quot;get_stock_price&quot;</span>
+    <span class="p">),</span>
+    <span class="n">PlanStep</span><span class="p">(</span>
+        <span class="n">step_number</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Search for recent news and earnings&quot;</span><span class="p">,</span>
+        <span class="n">tool_hint</span><span class="o">=</span><span class="s2">&quot;search_news&quot;</span>
+    <span class="p">),</span>
+    <span class="c1"># ... more steps</span>
+<span class="p">]</span>
+</code></pre></div>
+<p>The executor <strong>interprets</strong> each description and decides which tools to call. This gives flexibility but requires LLM reasoning per step.</p>
+</li>
+<li>
+<p><strong>ReAct</strong> doesn't have an upfront plan - it uses iterative reasoning:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># No planning phase - ReAct works step-by-step with accumulated messages</span>
+<span class="n">messages</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">HumanMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">&quot;Execute Step 1: Get current price&quot;</span><span class="p">),</span>
+    <span class="n">AIMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">&quot;I&#39;ll call get_stock_price&quot;</span><span class="p">),</span>
+    <span class="n">ToolMessage</span><span class="p">(</span><span class="n">tool_call_id</span><span class="o">=</span><span class="s2">&quot;1&quot;</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="s2">&quot;$132.45&quot;</span><span class="p">),</span>
+    <span class="n">AIMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">&quot;Now I need metrics...&quot;</span><span class="p">),</span>
+    <span class="c1"># ... agent continues until step complete</span>
+<span class="p">]</span>
+</code></pre></div>
+<p>The agent makes <strong>multiple LLM calls</strong> within each step, adapting based on observations. Maximum flexibility, highest token cost.</p>
+</li>
+<li>
+<p><strong>ReWOO</strong> creates explicit, executable tool call specifications:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Planner output (list of ReWOOPlanStep objects)</span>
+<span class="n">rewoo_plan</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">ReWOOPlanStep</span><span class="p">(</span>
+        <span class="n">step_id</span><span class="o">=</span><span class="s2">&quot;#E1&quot;</span><span class="p">,</span>
+        <span class="n">tool_name</span><span class="o">=</span><span class="s2">&quot;get_stock_price&quot;</span><span class="p">,</span>
+        <span class="n">tool_args</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ticker&quot;</span><span class="p">:</span> <span class="s2">&quot;NVDA&quot;</span><span class="p">}</span>
+    <span class="p">),</span>
+    <span class="n">ReWOOPlanStep</span><span class="p">(</span>
+        <span class="n">step_id</span><span class="o">=</span><span class="s2">&quot;#E2&quot;</span><span class="p">,</span>
+        <span class="n">tool_name</span><span class="o">=</span><span class="s2">&quot;search_news&quot;</span><span class="p">,</span>
+        <span class="n">tool_args</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;query&quot;</span><span class="p">:</span> <span class="s2">&quot;NVDA earnings&quot;</span><span class="p">,</span> <span class="s2">&quot;limit&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">}</span>
+    <span class="p">),</span>
+    <span class="c1"># ... all tool calls planned upfront</span>
+<span class="p">]</span>
+</code></pre></div>
+<p>The worker <strong>executes blindly</strong> - no LLM involvement. All intelligence is in the planner and solver. Minimum token cost.</p>
+</li>
+</ol>
+<p><strong>Memory and State Flow:</strong></p>
+<ul>
+<li><strong>Plan-and-Execute</strong>: State flows through <code>plan → current_step_index → research_data</code></li>
+<li><strong>ReAct</strong>: State accumulates in <code>messages</code> array (full conversation history)</li>
+<li><strong>ReWOO</strong>: State flows through <code>rewoo_plan</code> with <code>result</code> fields populated by worker</li>
+</ul>
+<h3 id="putting-it-all-together-wiring-the-graph">Putting It All Together: Wiring the Graph</h3>
+<p>Now that we've seen the three patterns individually, here's how they coexist in a <strong>single LangGraph system</strong>. The beauty of this architecture is that all three reasoning loops share the same <code>AgentState</code> and live in one graph—the router dynamically chooses which path to follow based on the user's request.</p>
+<p><strong>Key insight:</strong> You're not building three separate agents. You're building ONE agent with three execution modes.</p>
+<p>LangGraph makes this orchestration declarative:</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">create_graph</span><span class="p">(</span><span class="n">checkpointer</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">builder</span> <span class="o">=</span> <span class="n">StateGraph</span><span class="p">(</span><span class="n">AgentState</span><span class="p">)</span>
+
+    <span class="c1"># Add nodes</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;router&quot;</span><span class="p">,</span> <span class="n">router_node</span><span class="p">)</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;planner&quot;</span><span class="p">,</span> <span class="n">planner_node</span><span class="p">)</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;executor&quot;</span><span class="p">,</span> <span class="n">executor_node</span><span class="p">)</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;reporter&quot;</span><span class="p">,</span> <span class="n">reporter_node</span><span class="p">)</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;rewoo_planner&quot;</span><span class="p">,</span> <span class="n">rewoo_planner_node</span><span class="p">)</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;rewoo_worker&quot;</span><span class="p">,</span> <span class="n">rewoo_worker_node</span><span class="p">)</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="s2">&quot;rewoo_solver&quot;</span><span class="p">,</span> <span class="n">rewoo_solver_node</span><span class="p">)</span>
+
+    <span class="c1"># Define edges</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">START</span><span class="p">,</span> <span class="s2">&quot;router&quot;</span><span class="p">)</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">add_conditional_edges</span><span class="p">(</span><span class="s2">&quot;router&quot;</span><span class="p">,</span> <span class="n">route_after_router</span><span class="p">,</span> <span class="p">{</span>
+        <span class="s2">&quot;planner&quot;</span><span class="p">:</span> <span class="s2">&quot;planner&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;rewoo_planner&quot;</span><span class="p">:</span> <span class="s2">&quot;rewoo_planner&quot;</span><span class="p">,</span>
+    <span class="p">})</span>
+
+    <span class="c1"># Deep Research path</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;planner&quot;</span><span class="p">,</span> <span class="s2">&quot;executor&quot;</span><span class="p">)</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">add_conditional_edges</span><span class="p">(</span><span class="s2">&quot;executor&quot;</span><span class="p">,</span> <span class="n">route_after_executor</span><span class="p">,</span> <span class="p">{</span>
+        <span class="s2">&quot;executor&quot;</span><span class="p">:</span> <span class="s2">&quot;executor&quot;</span><span class="p">,</span>  <span class="c1"># Loop back for more steps</span>
+        <span class="s2">&quot;reporter&quot;</span><span class="p">:</span> <span class="s2">&quot;reporter&quot;</span><span class="p">,</span>  <span class="c1"># Done with plan</span>
+    <span class="p">})</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;reporter&quot;</span><span class="p">,</span> <span class="n">END</span><span class="p">)</span>
+
+    <span class="c1"># Flash Briefing path (ReWOO)</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;rewoo_planner&quot;</span><span class="p">,</span> <span class="s2">&quot;rewoo_worker&quot;</span><span class="p">)</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;rewoo_worker&quot;</span><span class="p">,</span> <span class="s2">&quot;rewoo_solver&quot;</span><span class="p">)</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="s2">&quot;rewoo_solver&quot;</span><span class="p">,</span> <span class="n">END</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">builder</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
+        <span class="n">checkpointer</span><span class="o">=</span><span class="n">checkpointer</span><span class="p">,</span>
+        <span class="n">interrupt_before</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;reporter&quot;</span><span class="p">],</span>  <span class="c1"># HITL pause for approval</span>
+    <span class="p">)</span>
+</code></pre></div>
+<h3 id="automatic-pattern-selection-with-a-router">Automatic Pattern Selection with a Router</h3>
+<p>To automatically select the best reasoning loop for each user request, I've added a <strong>router classifier</strong>. The router uses Schema-Guided Reasoning to reliably classify user intent:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ExecutionMode</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Enum</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Execution mode for the agent.&quot;&quot;&quot;</span>
+
+    <span class="n">DEEP_RESEARCH</span> <span class="o">=</span> <span class="s2">&quot;deep_research&quot;</span>  <span class="c1"># Plan-and-Execute + ReAct (thorough)</span>
+    <span class="n">FLASH_BRIEFING</span> <span class="o">=</span> <span class="s2">&quot;flash_briefing&quot;</span>  <span class="c1"># ReWOO (fast, token-efficient)</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">RouterOutput</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Structured output for the router.&quot;&quot;&quot;</span>
+
+    <span class="n">mode</span><span class="p">:</span> <span class="n">ExecutionMode</span>  <span class="c1"># DEEP_RESEARCH or FLASH_BRIEFING</span>
+    <span class="n">ticker</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">reasoning</span><span class="p">:</span> <span class="nb">str</span>
+
+<span class="n">ROUTER_SYSTEM_PROMPT</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;Classify the user&#39;s request:</span>
+
+<span class="s2">1. **deep_research**: Complex analysis requiring synthesis</span>
+<span class="s2">   - Examples: &quot;Analyze strategic risks&quot;, &quot;investment thesis&quot;</span>
+
+<span class="s2">2. **flash_briefing**: Quick snapshots, simple data retrieval</span>
+<span class="s2">   - Examples: &quot;quick snapshot&quot;, &quot;current price&quot;</span>
+
+<span class="s2">Default to deep_research if unclear.&quot;&quot;&quot;</span>
+
+<span class="n">structured_llm</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">with_structured_output</span><span class="p">(</span><span class="n">RouterOutput</span><span class="p">)</span>
+</code></pre></div>
+<p>This lightweight classification step automatically chooses between <strong>Plan-and-Execute</strong> (for deep research) and <strong>ReWOO</strong> (for quick snapshots), removing the burden of manual mode selection from users.</p>
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ol>
+<li><strong>ReAct</strong> is your default for flexibility but costs tokens and time</li>
+<li><strong>ReWOO</strong> wins on speed when your tools are reliable and results predictable</li>
+<li><strong>Plan-and-Execute</strong> delivers the best results for complex analysis</li>
+<li><strong>Use a router</strong> to choose dynamically—don't force users to pick</li>
+<li><strong>State management is critical</strong>—LangGraph's checkpointing enables interrupts and recovery</li>
+</ol>
+<p>The complete implementation of all three patterns, including the router classifier and state management, is available in the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent repository</a>.</p>
+<h2 id="whats-next">What's Next</h2>
+<p>In Part 2, I'll dive into <strong>memory architecture</strong>—how to give your agent both short-term context (PostgreSQL checkpointing) and long-term knowledge (Qdrant vector memory). I'll show how this enables pause/resume workflows and cross-session learning.</p>
+<h2 id="references">References</h2>
+<ul>
+<li><a href="https://arxiv.org/abs/2210.03629"><strong>ReAct: Synergizing Reasoning and Acting in Language Models</strong></a> (Yao et al., 2022)</li>
+<li><a href="https://arxiv.org/abs/2305.18323"><strong>ReWOO: Decoupling Reasoning from Observations for Efficient Augmented Language Models</strong></a> (Xu et al., 2023)</li>
+<li><a href="https://arxiv.org/abs/2305.04091"><strong>Plan-and-Solve Prompting: Improving Zero-Shot Chain-of-Thought Reasoning by Large Language Models</strong></a> (Wang et al., 2023)</li>
+<li><a href="https://github.com/slavadubrov/market-analyst-agent"><strong>Market Analyst Agent Repository</strong></a></li>
+</ul>
+<hr />
+<p><em>The complete Market Analyst Agent code is available on <a href="https://github.com/slavadubrov/market-analyst-agent">GitHub</a>. Star the repo and follow along as I build the full production stack.</em></p>
+<p><strong>Series: Engineering the Agentic Stack</strong></p>
+<ul>
+<li><strong>Part 1: The Cognitive Engine</strong> (this post)</li>
+<li>Part 2: Memory Architecture (coming soon)</li>
+<li>Part 3: Tool Ergonomics and the ACI</li>
+<li>Part 4: Safety Layers – The Guardian Pattern</li>
+<li>Part 5: Production Deployment</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+  
+
+
+ 
+  </article>
+</div>
+
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../../../../javascripts/mermaid-init.js"></script>
+      
+        <script src="../../../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
