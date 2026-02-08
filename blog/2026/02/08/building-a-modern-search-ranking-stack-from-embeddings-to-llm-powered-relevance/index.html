@@ -974,13 +974,13 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#stage-1-retrieval-hybrid-search" class="md-nav__link">
+  <a href="#retrieval-hybrid-search" class="md-nav__link">
     <span class="md-ellipsis">
-      Stage 1: Retrieval — Hybrid Search
+      Retrieval: Hybrid Search
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Stage 1: Retrieval — Hybrid Search">
+    <nav class="md-nav" aria-label="Retrieval: Hybrid Search">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1049,13 +1049,13 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#stage-2-cross-encoder-reranking" class="md-nav__link">
+  <a href="#cross-encoder-reranking" class="md-nav__link">
     <span class="md-ellipsis">
-      Stage 2: Cross-Encoder Reranking
+      Cross-Encoder Reranking
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Stage 2: Cross-Encoder Reranking">
+    <nav class="md-nav" aria-label="Cross-Encoder Reranking">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1091,13 +1091,13 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#stage-3-llm-listwise-reranking" class="md-nav__link">
+  <a href="#llm-listwise-reranking" class="md-nav__link">
     <span class="md-ellipsis">
-      Stage 3: LLM Listwise Reranking
+      LLM Listwise Reranking
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Stage 3: LLM Listwise Reranking">
+    <nav class="md-nav" aria-label="LLM Listwise Reranking">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1821,6 +1821,7 @@
 <li><strong>Cross-Encoder Reranking</strong> — fine-grained relevance scoring (ms-marco-MiniLM-L-12-v2)</li>
 <li><strong>LLM Listwise Reranking</strong> — reasoning-powered final ranking (Ollama / Claude / local)</li>
 </ol>
+<p>Steps 1--3 correspond to the <strong>Retrieval</strong> stage of the funnel (maximize recall), while steps 4--5 correspond to the <strong>Full Ranking</strong> stage (maximize precision). The demo skips Pre-Ranking and Blending — at ~8,500 documents, we can afford to send all hybrid results directly to reranking.</p>
 <h3 id="quick-start">Quick Start</h3>
 <div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/slavadubrov/search-ranking-stack.git
 <span class="nb">cd</span><span class="w"> </span>search-ranking-stack
@@ -1876,13 +1877,14 @@ uv<span class="w"> </span>run<span class="w"> </span>run-all<span class="w"> </s
 <p>Graded relevance matters because it lets us use <strong>NDCG</strong> (Normalized Discounted Cumulative Gain), which distinguishes between a "perfect" ranking and a "merely adequate" one. Binary metrics treat both as equally relevant and cannot distinguish different levels of relevance at the same position.</p>
 <p>We sample ~500 "hard" queries (the <code>small_version</code> flag in ESCI) with ~8,500 products and ~12,000 judgments — small enough to run on a laptop in minutes, large enough for statistically meaningful results.</p>
 <hr />
-<h2 id="stage-1-retrieval-hybrid-search">Stage 1: Retrieval — Hybrid Search</h2>
+<h2 id="retrieval-hybrid-search">Retrieval: Hybrid Search</h2>
 <p>The retrieval layer is where the search session begins. Its job is singular: <strong>maximize recall</strong> — cast the widest net possible so that nothing relevant is missed.</p>
 <h3 id="bm25-the-lexical-baseline">BM25: The Lexical Baseline</h3>
 <p>BM25 scores documents by term overlap with the query, with term frequency saturation and document length normalization:</p>
 <div class="arithmatex">\[
 \text{BM25}(q, d) = \sum_{t \in q} \text{IDF}(t) \cdot \frac{tf(t,d) \cdot (k_1 + 1)}{tf(t,d) + k_1 \cdot (1 - b + b \cdot |d|/\text{avgdl})}
 \]</div>
+<p>Where <a href="https://en.wikipedia.org/wiki/Okapi_BM25"><span class="arithmatex">\(\text{IDF}(t)\)</span></a> is the inverse document frequency of term <span class="arithmatex">\(t\)</span>, <span class="arithmatex">\(tf(t,d)\)</span> is the term frequency in document <span class="arithmatex">\(d\)</span>, <span class="arithmatex">\(|d|\)</span> is document length, and <span class="arithmatex">\(\text{avgdl}\)</span> is the average document length across the corpus. The two key parameters are <span class="arithmatex">\(k_1\)</span> (typically 1.2--2.0), which controls TF saturation — how quickly repeated terms stop adding value — and <span class="arithmatex">\(b\)</span> (typically 0.75), which controls document length normalization.</p>
 <p>The implementation is straightforward — simple whitespace tokenization with <code>rank_bm25</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># src/search_ranking_stack/stages/s01_bm25.py</span>
 
@@ -1940,7 +1942,7 @@ uv<span class="w"> </span>run<span class="w"> </span>run-all<span class="w"> </s
 <div class="arithmatex">\[
 \mathcal{L} = -\log \frac{e^{\text{sim}(q, d^+) / \tau}}{e^{\text{sim}(q, d^+) / \tau} + \sum_{i=1}^{n} e^{\text{sim}(q, d^-_i) / \tau}}
 \]</div>
-<p>This is essentially a softmax cross-entropy: push the positive pair's similarity up relative to all negatives, controlled by temperature <span class="arithmatex">\(\tau\)</span>.</p>
+<p>Where <span class="arithmatex">\(\text{sim}(q, d)\)</span> is cosine similarity between query and document embeddings, and <span class="arithmatex">\(\tau\)</span> is the temperature parameter (typically 0.05--0.1) that controls the sharpness of the distribution — lower values make the loss more sensitive to hard negatives. This is essentially a <a href="https://arxiv.org/abs/1807.03748">softmax cross-entropy</a>: push the positive pair's similarity up relative to all negatives. When <span class="arithmatex">\(\tau\)</span> is small, even slight differences in similarity produce large gradients, forcing the model to make fine-grained distinctions.</p>
 <p><img alt="Bi-Encoder Training Pipeline" src="../../../../assets/2026-02-08-search-ranking-stack/bi_encoder_training_pipeline.svg" /></p>
 <h4 id="serving-bi-encoder-embeddings-at-scale">Serving Bi-Encoder Embeddings at Scale</h4>
 <p>The key architectural advantage of bi-encoders is the clean <strong>offline/online split</strong>. All document embeddings are computed once at index time and stored in a vector index. At query time, only the query needs a single forward pass through the encoder (~5ms), followed by an ANN search over pre-computed embeddings (~10ms). This asymmetry is what makes dense retrieval practical at scale.</p>
@@ -1981,7 +1983,7 @@ uv<span class="w"> </span>run<span class="w"> </span>run-all<span class="w"> </s
 </code></pre></div>
 <p>Hybrid RRF achieves <strong>Recall@100 of 0.842</strong> and <strong>NDCG@10 of 0.628</strong> — outperforming both BM25 (0.585) and Dense (0.611) individually. Documents only need to rank well in <em>one</em> method to survive fusion.</p>
 <hr />
-<h2 id="stage-2-cross-encoder-reranking">Stage 2: Cross-Encoder Reranking</h2>
+<h2 id="cross-encoder-reranking">Cross-Encoder Reranking</h2>
 <p>With 100 hybrid candidates per query, we can afford to apply a more expensive model. The cross-encoder processes the query and document <strong>together</strong> through a single Transformer, with full cross-attention between all tokens.</p>
 <p><img alt="Bi-Encoder vs. Cross-Encoder" src="../../../../assets/2026-02-08-search-ranking-stack/bi_encoder_vs_cross_encoder.svg" /></p>
 <h3 id="why-cross-attention-matters">Why Cross-Attention Matters</h3>
@@ -1990,7 +1992,7 @@ uv<span class="w"> </span>run<span class="w"> </span>run-all<span class="w"> </s
 <p>Consider why this matters in practice. In a bi-encoder, the query "apple" produces the same embedding every time — it is encoded independently, before any document is seen. A cross-encoder sees query and document simultaneously, resolving ambiguity in context. But the advantages go well beyond polysemy:</p>
 <ul>
 <li><strong>Negation</strong>: A query for "headphones that are <em>not</em> wireless" — bi-encoder embeddings for "not wireless" are nearly identical to "wireless" because the negation barely shifts the mean-pooled vector. A cross-encoder sees the "not" token directly attending to "wireless" and correctly scores wired headphones higher.</li>
-<li><strong>Qualification</strong>: A query for "laptop under <span class="arithmatex">\(500" — the price constraint modifies relevance. A cross-encoder can attend from "\)</span>500" to the price mentioned in the product description and assess whether the constraint is satisfied.</li>
+<li><strong>Qualification</strong>: A query for "laptop under $500" — the price constraint modifies relevance. A cross-encoder can attend from "$500" to the price mentioned in the product description and assess whether the constraint is satisfied.</li>
 </ul>
 <p>The cross-encoder input is formatted as <code>[CLS] query tokens [SEP] document tokens [SEP]</code>, where <code>[CLS]</code> is a special classification token whose final hidden state is fed through a linear classification head to produce a single relevance score. Segment embeddings distinguish which tokens belong to the query vs. the document, and <code>[SEP]</code> marks the boundary between segments.</p>
 <h3 id="how-cross-encoders-are-trained">How Cross-Encoders Are Trained</h3>
@@ -2037,10 +2039,10 @@ uv<span class="w"> </span>run<span class="w"> </span>run-all<span class="w"> </s
 <p>The 33M-parameter <code>ms-marco-MiniLM-L-12-v2</code> model averages about 100ms per query on CPU for 50 candidates. NDCG@10 jumps to <strong>0.645</strong> — a solid +0.017 improvement over hybrid retrieval.</p>
 <h3 id="the-speed-quality-tradeoff">The Speed-Quality Tradeoff</h3>
 <p>Why can't we just use cross-encoders for everything? The fundamental issue is that <strong>pre-computation is impossible</strong>. Unlike bi-encoders, where each document embedding is query-independent and can be computed once and stored, a cross-encoder's output depends on both the query <em>and</em> the document together. The relevance score for "wireless headphones" paired with a Sony product is computed from the full cross-attention between those specific tokens — it cannot be cached or reused for a different query.</p>
-<p>This makes the computational math stark. A bi-encoder retrieval requires 1 forward pass (to encode the query) plus N dot products (to compare against pre-computed document embeddings) — the dot products are trivially cheap. A cross-encoder requires N full Transformer forward passes, each processing the concatenated query + document sequence at <span class="arithmatex">\(O(L^2)\)</span> cost for combined sequence length <span class="arithmatex">\(L\)</span>. For 50 candidates with an average combined length of 128 tokens, that is 50 separate forward passes through 12 Transformer layers. For 100,000 candidates, it becomes computationally catastrophic (on the order of minutes on a modern GPU vs. ~17ms for a bi-encoder).</p>
+<p>The computational cost difference is stark. A bi-encoder retrieval requires 1 forward pass (to encode the query) plus N dot products (to compare against pre-computed document embeddings) — the dot products are trivially cheap. A cross-encoder requires N full Transformer forward passes, each processing the concatenated query + document sequence at <span class="arithmatex">\(O(L^2)\)</span> cost for combined sequence length <span class="arithmatex">\(L\)</span>. For 50 candidates with an average combined length of 128 tokens, that is 50 separate forward passes through 12 Transformer layers. For 100,000 candidates, it becomes computationally catastrophic (on the order of minutes on a modern GPU vs. ~17ms for a bi-encoder).</p>
 <p>Note the fundamental rule confirmed by our results: <strong>Recall@100 stays flat at 0.842 through both reranking stages.</strong> Reranking can reorder results but never add documents. The retrieval stage sets the ceiling.</p>
 <hr />
-<h2 id="stage-3-llm-listwise-reranking">Stage 3: LLM Listwise Reranking</h2>
+<h2 id="llm-listwise-reranking">LLM Listwise Reranking</h2>
 <p>The final stage uses an LLM to perform <strong>listwise</strong> reranking. Instead of scoring each document independently (pointwise), the LLM sees all top-10 results at once and outputs a complete ranking. This approach, inspired by <a href="https://arxiv.org/abs/2304.09542">RankGPT</a>, enables the model to compare products against each other — something pointwise models cannot do.</p>
 <p><img alt="LLM Reranking Approaches" src="../../../../assets/2026-02-08-search-ranking-stack/llm_reranking_approaches.svg" /></p>
 <h3 id="the-listwise-prompt">The Listwise Prompt</h3>
@@ -2192,7 +2194,7 @@ uv<span class="w"> </span>run<span class="w"> </span>run-all<span class="w"> </s
 <p>The practical utility of dense embeddings depends on Approximate Nearest Neighbor (ANN) indexing. The demo uses brute-force cosine similarity (practical at ~8,500 documents), but production systems need specialized indexes.</p>
 <h3 id="hnsw-hierarchical-navigable-small-world">HNSW (Hierarchical Navigable Small World)</h3>
 <p><a href="https://arxiv.org/abs/1603.09320">HNSW</a> (Malkov &amp; Yashunin, 2016) is the gold standard for production environments requiring sub-100ms latency. It builds a multi-layered graph where upper layers provide "express" connections for coarse navigation and lower layers provide dense connections for precise refinement. Key tuning parameters are <code>M</code> (connections per node, typically 16-64) and <code>efSearch</code> (query-time beam width — use at least 512 for recall targets above 0.95).</p>
-<p>HNSW's weakness is the <strong>"Tombstone Problem"</strong>: when records are deleted, they leave phantom nodes in the graph. Over time, these create unreachable regions, effectively blinding your search engine to sections of data.</p>
+<p>HNSW's weakness is the <strong>"Tombstone Problem"</strong>: when records are deleted, they leave phantom nodes in the graph. Over time, these create unreachable regions, effectively blinding your search engine to sections of data. This is not a theoretical concern — even modern vector databases like Qdrant, which uses HNSW exclusively, <a href="https://github.com/qdrant/qdrant/issues/7147">report degraded search quality after heavy deletions</a> that requires full index rebuilds to resolve. If your dataset has frequent updates or deletions, plan for periodic reindexing or consider IVF-based alternatives.</p>
 <h3 id="ivf-inverted-file">IVF (Inverted File)</h3>
 <p>IVF indexes partition the vector space into Voronoi cells using k-means clustering. At query time, only the <code>nprobe</code> clusters closest to the query centroid are scanned. IVF is more memory-efficient and resilient to dynamic datasets — deletions are clean, with no unreachable nodes. Build times are 4x-32x faster than HNSW.</p>
 <p>For extreme scale, <strong><a href="https://arxiv.org/abs/2405.12497">IVF_RaBitQ</a></strong> (Gao &amp; Long, SIGMOD 2024) compresses floating-point vectors into single-bit representations. In high-dimensional space, a coordinate's sign (+/-) captures sufficient angular information for similarity computation.</p>
@@ -2290,7 +2292,7 @@ uv<span class="w"> </span>run<span class="w"> </span>run-all<span class="w"> </s
 <h2 id="the-frontier-reasoning-rerankers-and-agentic-search">The Frontier: Reasoning Rerankers and Agentic Search</h2>
 <p>Two patterns define where search is heading.</p>
 <h3 id="reasoning-based-rerankers">Reasoning-Based Rerankers</h3>
-<p>Rank1 (Weller et al., 2025) trains reranking models to generate explicit reasoning chains before making relevance judgments, inspired by DeepSeek-R1 and OpenAI o1. It distills from <strong>600,000+ reasoning trace examples</strong> and achieves state-of-the-art on the <a href="https://arxiv.org/abs/2407.12883">BRIGHT</a> reasoning benchmark — sometimes <strong>2x improvement</strong> over same-sized rerankers. Remarkably, Rank1-0.5B performs comparably to RankLLaMA-13B despite being 25x smaller.</p>
+<p><a href="https://arxiv.org/abs/2502.18418">Rank1</a> trains reranking models to generate explicit reasoning chains before making relevance judgments, inspired by DeepSeek-R1 and OpenAI o1. It distills from <strong>600,000+ reasoning trace examples</strong> and achieves state-of-the-art on the <a href="https://arxiv.org/abs/2407.12883">BRIGHT</a> reasoning benchmark — sometimes <strong>2x improvement</strong> over same-sized rerankers. Remarkably, Rank1-0.5B performs comparably to RankLLaMA-13B despite being 25x smaller.</p>
 <p>The practical implication: reasoning-heavy queries (legal research, scientific literature, complex product search) will benefit enormously from test-time compute scaling in rerankers.</p>
 <h3 id="agentic-search">Agentic Search</h3>
 <p><a href="https://arxiv.org/abs/2501.05366">Search-o1</a> (EMNLP 2025) enables reasoning models (specifically QwQ-32B) to autonomously generate search queries when they encounter uncertain knowledge mid-reasoning, achieving <strong>23.2% average exact match improvement</strong> over standard RAG on multi-hop QA benchmarks. The pattern is clear: search is becoming a tool that AI agents invoke dynamically rather than a standalone product.</p>
