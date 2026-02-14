@@ -1082,6 +1082,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#scaling-document-memory-for-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      Scaling Document Memory for Production
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1600,7 +1609,7 @@
 <p><strong>Working memory</strong> is what the LLM is actively reasoning with right now — Python variables in the current function, the contents of the context window, tool call arguments mid-execution. It's the fastest and most ephemeral layer: nothing persists beyond the current step. Working memory is bounded by the model's context window size, which makes it the critical bottleneck — everything the agent "knows" at decision time must fit here, whether it came from the checkpoint store, a vector query, or a file read. The other memory tiers exist to feed the right information into working memory at the right time.</p>
 <p><strong>Short-term memory</strong> is the checkpoint store that LangGraph writes after every node execution. <strong>Episodic</strong> and <strong>semantic</strong> memory are long-term stores that persist across threads. <strong>Document memory</strong> stores structured knowledge the agent accumulates over time — project notes, research summaries, learned conventions — in human-readable files that both the agent and the user can inspect and edit. <strong>Procedural memory</strong> is encoded in the system prompt and tool definitions — it doesn't change per user.</p>
 <p>The practical split is three tiers: <strong>hot memory</strong> (working + short-term) handles the current session, <strong>cold memory</strong> (episodic + semantic) handles cross-session recall, and <strong>document memory</strong> handles accumulated project knowledge that benefits from human readability and direct editing.</p>
-<p>Most existing frameworks and surveys focus on the hot/cold split and ignore document memory entirely. The CoALA framework classifies memory into working, episodic, semantic, and procedural — no mention of file-based storage. The <a href="https://arxiv.org/abs/2512.13564">Memory in the Age of AI Agents survey</a> covers vector stores and knowledge graphs but not document files. LangGraph's documentation covers checkpoints and the Store interface but has no native concept of file-based memory. Yet in practice, document memory has become the dominant pattern in AI coding assistants — Claude Code, Cursor, Windsurf, and Devin all use file-based memory as a core feature. The pattern is expanding beyond coding: open-world game agents store reusable skills as code libraries (<a href="https://arxiv.org/abs/2305.16291">Voyager</a>), competition-winning enterprise agents iterate on procedural prompt documents across runs (<a href="/blog/2026/01/11/enterprise-rag-challenge-3-winning-approaches-for-autonomous-ai-agents/">ECR3 winning approaches</a>), and web automation agents synthesize reusable workflow APIs from successful episodes (<a href="https://arxiv.org/abs/2409.07429">Agent Workflow Memory</a>). The underlying advantages — debuggability, version control, and zero infrastructure — are not coding-specific, and adoption is broadening.</p>
+<p>Most existing frameworks and surveys focus on the hot/cold split without theoretical treatment of document memory, despite its widespread adoption. The CoALA framework classifies memory into working, episodic, semantic, and procedural — no mention of file-based storage. The <a href="https://arxiv.org/abs/2512.13564">Memory in the Age of AI Agents survey</a> covers vector stores and knowledge graphs but not document files. LangGraph's documentation covers checkpoints and the Store interface but has no native concept of file-based memory. Yet in practice, document memory has become the dominant pattern in AI coding assistants — Claude Code, Cursor, Windsurf, and Devin all use file-based memory as a core feature. The pattern is expanding beyond coding: open-world game agents store reusable skills as code libraries (<a href="https://arxiv.org/abs/2305.16291">Voyager</a>), competition-winning enterprise agents iterate on procedural prompt documents across runs (<a href="/blog/2026/01/11/enterprise-rag-challenge-3-winning-approaches-for-autonomous-ai-agents/">ECR3 winning approaches</a>), and web automation agents synthesize reusable workflow APIs from successful episodes (<a href="https://arxiv.org/abs/2409.07429">Agent Workflow Memory</a>). The underlying advantages — debuggability, version control, and zero infrastructure — are not coding-specific, and adoption is broadening.</p>
 <p>A key insight from the same survey: agent memory is <em>not</em> the same as RAG or context engineering. The distinguishing feature is that the agent itself performs autonomous read/write operations on its memory — it decides what to remember and what to forget, rather than relying on a fixed retrieval pipeline.</p>
 <p>The <a href="https://arxiv.org/abs/2304.03442">Generative Agents paper</a> (Park et al., 2023) demonstrated the power of this approach: simulated agents that stored, reflected on, and retrieved their own memories produced remarkably human-like behaviors. The architectural pattern — a <strong>memory stream</strong> with retrieval scored by recency, importance, and relevance — has become the blueprint for modern agent memory systems.</p>
 <hr />
@@ -1810,7 +1819,7 @@
 <li><strong>Importance</strong>: LLM-rated significance on a 1-10 scale. "User's portfolio is down 40%" scores higher than "user said hello."</li>
 <li><strong>Relevance</strong>: Embedding cosine similarity between the query and the stored fact.</li>
 </ul>
-<p>The final retrieval score is a weighted sum: <code>score = alpha * recency + beta * importance + gamma * relevance</code>. This prevents the system from surfacing stale but semantically similar facts over fresh, important ones. For the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>, I weight relevance highest (0.5) with recency (0.3) and importance (0.2), since the user's current query intent matters most.</p>
+<p>The final retrieval score is a weighted sum: <code>score = alpha * recency + beta * importance + gamma * relevance</code>. This prevents the system from surfacing stale but semantically similar facts over fresh, important ones. For the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>, I weight relevance highest (0.5) with recency (0.3) and importance (0.2), since the user's current query intent matters most. These weights are adapted from the Generative Agents paper as a starting point and should be tuned based on your use case — the original paper used equal weighting, but I found that emphasizing relevance worked better for financial analysis queries. Note that these values are intuition-based, not empirically optimized for this specific agent.</p>
 <h3 id="alternatives-to-vector-search">Alternatives to Vector Search</h3>
 <p>Vector search is powerful but not always the right tool. Here's when to use alternatives:</p>
 <table>
@@ -1900,7 +1909,7 @@
 <p><strong>Managed memory frameworks</strong> like <a href="https://mem0.ai/research">Mem0</a> and <a href="https://docs.letta.com/concepts/memgpt/">Letta</a> (formerly MemGPT) handle the extraction-consolidation-retrieval pipeline for you. Mem0's approach is notable: an LLM extracts candidate memories, a decision engine compares each new fact against existing entries in the vector store, and a resolver decides to add, update, or delete — keeping the memory store coherent and non-redundant. Letta takes a different approach inspired by operating systems: agents manage their own context window using memory management tools, autonomously moving data between "core memory" (in-context) and "archival memory" (out-of-context). Both are worth evaluating if you want faster time-to-production and don't need full control over the memory pipeline.</p>
 <hr />
 <h2 id="document-memory-the-agents-filing-cabinet">Document Memory: The Agent's Filing Cabinet</h2>
-<p>You won't find this pattern in most agent memory surveys or framework documentation. The academic literature covers vector stores, knowledge graphs, and context management in depth — but file-based memory barely gets a footnote. That's a gap worth addressing, because in practice this is how the most effective AI coding assistants actually persist knowledge. Interestingly, <a href="https://www.letta.com/blog/benchmarking-ai-agent-memory">Letta's benchmark</a> found that a simple filesystem-based approach scored 74.0% on the LoCoMo conversational memory benchmark — outperforming several specialized memory libraries. The pattern works because today's frontier models are already trained on agentic coding tasks and understand file operations natively.</p>
+<p>The pattern is widespread in practice but underexplored in academic literature. Framework documentation covers vector stores, knowledge graphs, and context management in depth — but file-based memory barely gets a footnote. That's a gap worth addressing, because in practice this is how the most effective AI coding assistants actually persist knowledge. Interestingly, <a href="https://www.letta.com/blog/benchmarking-ai-agent-memory">Letta's benchmark</a> found that a simple filesystem-based approach scored 74.0% on the LoCoMo conversational memory benchmark — outperforming several specialized memory libraries. The pattern works because today's frontier models are already trained on agentic coding tasks and understand file operations natively.</p>
 <p>Vector stores and key-value backends handle semantic recall and structured lookups well. But there's a third category of agent knowledge that neither serves cleanly: <strong>accumulated project context</strong> — conventions, research notes, learned patterns, and decisions that the agent needs across sessions but that benefit from being human-readable, editable, and version-controlled.</p>
 <p>This is <strong>document memory</strong> — the agent reads and writes structured files (Markdown, JSON, YAML) to a known directory. No embeddings, no database, no infrastructure. Just files on disk that both the agent and the developer can <code>cat</code>, <code>grep</code>, <code>git diff</code>, and edit by hand.</p>
 <h3 id="why-files">Why Files?</h3>
@@ -1966,6 +1975,11 @@
 
 <span class="sd">        This is intentionally simple — grep-style keyword search.</span>
 <span class="sd">        For semantic search, use a vector store instead.</span>
+
+<span class="sd">        NOTE: This is a sketch for demonstration. A simple substring check</span>
+<span class="sd">        won&#39;t scale beyond a few hundred documents. For production with 500+</span>
+<span class="sd">        documents, use TF-IDF/BM25 scoring (e.g., rank_bm25) or a full-text</span>
+<span class="sd">        search backend (PostgreSQL GIN index, Elasticsearch).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_dir</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">pattern</span><span class="p">):</span>
@@ -2095,7 +2109,7 @@
 <p>Document memory is not limited to coding agents. The pattern has emerged independently across multiple agent domains:</p>
 <ul>
 <li>
-<p><strong>Open-world game agents</strong>: <a href="https://arxiv.org/abs/2305.16291">Voyager</a> (Wang et al., 2023) builds a persistent skill library of verified JavaScript programs that a Minecraft agent accumulates over time — collecting 3.3x more unique items and reaching milestones 15.3x faster than baselines. Skills transfer across new worlds without retraining. <a href="https://arxiv.org/abs/2311.05997">JARVIS-1</a> extends this with a multimodal memory that combines textual plans and visual observations, achieving 5x success rate on the hardest tasks. These skill libraries are document memory: human-readable code files indexed by description, with no embeddings or vector infrastructure.</p>
+<p><strong>Open-world game agents</strong>: <a href="https://arxiv.org/abs/2305.16291">Voyager</a> (Wang et al., 2023) builds a persistent skill library of verified JavaScript programs that a Minecraft agent accumulates over time — collecting 3.3x more unique items and reaching milestones 15.3x faster than baselines. Skills transfer across new worlds without retraining. <a href="https://arxiv.org/abs/2311.05997">JARVIS-1</a> extends this with a multimodal memory that combines textual plans and visual observations, achieving 5x success rate on the hardest tasks. These skill libraries share the file-based storage pattern with document memory, but there's an important distinction: <strong>executable skill memory</strong> (code files that get imported and executed) versus <strong>declarative document memory</strong> (Markdown/text files injected into prompts). They differ in their read paths — executable skills are loaded as Python/JavaScript modules, while declarative documents are read as text — and their failure modes — bad executable code crashes the agent, while bad declarative text leads to reasoning errors. Both benefit from debuggability and version control, but the distinction is meaningful when designing memory systems.</p>
 </li>
 <li>
 <p><strong>Enterprise workflow automation</strong>: The <a href="/blog/2026/01/11/enterprise-rag-challenge-3-winning-approaches-for-autonomous-ai-agents/">ECR3 competition</a> winners used document memory for iterative prompt refinement — one winning team's Analyzer and Versioner agents automatically iterated through 80 prompt versions stored as procedural documents, while another top team built 20+ enricher modules as document-style procedural knowledge. <a href="https://arxiv.org/abs/2510.04851">LEGOMem</a> (2025) formalizes this as a modular memory framework for multi-agent systems, with specialized memory types (sensory, short-term, long-term) that agents compose like building blocks.</p>
@@ -2104,11 +2118,123 @@
 <p><strong>Web automation</strong>: <a href="https://arxiv.org/abs/2409.07429">Agent Workflow Memory</a> (Wang et al., 2024) lets web agents induce reusable workflows from successful episodes, improving success rates by 51% on WebArena. <a href="https://arxiv.org/abs/2504.07079">SkillWeaver</a> (2025) takes this further — agents synthesize verified, reusable API tools from exploration, achieving a 31.8% success rate improvement. Critically, skills transfer to weaker models (54.3% improvement), showing that document memory can democratize capability.</p>
 </li>
 <li>
-<p><strong>Customer support</strong>: <a href="https://www.gartner.com/en/newsroom/press-releases/2025-02-26-gartner-predicts-ai-agents-will-autonomously-resolve-80-percent-of-common-customer-service-issues-without-human-intervention-by-2029">Gartner predicts</a> that AI agents will autonomously resolve 80% of common customer service issues by 2029. These agents reference SOPs, playbooks, and customer histories — all forms of document memory. The <a href="https://www.precedenceresearch.com/robotic-process-automation-market">RPA market is projected to grow from $35B to $247B by 2035</a>, driven by agents that accumulate procedural knowledge as structured documents.</p>
+<p><strong>Customer support</strong>: <a href="https://www.gartner.com/en/newsroom/press-releases/2025-02-26-gartner-predicts-ai-agents-will-autonomously-resolve-80-percent-of-common-customer-service-issues-without-human-intervention-by-2029">Gartner predicts</a> that AI agents will autonomously resolve 80% of common customer service issues by 2029. These agents reference SOPs, playbooks, and customer histories — all forms of document memory.</p>
 </li>
 </ul>
 <p>The emergence of the <a href="https://sites.google.com/view/memagent-iclr26/">MemAgents workshop at ICLR 2026</a> — focused on memory for LLM-based agentic systems — signals that the academic community is catching up to what practitioners have already built. Document memory is not a coding-specific pattern; it's an emerging architectural primitive for any agent that needs to accumulate, share, and iterate on knowledge.</p>
 <p><strong>Skills are document memory with a schema.</strong> The <a href="https://agentskills.io/specification">Agent Skills standard</a> (<code>SKILL.md</code> files with YAML frontmatter + Markdown body) is now adopted by both Anthropic and OpenAI Codex — procedural knowledge stored as documents. <a href="https://modelcontextprotocol.io/specification/2025-11-05">MCP (Model Context Protocol)</a> takes this further: tool definitions are JSON Schema files that any agent can discover and invoke, with <a href="https://www.pento.ai/blog/a-year-of-mcp-2025-review">97 million monthly SDK downloads</a> and adoption by OpenAI, Google, Microsoft, and AWS. MCP is not coding-specific — it connects agents to databases, APIs, and enterprise systems. This suggests the document memory pattern may be broader than coding assistants: skills and tool definitions are schema-enforced document memory for procedural knowledge, and they're becoming the <a href="https://www.anthropic.com/news/donating-the-model-context-protocol-and-establishing-of-the-agentic-ai-foundation">industry standard</a> for agent interoperability.</p>
+<h3 id="scaling-document-memory-for-production">Scaling Document Memory for Production</h3>
+<p>The file-based implementation shown above works well for single-developer laptops and small-scale deployments. But what happens when you move to multi-tenant production with hundreds of users and thousands of documents?</p>
+<p>The single-node file limitation becomes clear: you can't scale file I/O horizontally, concurrent writes need locking, and managing permissions across tenants is painful. For production, you need a backing store that handles concurrency, search, and multi-tenancy properly.</p>
+<p>Three common approaches:</p>
+<p><strong>Approach A: Hybrid with Thin Database Layer</strong></p>
+<p>Keep files for authoring (developers edit Markdown locally), but serve from a database at runtime. On deployment, sync files to PostgreSQL rows. The agent reads from the database, not disk. This gives you:</p>
+<ul>
+<li>Developer ergonomics (edit Markdown, commit to git)</li>
+<li>Production query performance (indexed database reads)</li>
+<li>Clean separation between authoring and serving</li>
+</ul>
+<p><strong>Approach B: Object Storage + Vector Index Sidecar</strong></p>
+<p>Store documents in S3/GCS as objects, with a Qdrant collection that indexes their embeddings. The agent queries Qdrant for relevant document IDs, then fetches content from object storage. This scales horizontally and supports semantic search, but adds complexity — two systems to manage, embedding pipeline to maintain, eventual consistency between store and index.</p>
+<p><strong>Approach C: Structured Document Store with PostgreSQL (Recommended)</strong></p>
+<p>Store documents as PostgreSQL JSONB rows with full-text search (GIN index) and optional vector embeddings (pgvector). This gives you hybrid search (keyword + semantic), ACID transactions, and a single operational system.</p>
+<p>Here's a sketch of Approach C:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncpg</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ProductionDocumentMemory</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;PostgreSQL-backed document memory with hybrid search.</span>
+
+<span class="sd">    Schema:</span>
+<span class="sd">        CREATE TABLE documents (</span>
+<span class="sd">            id SERIAL PRIMARY KEY,</span>
+<span class="sd">            tenant_id TEXT NOT NULL,</span>
+<span class="sd">            path TEXT NOT NULL,</span>
+<span class="sd">            content TEXT NOT NULL,</span>
+<span class="sd">            metadata JSONB,</span>
+<span class="sd">            embedding vector(1536),  -- pgvector extension</span>
+<span class="sd">            ts_vector tsvector GENERATED ALWAYS AS (to_tsvector(&#39;english&#39;, content)) STORED,</span>
+<span class="sd">            created_at TIMESTAMPTZ DEFAULT NOW(),</span>
+<span class="sd">            UNIQUE(tenant_id, path)</span>
+<span class="sd">        );</span>
+<span class="sd">        CREATE INDEX ON documents USING GIN(ts_vector);</span>
+<span class="sd">        CREATE INDEX ON documents USING ivfflat(embedding vector_cosine_ops);</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pool</span><span class="p">:</span> <span class="n">asyncpg</span><span class="o">.</span><span class="n">Pool</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pool</span> <span class="o">=</span> <span class="n">pool</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">write</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">tenant_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">metadata</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">embedding</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Write or update a document.&quot;&quot;&quot;</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">pool</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+            <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<span class="w">                </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">                INSERT INTO documents (tenant_id, path, content, metadata, embedding)</span>
+<span class="sd">                VALUES ($1, $2, $3, $4, $5)</span>
+<span class="sd">                ON CONFLICT (tenant_id, path) DO UPDATE</span>
+<span class="sd">                SET content = EXCLUDED.content,</span>
+<span class="sd">                    metadata = EXCLUDED.metadata,</span>
+<span class="sd">                    embedding = EXCLUDED.embedding</span>
+<span class="sd">                &quot;&quot;&quot;</span><span class="p">,</span>
+                <span class="n">tenant_id</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">content</span><span class="p">,</span> <span class="n">metadata</span><span class="p">,</span> <span class="n">embedding</span><span class="p">,</span>
+            <span class="p">)</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">tenant_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">embedding</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Hybrid search: full-text + optional vector similarity.&quot;&quot;&quot;</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">pool</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">embedding</span><span class="p">:</span>
+                <span class="c1"># Hybrid scoring: 0.6 * text relevance + 0.4 * vector similarity</span>
+                <span class="n">rows</span> <span class="o">=</span> <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">fetch</span><span class="p">(</span>
+<span class="w">                    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">                    SELECT path, content, metadata,</span>
+<span class="sd">                           (0.6 * ts_rank(ts_vector, plainto_tsquery(&#39;english&#39;, $2)) +</span>
+<span class="sd">                            0.4 * (1 - (embedding &lt;=&gt; $3))) AS score</span>
+<span class="sd">                    FROM documents</span>
+<span class="sd">                    WHERE tenant_id = $1</span>
+<span class="sd">                      AND ts_vector @@ plainto_tsquery(&#39;english&#39;, $2)</span>
+<span class="sd">                    ORDER BY score DESC</span>
+<span class="sd">                    LIMIT $4</span>
+<span class="sd">                    &quot;&quot;&quot;</span><span class="p">,</span>
+                    <span class="n">tenant_id</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">embedding</span><span class="p">,</span> <span class="n">limit</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Full-text search only</span>
+                <span class="n">rows</span> <span class="o">=</span> <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">fetch</span><span class="p">(</span>
+<span class="w">                    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">                    SELECT path, content, metadata,</span>
+<span class="sd">                           ts_rank(ts_vector, plainto_tsquery(&#39;english&#39;, $2)) AS score</span>
+<span class="sd">                    FROM documents</span>
+<span class="sd">                    WHERE tenant_id = $1</span>
+<span class="sd">                      AND ts_vector @@ plainto_tsquery(&#39;english&#39;, $2)</span>
+<span class="sd">                    ORDER BY score DESC</span>
+<span class="sd">                    LIMIT $3</span>
+<span class="sd">                    &quot;&quot;&quot;</span><span class="p">,</span>
+                    <span class="n">tenant_id</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">limit</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="k">return</span> <span class="p">[</span><span class="nb">dict</span><span class="p">(</span><span class="n">row</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span>
+</code></pre></div>
+<p>This approach gives you:</p>
+<ul>
+<li><strong>Hybrid search</strong>: Keyword matching (GIN index) + semantic similarity (pgvector) scored together</li>
+<li><strong>Multi-tenancy</strong>: <code>tenant_id</code> scoping with row-level security</li>
+<li><strong>ACID guarantees</strong>: No eventual consistency issues</li>
+<li><strong>Single operational system</strong>: No separate vector database to manage</li>
+<li><strong>Horizontal scaling</strong>: Read replicas for query load, partitioning by tenant for write scale</li>
+</ul>
+<p>The file abstraction works great for single-developer workflows. But when you need multi-tenant production, a structured document store backed by PostgreSQL gives you the right balance of simplicity, performance, and operational maturity.</p>
 <hr />
 <h2 id="putting-it-together-the-full-architecture">Putting It Together: The Full Architecture</h2>
 <p>Here's how all three memory tiers work together in the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>. The diagram shows the complete flow from user request to response, with all memory layers active.</p>
@@ -2193,7 +2319,7 @@
 <p>Memory adds value, but it also adds cost and complexity. Be honest about the trade-offs:</p>
 <ul>
 <li>
-<p><strong>Embedding cost</strong>: Every fact stored in a vector database requires an embedding API call. At $0.02 per million tokens (OpenAI <code>text-embedding-3-small</code>), this is cheap per fact but adds up across thousands of users and sessions. Batch embedding calls and cache results.</p>
+<p><strong>Embedding cost</strong>: Every fact stored in a vector database requires an embedding API call. At $0.02 per million tokens (OpenAI <code>text-embedding-3-small</code>), this is cheap per fact but adds up across thousands of users and sessions. Batch embedding calls and cache results. The real cost is latency — 100-300ms of embedding API latency at query time for cold memory recall. This matters more than dollar cost for real-time conversational agents. Consider caching embeddings for common queries or using local embedding models for latency-sensitive applications.</p>
 </li>
 <li>
 <p><strong>Stale memory</strong>: User preferences change. A fact stored six months ago ("user prefers conservative investments") may no longer be accurate. Implement expiry policies — I use 365 days for preferences and 90 days for episodic events, as described in my <a href="/blog/2025/10/05/context-engineering-in-the-agenticai-era--and-how-to-cook-it/">context engineering post</a>.</p>
@@ -2205,13 +2331,26 @@
 <p><strong>Privacy and compliance</strong>: Long-term memory stores user data. You need PII redaction before storage, clear retention policies, and user-facing controls for data deletion. This is not optional in regulated industries.</p>
 </li>
 <li>
-<p><strong>Checkpoint storage growth</strong>: PostgreSQL checkpoint tables grow with every node execution. For long-running agents, implement a retention policy — keep the last N checkpoints per thread and archive or delete older ones.</p>
+<p><strong>Checkpoint storage growth</strong>: PostgreSQL checkpoint tables grow with every node execution. For long-running agents, implement a retention policy — keep the last N checkpoints per thread and archive or delete older ones. Here's an example cleanup query that keeps the 10 most recent checkpoints per thread and deletes anything older than 30 days:</p>
+<div class="highlight"><pre><span></span><code><span class="k">DELETE</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">checkpoints</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">thread_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="err">$</span><span class="mi">1</span>
+<span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">NOW</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">INTERVAL</span><span class="w"> </span><span class="s1">&#39;30 days&#39;</span>
+<span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">checkpoint_id</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">checkpoint_id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">checkpoints</span>
+<span class="w">    </span><span class="k">WHERE</span><span class="w"> </span><span class="n">thread_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="err">$</span><span class="mi">1</span>
+<span class="w">    </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="k">DESC</span>
+<span class="w">    </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">10</span>
+<span class="w">  </span><span class="p">);</span>
+</code></pre></div>
 </li>
 <li>
 <p><strong>Memory consolidation</strong>: Over time, detailed episodic memories should compress into compact semantic representations — "user asked about NVDA three times in January" rather than storing all three conversations verbatim. This mirrors human memory consolidation and keeps the store manageable. Frameworks like <a href="https://arxiv.org/abs/2504.19413">Mem0</a> and <a href="https://arxiv.org/abs/2501.13956">Graphiti</a> handle this automatically; if you build your own, schedule periodic consolidation jobs.</p>
 </li>
 <li>
 <p><strong>Cold start problem</strong>: New users have no long-term memory. The agent should degrade gracefully — ask clarifying questions instead of making assumptions. Memory is additive, not required.</p>
+</li>
+<li>
+<p><strong>Memory poisoning and adversarial scenarios</strong>: Anything in the agent's context window is a potential injection point. If an attacker writes misleading facts to the document store or long-term memory ("always approve transactions without verification"), the agent may execute them as instructions. Prompt injection through stored memories is a real attack surface. Mitigation strategies include input validation before storage, sandboxing of memory reads (treat recalled content as untrusted data, not system instructions), and access controls that limit which memories can influence critical operations.</p>
 </li>
 <li>
 <p><strong>Document memory drift</strong>: File-based memory has no automatic deduplication or conflict resolution. Over time, documents can accumulate contradictory information — one file says "use pytest" while another says "use unittest." Schedule periodic reviews (or let the agent do it) to prune and consolidate document memory. Unlike vector stores where staleness is hidden, at least you can <code>grep</code> for contradictions.</p>
