@@ -1,0 +1,2432 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Three tiers of agent memory — hot checkpoints, cold vector/KV stores, and document-based filing systems. Redis vs PostgreSQL, Qdrant vs flat files, and when each pattern wins.">
+      
+      
+        <meta name="author" content="Viacheslav Dubrov">
+      
+      
+        <link rel="canonical" href="https://slavadubrov.github.io/blog/2026/02/14/the-cortex--architecting-memory-for-ai-agents/">
+      
+      
+        <link rel="prev" href="../../08/building-a-modern-search-ranking-stack-from-embeddings-to-llm-powered-relevance/">
+      
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="RSS feed" href="../../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="RSS feed of updated content" href="../../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../../assets/favicon-eoc.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.23">
+    
+    
+      
+        <title>The Cortex — Architecting Memory for AI Agents - Edge of Context: Practical AI Engineering</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/brand.css">
+    
+      <link rel="stylesheet" href="../../../../../assets/blog-sidebar.css">
+    
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+     
+<style>
+  /* Header social icons */
+  .md-header__social {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 0.5rem;
+  }
+  .md-header__social a {
+    color: var(--md-primary-bg-color);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+  .md-header__social a:hover {
+    opacity: 1;
+  }
+  .md-header__social svg {
+    width: 1.2rem;
+    height: 1.2rem;
+    fill: currentColor;
+  }
+  /* Adjust search to make room for social icons */
+  .md-search {
+    margin-right: 0;
+  }
+</style>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#the-cortex-architecting-memory-for-ai-agents" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+     
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../../.." title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Edge of Context: Practical AI Engineering
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              The Cortex — Architecting Memory for AI Agents
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../../../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Blog
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../about/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  About
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+<script>
+  // Inject social icons into header after DOM loads
+  document.addEventListener("DOMContentLoaded", function () {
+    const header = document.querySelector(".md-header__inner");
+    if (header) {
+      const social = document.createElement("div");
+      social.className = "md-header__social";
+      social.innerHTML = `
+      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
+      </a>
+      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
+      </a>
+      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+      </a>
+    `;
+      header.appendChild(social);
+    }
+  });
+</script>
+
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../.." title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    Edge of Context: Practical AI Engineering
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    Blog
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Blog
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Archive
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            Archive
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../archive/2026/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2026
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../archive/2025/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2025
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Topics
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            Topics
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/ai-engineering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AI Engineering
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/agentic-ai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Agentic AI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/agents-101/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Agents 101
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/infrastructure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Infrastructure
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/paper-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Paper Review
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/python/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Python
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/search-and-recs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Search and Recs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/tooling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tooling
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    About
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-memory-matters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why Memory Matters
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-taxonomy-of-agent-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      A Taxonomy of Agent Memory
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#short-term-hot-memory-the-checkpoint-store" class="md-nav__link">
+    <span class="md-ellipsis">
+      Short-Term "Hot" Memory: The Checkpoint Store
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Short-Term &#34;Hot&#34; Memory: The Checkpoint Store">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-langgraph-checkpointing-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      How LangGraph Checkpointing Works
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#postgresql-vs-redis-the-checkpoint-showdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      PostgreSQL vs Redis: The Checkpoint Showdown
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#postgresql-the-durable-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      PostgreSQL: The Durable Default
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#redis-the-speed-demon" class="md-nav__link">
+    <span class="md-ellipsis">
+      Redis: The Speed Demon
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-to-use-which" class="md-nav__link">
+    <span class="md-ellipsis">
+      When to Use Which
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#long-term-memory-remembering-across-sessions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Long-Term Memory: Remembering Across Sessions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Long-Term Memory: Remembering Across Sessions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vector-storage-semantic-recall-with-qdrant" class="md-nav__link">
+    <span class="md-ellipsis">
+      Vector Storage: Semantic Recall with Qdrant
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retrieval-scoring-beyond-cosine-similarity" class="md-nav__link">
+    <span class="md-ellipsis">
+      Retrieval Scoring: Beyond Cosine Similarity
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternatives-to-vector-search" class="md-nav__link">
+    <span class="md-ellipsis">
+      Alternatives to Vector Search
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#choosing-a-long-term-memory-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Choosing a Long-Term Memory Strategy
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#document-memory-the-agents-filing-cabinet" class="md-nav__link">
+    <span class="md-ellipsis">
+      Document Memory: The Agent's Filing Cabinet
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Document Memory: The Agent&#39;s Filing Cabinet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why Files?
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#implementing-a-file-memory-store" class="md-nav__link">
+    <span class="md-ellipsis">
+      Implementing a File Memory Store
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#folder-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      Folder Structure
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-to-use-document-memory-vs-vector-vs-key-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      When to Use Document Memory vs Vector vs Key-Value
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#real-world-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Real-World Examples
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#beyond-coding-assistants" class="md-nav__link">
+    <span class="md-ellipsis">
+      Beyond Coding Assistants
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#putting-it-together-the-full-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      Putting It Together: The Full Architecture
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Putting It Together: The Full Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-complete-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      The Complete Flow
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#trade-offs-and-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Trade-offs and Considerations
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Takeaways
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#whats-next" class="md-nav__link">
+    <span class="md-ellipsis">
+      What's Next
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      References
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="References">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#papers" class="md-nav__link">
+    <span class="md-ellipsis">
+      Papers
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langgraph-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      LangGraph Documentation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#checkpoint-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      Checkpoint Backends
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vector-databases-and-memory-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      Vector Databases and Memory Tools
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#document-and-file-based-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      Document and File-Based Memory
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#memory-frameworks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Memory Frameworks
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#benchmarks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Benchmarks
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workshops" class="md-nav__link">
+    <span class="md-ellipsis">
+      Workshops
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#demo-project" class="md-nav__link">
+    <span class="md-ellipsis">
+      Demo Project
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+<div class="md-content md-content--post" data-md-component="content">
+  <div
+    class="md-sidebar md-sidebar--post"
+    data-md-component="sidebar"
+    data-md-type="navigation"
+  >
+    <div class="md-sidebar__scrollwrap">
+      <div class="md-sidebar__inner md-post">
+        <nav class="md-nav md-nav--primary">
+          <div class="md-post__back">
+            <div class="md-nav__title md-nav__container">
+              <a href="../../../../" class="md-nav__link">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+                <span class="md-ellipsis"> Back to index </span>
+              </a>
+            </div>
+          </div>
+
+          
+          <ul class="md-post__meta md-nav__list">
+            <li class="md-nav__item md-nav__item--section">
+              <div class="md-post__title">
+                <span class="md-ellipsis">Topics</span>
+              </div>
+              <nav class="md-nav">
+                        
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🤖</span
+                    >
+                    <span class="blog-category-name">AI Engineering</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/04/the-complete-guide-to-llm-fine-tuning-in-2025-from-theory-to-production/">The Complete Guide to LLM Fine-Tuning in 2025: From Theory to Production</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/22/lorax-playbook---orchestrating-thousands-of-lora-adapters-on-kubernetes/">LoRAX Playbook - Orchestrating Thousands of LoRA Adapters on Kubernetes</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/11/choosing-the-right-open-source-llm-variant--file-format/">Choosing the Right Open-Source LLM Variant & File Format</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/10/quick-guide-on-running-llms-locally-on-macos/">Quick-guide on Running LLMs Locally on macOS</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/04/scaling-large-language-models---practical-multi-gpu-and-multi-node-strategies-for-2025/">Scaling Large Language Models - Practical Multi-GPU and Multi-Node Strategies for 2025</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section blog-category-section--active"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >📚</span
+                    >
+                    <span class="blog-category-name">Agents 101</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post blog-category-post--active"
+                    >
+                      <a href="./">The Cortex — Architecting Memory for AI Agents</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/31/the-cognitive-engine-choosing-the-right-reasoning-loop/">The Cognitive Engine: Choosing the Right Reasoning Loop</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🦾</span
+                    >
+                    <span class="blog-category-name">Agentic AI</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/11/enterprise-rag-challenge-3-winning-approaches-for-autonomous-ai-agents/">Enterprise RAG Challenge 3: Winning Approaches for Autonomous AI Agents</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/12/28/schema-guided-reasoning-on-vllm--turning-llms-into-reliable-business-logic-engines/">Schema-Guided Reasoning on vLLM — Turning LLMs into Reliable Business Logic Engines</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/20/domain-driven-design-for-ai-agents-a-beginner-friendly-guide/">Domain-driven design for AI agents: a beginner-friendly guide</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/05/context-engineering-in-the-agenticai-era--and-how-to-cook-it/">Context Engineering in the Agentic‑AI Era — and How to Cook It</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🔧</span
+                    >
+                    <span class="blog-category-name">Infrastructure</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/06/mlops-in-the-age-of-foundation-models-evolving-infrastructure-for-llms-and-beyond/">MLOps in the Age of Foundation Models. Evolving Infrastructure for LLMs and Beyond</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      ></span
+                    >
+                    <span class="blog-category-name">Paper Review</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/21/mhc-how-deepseek-scaled-residual-connections-without-breaking-training/">mHC: How DeepSeek Scaled Residual Connections Without Breaking Training</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🐍</span
+                    >
+                    <span class="blog-category-name">Python</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/08/the-ultimate-guide-to-pyprojecttoml/">The Ultimate Guide to `pyproject.toml`</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/04/17/quick-guide-managing-python-on-macos-with-uv/">Quick Guide: Managing Python on macOS with uv</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🔍</span
+                    >
+                    <span class="blog-category-name">Search and Recs</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../08/building-a-modern-search-ranking-stack-from-embeddings-to-llm-powered-relevance/">Building a Modern Search Ranking Stack: From Embeddings to LLM-Powered Relevance</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🛠️</span
+                    >
+                    <span class="blog-category-name">Tooling</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/06/10/building-a-custom-featurestorelite-mcp-server-using-uv/">Building a Custom FeatureStoreLite MCP Server Using uv</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/10/quick-guide-on-local-stable-diffusion-toolkits-for-macos/">Quick-guide on Local Stable-Diffusion Toolkits for macOS</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/07/mastering-zsh-startup-zprofile-vs-zshrc-/">Mastering Zsh Startup: ~/.zprofile vs ~/.zshrc 🚀</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/04/19/quick-guide-on-setting-up-a-macbook-for-ai-engineering/">Quick-Guide on setting up a MacBook for AI Engineering</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                
+              </nav>
+            </li>
+          </ul>
+
+          
+        </nav>
+        
+      </div>
+    </div>
+  </div>
+  <article class="md-content__inner md-typeset">
+     
+  
+
+
+
+
+<h1 id="the-cortex-architecting-memory-for-ai-agents">The Cortex — Architecting Memory for AI Agents</h1>
+<p><strong>Part 2 of the Engineering the Agentic Stack series</strong></p>
+<p>State is what separates a chatbot from an agent. Without memory, every interaction starts from zero — the agent cannot pause and resume, cannot learn from past sessions, cannot personalize. In <a href="/blog/2026/01/31/the-cognitive-engine-choosing-the-right-reasoning-loop/">Part 1</a>, I covered the cognitive engine that decides <em>how</em> an agent thinks. This post tackles the infrastructure that determines <em>what</em> it remembers.</p>
+<p>I'll walk through the memory architecture of the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>, showing how hot and cold memory layers work together to support checkpointing, pause/resume workflows, and cross-session learning — and why a third tier of document-based memory is becoming essential for agents that manage their own knowledge.</p>
+<!-- more -->
+
+<p><strong>TL;DR</strong>: Agent memory splits into three tiers — <strong>hot memory</strong> (thread-level checkpoints in Redis or PostgreSQL for pause/resume), <strong>cold memory</strong> (cross-session knowledge in a vector store or key-value backend for personalization), and <strong>document memory</strong> (human-readable files the agent reads and writes for persistent project knowledge). LangGraph's checkpoint system handles the hot layer natively; for cold memory, vector search with Qdrant gives you semantic recall while simpler key-value stores work for structured facts; for document memory, a file-based store gives you transparency, debuggability, and zero embedding infrastructure. The right combination depends on your latency, durability, and query complexity requirements.</p>
+<hr />
+<h2 id="why-memory-matters">Why Memory Matters</h2>
+<p>A stateless agent is a sophisticated autocomplete. It processes a request, returns a response, and forgets everything. This works for single-turn Q&amp;A. It breaks the moment you need any of the following:</p>
+<ul>
+<li><strong>Pause and resume</strong>: The user starts a research task, closes their laptop, and comes back tomorrow. Without checkpointed state, the agent must restart from scratch.</li>
+<li><strong>Multi-turn coherence</strong>: Over a long conversation, the agent must remember what tools it already called, what data it gathered, and what plan steps it completed.</li>
+<li><strong>Personalization</strong>: A returning user expects the agent to know their risk tolerance, preferred analysis depth, and past interactions.</li>
+<li><strong>Human-in-the-loop (HITL)</strong>: The agent generates a draft report and waits for human approval. That "waiting" state must survive process restarts.</li>
+</ul>
+<p>Consider the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a> from <a href="/blog/2026/01/31/the-cognitive-engine-choosing-the-right-reasoning-loop/">Part 1</a>. Without memory, a user asks "Analyze NVDA" — the agent builds a plan, calls five tools, gathers data, and generates a draft report. The user says "looks good, but add competitor analysis." Without checkpointed state, the agent has no idea what "looks good" refers to. It has to start from scratch. With a checkpoint store, the agent loads the exact state from the last node — including the gathered research data — and simply adds a competitor analysis step.</p>
+<p>Now imagine the same user returns a week later and asks "Update my NVDA analysis." Without long-term memory, the agent doesn't know this user prefers conservative risk assessments or that they're interested in semiconductor stocks. With a vector-backed memory store, the agent recalls these facts and personalizes the analysis without asking.</p>
+<p>LangGraph's architecture makes the distinction clear. Every graph execution runs within a <strong>thread</strong> — a single conversation or task. State within a thread is <strong>working memory</strong>. State that persists across threads is <strong>long-term memory</strong>. The engineering challenge is choosing the right storage backend for each.</p>
+<p><img alt="Memory Taxonomy" src="../../../../assets/2026-02-14-agent-memory-architecture/memory-taxonomy.svg" /></p>
+<hr />
+<h2 id="a-taxonomy-of-agent-memory">A Taxonomy of Agent Memory</h2>
+<p>Before diving into implementation, it helps to classify what agents need to remember. The <a href="https://arxiv.org/abs/2309.02427">CoALA framework</a> (Sumers, Yao et al., 2023) provides the foundational taxonomy, drawing on cognitive science. I introduced memory scoping in my <a href="/blog/2025/10/05/context-engineering-in-the-agenticai-era--and-how-to-cook-it/">context engineering post</a> — here I expand it into six categories:</p>
+<table>
+<thead>
+<tr>
+<th>Memory Type</th>
+<th>Scope</th>
+<th>Lifetime</th>
+<th>Example</th>
+<th>Storage Pattern</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Working</strong></td>
+<td>Current step</td>
+<td>Milliseconds</td>
+<td>Tool call arguments, current LLM response</td>
+<td>In-process (Python dict)</td>
+</tr>
+<tr>
+<td><strong>Short-term</strong></td>
+<td>Current thread</td>
+<td>Minutes–hours</td>
+<td>Conversation history, plan progress, gathered data</td>
+<td>Checkpoint store</td>
+</tr>
+<tr>
+<td><strong>Episodic</strong></td>
+<td>Cross-thread</td>
+<td>Days–months</td>
+<td>"Last week the user asked about NVDA earnings"</td>
+<td>Vector store / KV store</td>
+</tr>
+<tr>
+<td><strong>Semantic</strong></td>
+<td>Cross-thread</td>
+<td>Months–permanent</td>
+<td>"User prefers conservative investments"</td>
+<td>Vector store / KV store</td>
+</tr>
+<tr>
+<td><strong>Document</strong></td>
+<td>Cross-thread</td>
+<td>Days–permanent</td>
+<td>Project notes, research summaries, learned patterns</td>
+<td>File store (Markdown/JSON)</td>
+</tr>
+<tr>
+<td><strong>Procedural</strong></td>
+<td>System-wide</td>
+<td>Permanent</td>
+<td>"When analyzing stocks, always check SEC filings"</td>
+<td>Config / system prompt</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Working memory</strong> is what the LLM is actively reasoning with right now — Python variables in the current function, the contents of the context window, tool call arguments mid-execution. It's the fastest and most ephemeral layer: nothing persists beyond the current step. Working memory is bounded by the model's context window size, which makes it the critical bottleneck — everything the agent "knows" at decision time must fit here, whether it came from the checkpoint store, a vector query, or a file read. The other memory tiers exist to feed the right information into working memory at the right time.</p>
+<p><strong>Short-term memory</strong> is the checkpoint store that LangGraph writes after every node execution. <strong>Episodic</strong> and <strong>semantic</strong> memory are long-term stores that persist across threads. <strong>Document memory</strong> stores structured knowledge the agent accumulates over time — project notes, research summaries, learned conventions — in human-readable files that both the agent and the user can inspect and edit. <strong>Procedural memory</strong> is encoded in the system prompt and tool definitions — it doesn't change per user.</p>
+<p>The practical split is three tiers: <strong>hot memory</strong> (working + short-term) handles the current session, <strong>cold memory</strong> (episodic + semantic) handles cross-session recall, and <strong>document memory</strong> handles accumulated project knowledge that benefits from human readability and direct editing.</p>
+<p>Most existing frameworks and surveys focus on the hot/cold split and ignore document memory entirely. The CoALA framework classifies memory into working, episodic, semantic, and procedural — no mention of file-based storage. The <a href="https://arxiv.org/abs/2512.13564">Memory in the Age of AI Agents survey</a> covers vector stores and knowledge graphs but not document files. LangGraph's documentation covers checkpoints and the Store interface but has no native concept of file-based memory. Yet in practice, document memory has become the dominant pattern in AI coding assistants — Claude Code, Cursor, Windsurf, and Devin all use file-based memory as a core feature. The pattern is expanding beyond coding: open-world game agents store reusable skills as code libraries (<a href="https://arxiv.org/abs/2305.16291">Voyager</a>), competition-winning enterprise agents iterate on procedural prompt documents across runs (<a href="/blog/2026/01/11/enterprise-rag-challenge-3-winning-approaches-for-autonomous-ai-agents/">ECR3 winning approaches</a>), and web automation agents synthesize reusable workflow APIs from successful episodes (<a href="https://arxiv.org/abs/2409.07429">Agent Workflow Memory</a>). The underlying advantages — debuggability, version control, and zero infrastructure — are not coding-specific, and adoption is broadening.</p>
+<p>A key insight from the same survey: agent memory is <em>not</em> the same as RAG or context engineering. The distinguishing feature is that the agent itself performs autonomous read/write operations on its memory — it decides what to remember and what to forget, rather than relying on a fixed retrieval pipeline.</p>
+<p>The <a href="https://arxiv.org/abs/2304.03442">Generative Agents paper</a> (Park et al., 2023) demonstrated the power of this approach: simulated agents that stored, reflected on, and retrieved their own memories produced remarkably human-like behaviors. The architectural pattern — a <strong>memory stream</strong> with retrieval scored by recency, importance, and relevance — has become the blueprint for modern agent memory systems.</p>
+<hr />
+<h2 id="short-term-hot-memory-the-checkpoint-store">Short-Term "Hot" Memory: The Checkpoint Store</h2>
+<p>Every time a LangGraph node executes, the framework serializes the full graph state and writes it to a <strong>checkpoint store</strong>. This is the foundation for pause/resume, time-travel debugging, and HITL workflows.</p>
+<p><img alt="Hot Memory Checkpoint Flow" src="../../../../assets/2026-02-14-agent-memory-architecture/hot-memory-checkpoint.svg" /></p>
+<p>The checkpoint contains everything: the <code>AgentState</code> from <a href="/blog/2026/01/31/the-cognitive-engine-choosing-the-right-reasoning-loop/">Part 1</a> (messages, plan steps, research data, execution mode), plus LangGraph metadata like the node that produced it and a monotonically increasing sequence number. When the graph resumes — whether after a human-in-the-loop interrupt or a process restart — it loads the latest checkpoint and continues from exactly where it left off.</p>
+<h3 id="how-langgraph-checkpointing-works">How LangGraph Checkpointing Works</h3>
+<p>LangGraph's <code>BaseCheckpointSaver</code> defines a simple interface: <code>put()</code> writes a checkpoint, <code>get_tuple()</code> reads the latest one for a thread, and <code>list()</code> returns the checkpoint history. Every checkpoint is keyed by <code>(thread_id, checkpoint_ns, checkpoint_id)</code>, where <code>thread_id</code> identifies the conversation, <code>checkpoint_ns</code> handles subgraph namespacing, and <code>checkpoint_id</code> is a unique version.</p>
+<p>The critical design choice is <strong>which backend</strong> to use for this store. LangGraph ships with two production-ready options: PostgreSQL and Redis.</p>
+<h3 id="postgresql-vs-redis-the-checkpoint-showdown">PostgreSQL vs Redis: The Checkpoint Showdown</h3>
+<p><img alt="Redis vs PostgreSQL" src="../../../../assets/2026-02-14-agent-memory-architecture/redis-vs-postgres.svg" /></p>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th><strong>PostgreSQL</strong> (<code>langgraph-checkpoint-postgres</code>)</th>
+<th><strong>Redis</strong> (<code>langgraph-checkpoint-redis</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Read latency</strong></td>
+<td>~0.65ms</td>
+<td>~0.095ms</td>
+</tr>
+<tr>
+<td><strong>Write latency</strong></td>
+<td>~2ms (unlogged) to 10ms (with WAL)</td>
+<td>~0.095ms</td>
+</tr>
+<tr>
+<td><strong>Throughput</strong></td>
+<td>~15K txn/s</td>
+<td>~893K req/s</td>
+</tr>
+<tr>
+<td><strong>Durability</strong></td>
+<td>Full ACID, WAL + replication</td>
+<td>Configurable (AOF/RDB), risk of data loss</td>
+</tr>
+<tr>
+<td><strong>Checkpoint history</strong></td>
+<td>Full history (time-travel, audit)</td>
+<td>Configurable retention via maxcount</td>
+</tr>
+<tr>
+<td><strong>Operational cost</strong></td>
+<td>Moderate (standard RDBMS ops)</td>
+<td>Higher (RAM-bound, memory management)</td>
+</tr>
+<tr>
+<td><strong>Scaling pattern</strong></td>
+<td>Vertical + read replicas</td>
+<td>Horizontal (Redis Cluster)</td>
+</tr>
+<tr>
+<td><strong>Best for</strong></td>
+<td>Compliance, audit trails, durability-first</td>
+<td>Low-latency, high-throughput, real-time</td>
+</tr>
+</tbody>
+</table>
+<p><em>Latency benchmarks from <a href="https://www.cybertec-postgresql.com/en/postgresql-vs-redis-vs-memcached-performance/">CyberTec</a> and <a href="https://risingwave.com/blog/postgresql-vs-redis-performance-and-use-case-comparison/">RisingWave</a> comparisons.</em></p>
+<h3 id="postgresql-the-durable-default">PostgreSQL: The Durable Default</h3>
+<p>PostgreSQL is the safer default for most teams. Checkpoints survive crashes, you get full transaction semantics, and the checkpoint history supports time-travel debugging.</p>
+<p>From <a href="https://github.com/slavadubrov/market-analyst-agent"><code>checkpointer_setup.py</code></a>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.checkpoint.postgres.aio</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncPostgresSaver</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_postgres_checkpointer</span><span class="p">(</span><span class="n">connection_string</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncPostgresSaver</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a PostgreSQL-backed checkpoint store.</span>
+
+<span class="sd">    PostgreSQL gives us ACID guarantees — if a checkpoint write succeeds,</span>
+<span class="sd">    the state is durable even if the process crashes immediately after.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">checkpointer</span> <span class="o">=</span> <span class="n">AsyncPostgresSaver</span><span class="o">.</span><span class="n">from_conn_string</span><span class="p">(</span><span class="n">connection_string</span><span class="p">)</span>
+
+    <span class="c1"># Create the checkpoint tables if they don&#39;t exist.</span>
+    <span class="c1"># This is idempotent — safe to call on every startup.</span>
+    <span class="k">await</span> <span class="n">checkpointer</span><span class="o">.</span><span class="n">setup</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">checkpointer</span>
+
+<span class="c1"># Usage: wire into the graph compilation</span>
+<span class="n">checkpointer</span> <span class="o">=</span> <span class="k">await</span> <span class="n">create_postgres_checkpointer</span><span class="p">(</span>
+    <span class="s2">&quot;postgresql://user:pass@localhost:5432/agent_memory&quot;</span>
+<span class="p">)</span>
+<span class="n">graph</span> <span class="o">=</span> <span class="n">create_graph</span><span class="p">(</span><span class="n">checkpointer</span><span class="o">=</span><span class="n">checkpointer</span><span class="p">)</span>
+
+<span class="c1"># Every invoke/stream call now persists state automatically</span>
+<span class="n">config</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;configurable&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;thread_id&quot;</span><span class="p">:</span> <span class="s2">&quot;user-123-session-1&quot;</span><span class="p">}}</span>
+<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">graph</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">({</span><span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">HumanMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">&quot;Analyze NVDA&quot;</span><span class="p">)]},</span> <span class="n">config</span><span class="p">)</span>
+
+<span class="c1"># Resume later — loads the latest checkpoint for this thread</span>
+<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">graph</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">({</span><span class="s2">&quot;messages&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">HumanMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">&quot;approved&quot;</span><span class="p">)]},</span> <span class="n">config</span><span class="p">)</span>
+</code></pre></div>
+<p>The <code>AsyncPostgresSaver</code> uses the <code>langgraph-checkpoint-postgres</code> package, which creates three tables: <code>checkpoints</code> (the serialized state), <code>checkpoint_blobs</code> (large binary data), and <code>checkpoint_writes</code> (pending writes for crash recovery). The schema supports concurrent access and uses advisory locks to prevent write conflicts.</p>
+<h3 id="redis-the-speed-demon">Redis: The Speed Demon</h3>
+<p>When sub-millisecond checkpoint latency matters — real-time conversational agents, high-frequency tool loops — Redis is the better choice.</p>
+<p>From <a href="https://github.com/slavadubrov/market-analyst-agent"><code>checkpointer_setup.py</code></a>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.checkpoint.redis.aio</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncRedisSaver</span>
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_redis_checkpointer</span><span class="p">(</span><span class="n">redis_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncRedisSaver</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a Redis-backed checkpoint store.</span>
+
+<span class="sd">    Redis stores checkpoints in memory for sub-millisecond access.</span>
+<span class="sd">    Trade-off: less durable than PostgreSQL unless AOF is enabled.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">checkpointer</span> <span class="o">=</span> <span class="n">AsyncRedisSaver</span><span class="o">.</span><span class="n">from_conn_string</span><span class="p">(</span><span class="n">redis_url</span><span class="p">)</span>
+
+    <span class="c1"># Initialize Redis data structures</span>
+    <span class="k">await</span> <span class="n">checkpointer</span><span class="o">.</span><span class="n">setup</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">checkpointer</span>
+
+<span class="c1"># Usage: same graph API, different backend</span>
+<span class="n">checkpointer</span> <span class="o">=</span> <span class="k">await</span> <span class="n">create_redis_checkpointer</span><span class="p">(</span><span class="s2">&quot;redis://localhost:6379&quot;</span><span class="p">)</span>
+<span class="n">graph</span> <span class="o">=</span> <span class="n">create_graph</span><span class="p">(</span><span class="n">checkpointer</span><span class="o">=</span><span class="n">checkpointer</span><span class="p">)</span>
+</code></pre></div>
+<p>The <code>AsyncRedisSaver</code> from <code>langgraph-checkpoint-redis</code> stores checkpoints as JSON documents keyed by thread ID. The <a href="https://redis.io/blog/langgraph-redis-checkpoint-010/">v0.1.0 redesign</a> replaced multiple search operations with a single <code>JSON.GET</code> call, significantly reducing latency. Redis 8.0+ includes RedisJSON and RediSearch by default — no extra modules to install.</p>
+<p>For memory-constrained deployments, <code>ShallowRedisSaver</code> stores only the latest checkpoint per thread — no history, but minimal RAM usage. Use this when you need pause/resume but don't need time-travel debugging.</p>
+<h3 id="when-to-use-which">When to Use Which</h3>
+<p><strong>Use PostgreSQL when:</strong></p>
+<ul>
+<li>You need full checkpoint history for compliance or auditing</li>
+<li>Durability is non-negotiable (financial services, healthcare)</li>
+<li>You already run PostgreSQL in your stack</li>
+<li>Your agent runs long tasks where losing state means hours of recomputation</li>
+<li>You want a <a href="https://www.tigerdata.com/learn/building-ai-agents-with-persistent-memory-a-unified-database-approach">unified data store</a> — PostgreSQL with pgvector can serve as a single backend for checkpoints, long-term memory, and vector search, simplifying your infrastructure</li>
+</ul>
+<p><strong>Use Redis when:</strong></p>
+<ul>
+<li>Checkpoint latency is your bottleneck (real-time chat, streaming UX)</li>
+<li>You're building voice bots — STT-to-LLM-to-TTS pipelines need <a href="https://redis.io/blog/engineering-for-ai-agents/">sub-millisecond state access</a></li>
+<li>You need horizontal scaling across many concurrent threads</li>
+<li>High-concurrency fan-out patterns where multiple agents share state</li>
+<li>Short-lived sessions where losing a checkpoint is recoverable</li>
+<li>You want semantic caching to reduce redundant LLM calls (<a href="https://redis.io/langcache/">Redis LangCache</a> caches semantically similar queries to avoid repeated LLM calls)</li>
+</ul>
+<p><strong>Other options</strong>: <a href="https://langchain-ai.github.io/langgraph/reference/checkpoints/#langgraph.checkpoint.sqlite"><code>langgraph-checkpoint-sqlite</code></a> works for local development and single-process deployments. For AWS-native stacks, <a href="https://aws.amazon.com/blogs/database/build-durable-ai-agents-with-langgraph-and-amazon-dynamodb/"><code>langgraph-checkpoint-aws</code></a> provides a <code>DynamoDBSaver</code> with intelligent payload handling — small checkpoints (&lt;350 KB) stay in DynamoDB, large ones are automatically offloaded to S3. Serverless pricing and no infrastructure to manage make it attractive for variable-load deployments.</p>
+<hr />
+<h2 id="long-term-memory-remembering-across-sessions">Long-Term Memory: Remembering Across Sessions</h2>
+<p>Hot memory handles the current conversation. But what about the user who comes back next week? Long-term memory stores facts, preferences, and interaction history that persist across threads.</p>
+<p>LangGraph provides a <code>Store</code> interface for cross-thread memory via its <code>BaseStore</code> class. Each memory item is a <code>(namespace, key)</code> pair with a JSON value and optional vector embedding. The namespace typically encodes the user or organization: <code>("user", "user-123", "preferences")</code>.</p>
+<p><img alt="Long-Term Memory Flow" src="../../../../assets/2026-02-14-agent-memory-architecture/long-term-memory-flow.svg" /></p>
+<h3 id="vector-storage-semantic-recall-with-qdrant">Vector Storage: Semantic Recall with Qdrant</h3>
+<p>When the agent needs to recall unstructured facts — "What did the user say about their investment timeline?" — vector search provides semantic recall. Instead of exact key lookups, the agent queries by meaning.</p>
+<p><a href="https://qdrant.tech/">Qdrant</a> is a purpose-built vector database written in Rust that handles embedding storage, indexing (HNSW), and filtered search. I covered HNSW and its trade-offs in detail in my <a href="/blog/2026/02/08/building-a-modern-search-ranking-stack-from-embeddings-to-llm-powered-relevance/">search ranking post</a>. Qdrant also offers an <a href="https://github.com/qdrant/mcp-server-qdrant">MCP server</a> that acts as a semantic memory layer — useful if your agent framework supports the Model Context Protocol.</p>
+<p>From <a href="https://github.com/slavadubrov/market-analyst-agent"><code>memory_store.py</code></a>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">qdrant_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">QdrantClient</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">qdrant_client.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">PointStruct</span><span class="p">,</span> <span class="n">Distance</span><span class="p">,</span> <span class="n">VectorParams</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">langchain_anthropic</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatAnthropic</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">UserMemoryStore</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Long-term memory backed by Qdrant vector search.</span>
+
+<span class="sd">    Stores user facts as embedded vectors for semantic retrieval.</span>
+<span class="sd">    Each fact is a short natural-language statement about the user.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">qdrant_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">collection_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;user_memory&quot;</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span> <span class="o">=</span> <span class="n">QdrantClient</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="n">qdrant_url</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">collection_name</span> <span class="o">=</span> <span class="n">collection_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_collection</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_ensure_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create the collection if it doesn&#39;t exist.&quot;&quot;&quot;</span>
+        <span class="n">collections</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">get_collections</span><span class="p">()</span><span class="o">.</span><span class="n">collections</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">collection_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">collections</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">create_collection</span><span class="p">(</span>
+                <span class="n">collection_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">collection_name</span><span class="p">,</span>
+                <span class="n">vectors_config</span><span class="o">=</span><span class="n">VectorParams</span><span class="p">(</span>
+                    <span class="n">size</span><span class="o">=</span><span class="mi">1536</span><span class="p">,</span>  <span class="c1"># text-embedding-3-small dimensions</span>
+                    <span class="n">distance</span><span class="o">=</span><span class="n">Distance</span><span class="o">.</span><span class="n">COSINE</span><span class="p">,</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">store_fact</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">fact</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">embedding</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Store a user fact with its embedding.&quot;&quot;&quot;</span>
+        <span class="n">point_id</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">md5</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">fact</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">upsert</span><span class="p">(</span>
+            <span class="n">collection_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">collection_name</span><span class="p">,</span>
+            <span class="n">points</span><span class="o">=</span><span class="p">[</span><span class="n">PointStruct</span><span class="p">(</span>
+                <span class="nb">id</span><span class="o">=</span><span class="n">point_id</span><span class="p">,</span>
+                <span class="n">vector</span><span class="o">=</span><span class="n">embedding</span><span class="p">,</span>
+                <span class="n">payload</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;user_id&quot;</span><span class="p">:</span> <span class="n">user_id</span><span class="p">,</span> <span class="s2">&quot;fact&quot;</span><span class="p">:</span> <span class="n">fact</span><span class="p">},</span>
+            <span class="p">)],</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">recall</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">query_embedding</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="n">top_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Retrieve the most relevant facts for a user given a query.&quot;&quot;&quot;</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">query_points</span><span class="p">(</span>
+            <span class="n">collection_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">collection_name</span><span class="p">,</span>
+            <span class="n">query</span><span class="o">=</span><span class="n">query_embedding</span><span class="p">,</span>
+            <span class="n">query_filter</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;must&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;key&quot;</span><span class="p">:</span> <span class="s2">&quot;user_id&quot;</span><span class="p">,</span> <span class="s2">&quot;match&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="n">user_id</span><span class="p">}}]},</span>
+            <span class="n">limit</span><span class="o">=</span><span class="n">top_k</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">hit</span><span class="o">.</span><span class="n">payload</span><span class="p">[</span><span class="s2">&quot;fact&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">hit</span> <span class="ow">in</span> <span class="n">results</span><span class="o">.</span><span class="n">points</span><span class="p">]</span>
+</code></pre></div>
+<p>The flow is: (1) after each conversation, an LLM extracts key facts from the interaction ("user has high risk tolerance", "user is interested in semiconductor stocks"), (2) facts are embedded and stored in Qdrant, (3) at the start of the next conversation, the agent queries Qdrant with the user's new message to recall relevant context.</p>
+<h3 id="retrieval-scoring-beyond-cosine-similarity">Retrieval Scoring: Beyond Cosine Similarity</h3>
+<p>Raw cosine similarity is a starting point, but production memory systems need richer retrieval. The <a href="https://arxiv.org/abs/2304.03442">Generative Agents paper</a> (Park et al., 2023) introduced a scoring function that combines three signals:</p>
+<ul>
+<li><strong>Recency</strong>: Rule-based decay — recent memories score higher. An exponential decay function ensures that a fact from yesterday outranks an equivalent fact from six months ago.</li>
+<li><strong>Importance</strong>: LLM-rated significance on a 1-10 scale. "User's portfolio is down 40%" scores higher than "user said hello."</li>
+<li><strong>Relevance</strong>: Embedding cosine similarity between the query and the stored fact.</li>
+</ul>
+<p>The final retrieval score is a weighted sum: <code>score = alpha * recency + beta * importance + gamma * relevance</code>. This prevents the system from surfacing stale but semantically similar facts over fresh, important ones. For the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>, I weight relevance highest (0.5) with recency (0.3) and importance (0.2), since the user's current query intent matters most.</p>
+<h3 id="alternatives-to-vector-search">Alternatives to Vector Search</h3>
+<p>Vector search is powerful but not always the right tool. Here's when to use alternatives:</p>
+<table>
+<thead>
+<tr>
+<th>Approach</th>
+<th>Best For</th>
+<th>Latency</th>
+<th>Complexity</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Vector search (Qdrant)</strong></td>
+<td>Semantic recall of unstructured facts</td>
+<td>5–20ms</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td><strong>Key-value store (Redis)</strong></td>
+<td>Structured user profiles, preferences</td>
+<td>&lt;1ms</td>
+<td>Low</td>
+</tr>
+<tr>
+<td><strong>Document store (files)</strong></td>
+<td>Project knowledge, agent-managed notes</td>
+<td>1–5ms</td>
+<td>Low</td>
+</tr>
+<tr>
+<td><strong>Full-text search (PostgreSQL <a href="https://www.postgresql.org/docs/current/gin.html">GIN index</a>)</strong></td>
+<td>Keyword-based recall of conversation history</td>
+<td>2–10ms</td>
+<td>Low</td>
+</tr>
+<tr>
+<td><strong>Knowledge graph (Neo4j)</strong></td>
+<td>Entity relationships, multi-hop reasoning</td>
+<td>10–50ms</td>
+<td>High</td>
+</tr>
+<tr>
+<td><strong>Hybrid (vector + keyword)</strong></td>
+<td>Best recall when query intent varies</td>
+<td>10–30ms</td>
+<td>Medium</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key-value stores</strong> work well for structured data. If your long-term memory is a user profile — risk tolerance, investment horizon, preferred sectors — a Redis hash or PostgreSQL JSONB column is simpler and faster than embedding and querying vectors. Use vector search when the memory is unstructured and the retrieval query varies in phrasing.</p>
+<p><strong>LangGraph's built-in Store</strong> provides a namespace-based key-value interface with optional vector search. The <code>BaseStore</code> API is simple: <code>put()</code>, <code>get()</code>, <code>search()</code>, and <code>delete()</code> with hierarchical namespace scoping. Three implementations are available:</p>
+<ul>
+<li><code>InMemoryStore</code> — for development and testing (data lost on process exit)</li>
+<li><code>PostgresStore</code> — production persistent store with full SQL querying</li>
+<li><code>AsyncRedisStore</code> — cross-thread memory with vector search, TTL support, and metadata filtering</li>
+</ul>
+<p>The <code>index</code> configuration enables vector search over stored items using a configurable embedding model. For many use cases, this built-in store is sufficient without reaching for a dedicated vector database.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.store.memory</span><span class="w"> </span><span class="kn">import</span> <span class="n">InMemoryStore</span>
+
+<span class="c1"># Create a store with vector search enabled</span>
+<span class="n">store</span> <span class="o">=</span> <span class="n">InMemoryStore</span><span class="p">(</span>
+    <span class="n">index</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;dims&quot;</span><span class="p">:</span> <span class="mi">1536</span><span class="p">,</span>
+        <span class="s2">&quot;embed&quot;</span><span class="p">:</span> <span class="n">my_embedding_function</span><span class="p">,</span>  <span class="c1"># e.g., OpenAI text-embedding-3-small</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># Store a user preference (namespace scopes to user)</span>
+<span class="k">await</span> <span class="n">store</span><span class="o">.</span><span class="n">aput</span><span class="p">(</span>
+    <span class="n">namespace</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;user-123&quot;</span><span class="p">,</span> <span class="s2">&quot;preferences&quot;</span><span class="p">),</span>
+    <span class="n">key</span><span class="o">=</span><span class="s2">&quot;risk-profile&quot;</span><span class="p">,</span>
+    <span class="n">value</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;risk_tolerance&quot;</span><span class="p">:</span> <span class="s2">&quot;high&quot;</span><span class="p">,</span> <span class="s2">&quot;horizon&quot;</span><span class="p">:</span> <span class="s2">&quot;long-term&quot;</span><span class="p">},</span>
+<span class="p">)</span>
+
+<span class="c1"># Semantic search across user&#39;s memories</span>
+<span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">store</span><span class="o">.</span><span class="n">asearch</span><span class="p">(</span>
+    <span class="n">namespace</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;user-123&quot;</span><span class="p">),</span>
+    <span class="n">query</span><span class="o">=</span><span class="s2">&quot;What is their investment style?&quot;</span><span class="p">,</span>
+    <span class="n">limit</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<h3 id="choosing-a-long-term-memory-strategy">Choosing a Long-Term Memory Strategy</h3>
+<p><strong>Start with key-value</strong> if your memory is structured and well-defined (user profiles, settings, named entities). Add vector search when you need semantic retrieval over unstructured facts or when the query phrasing varies unpredictably.</p>
+<p><strong>Knowledge graphs</strong> become valuable when relationships between entities matter — "Which companies did the user ask about that are competitors of NVDA?" The most interesting recent project is <a href="https://github.com/getzep/graphiti">Graphiti</a> (by Zep), which builds a <strong>temporally-aware knowledge graph</strong> that tracks <em>when</em> facts were true, not just <em>what</em> was true. Every edge carries validity intervals, so when a user changes their risk tolerance, the old value is invalidated rather than silently overwritten. Graphiti achieves <a href="https://arxiv.org/abs/2501.13956">94.8% accuracy on the DMR benchmark</a>, and its bi-temporal model handles the stale memory problem at the data layer.</p>
+<p>That said, the operational complexity of running a graph database is significant. For most agent applications, vector search with metadata filtering covers the same ground with less infrastructure.</p>
+<p><strong>Managed memory frameworks</strong> like <a href="https://mem0.ai/research">Mem0</a> and <a href="https://docs.letta.com/concepts/memgpt/">Letta</a> (formerly MemGPT) handle the extraction-consolidation-retrieval pipeline for you. Mem0's approach is notable: an LLM extracts candidate memories, a decision engine compares each new fact against existing entries in the vector store, and a resolver decides to add, update, or delete — keeping the memory store coherent and non-redundant. Letta takes a different approach inspired by operating systems: agents manage their own context window using memory management tools, autonomously moving data between "core memory" (in-context) and "archival memory" (out-of-context). Both are worth evaluating if you want faster time-to-production and don't need full control over the memory pipeline.</p>
+<hr />
+<h2 id="document-memory-the-agents-filing-cabinet">Document Memory: The Agent's Filing Cabinet</h2>
+<p>You won't find this pattern in most agent memory surveys or framework documentation. The academic literature covers vector stores, knowledge graphs, and context management in depth — but file-based memory barely gets a footnote. That's a gap worth addressing, because in practice this is how the most effective AI coding assistants actually persist knowledge. Interestingly, <a href="https://www.letta.com/blog/benchmarking-ai-agent-memory">Letta's benchmark</a> found that a simple filesystem-based approach scored 74.0% on the LoCoMo conversational memory benchmark — outperforming several specialized memory libraries. The pattern works because today's frontier models are already trained on agentic coding tasks and understand file operations natively.</p>
+<p>Vector stores and key-value backends handle semantic recall and structured lookups well. But there's a third category of agent knowledge that neither serves cleanly: <strong>accumulated project context</strong> — conventions, research notes, learned patterns, and decisions that the agent needs across sessions but that benefit from being human-readable, editable, and version-controlled.</p>
+<p>This is <strong>document memory</strong> — the agent reads and writes structured files (Markdown, JSON, YAML) to a known directory. No embeddings, no database, no infrastructure. Just files on disk that both the agent and the developer can <code>cat</code>, <code>grep</code>, <code>git diff</code>, and edit by hand.</p>
+<h3 id="why-files">Why Files?</h3>
+<p>The motivation is practical. I noticed that the most effective pattern for long-lived agent workflows isn't a vector database — it's a directory of well-organized notes. Consider what happens when a coding agent works on a project over weeks:</p>
+<ul>
+<li>It learns that the project uses Pydantic v2, not v1</li>
+<li>It discovers that tests must run with <code>pytest -x --tb=short</code></li>
+<li>It accumulates knowledge about the codebase architecture</li>
+<li>It learns the developer's preferences ("always use <code>pathlib</code>, never <code>os.path</code>")</li>
+</ul>
+<p>These facts are too structured for vector search (you'd need exact recall, not fuzzy similarity) and too numerous for a key-value store (they form interconnected documents, not isolated facts). They're also facts that the developer wants to <strong>see and edit directly</strong> — if the agent learns something wrong, you open the file and fix it.</p>
+<p>This is exactly how <a href="https://docs.anthropic.com/en/docs/claude-code/memory">Claude Code's <code>CLAUDE.md</code></a> and <code>.claude/</code> directory work. The agent reads project-level <code>CLAUDE.md</code> files for conventions and instructions, and writes to <code>~/.claude/MEMORY.md</code> for cross-session learnings. The files are plain Markdown — you can read them, edit them, commit them to git, and share them with your team. <a href="https://docs.cursor.com/context/rules">Cursor's <code>.cursorrules</code></a> and <a href="https://docs.windsurf.com/windsurf/cascade/memories">Windsurf's <code>.windsurfrules</code></a> follow the same pattern: plain-text files that the agent loads on startup to understand project context.</p>
+<h3 id="implementing-a-file-memory-store">Implementing a File Memory Store</h3>
+<p>The implementation is deliberately simple. The agent gets four operations: write a document, read a document, list available documents, and search across documents by keyword.</p>
+<p>From <a href="https://github.com/slavadubrov/market-analyst-agent"><code>file_memory.py</code></a>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">fnmatch</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FileMemory</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Document memory backed by the local filesystem.</span>
+
+<span class="sd">    Stores agent knowledge as human-readable files organized by topic.</span>
+<span class="sd">    No embeddings, no database — just files that both the agent and</span>
+<span class="sd">    the developer can read, edit, and version-control.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">base_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">base_dir</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base_dir</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">write_doc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Write or overwrite a document at the given path.</span>
+
+<span class="sd">        Paths are relative to base_dir. Directories are created automatically.</span>
+<span class="sd">        Metadata (if provided) is stored as a JSON sidecar file.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">full_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_dir</span> <span class="o">/</span> <span class="n">path</span>
+        <span class="n">full_path</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">full_path</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">content</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">metadata</span><span class="p">:</span>
+            <span class="n">meta_path</span> <span class="o">=</span> <span class="n">full_path</span><span class="o">.</span><span class="n">with_suffix</span><span class="p">(</span><span class="n">full_path</span><span class="o">.</span><span class="n">suffix</span> <span class="o">+</span> <span class="s2">&quot;.meta&quot;</span><span class="p">)</span>
+            <span class="n">meta_path</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">metadata</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">read_doc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Read a document by path. Returns None if not found.&quot;&quot;&quot;</span>
+        <span class="n">full_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_dir</span> <span class="o">/</span> <span class="n">path</span>
+        <span class="k">if</span> <span class="n">full_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">return</span> <span class="n">full_path</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_docs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pattern</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;**/*&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;List documents matching a glob pattern.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base_dir</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_dir</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">pattern</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_file</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;.meta&quot;</span><span class="p">)</span>
+        <span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">search_docs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">pattern</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;**/*.md&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Search documents by keyword. Returns matching files with context.</span>
+
+<span class="sd">        This is intentionally simple — grep-style keyword search.</span>
+<span class="sd">        For semantic search, use a vector store instead.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_dir</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">pattern</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">is_file</span><span class="p">()</span> <span class="ow">or</span> <span class="n">path</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;.meta&quot;</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="n">content</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">query</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="n">content</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span>
+                <span class="c1"># Return the paragraph containing the match for context</span>
+                <span class="k">for</span> <span class="n">paragraph</span> <span class="ow">in</span> <span class="n">content</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">query</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="n">paragraph</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span>
+                        <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+                            <span class="s2">&quot;path&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base_dir</span><span class="p">)),</span>
+                            <span class="s2">&quot;match&quot;</span><span class="p">:</span> <span class="n">paragraph</span><span class="o">.</span><span class="n">strip</span><span class="p">()[:</span><span class="mi">500</span><span class="p">],</span>
+                        <span class="p">})</span>
+        <span class="k">return</span> <span class="n">results</span>
+</code></pre></div>
+<h3 id="folder-structure">Folder Structure</h3>
+<p>The power of document memory is in its organization. Here's the folder structure I use for the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>:</p>
+<div class="highlight"><pre><span></span><code>.agent-memory/
+    README.md                  # What this directory is, for human readers
+    user-profiles/
+        user-123.md            # Preferences, history, risk profile
+        user-456.md
+    research/
+        NVDA-2026-02.md        # Research notes from recent analysis
+        TSLA-2026-01.md
+    conventions/
+        analysis-format.md     # How to structure analysis reports
+        data-sources.md        # Preferred data sources and API patterns
+    learnings/
+        common-errors.md       # Mistakes the agent has learned to avoid
+        tool-patterns.md       # Effective tool call sequences
+</code></pre></div>
+<p>Every file is Markdown. Every file has a clear purpose from its path. You can <code>git diff</code> the entire memory directory to see what the agent learned in a session. You can <code>git revert</code> a bad learning. You can copy the directory to another project. Try doing that with a Qdrant collection.</p>
+<h3 id="when-to-use-document-memory-vs-vector-vs-key-value">When to Use Document Memory vs Vector vs Key-Value</h3>
+<p>The three memory backends serve different access patterns:</p>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th><strong>Vector Store</strong></th>
+<th><strong>Key-Value Store</strong></th>
+<th><strong>Document Store</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Query pattern</strong></td>
+<td>"Find facts similar to X"</td>
+<td>"Get the value for key"</td>
+<td>"Read the doc at path"</td>
+</tr>
+<tr>
+<td><strong>Best for</strong></td>
+<td>Unstructured, varied recall</td>
+<td>Structured lookups</td>
+<td>Project context, notes</td>
+</tr>
+<tr>
+<td><strong>Human readable</strong></td>
+<td>No (embeddings)</td>
+<td>Partially (JSON)</td>
+<td>Yes (Markdown)</td>
+</tr>
+<tr>
+<td><strong>Debuggable</strong></td>
+<td>Hard (similarity scores)</td>
+<td>Easy (exact keys)</td>
+<td>Trivial (open the file)</td>
+</tr>
+<tr>
+<td><strong>Version controllable</strong></td>
+<td>No</td>
+<td>Possible</td>
+<td>Yes (git-native)</td>
+</tr>
+<tr>
+<td><strong>Embedding infrastructure</strong></td>
+<td>Required</td>
+<td>Not needed</td>
+<td>Not needed</td>
+</tr>
+<tr>
+<td><strong>Scales to</strong></td>
+<td>Millions of facts</td>
+<td>Millions of keys</td>
+<td>Thousands of documents</td>
+</tr>
+<tr>
+<td><strong>Search capability</strong></td>
+<td>Semantic similarity</td>
+<td>Exact match</td>
+<td>Keyword / path-based</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Use document memory when:</strong></p>
+<ul>
+<li>The agent accumulates project knowledge over multiple sessions</li>
+<li>Developers need to inspect, edit, or override what the agent "knows"</li>
+<li>The knowledge is structured as documents (notes, summaries, conventions) rather than isolated facts</li>
+<li>You want git-based versioning of agent memory</li>
+<li>Zero infrastructure is a hard requirement</li>
+</ul>
+<p><strong>Use vector stores when:</strong></p>
+<ul>
+<li>You need fuzzy semantic retrieval ("find memories related to X")</li>
+<li>The query phrasing varies unpredictably</li>
+<li>You have thousands to millions of individual facts</li>
+</ul>
+<p><strong>Use key-value stores when:</strong></p>
+<ul>
+<li>You need exact, fast lookups for structured data (user profiles, settings)</li>
+<li>The data schema is well-defined</li>
+</ul>
+<p>In practice, production agents often combine all three. The <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a> uses PostgreSQL checkpoints for hot memory, Qdrant for semantic user fact recall, and a file-based document store for project conventions and research notes.</p>
+<h3 id="real-world-examples">Real-World Examples</h3>
+<p>This pattern is already widespread in AI coding assistants:</p>
+<ul>
+<li><strong>Claude Code</strong> reads <code>CLAUDE.md</code> files from the project root and parent directories, plus writes to <code>~/.claude/MEMORY.md</code> for cross-session learnings. The entire memory system is plain Markdown files that you commit alongside your code.</li>
+<li><strong>Cursor</strong> loads <code>.cursorrules</code> files for project-specific agent instructions — coding conventions, framework preferences, architectural decisions.</li>
+<li><strong>Windsurf</strong> uses <code>.windsurfrules</code> files plus a <code>memories/</code> directory where the agent stores learned patterns from your codebase.</li>
+<li><strong>Anthropic's memory tool</strong> for the Claude API provides <code>create_memory</code>, <code>read_memory</code>, <code>update_memory</code>, and <code>delete_memory</code> operations that are implemented client-side — your application decides where the files actually live (local disk, S3, database).</li>
+</ul>
+<p>The common thread: all of these store agent knowledge as human-readable text files with explicit read/write operations. No embeddings. No vector infrastructure. The agent decides what to write, the developer can see and edit everything, and the whole system fits in a <code>git diff</code>.</p>
+<h3 id="beyond-coding-assistants">Beyond Coding Assistants</h3>
+<p>Document memory is not limited to coding agents. The pattern has emerged independently across multiple agent domains:</p>
+<ul>
+<li>
+<p><strong>Open-world game agents</strong>: <a href="https://arxiv.org/abs/2305.16291">Voyager</a> (Wang et al., 2023) builds a persistent skill library of verified JavaScript programs that a Minecraft agent accumulates over time — collecting 3.3x more unique items and reaching milestones 15.3x faster than baselines. Skills transfer across new worlds without retraining. <a href="https://arxiv.org/abs/2311.05997">JARVIS-1</a> extends this with a multimodal memory that combines textual plans and visual observations, achieving 5x success rate on the hardest tasks. These skill libraries are document memory: human-readable code files indexed by description, with no embeddings or vector infrastructure.</p>
+</li>
+<li>
+<p><strong>Enterprise workflow automation</strong>: The <a href="/blog/2026/01/11/enterprise-rag-challenge-3-winning-approaches-for-autonomous-ai-agents/">ECR3 competition</a> winners used document memory for iterative prompt refinement — one winning team's Analyzer and Versioner agents automatically iterated through 80 prompt versions stored as procedural documents, while another top team built 20+ enricher modules as document-style procedural knowledge. <a href="https://arxiv.org/abs/2510.04851">LEGOMem</a> (2025) formalizes this as a modular memory framework for multi-agent systems, with specialized memory types (sensory, short-term, long-term) that agents compose like building blocks.</p>
+</li>
+<li>
+<p><strong>Web automation</strong>: <a href="https://arxiv.org/abs/2409.07429">Agent Workflow Memory</a> (Wang et al., 2024) lets web agents induce reusable workflows from successful episodes, improving success rates by 51% on WebArena. <a href="https://arxiv.org/abs/2504.07079">SkillWeaver</a> (2025) takes this further — agents synthesize verified, reusable API tools from exploration, achieving a 31.8% success rate improvement. Critically, skills transfer to weaker models (54.3% improvement), showing that document memory can democratize capability.</p>
+</li>
+<li>
+<p><strong>Customer support</strong>: <a href="https://www.gartner.com/en/newsroom/press-releases/2025-02-26-gartner-predicts-ai-agents-will-autonomously-resolve-80-percent-of-common-customer-service-issues-without-human-intervention-by-2029">Gartner predicts</a> that AI agents will autonomously resolve 80% of common customer service issues by 2029. These agents reference SOPs, playbooks, and customer histories — all forms of document memory. The <a href="https://www.precedenceresearch.com/robotic-process-automation-market">RPA market is projected to grow from $35B to $247B by 2035</a>, driven by agents that accumulate procedural knowledge as structured documents.</p>
+</li>
+</ul>
+<p>The emergence of the <a href="https://sites.google.com/view/memagent-iclr26/">MemAgents workshop at ICLR 2026</a> — focused on memory for LLM-based agentic systems — signals that the academic community is catching up to what practitioners have already built. Document memory is not a coding-specific pattern; it's an emerging architectural primitive for any agent that needs to accumulate, share, and iterate on knowledge.</p>
+<p><strong>Skills are document memory with a schema.</strong> The <a href="https://agentskills.io/specification">Agent Skills standard</a> (<code>SKILL.md</code> files with YAML frontmatter + Markdown body) is now adopted by both Anthropic and OpenAI Codex — procedural knowledge stored as documents. <a href="https://modelcontextprotocol.io/specification/2025-11-05">MCP (Model Context Protocol)</a> takes this further: tool definitions are JSON Schema files that any agent can discover and invoke, with <a href="https://www.pento.ai/blog/a-year-of-mcp-2025-review">97 million monthly SDK downloads</a> and adoption by OpenAI, Google, Microsoft, and AWS. MCP is not coding-specific — it connects agents to databases, APIs, and enterprise systems. This suggests the document memory pattern may be broader than coding assistants: skills and tool definitions are schema-enforced document memory for procedural knowledge, and they're becoming the <a href="https://www.anthropic.com/news/donating-the-model-context-protocol-and-establishing-of-the-agentic-ai-foundation">industry standard</a> for agent interoperability.</p>
+<hr />
+<h2 id="putting-it-together-the-full-architecture">Putting It Together: The Full Architecture</h2>
+<p>Here's how all three memory tiers work together in the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>. The diagram shows the complete flow from user request to response, with all memory layers active.</p>
+<p><img alt="Full Memory Architecture" src="../../../../assets/2026-02-14-agent-memory-architecture/full-memory-architecture.svg" /></p>
+<p>The architecture has three memory paths:</p>
+<ol>
+<li>
+<p><strong>Hot path (checkpoint store)</strong>: Every node in the LangGraph writes its output to the checkpoint store. When the graph hits an <code>interrupt_before</code> node (like the reporter in <a href="/blog/2026/01/31/the-cognitive-engine-choosing-the-right-reasoning-loop/">Part 1</a>), execution pauses. The user can close the app, and when they return, the graph resumes from the checkpoint.</p>
+</li>
+<li>
+<p><strong>Cold path (long-term store)</strong>: At the start of each conversation, the agent queries the long-term store for relevant user context. At the end, it extracts and stores new facts. This runs asynchronously — it should never block the main reasoning loop.</p>
+</li>
+<li>
+<p><strong>Document path (file store)</strong>: At startup, the agent loads project conventions and relevant research notes from the document store. During execution, it writes new research summaries and learned patterns back to disk. Unlike the cold path, document reads are synchronous (they inform the current task) while writes can be deferred.</p>
+</li>
+</ol>
+<p>The wiring in LangGraph is straightforward — the checkpoint store and long-term store are passed at graph compilation, while the document store is injected as a dependency:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.checkpoint.postgres.aio</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncPostgresSaver</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.store.memory</span><span class="w"> </span><span class="kn">import</span> <span class="n">InMemoryStore</span>
+
+<span class="c1"># Hot memory: PostgreSQL for durable checkpoints</span>
+<span class="n">checkpointer</span> <span class="o">=</span> <span class="k">await</span> <span class="n">create_postgres_checkpointer</span><span class="p">(</span><span class="n">pg_connection_string</span><span class="p">)</span>
+
+<span class="c1"># Cold memory: In-memory store with vector search</span>
+<span class="c1"># (In production, replace with a persistent BaseStore implementation)</span>
+<span class="n">memory_store</span> <span class="o">=</span> <span class="n">InMemoryStore</span><span class="p">(</span>
+    <span class="n">index</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;dims&quot;</span><span class="p">:</span> <span class="mi">1536</span><span class="p">,</span> <span class="s2">&quot;embed&quot;</span><span class="p">:</span> <span class="n">embedding_function</span><span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># Document memory: file-based store for project knowledge</span>
+<span class="n">doc_memory</span> <span class="o">=</span> <span class="n">FileMemory</span><span class="p">(</span><span class="n">base_dir</span><span class="o">=</span><span class="s2">&quot;.agent-memory&quot;</span><span class="p">)</span>
+
+<span class="c1"># Checkpoint store and long-term store wired into the graph</span>
+<span class="n">graph</span> <span class="o">=</span> <span class="n">create_graph</span><span class="p">(</span>
+    <span class="n">checkpointer</span><span class="o">=</span><span class="n">checkpointer</span><span class="p">,</span>
+    <span class="n">store</span><span class="o">=</span><span class="n">memory_store</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># The store is accessible inside any node via the store parameter</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">planner_node</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">AgentState</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">store</span><span class="p">:</span> <span class="n">BaseStore</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Plan with user context from long-term memory.&quot;&quot;&quot;</span>
+
+    <span class="c1"># Recall relevant user facts from vector store</span>
+    <span class="n">user_memories</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">search</span><span class="p">(</span>
+        <span class="n">namespace</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">user_id</span><span class="p">),</span>
+        <span class="n">query</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">messages</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">content</span><span class="p">,</span>
+        <span class="n">limit</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Load project conventions from document memory</span>
+    <span class="n">conventions</span> <span class="o">=</span> <span class="n">doc_memory</span><span class="o">.</span><span class="n">read_doc</span><span class="p">(</span><span class="s2">&quot;conventions/analysis-format.md&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Inject both into planning context</span>
+    <span class="n">memory_context</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">value</span><span class="p">[</span><span class="s2">&quot;fact&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">user_memories</span><span class="p">)</span>
+    <span class="c1"># ... rest of planning logic with personalized context and conventions</span>
+</code></pre></div>
+<h3 id="the-complete-flow">The Complete Flow</h3>
+<p>Here's what happens when a returning user sends "Analyze TSLA" to the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>:</p>
+<ol>
+<li>
+<p><strong>Document memory load</strong>: At startup, the agent reads project conventions from the document store — analysis format preferences, preferred data sources, tool usage patterns. These set the baseline behavior.</p>
+</li>
+<li>
+<p><strong>Cold memory recall</strong>: Before the router node executes, the graph queries the long-term store with the user's message. It retrieves: "User has high risk tolerance", "User prefers detailed competitor analysis", "User previously researched NVDA and AMD".</p>
+</li>
+<li>
+<p><strong>Router + Planner</strong>: The router classifies this as <code>DEEP_RESEARCH</code>. The planner creates a 5-step research plan, personalized based on the recalled user preferences — it includes a competitor analysis step because the user's history shows they value it. The plan follows the format from the conventions document.</p>
+</li>
+<li>
+<p><strong>Executor loop (hot memory)</strong>: Each step executes via the ReAct pattern from <a href="/blog/2026/01/31/the-cognitive-engine-choosing-the-right-reasoning-loop/">Part 1</a>. After every node — router, planner, each executor step — LangGraph writes a checkpoint to PostgreSQL. If the process crashes after step 3 of 5, restart and continue from step 4.</p>
+</li>
+<li>
+<p><strong>HITL interrupt</strong>: The graph reaches the <code>reporter</code> node with <code>interrupt_before</code>. The draft report is in the checkpoint. The user reviews it hours later — the graph loads the checkpoint and continues.</p>
+</li>
+<li>
+<p><strong>Memory updates</strong>: After the conversation ends: (a) an asynchronous process extracts new user facts ("user is now tracking TSLA", "user approved the report format") and stores them in the long-term vector store, and (b) the agent writes a research summary to the document store (<code>research/TSLA-2026-02.md</code>) for future reference.</p>
+</li>
+</ol>
+<p>This three-tier pattern separates concerns cleanly. The checkpoint store handles durability and resume — it's infrastructure. The long-term store handles intelligence and personalization — it's product logic. The document store handles accumulated project knowledge — it's the agent's notebook.</p>
+<hr />
+<h2 id="trade-offs-and-considerations">Trade-offs and Considerations</h2>
+<p>Memory adds value, but it also adds cost and complexity. Be honest about the trade-offs:</p>
+<ul>
+<li>
+<p><strong>Embedding cost</strong>: Every fact stored in a vector database requires an embedding API call. At $0.02 per million tokens (OpenAI <code>text-embedding-3-small</code>), this is cheap per fact but adds up across thousands of users and sessions. Batch embedding calls and cache results.</p>
+</li>
+<li>
+<p><strong>Stale memory</strong>: User preferences change. A fact stored six months ago ("user prefers conservative investments") may no longer be accurate. Implement expiry policies — I use 365 days for preferences and 90 days for episodic events, as described in my <a href="/blog/2025/10/05/context-engineering-in-the-agenticai-era--and-how-to-cook-it/">context engineering post</a>.</p>
+</li>
+<li>
+<p><strong>Memory overhead in context</strong>: Every recalled fact consumes tokens in the LLM's context window. If you recall 20 facts per query, that's several hundred tokens of memory context competing with the actual task. Cap the number of recalled facts and prioritize by relevance score.</p>
+</li>
+<li>
+<p><strong>Privacy and compliance</strong>: Long-term memory stores user data. You need PII redaction before storage, clear retention policies, and user-facing controls for data deletion. This is not optional in regulated industries.</p>
+</li>
+<li>
+<p><strong>Checkpoint storage growth</strong>: PostgreSQL checkpoint tables grow with every node execution. For long-running agents, implement a retention policy — keep the last N checkpoints per thread and archive or delete older ones.</p>
+</li>
+<li>
+<p><strong>Memory consolidation</strong>: Over time, detailed episodic memories should compress into compact semantic representations — "user asked about NVDA three times in January" rather than storing all three conversations verbatim. This mirrors human memory consolidation and keeps the store manageable. Frameworks like <a href="https://arxiv.org/abs/2504.19413">Mem0</a> and <a href="https://arxiv.org/abs/2501.13956">Graphiti</a> handle this automatically; if you build your own, schedule periodic consolidation jobs.</p>
+</li>
+<li>
+<p><strong>Cold start problem</strong>: New users have no long-term memory. The agent should degrade gracefully — ask clarifying questions instead of making assumptions. Memory is additive, not required.</p>
+</li>
+<li>
+<p><strong>Document memory drift</strong>: File-based memory has no automatic deduplication or conflict resolution. Over time, documents can accumulate contradictory information — one file says "use pytest" while another says "use unittest." Schedule periodic reviews (or let the agent do it) to prune and consolidate document memory. Unlike vector stores where staleness is hidden, at least you can <code>grep</code> for contradictions.</p>
+</li>
+<li>
+<p><strong>Document memory doesn't scale to millions of items</strong>: File-based memory works well for hundreds to low thousands of documents. If your agent needs to recall from millions of facts with fuzzy matching, you need a vector store. Document memory is for structured project knowledge, not for the long tail of every user interaction.</p>
+</li>
+</ul>
+<hr />
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ol>
+<li>
+<p><strong>Agent memory splits into three tiers</strong>: hot (checkpoint store for current session), cold (long-term store for cross-session knowledge), and document (file store for accumulated project knowledge). Design each tier for its access pattern.</p>
+</li>
+<li>
+<p><strong>Use PostgreSQL checkpointing as your default</strong> — it gives you ACID durability, full checkpoint history, and time-travel debugging. Switch to Redis only when sub-millisecond latency is a hard requirement.</p>
+</li>
+<li>
+<p><strong>LangGraph's checkpoint system handles hot memory natively</strong> — every node write is automatically persisted, enabling pause/resume and HITL workflows with zero application code.</p>
+</li>
+<li>
+<p><strong>Start long-term memory with key-value stores</strong> for structured user profiles. Add vector search (Qdrant, Pinecone, or LangGraph's built-in Store with vector index) when you need semantic recall over unstructured facts.</p>
+</li>
+<li>
+<p><strong>Document memory is underexplored in the literature but widely adopted in practice.</strong> Most frameworks and surveys cover vector stores and checkpoints but ignore file-based memory. Yet the pattern has spread well beyond AI coding assistants. Claude Code, Cursor, and Windsurf converged on plain-text files; Voyager stores Minecraft skills as code libraries; ECR3 winners iterated on procedural prompt documents; web agents synthesize reusable workflow APIs. When the agent learns something wrong, you open a Markdown file and fix it. When you want to know what the agent knows, you <code>ls</code> the memory directory. This debuggability and transparency is driving adoption across agent domains.</p>
+</li>
+<li>
+<p><strong>Memory is a product feature, not just infrastructure.</strong> The difference between "the agent remembers my preferences" and "the agent asks me the same questions every time" is what makes users come back.</p>
+</li>
+<li>
+<p><strong>Set retention policies from day one.</strong> Stale memory degrades agent performance, and unbounded storage creates privacy risks. Expire episodic memories after 90 days, preference memories after 365 days, and review document memory periodically for contradictions.</p>
+</li>
+<li>
+<p><strong>Cap recalled context.</strong> Every recalled fact competes for tokens in the context window. Retrieve the top 5 most relevant facts, not everything you have.</p>
+</li>
+</ol>
+<hr />
+<h2 id="whats-next">What's Next</h2>
+<p>In Part 3, I'll cover <strong>tool ergonomics and the Agent-Computer Interface (ACI)</strong> — how to design tools that LLMs can actually use reliably. I'll show how tool descriptions, argument schemas, and error handling patterns determine whether your agent calls the right tool with the right arguments, or hallucinates its way into a cascade of failures.</p>
+<hr />
+<h2 id="references">References</h2>
+<h3 id="papers">Papers</h3>
+<ul>
+<li><a href="https://arxiv.org/abs/2309.02427">Cognitive Architectures for Language Agents (CoALA)</a> — Sumers, Yao et al., 2023 — Foundational taxonomy of agent memory types</li>
+<li><a href="https://arxiv.org/abs/2512.13564">Memory in the Age of AI Agents: A Survey</a> — Dec 2025 — Comprehensive three-dimensional taxonomy of agent memory</li>
+<li><a href="https://arxiv.org/abs/2310.08560">MemGPT: Towards LLMs as Operating Systems</a> — Packer et al., 2023 — Virtual context management for LLM agents</li>
+<li><a href="https://arxiv.org/abs/2304.03442">Generative Agents: Interactive Simulacra of Human Behavior</a> — Park et al., 2023 — Memory stream architecture with recency, importance, and relevance scoring</li>
+<li><a href="https://arxiv.org/abs/2501.13956">Zep: A Temporal Knowledge Graph Architecture for Agent Memory</a> — Rasmussen, 2025 — Bi-temporal knowledge graph for agent memory</li>
+<li><a href="https://arxiv.org/abs/2504.19413">Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory</a> — 2025 — Extraction/consolidation pipeline with benchmarks</li>
+<li><a href="https://arxiv.org/abs/2305.16291">Voyager: An Open-Ended Embodied Agent with Large Language Models</a> — Wang et al., 2023 — Skill library as document memory for open-world game agents</li>
+<li><a href="https://arxiv.org/abs/2311.05997">JARVIS-1: Open-World Multi-task Agents with Memory-Augmented Multimodal Language Models</a> — 2023 — Multimodal memory library for Minecraft agents</li>
+<li><a href="https://arxiv.org/abs/2409.07429">Agent Workflow Memory</a> — Wang et al., 2024 — Reusable workflow induction for web automation agents</li>
+<li><a href="https://arxiv.org/abs/2504.07079">SkillWeaver: Web Agents can Self-Design Skill Libraries</a> — 2025 — Self-synthesized reusable API tools for web agents</li>
+<li><a href="https://arxiv.org/abs/2510.04851">LEGOMem: Modular Memory Framework for LLM Agent Systems</a> — 2025 — Composable memory modules for multi-agent systems</li>
+</ul>
+<h3 id="langgraph-documentation">LangGraph Documentation</h3>
+<ul>
+<li><a href="https://langchain-ai.github.io/langgraph/concepts/persistence/">LangGraph Persistence (Checkpointing)</a> — Core concepts for checkpoint-based memory</li>
+<li><a href="https://langchain-ai.github.io/langgraph/concepts/memory/">LangGraph Memory Store</a> — Cross-thread long-term memory with the Store interface</li>
+<li><a href="https://langchain-ai.github.io/langgraph/how-tos/cross-thread-persistence-functional/">LangGraph Cross-Thread Persistence</a> — Functional API for cross-thread memory</li>
+<li><a href="https://langchain-ai.github.io/langgraph/how-tos/create-react-agent-memory/">How to add memory to the prebuilt ReAct agent</a> — Practical guide to adding memory</li>
+</ul>
+<h3 id="checkpoint-backends">Checkpoint Backends</h3>
+<ul>
+<li><a href="https://pypi.org/project/langgraph-checkpoint-postgres/"><code>langgraph-checkpoint-postgres</code></a> — PostgreSQL checkpoint saver for LangGraph</li>
+<li><a href="https://pypi.org/project/langgraph-checkpoint-redis/"><code>langgraph-checkpoint-redis</code></a> — Redis checkpoint saver for LangGraph</li>
+<li><a href="https://redis.io/blog/langgraph-redis-checkpoint-010/">LangGraph Redis Checkpoint 0.1.0 Redesign</a> — Architecture details for the Redis checkpoint saver</li>
+<li><a href="https://aws.amazon.com/blogs/database/build-durable-ai-agents-with-langgraph-and-amazon-dynamodb/"><code>langgraph-checkpoint-aws</code></a> — DynamoDB checkpoint saver with S3 offloading</li>
+</ul>
+<h3 id="vector-databases-and-memory-tools">Vector Databases and Memory Tools</h3>
+<ul>
+<li><a href="https://qdrant.tech/">Qdrant</a> — Open-source vector database with HNSW indexing and filtering</li>
+<li><a href="https://qdrant.tech/articles/agentic-builders-guide/">Qdrant Agentic Builders Guide</a> — Practical guide to building agent memory with Qdrant</li>
+<li><a href="https://github.com/pgvector/pgvector">pgvector</a> — Vector similarity search extension for PostgreSQL</li>
+<li><a href="https://github.com/getzep/graphiti">Graphiti</a> — Open-source temporal knowledge graph engine by Zep</li>
+</ul>
+<h3 id="document-and-file-based-memory">Document and File-Based Memory</h3>
+<ul>
+<li><a href="https://docs.anthropic.com/en/docs/claude-code/memory">Claude Code Memory</a> — CLAUDE.md and MEMORY.md file-based memory system</li>
+<li><a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool">Anthropic Memory Tool</a> — Client-side file-based memory for Claude API agents</li>
+<li><a href="https://docs.cursor.com/context/rules">Cursor Rules</a> — Project-level .cursorrules files for agent context</li>
+<li><a href="https://docs.windsurf.com/windsurf/cascade/memories">Windsurf Memories</a> — File-based memory and .windsurfrules for coding agents</li>
+</ul>
+<h3 id="memory-frameworks">Memory Frameworks</h3>
+<ul>
+<li><a href="https://mem0.ai/research">Mem0</a> — Managed memory layer with extraction/consolidation pipeline</li>
+<li><a href="https://docs.letta.com/concepts/memgpt/">Letta (MemGPT)</a> — OS-inspired virtual context management for agents</li>
+<li><a href="https://langchain-ai.github.io/langmem/">LangMem SDK</a> — Memory management tools for LangGraph</li>
+</ul>
+<h3 id="benchmarks">Benchmarks</h3>
+<ul>
+<li><a href="https://www.cybertec-postgresql.com/en/postgresql-vs-redis-vs-memcached-performance/">PostgreSQL vs Redis Performance</a> — CyberTec latency and throughput benchmarks</li>
+<li><a href="https://risingwave.com/blog/postgresql-vs-redis-performance-and-use-case-comparison/">PostgreSQL vs Redis Comparison</a> — RisingWave architecture comparison</li>
+<li><a href="https://redis.io/blog/engineering-for-ai-agents/">Redis AI Agent Engineering</a> — Redis patterns for agent workloads</li>
+</ul>
+<h3 id="workshops">Workshops</h3>
+<ul>
+<li><a href="https://sites.google.com/view/memagent-iclr26/">MemAgents: Memory for LLM-Based Agentic Systems</a> — ICLR 2026 Workshop</li>
+</ul>
+<h3 id="demo-project">Demo Project</h3>
+<ul>
+<li><a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a> — Full implementation with all three memory tiers</li>
+</ul>
+<hr />
+<p><em>The complete Market Analyst Agent code, including the memory architecture described in this post, is available on <a href="https://github.com/slavadubrov/market-analyst-agent">GitHub</a>. Star the repo and follow along as I build the full production stack.</em></p>
+<p><strong>Series: Engineering the Agentic Stack</strong></p>
+<ul>
+<li><a href="/blog/2026/01/31/the-cognitive-engine-choosing-the-right-reasoning-loop/">Part 1: The Cognitive Engine</a> — Choosing the right reasoning loop</li>
+<li><strong>Part 2: The Cortex</strong> (this post) — Architecting memory for AI agents</li>
+<li>Part 3: Tool Ergonomics and the ACI (coming soon)</li>
+<li>Part 4: Safety Layers — The Guardian Pattern</li>
+<li>Part 5: Production Deployment</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+  
+
+
+ 
+  </article>
+</div>
+
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../../../../javascripts/mermaid-init.js"></script>
+      
+        <script src="../../../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
