@@ -1,0 +1,1997 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A practical comparison of Polars, DataFusion, Daft, and Ray Data against Pandas and Spark — with real benchmarks on NYC taxi data and food images, runnable code, and a decision framework for choosing the right engine.">
+      
+      
+        <meta name="author" content="Viacheslav Dubrov">
+      
+      
+        <link rel="canonical" href="https://slavadubrov.github.io/blog/2026/02/21/benchmarking-modern-data-processing-engines/">
+      
+      
+        <link rel="prev" href="../../14/the-cortex--architecting-memory-for-ai-agents/">
+      
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="RSS feed" href="../../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="RSS feed of updated content" href="../../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../../assets/favicon-eoc.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.23">
+    
+    
+      
+        <title>Benchmarking Modern Data Processing Engines - Edge of Context: Practical AI Engineering</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/brand.css">
+    
+      <link rel="stylesheet" href="../../../../../assets/blog-sidebar.css">
+    
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+     
+<style>
+  /* Header social icons */
+  .md-header__social {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 0.5rem;
+  }
+  .md-header__social a {
+    color: var(--md-primary-bg-color);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+  .md-header__social a:hover {
+    opacity: 1;
+  }
+  .md-header__social svg {
+    width: 1.2rem;
+    height: 1.2rem;
+    fill: currentColor;
+  }
+  /* Adjust search to make room for social icons */
+  .md-search {
+    margin-right: 0;
+  }
+</style>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#benchmarking-modern-data-processing-engines" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+     
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../../.." title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Edge of Context: Practical AI Engineering
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Benchmarking Modern Data Processing Engines
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../../../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Blog
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../about/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  About
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+<script>
+  // Inject social icons into header after DOM loads
+  document.addEventListener("DOMContentLoaded", function () {
+    const header = document.querySelector(".md-header__inner");
+    if (header) {
+      const social = document.createElement("div");
+      social.className = "md-header__social";
+      social.innerHTML = `
+      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
+      </a>
+      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
+      </a>
+      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+      </a>
+    `;
+      header.appendChild(social);
+    }
+  });
+</script>
+
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../.." title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    Edge of Context: Practical AI Engineering
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    Blog
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Blog
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Archive
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            Archive
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../archive/2026/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2026
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../archive/2025/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2025
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Topics
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            Topics
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/ai-engineering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AI Engineering
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/agentic-ai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Agentic AI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/agents-101/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Agents 101
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/infrastructure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Infrastructure
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/paper-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Paper Review
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/python/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Python
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/search-and-recs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Search and Recs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/tooling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tooling
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    About
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#data-processing-workload-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      Data Processing Workload Types
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-1-single-node-processing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Part 1: Single-Node Processing
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 1: Single-Node Processing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#polars-tabular-data-processing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Polars: Tabular Data Processing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#apache-datafusion-extensible-query-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      Apache DataFusion: Extensible Query Engine
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#daft-multimodal-data-processing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Daft: Multimodal Data Processing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#benchmark-single-node-performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      Benchmark: Single-Node Performance
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-2-handling-multimodal-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      Part 2: Handling Multimodal Data
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 2: Handling Multimodal Data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pipelined-execution-and-gpu-utilization" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pipelined Execution and GPU Utilization
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#benchmark-image-processing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Benchmark: Image Processing
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-3-distributed-processing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Part 3: Distributed Processing
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 3: Distributed Processing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#apache-spark" class="md-nav__link">
+    <span class="md-ellipsis">
+      Apache Spark
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ray-data-gpu-utilization" class="md-nav__link">
+    <span class="md-ellipsis">
+      Ray Data: GPU Utilization
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#daft-distributed" class="md-nav__link">
+    <span class="md-ellipsis">
+      Daft (Distributed)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#distributed-head-to-head" class="md-nav__link">
+    <span class="md-ellipsis">
+      Distributed Head-to-Head
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-4-the-role-of-rust-and-arrow" class="md-nav__link">
+    <span class="md-ellipsis">
+      Part 4: The Role of Rust and Arrow
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-5-adopting-multiple-engines" class="md-nav__link">
+    <span class="md-ellipsis">
+      Part 5: Adopting Multiple Engines
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 5: Adopting Multiple Engines">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#summary-of-engine-use-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      Summary of Engine Use Cases
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#diagonal-scaling-the-new-frontier" class="md-nav__link">
+    <span class="md-ellipsis">
+      Diagonal Scaling: The New Frontier
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#try-it-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      Try It Yourself
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Takeaways
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      References
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="References">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#benchmarks-and-performance-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      Benchmarks and Performance Data
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#engines-and-frameworks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Engines and Frameworks
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#architecture-and-ecosystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      Architecture and Ecosystem
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#demo-repository" class="md-nav__link">
+    <span class="md-ellipsis">
+      Demo Repository
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datasets" class="md-nav__link">
+    <span class="md-ellipsis">
+      Datasets
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+<div class="md-content md-content--post" data-md-component="content">
+  <div
+    class="md-sidebar md-sidebar--post"
+    data-md-component="sidebar"
+    data-md-type="navigation"
+  >
+    <div class="md-sidebar__scrollwrap">
+      <div class="md-sidebar__inner md-post">
+        <nav class="md-nav md-nav--primary">
+          <div class="md-post__back">
+            <div class="md-nav__title md-nav__container">
+              <a href="../../../../" class="md-nav__link">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+                <span class="md-ellipsis"> Back to index </span>
+              </a>
+            </div>
+          </div>
+
+          
+          <ul class="md-post__meta md-nav__list">
+            <li class="md-nav__item md-nav__item--section">
+              <div class="md-post__title">
+                <span class="md-ellipsis">Topics</span>
+              </div>
+              <nav class="md-nav">
+                        
+                 
+                <div
+                  class="blog-category-section blog-category-section--active"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🤖</span
+                    >
+                    <span class="blog-category-name">AI Engineering</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post blog-category-post--active"
+                    >
+                      <a href="./">Benchmarking Modern Data Processing Engines</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/04/the-complete-guide-to-llm-fine-tuning-in-2025-from-theory-to-production/">The Complete Guide to LLM Fine-Tuning in 2025: From Theory to Production</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/22/lorax-playbook---orchestrating-thousands-of-lora-adapters-on-kubernetes/">LoRAX Playbook - Orchestrating Thousands of LoRA Adapters on Kubernetes</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/11/choosing-the-right-open-source-llm-variant--file-format/">Choosing the Right Open-Source LLM Variant & File Format</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/10/quick-guide-on-running-llms-locally-on-macos/">Quick-guide on Running LLMs Locally on macOS</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/04/scaling-large-language-models---practical-multi-gpu-and-multi-node-strategies-for-2025/">Scaling Large Language Models - Practical Multi-GPU and Multi-Node Strategies for 2025</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >📚</span
+                    >
+                    <span class="blog-category-name">Agents 101</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../14/the-cortex--architecting-memory-for-ai-agents/">The Cortex — Architecting Memory for AI Agents</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/31/the-cognitive-engine-choosing-the-right-reasoning-loop/">The Cognitive Engine: Choosing the Right Reasoning Loop</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🦾</span
+                    >
+                    <span class="blog-category-name">Agentic AI</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/11/enterprise-rag-challenge-3-winning-approaches-for-autonomous-ai-agents/">Enterprise RAG Challenge 3: Winning Approaches for Autonomous AI Agents</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/12/28/schema-guided-reasoning-on-vllm--turning-llms-into-reliable-business-logic-engines/">Schema-Guided Reasoning on vLLM — Turning LLMs into Reliable Business Logic Engines</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/20/domain-driven-design-for-ai-agents-a-beginner-friendly-guide/">Domain-driven design for AI agents: a beginner-friendly guide</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/05/context-engineering-in-the-agenticai-era--and-how-to-cook-it/">Context Engineering in the Agentic‑AI Era — and How to Cook It</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🔧</span
+                    >
+                    <span class="blog-category-name">Infrastructure</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/06/mlops-in-the-age-of-foundation-models-evolving-infrastructure-for-llms-and-beyond/">MLOps in the Age of Foundation Models. Evolving Infrastructure for LLMs and Beyond</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      ></span
+                    >
+                    <span class="blog-category-name">Paper Review</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/21/mhc-how-deepseek-scaled-residual-connections-without-breaking-training/">mHC: How DeepSeek Scaled Residual Connections Without Breaking Training</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🐍</span
+                    >
+                    <span class="blog-category-name">Python</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/08/the-ultimate-guide-to-pyprojecttoml/">The Ultimate Guide to `pyproject.toml`</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/04/17/quick-guide-managing-python-on-macos-with-uv/">Quick Guide: Managing Python on macOS with uv</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🔍</span
+                    >
+                    <span class="blog-category-name">Search and Recs</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../08/building-a-modern-search-ranking-stack-from-embeddings-to-llm-powered-relevance/">Building a Modern Search Ranking Stack: From Embeddings to LLM-Powered Relevance</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🛠️</span
+                    >
+                    <span class="blog-category-name">Tooling</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/06/10/building-a-custom-featurestorelite-mcp-server-using-uv/">Building a Custom FeatureStoreLite MCP Server Using uv</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/10/quick-guide-on-local-stable-diffusion-toolkits-for-macos/">Quick-guide on Local Stable-Diffusion Toolkits for macOS</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/07/mastering-zsh-startup-zprofile-vs-zshrc-/">Mastering Zsh Startup: ~/.zprofile vs ~/.zshrc 🚀</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/04/19/quick-guide-on-setting-up-a-macbook-for-ai-engineering/">Quick-Guide on setting up a MacBook for AI Engineering</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                
+              </nav>
+            </li>
+          </ul>
+
+          
+        </nav>
+        
+      </div>
+    </div>
+  </div>
+  <article class="md-content__inner md-typeset">
+     
+  
+
+
+
+
+<h1 id="benchmarking-modern-data-processing-engines">Benchmarking Modern Data Processing Engines</h1>
+<p>Historically, data processing often relied on <strong>Pandas</strong> for in-memory workloads and <strong>Apache Spark</strong> for distributed processing. This approach was highly effective for structured tabular data.</p>
+<p>However, modern workloads increasingly involve multimodal data, such as images, audio, and video frames. In these scenarios, traditional challenges like the JVM's garbage collection overhead and Python's Global Interpreter Lock can become performance bottlenecks, particularly when integrating GPU inference. This shift has accelerated the adoption of engines built on <strong>Rust</strong> and <strong>Apache Arrow</strong>.</p>
+<p>Having transitioned many of my own single-instance pipelines to Polars, I wanted to objectively evaluate how it compares to other modern engines. This article presents a comparison of several Rust-based compute frameworks using real-world datasets to provide a practical guide for choosing the right tool.</p>
+<p>The entire benchmark suite and runnable code can be found in the <a href="https://github.com/slavadubrov/engine-comparison-demo">engine-comparison-demo repository</a>. I encourage you to clone it, run the benchmarks on your own hardware, and verify the results yourself.</p>
+<!-- more -->
+
+<p><strong>TL;DR</strong>: Rust-native engines deliver 10–94x speedups over Pandas on single nodes. For multimodal AI, pipelined execution models (Ray Data, Daft) achieve up to 18x faster processing than Spark by keeping GPUs saturated. There is no single "best" engine — the right choice depends on your data modality, scale, and whether you need GPUs.</p>
+<hr />
+<h2 id="data-processing-workload-types">Data Processing Workload Types</h2>
+<p>Before selecting an engine, it is helpful to categorize workloads, as different tools are optimized for different requirements. The primary distinction is between structured and multimodal data.</p>
+<p><img alt="Two Worlds of Data: Structured vs. Multimodal" src="../../../../assets/2026-02-21-compute-engines/data-bifurcation.svg" /></p>
+<p><strong>Structured / Tabular Data.</strong> These CPU-bound workloads—such as filtering, aggregating, and joining data—often fit in memory. Many of these workloads are run on distributed systems unnecessarily; roughly <a href="https://pola.rs/posts/polars-cloud-what-we-are-building/">90% of queries process less than 1 TB of data</a>, which can typically be processed on a single machine.</p>
+<p><strong>Multimodal AI.</strong> These workloads are often GPU-bound, involving images, video, and audio. In traditional pipelines, preprocessing can become a bottleneck because deep learning models consume data faster than CPUs can decode it. On standard VM shapes like AWS <code>g6.xlarge</code> (4 CPUs per GPU), GPU utilization can drop below 20%. Maintaining adequate data throughput to the GPU is critical for overall pipeline efficiency.</p>
+<p>The new engines address both worlds: Rust for raw speed, Apache Arrow for zero-copy data sharing, and streaming execution to handle datasets larger than RAM.</p>
+<hr />
+<h2 id="part-1-single-node-processing">Part 1: Single-Node Processing</h2>
+<p>The Pandas bottleneck is not a bug — it is baked into the design. Pandas loads entire files into RAM at once (eager execution), creates intermediate copies for almost every operation, and is stuck on a single thread because of Python's GIL. On <a href="https://pola.rs/posts/benchmarks/">PDS-H benchmarks</a> at scale factor 10, Pandas took about <strong>365 seconds</strong> to finish a standard query suite. Polars, using its streaming engine, finished the same suite in <strong>3.89 seconds</strong> — <strong>94x faster</strong>.</p>
+<p><img alt="Eager vs. Lazy Execution" src="../../../../assets/2026-02-21-compute-engines/eager-vs-lazy.svg" /></p>
+<h3 id="polars-tabular-data-processing">Polars: Tabular Data Processing</h3>
+<p><a href="https://github.com/pola-rs/polars">Polars</a> has effectively replaced Pandas for high-performance local ETL. Written entirely in Rust, it uses a <strong>lazy execution</strong> model: instead of running every line immediately, Polars builds an optimized query plan — applying predicate pushdown, projection pruning, and column pruning — before executing it across all available CPU cores in streaming batches.</p>
+<p>The performance advantage grows with dataset size. At <a href="https://pola.rs/posts/benchmarks/">scale factor 100 (~100 GB)</a>, Polars' streaming engine completed the benchmark in 23.94 seconds versus 152.27 seconds for its own in-memory engine — over <strong>6x faster</strong> — proving that streaming execution handles larger-than-memory workloads gracefully.</p>
+<p>From <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/engine_comparison_examples.ipynb"><code>engine_comparison_examples.ipynb</code></a>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+
+<span class="c1"># scan_parquet reads only the schema — no data loaded yet</span>
+<span class="n">q</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">scan_parquet</span><span class="p">(</span><span class="s2">&quot;yellow_tripdata_2024-01.parquet&quot;</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;trip_distance&quot;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">5.0</span><span class="p">)</span>
+        <span class="o">&amp;</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;total_amount&quot;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">30.0</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">&quot;payment_type&quot;</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;total_amount&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;avg_fare&quot;</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;trip_distance&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;avg_distance&quot;</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">len</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;trip_count&quot;</span><span class="p">),</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+
+<span class="c1"># The entire plan is optimized and executed here, in parallel</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+</code></pre></div>
+<p>The difference from Pandas is not syntax — it is architecture. Polars builds a plan of all operations and optimizes the entire pipeline before touching data. The <code>filter</code> predicate gets pushed down into the Parquet reader, skipping entire row groups. Only the columns used in the query are read from disk. Pandas cannot do this — every line runs immediately, creating expensive intermediate copies.</p>
+<h3 id="apache-datafusion-extensible-query-engine">Apache DataFusion: Extensible Query Engine</h3>
+<p>Where Polars is a library for end-users, <a href="https://datafusion.apache.org/">DataFusion</a> is the "engine behind the engines." It powers <a href="https://www.influxdata.com/glossary/apache-datafusion/">InfluxDB 3.0</a>, <a href="https://github.com/GreptimeTeam/greptimedb">GreptimeDB</a>, and Apple's <a href="https://github.com/apache/datafusion-comet">Comet Spark accelerator</a>. In November 2024, DataFusion became the <a href="https://datafusion.apache.org/blog/2024/11/18/datafusion-fastest-single-node-parquet-clickbench/">fastest single-node engine for querying Parquet files in ClickBench</a>, beating DuckDB, chDB, and ClickHouse on the same hardware. The Embucket team then showed DataFusion could <a href="https://embucket.com/blog/running_tpc_h_1000_on_apache_data_fusion">run TPC-H at scale factor 1000 (~1 TB) on a single node</a> — proving that most workloads do not need a distributed cluster.</p>
+<p>From <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/engine_comparison_examples.ipynb"><code>engine_comparison_examples.ipynb</code></a>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datafusion</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionContext</span>
+
+<span class="n">ctx</span> <span class="o">=</span> <span class="n">SessionContext</span><span class="p">()</span>
+<span class="n">ctx</span><span class="o">.</span><span class="n">register_parquet</span><span class="p">(</span><span class="s2">&quot;taxi&quot;</span><span class="p">,</span> <span class="s2">&quot;yellow_tripdata_2024-01.parquet&quot;</span><span class="p">)</span>
+
+<span class="c1"># SQL executed directly against Parquet — no intermediate copies</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">sql</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">    SELECT payment_type,</span>
+<span class="s2">           COUNT(*)           AS trip_count,</span>
+<span class="s2">           AVG(trip_distance) AS avg_distance,</span>
+<span class="s2">           AVG(total_amount)  AS avg_fare</span>
+<span class="s2">    FROM taxi</span>
+<span class="s2">    WHERE trip_distance &gt; 5.0 AND total_amount &gt; 30.0</span>
+<span class="s2">    GROUP BY payment_type</span>
+<span class="s2">    ORDER BY trip_count DESC</span>
+<span class="s2">&quot;&quot;&quot;</span><span class="p">)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
+</code></pre></div>
+<p>DataFusion's strength is its <a href="https://datafusion.apache.org/library-user-guide/">modularity</a>. It provides extension APIs for custom catalogs, table providers, optimizer rules, and execution plans — making it the go-to choice when you need to build a custom data platform or embed a query engine into your own product.</p>
+<h3 id="daft-multimodal-data-processing">Daft: Multimodal Data Processing</h3>
+<p><a href="https://github.com/Eventual-Inc/Daft">Daft</a> differentiates itself by treating multimodal data — images, audio, video, embeddings — as first-class citizens in the DataFrame abstraction. Where Pandas treats images as opaque byte arrays and Spark serializes them through the JVM, Daft exposes native Rust-powered expressions for decoding images, downloading URLs, and generating tensors, bypassing the Python loop overhead entirely.</p>
+<p>From <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/engine_comparison_examples.ipynb"><code>engine_comparison_examples.ipynb</code></a>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">daft</span>
+
+<span class="n">df</span> <span class="o">=</span> <span class="n">daft</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="s2">&quot;yellow_tripdata_2024-01.parquet&quot;</span><span class="p">)</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">df</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">daft</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;trip_distance&quot;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">5.0</span><span class="p">)</span>
+        <span class="o">&amp;</span> <span class="p">(</span><span class="n">daft</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;total_amount&quot;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">30.0</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;payment_type&quot;</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+        <span class="n">daft</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;total_amount&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;avg_fare&quot;</span><span class="p">),</span>
+        <span class="n">daft</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;trip_distance&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;avg_distance&quot;</span><span class="p">),</span>
+        <span class="n">daft</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;trip_distance&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;trip_count&quot;</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>Daft's API feels familiar to Pandas users, but under the hood it is backed by the same Rust + Arrow stack as Polars and DataFusion. Where Daft truly shines is when your "rows" contain images, PDFs, or tensors.</p>
+<h3 id="benchmark-single-node-performance">Benchmark: Single-Node Performance</h3>
+<p>I benchmarked all four engines (plus native Rust via Polars-rs) on ~2.9M <a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page">NYC yellow taxi trips</a> from January 2024. Full results from the <a href="https://github.com/slavadubrov/engine-comparison-demo">demo repo</a>:</p>
+<p><img alt="Benchmark Results: Single-Node Performance" src="../../../../assets/2026-02-21-compute-engines/benchmark-results.svg" /></p>
+<p>At this dataset size (~45 MB Parquet), all engines are fast. The differences become dramatic at scale — but even here, native Rust consistently wins on raw throughput, and Polars and DataFusion are 2–5x faster than Pandas on the ETL pipeline.</p>
+<hr />
+<h2 id="part-2-handling-multimodal-data">Part 2: Handling Multimodal Data</h2>
+<p>Traditional ETL typically reduces data volume through filtering and aggregation. In contrast, multimodal AI pipelines often expand data; for example, a single document path might generate numerous text chunks and embeddings.</p>
+<p>Spark treats complex types like images and audio as binary data. Processing them usually requires serializing the data from the JVM to Python (via Py4J), processing it with libraries like Pillow or OpenCV, and serializing it back. This serialization round-trip can introduce substantial overhead.</p>
+<h3 id="pipelined-execution-and-gpu-utilization">Pipelined Execution and GPU Utilization</h3>
+<p>Spark processes data in partitions sequentially. During image decoding and classification, a core will download, parse, and process a partition. This sequential processing can lead to underutilization of resources, where GPUs wait for network downloads or network bandwidth is unused during inference.</p>
+<p><img alt="Pipelined Execution Model" src="../../../../assets/2026-02-21-compute-engines/pipelined-execution.svg" /></p>
+<p>An alternative approach is <strong>pipelined execution</strong>: instead of running stages one after another, modern engines overlap I/O, CPU work, and GPU inference — keeping all hardware busy at the same time.</p>
+<h3 id="benchmark-image-processing">Benchmark: Image Processing</h3>
+<p>I benchmarked image processing on 500 real photographs from the <a href="https://huggingface.co/datasets/ethz/food101">Food-101 dataset</a>. Results from the <a href="https://github.com/slavadubrov/engine-comparison-demo">demo repo</a>:</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Pandas + Pillow</th>
+<th>Daft</th>
+<th>Rust <code>image</code></th>
+<th>Speedup</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Load Images</td>
+<td>0.40s</td>
+<td>—</td>
+<td><strong>0.06s</strong></td>
+<td>6.2x</td>
+</tr>
+<tr>
+<td>Resize 224x224</td>
+<td>0.59s</td>
+<td>—</td>
+<td><strong>0.19s</strong></td>
+<td>3.0x</td>
+</tr>
+<tr>
+<td>Total Pipeline</td>
+<td>1.04s</td>
+<td>0.54s</td>
+<td><strong>0.26s</strong></td>
+<td>4.0x</td>
+</tr>
+</tbody>
+</table>
+<p>Polars and DataFusion are excluded from multimodal because they lack native image operations — image work would still go through sequential Python. The key insight: Daft's Rust-native image operations are 2x faster than Pandas+Pillow, and pure Rust is 4x faster than Pandas for the total pipeline.</p>
+<hr />
+<h2 id="part-3-distributed-processing">Part 3: Distributed Processing</h2>
+<p>When data or compute needs exceed a single machine, you go distributed. This is where architectural differences matter most.</p>
+<h3 id="apache-spark">Apache Spark</h3>
+<p>Spark is still the go-to for petabyte-scale tabular ETL with complex shuffles. Its strengths: battle-tested fault tolerance via RDD lineage, a mature ecosystem (Databricks, AWS EMR), and proven reliability for multi-TB joins. But for AI workloads, Spark struggles with GPUs: its stage-based execution model assigns tasks to JVM executors, leaving GPUs idle while waiting for slow CPU preprocessing.</p>
+<p>From <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/distributed_spark.ipynb"><code>distributed_spark.ipynb</code></a>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pyspark.sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">SparkSession</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pyspark.sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">functions</span> <span class="k">as</span> <span class="n">F</span>
+
+<span class="n">spark</span> <span class="o">=</span> <span class="n">SparkSession</span><span class="o">.</span><span class="n">builder</span> \
+    <span class="o">.</span><span class="n">appName</span><span class="p">(</span><span class="s2">&quot;TaxiETL&quot;</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">config</span><span class="p">(</span><span class="s2">&quot;spark.sql.adaptive.enabled&quot;</span><span class="p">,</span> <span class="s2">&quot;true&quot;</span><span class="p">)</span> \
+    <span class="o">.</span><span class="n">getOrCreate</span><span class="p">()</span>
+
+<span class="n">orders</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">read</span><span class="o">.</span><span class="n">parquet</span><span class="p">(</span><span class="s2">&quot;s3a://lake/taxi/*.parquet&quot;</span><span class="p">)</span>
+<span class="n">zones</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">read</span><span class="o">.</span><span class="n">csv</span><span class="p">(</span><span class="s2">&quot;s3a://lake/taxi_zones.csv&quot;</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="c1"># Spark excels at this: joining massive tables with a shuffle</span>
+<span class="n">result</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">orders</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;trip_distance&quot;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">5.0</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">zones</span><span class="p">,</span> <span class="n">orders</span><span class="o">.</span><span class="n">PULocationID</span> <span class="o">==</span> <span class="n">zones</span><span class="o">.</span><span class="n">LocationID</span><span class="p">,</span> <span class="s2">&quot;inner&quot;</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">groupBy</span><span class="p">(</span><span class="s2">&quot;Borough&quot;</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+        <span class="n">F</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="s2">&quot;total_amount&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;total_revenue&quot;</span><span class="p">),</span>
+        <span class="n">F</span><span class="o">.</span><span class="n">avg</span><span class="p">(</span><span class="s2">&quot;total_amount&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;avg_fare&quot;</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">orderBy</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">desc</span><span class="p">(</span><span class="s2">&quot;total_revenue&quot;</span><span class="p">))</span>
+<span class="p">)</span>
+</code></pre></div>
+<h3 id="ray-data-gpu-utilization">Ray Data: GPU Utilization</h3>
+<p><a href="https://www.ray.io/">Ray Data</a> was built for the AI era. Unlike Spark's stage-based execution, Ray uses a <a href="https://docs.ray.io/en/latest/data/data-internals.html">streaming model</a> designed to keep GPUs fed. Its killer feature is <strong>mixed resource scheduling</strong>: you can assign specific resources (e.g., "1 GPU, 4 CPUs") to different actors within the same pipeline.</p>
+<p>Amazon reported saving <a href="https://aws.amazon.com/blogs/opensource/amazons-exabyte-scale-migration-from-apache-spark-to-ray-on-amazon-ec2/">over $120 million per year</a> by migrating specific workloads from Spark to Ray. Their proof-of-concept showed 91% better cost efficiency and 13x more data per hour; in production the number settled at 82% better cost efficiency per GiB of S3 input.</p>
+<p>From <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/distributed_ray.ipynb"><code>distributed_ray.ipynb</code></a>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">ray</span>
+
+<span class="n">ray</span><span class="o">.</span><span class="n">init</span><span class="p">()</span>
+
+<span class="n">ds</span> <span class="o">=</span> <span class="n">ray</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">read_images</span><span class="p">(</span><span class="s2">&quot;s3://my-bucket/food101/&quot;</span><span class="p">)</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ImageClassifier</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">torchvision.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">resnet18</span><span class="p">,</span> <span class="n">ResNet18_Weights</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">resnet18</span><span class="p">(</span><span class="n">weights</span><span class="o">=</span><span class="n">ResNet18_Weights</span><span class="o">.</span><span class="n">DEFAULT</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">preprocess</span> <span class="o">=</span> <span class="n">ResNet18_Weights</span><span class="o">.</span><span class="n">DEFAULT</span><span class="o">.</span><span class="n">transforms</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch</span><span class="p">):</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+        <span class="n">tensors</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">preprocess</span><span class="p">(</span><span class="n">img</span><span class="p">)</span> <span class="k">for</span> <span class="n">img</span> <span class="ow">in</span> <span class="n">batch</span><span class="p">[</span><span class="s2">&quot;image&quot;</span><span class="p">]</span>
+        <span class="p">])</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="n">preds</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">tensors</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;prediction&quot;</span><span class="p">:</span> <span class="n">preds</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span>
+            <span class="s2">&quot;confidence&quot;</span><span class="p">:</span> <span class="n">preds</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span>
+        <span class="p">}</span>
+
+<span class="c1"># ActorPoolStrategy creates persistent GPU workers</span>
+<span class="n">predictions</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">map_batches</span><span class="p">(</span>
+    <span class="n">ImageClassifier</span><span class="p">,</span>
+    <span class="n">compute</span><span class="o">=</span><span class="n">ray</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ActorPoolStrategy</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="mi">4</span><span class="p">),</span>
+    <span class="n">num_gpus</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">predictions</span><span class="o">.</span><span class="n">write_parquet</span><span class="p">(</span><span class="s2">&quot;s3://output/predictions/&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>An important detail: as you add more CPUs per GPU, Ray Data keeps getting faster while other engines plateau. In <a href="https://www.anyscale.com/blog/ray-data-daft-benchmarking-multimodal-ai-workloads">Anyscale's benchmarks</a>, going from a 4:1 to a 32:1 CPU-to-GPU ratio gave a 3x performance jump for image inference — the CPU "feeder" tasks could finally keep up with GPU demand.</p>
+<h3 id="daft-distributed">Daft (Distributed)</h3>
+<p>Daft scales to distributed mode via its <a href="https://www.daft.ai/blog/introducing-flotilla-simplifying-multimodal-data-processing-at-scale">Flotilla engine</a>, which puts one <strong>Swordfish</strong> worker per node. Swordfish handles local Rust execution while Flotilla manages cluster-wide scheduling. The key: it pipelines I/O with compute through small-batch streaming, keeping each node fully utilized.</p>
+<p>In benchmarks across four multimodal workloads, Daft with Flotilla ran <a href="https://www.daft.ai/blog/benchmarks-for-multimodal-ai-workloads">2-18x faster than Spark</a>. On the heaviest workload (video object detection with YOLO11n), Spark took over 3.5 hours while Daft finished in under 12 minutes — 18x faster, mostly because Spark wastes time on serialization and sequential I/O.</p>
+<p>Worth noting: Anyscale (the company behind Ray) published <a href="https://www.anyscale.com/blog/ray-data-daft-benchmarking-multimodal-ai-workloads">their own benchmarks</a> showing that with manual tuning, Ray Data narrows the gap and can beat Daft on high-CPU instances. This is an active race — both engines are improving fast.</p>
+<p>From <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/distributed_daft.ipynb"><code>distributed_daft.ipynb</code></a>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">daft</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">daft</span><span class="w"> </span><span class="kn">import</span> <span class="n">col</span>
+
+<span class="c1"># Daft&#39;s Flotilla engine distributes work across the cluster</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">daft</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="s2">&quot;s3://data-lake/pdf_metadata/*.parquet&quot;</span><span class="p">)</span>
+
+<span class="c1"># Download PDFs — Daft parallelizes downloads in Rust</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">with_column</span><span class="p">(</span><span class="s2">&quot;pdf_bytes&quot;</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">&quot;pdf_url&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">url</span><span class="o">.</span><span class="n">download</span><span class="p">())</span>
+
+<span class="c1"># Define a GPU UDF for embedding generation</span>
+<span class="nd">@daft</span><span class="o">.</span><span class="n">udf</span><span class="p">(</span><span class="n">return_dtype</span><span class="o">=</span><span class="n">daft</span><span class="o">.</span><span class="n">DataType</span><span class="o">.</span><span class="n">list</span><span class="p">(</span><span class="n">daft</span><span class="o">.</span><span class="n">DataType</span><span class="o">.</span><span class="n">float32</span><span class="p">()))</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TextEmbedder</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">sentence_transformers</span><span class="w"> </span><span class="kn">import</span> <span class="n">SentenceTransformer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">SentenceTransformer</span><span class="p">(</span><span class="s2">&quot;all-MiniLM-L6-v2&quot;</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text_col</span><span class="p">):</span>
+        <span class="n">texts</span> <span class="o">=</span> <span class="n">text_col</span><span class="o">.</span><span class="n">to_pylist</span><span class="p">()</span>
+        <span class="n">embeddings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">texts</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">emb</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">for</span> <span class="n">emb</span> <span class="ow">in</span> <span class="n">embeddings</span><span class="p">]</span>
+
+<span class="c1"># Daft schedules CPU downloads and GPU embeddings simultaneously</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">with_column</span><span class="p">(</span><span class="s2">&quot;embedding&quot;</span><span class="p">,</span> <span class="n">TextEmbedder</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;text&quot;</span><span class="p">)))</span>
+<span class="n">df</span><span class="o">.</span><span class="n">write_parquet</span><span class="p">(</span><span class="s2">&quot;s3://output/embeddings/&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="distributed-head-to-head">Distributed Head-to-Head</h3>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Spark</th>
+<th>Ray Data</th>
+<th>Daft (Flotilla)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Execution Model</strong></td>
+<td>Task-per-core, partition-based</td>
+<td>Streaming tasks and actors</td>
+<td>Swordfish-per-node, streaming batches</td>
+</tr>
+<tr>
+<td><strong>Strengths</strong></td>
+<td>Massive SQL/ETL, fault tolerance</td>
+<td>Heterogeneous compute, GPU saturation</td>
+<td>Multimodal pipelining, bounded memory</td>
+</tr>
+<tr>
+<td><strong>GPU Utilization</strong></td>
+<td>Poor (sequential partitions)</td>
+<td>Excellent (explicit resource assignment)</td>
+<td>Excellent (async I/O-compute pipelining)</td>
+</tr>
+<tr>
+<td><strong>Tuning Burden</strong></td>
+<td>High (executor memory, cores, partitions)</td>
+<td>Medium (batch sizes, object store)</td>
+<td>Low (engine manages resources)</td>
+</tr>
+<tr>
+<td><strong>Best For</strong></td>
+<td>Petabyte tabular ETL</td>
+<td>Training/inference with mixed CPU+GPU</td>
+<td>Multimodal data loading for PyTorch</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="part-4-the-role-of-rust-and-arrow">Part 4: The Role of Rust and Arrow</h2>
+<p>Under all the competition, something interesting is happening: Polars, Daft, DataFusion, and even Ray's core all share the same foundation — <a href="https://arrow.apache.org/">Apache Arrow</a> for the in-memory format and Rust for safe, high-performance concurrency.</p>
+<p><img alt="Rust and Arrow Convergence" src="../../../../assets/2026-02-21-compute-engines/rust-arrow-convergence.svg" /></p>
+<p>This has real practical impact. The <a href="https://arrow.apache.org/docs/format/CDataInterface/PyCapsuleInterface.html">Arrow PyCapsule Interface</a> (<code>__arrow_c_stream__</code> protocol) lets you move data between engines without serialization: compute a result in DataFusion and hand it to Polars or PyArrow with zero overhead. Use Daft for multimodal preprocessing and pass Arrow batches straight into a PyTorch DataLoader. This significantly reduces serialization overhead across the pipeline.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datafusion</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionContext</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+
+<span class="c1"># Compute in DataFusion (Rust-native execution)</span>
+<span class="n">ctx</span> <span class="o">=</span> <span class="n">SessionContext</span><span class="p">()</span>
+<span class="n">ctx</span><span class="o">.</span><span class="n">register_parquet</span><span class="p">(</span><span class="s2">&quot;events&quot;</span><span class="p">,</span> <span class="s2">&quot;events.parquet&quot;</span><span class="p">)</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">sql</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">    SELECT user_id, COUNT(*) as event_count</span>
+<span class="s2">    FROM events WHERE event_type = &#39;purchase&#39;</span>
+<span class="s2">    GROUP BY user_id HAVING COUNT(*) &gt; 5</span>
+<span class="s2">&quot;&quot;&quot;</span><span class="p">)</span>
+
+<span class="c1"># Zero-copy conversion to Arrow, then to Polars</span>
+<span class="n">arrow_table</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">to_arrow_table</span><span class="p">()</span>
+<span class="n">df_polars</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">from_arrow</span><span class="p">(</span><span class="n">arrow_table</span><span class="p">)</span>
+
+<span class="c1"># Continue analysis in Polars</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">df_polars</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;event_count&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">rank</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;rank&quot;</span><span class="p">)</span>
+<span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">&quot;rank&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Why Rust over the JVM? Three reasons:</p>
+<ol>
+<li>
+<p><strong>No garbage collection pauses.</strong> Rust uses ownership and borrowing instead of a garbage collector. No "stop-the-world" pauses, no unpredictable latency spikes. This eliminates the class of OOM errors that haunt JVM-based systems at scale.</p>
+</li>
+<li>
+<p><strong>No object tax.</strong> The JVM adds 12-16 bytes per object header. When processing billions of small objects, this overhead adds up fast. Rust has no such overhead.</p>
+</li>
+<li>
+<p><strong>Compile-time thread safety.</strong> Rust's type system catches data races at compile time, so you get safe multi-threaded execution without subtle concurrency bugs.</p>
+</li>
+</ol>
+<p>Combined with Arrow's columnar memory layout, the serialization bottleneck — which eats up to 30% of CPU cycles in legacy stacks — just disappears.</p>
+<hr />
+<h2 id="part-5-adopting-multiple-engines">Part 5: Adopting Multiple Engines</h2>
+<p>The most practical takeaway: don't pick <em>one</em> engine — use each where it excels.</p>
+<p><img alt="The Coexistence Model: A Relay Race" src="../../../../assets/2026-02-21-compute-engines/coexistence-relay.svg" /></p>
+<p>The pattern in production looks like this: raw data in a lake gets cleaned by <strong>Spark</strong> (or <strong>Dask</strong> for Python-native teams) into Parquet/Delta tables. Those tables then get fed into <strong>Ray Data</strong> or <strong>Daft</strong> for "last mile" work — GPU inference, embedding generation, multimodal transforms that Spark was never designed for. For ad-hoc analysis and local dev, <strong>Polars</strong> and <strong>DuckDB</strong> give you instant feedback without cluster overhead.</p>
+<p>Open formats — Parquet, Delta, Iceberg, Arrow — are the baton in this relay race. Every engine reads and writes them natively.</p>
+<h3 id="summary-of-engine-use-cases">Summary of Engine Use Cases</h3>
+<p><img alt="Engine Selection Matrix" src="../../../../assets/2026-02-21-compute-engines/engine-selection.svg" /></p>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Recommended Tool</th>
+<th>Trade-off</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ad-hoc analysis on a laptop</td>
+<td><strong>Polars</strong> / <strong>DuckDB</strong></td>
+<td>Speed &gt; Scale</td>
+</tr>
+<tr>
+<td>Massive SQL ETL (petabyte)</td>
+<td><strong>Apache Spark</strong></td>
+<td>Reliability &gt; Speed</td>
+</tr>
+<tr>
+<td>Python-native scaling</td>
+<td><strong>Dask</strong></td>
+<td>Simplicity &gt; Optimization</td>
+</tr>
+<tr>
+<td>Training LLMs / computer vision</td>
+<td><strong>Ray Data</strong></td>
+<td>GPU Utilization &gt; ETL Features</td>
+</tr>
+<tr>
+<td>Multimodal data loading</td>
+<td><strong>Daft</strong></td>
+<td>Developer Experience &gt; Ecosystem</td>
+</tr>
+<tr>
+<td>Building custom query engines</td>
+<td><strong>DataFusion</strong></td>
+<td>Extensibility &gt; Out-of-box Features</td>
+</tr>
+</tbody>
+</table>
+<h3 id="diagonal-scaling-the-new-frontier">Diagonal Scaling: The New Frontier</h3>
+<p>For years the choice was simple: Scale Up (bigger machine) or Scale Out (more machines). Modern engines offer a third option — <strong>Diagonal Scaling</strong>. <a href="https://pola.rs/posts/polars-cloud-what-we-are-building/">Polars Cloud</a> does exactly this: it scales horizontally to multiple nodes when reading from cloud storage to max out I/O, but once filters and aggregations shrink the data, it switches to a single big node for compute — skipping the overhead of a distributed shuffle.</p>
+<p>The surprising finding: bigger, more expensive instances can be <em>cheaper per job</em> because they drive higher GPU utilization, cutting total execution time enough to lower the overall bill.</p>
+<hr />
+<h2 id="try-it-yourself">Try It Yourself</h2>
+<p>The <a href="https://github.com/slavadubrov/engine-comparison-demo">companion demo repository</a> includes everything you need to reproduce these benchmarks:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Install dependencies</span>
+uv<span class="w"> </span>sync
+
+<span class="c1"># Run the tabular benchmark (~2.9M NYC taxi trips)</span>
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>engine_comparison.benchmarks.tabular
+
+<span class="c1"># Run the multimodal benchmark (500 real food photos)</span>
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>engine_comparison.benchmarks.multimodal
+
+<span class="c1"># Run native Rust benchmarks (Polars-rs + image crate)</span>
+<span class="nb">cd</span><span class="w"> </span>rust_benchmark<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cargo<span class="w"> </span>run<span class="w"> </span>--release<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..
+</code></pre></div>
+<p>The repo also includes interactive notebooks for side-by-side API comparisons, and Docker Compose configurations for local distributed experiments with Spark, Ray, and Daft.</p>
+<hr />
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ol>
+<li>
+<p><strong>Don't distribute if you don't have to.</strong> Polars and DataFusion handle up to ~1 TB on one machine with 10-94x speedups over Pandas. Only reach for a cluster when you've actually hit the limits of a single node.</p>
+</li>
+<li>
+<p><strong>Understand Pandas' constraints.</strong> Eager execution, single-threading, and intermediate copies are architectural decisions that become limitations for certain workloads. Lazy execution with predicate pushdown and column pruning provides significant performance advantages at scale.</p>
+</li>
+<li>
+<p><strong>Pipelined execution improves hardware utilization.</strong> Spark's sequential partition model can leave GPUs idle during CPU preprocessing. Pipelined execution models (like Ray Data and Daft) overlap operations to keep resources better utilized.</p>
+</li>
+<li>
+<p><strong>Use each engine where it shines.</strong> Spark for petabyte ETL, Polars/DuckDB for ad-hoc analysis, Ray Data for GPU training pipelines, Daft for multimodal data loading, DataFusion for custom query engines.</p>
+</li>
+<li>
+<p><strong>Rust + Arrow is the new foundation.</strong> This is not a coincidence — it eliminates GC pauses, serialization overhead, and concurrency bugs at the infrastructure level.</p>
+</li>
+</ol>
+<p>The best engine is the one that keeps your hardware busy and your developers productive.</p>
+<hr />
+<h2 id="references">References</h2>
+<h3 id="benchmarks-and-performance-data">Benchmarks and Performance Data</h3>
+<ul>
+<li><a href="https://pola.rs/posts/benchmarks/">Polars PDS-H Benchmarks</a> - Polars streaming vs. Pandas at SF-10 (94x) and SF-100 (6.4x over in-memory)</li>
+<li><a href="https://datafusion.apache.org/blog/2024/11/18/datafusion-fastest-single-node-parquet-clickbench/">DataFusion ClickBench Results (Nov 2024)</a> - Fastest single-node Parquet query engine</li>
+<li><a href="https://embucket.com/blog/running_tpc_h_1000_on_apache_data_fusion">Embucket: TPC-H SF-1000 on DataFusion</a> - Full TPC-H at ~1 TB on a single node</li>
+<li><a href="https://aws.amazon.com/blogs/opensource/amazons-exabyte-scale-migration-from-apache-spark-to-ray-on-amazon-ec2/">Amazon Spark-to-Ray Migration</a> - $120M/year savings, 82% production cost efficiency</li>
+<li><a href="https://www.daft.ai/blog/benchmarks-for-multimodal-ai-workloads">Daft Flotilla Benchmarks</a> - 2–18x faster than Spark on multimodal workloads</li>
+<li><a href="https://www.anyscale.com/blog/ray-data-daft-benchmarking-multimodal-ai-workloads">Anyscale Ray vs. Daft Benchmarks</a> - Ray Data ~30% average speedup on multimodal</li>
+</ul>
+<h3 id="engines-and-frameworks">Engines and Frameworks</h3>
+<ul>
+<li><a href="https://github.com/pola-rs/polars">Polars</a> - Rust DataFrame library with lazy execution</li>
+<li><a href="https://datafusion.apache.org/">Apache DataFusion</a> - Embeddable Rust query engine (<a href="https://github.com/apache/datafusion">GitHub</a>)</li>
+<li><a href="https://github.com/Eventual-Inc/Daft">Daft</a> - Multimodal-native distributed DataFrame</li>
+<li><a href="https://www.ray.io/">Ray</a> - Distributed compute framework for AI (<a href="https://docs.ray.io/en/latest/data/data-internals.html">Data Internals</a>)</li>
+<li><a href="https://spark.apache.org/">Apache Spark</a> - Distributed ETL and SQL engine</li>
+<li><a href="https://duckdb.org/">DuckDB</a> - In-process analytical SQL engine</li>
+<li><a href="https://www.dask.org/">Dask</a> - Python-native parallel computing</li>
+</ul>
+<h3 id="architecture-and-ecosystem">Architecture and Ecosystem</h3>
+<ul>
+<li><a href="https://pola.rs/posts/polars-cloud-what-we-are-building/">Polars Cloud: Diagonal Scaling</a> - Dynamic vertical/horizontal scaling</li>
+<li><a href="https://www.daft.ai/blog/introducing-flotilla-simplifying-multimodal-data-processing-at-scale">Daft Flotilla Architecture</a> - Swordfish + Flotilla distributed engine</li>
+<li><a href="https://github.com/apache/datafusion-comet">Apache DataFusion Comet</a> - Spark accelerator originally developed at Apple</li>
+<li><a href="https://arrow.apache.org/">Apache Arrow</a> - Columnar in-memory format (<a href="https://arrow.apache.org/docs/format/Flight.html">Flight RPC</a>, <a href="https://arrow.apache.org/docs/format/CDataInterface/PyCapsuleInterface.html">PyCapsule Interface</a>)</li>
+<li><a href="https://www.influxdata.com/glossary/apache-datafusion/">InfluxDB 3.0 + DataFusion</a> - Time-series database built on DataFusion</li>
+<li><a href="https://github.com/GreptimeTeam/greptimedb">GreptimeDB</a> - Observability database using DataFusion</li>
+</ul>
+<h3 id="demo-repository">Demo Repository</h3>
+<ul>
+<li><a href="https://github.com/slavadubrov/engine-comparison-demo">engine-comparison-demo</a> - Companion code for this article: benchmarks, notebooks, and Docker Compose for Spark/Ray/Daft</li>
+</ul>
+<h3 id="datasets">Datasets</h3>
+<ul>
+<li><a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page">NYC Taxi Trip Records</a> - NYC TLC yellow taxi data (Parquet, ~2.9M rows/month)</li>
+<li><a href="https://huggingface.co/datasets/ethz/food101">Food-101 Dataset</a> - 101K food images from ETH Zurich (Bossard et al., ECCV 2014)</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+  
+
+
+ 
+  </article>
+</div>
+
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../../../../javascripts/mermaid-init.js"></script>
+      
+        <script src="../../../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
