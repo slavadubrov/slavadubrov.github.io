@@ -1451,7 +1451,7 @@
 <p>The entire benchmark suite and runnable code can be found in the <a href="https://github.com/slavadubrov/engine-comparison-demo">engine-comparison-demo repository</a>. I encourage you to clone it, run the benchmarks on your own hardware, and verify the results yourself.</p>
 <!-- more -->
 
-<p><strong>TL;DR</strong>: Rust-native engines deliver 10–94x speedups over Pandas on single nodes. For multimodal AI, pipelined execution models (Ray Data, Daft) achieve up to 18x faster processing than Spark by keeping GPUs saturated. There is no single "best" engine — the right choice depends on your data modality, scale, and whether you need GPUs.</p>
+<p><strong>TL;DR</strong>: Rust-native engines promise up to 94x speedups over Pandas on single nodes. You might see constant but smaller improvements in real workloads, with Polars still being the best overall. For multimodal AI, pipelined execution models (Ray Data, Daft) achieve up to 18x faster processing than Spark by keeping GPUs saturated. There is no single "best" engine — the right choice depends on your data modality, scale, and whether you need GPUs.</p>
 <hr />
 <h2 id="data-processing-workload-types">Data Processing Workload Types</h2>
 <p>Before selecting an engine, it is helpful to categorize workloads, as different tools are optimized for different requirements. The primary distinction is between structured and multimodal data.</p>
@@ -1461,7 +1461,7 @@
 <p>The new engines address both worlds: Rust for raw speed, Apache Arrow for zero-copy data sharing, and streaming execution to handle datasets larger than RAM.</p>
 <hr />
 <h2 id="part-1-single-node-processing">Part 1: Single-Node Processing</h2>
-<p>The Pandas bottleneck is not a bug — it is baked into the design. Pandas loads entire files into RAM at once (eager execution), creates intermediate copies for almost every operation, and is stuck on a single thread because of Python's GIL. On <a href="https://pola.rs/posts/benchmarks/">PDS-H benchmarks</a> at scale factor 10, Pandas took about <strong>365 seconds</strong> to finish a standard query suite. Polars, using its streaming engine, finished the same suite in <strong>3.89 seconds</strong> — <strong>94x faster</strong>.</p>
+<p>The Pandas bottleneck is not a bug — it is baked into the design. Pandas loads entire files into RAM at once (eager execution), creates intermediate copies for almost every operation, and is stuck on a single thread because of Python's GIL. In official <a href="https://pola.rs/posts/benchmarks/">PDS-H benchmarks</a> at scale factor 10, Pandas took about <strong>365 seconds</strong> to finish a standard query suite. Polars, using its streaming engine, finished the same suite in <strong>3.89 seconds</strong> — promising performance up to <strong>94x faster</strong>.</p>
 <p><img alt="Eager vs. Lazy Execution" src="../../../../assets/2026-02-21-compute-engines/eager-vs-lazy.svg" /></p>
 <h3 id="polars-tabular-data-processing">Polars: Tabular Data Processing</h3>
 <p><a href="https://github.com/pola-rs/polars">Polars</a> has effectively replaced Pandas for high-performance local ETL. Written entirely in Rust, it uses a <strong>lazy execution</strong> model: instead of running every line immediately, Polars builds an optimized query plan — applying predicate pushdown, projection pruning, and column pruning — before executing it across all available CPU cores in streaming batches.</p>
@@ -1533,9 +1533,9 @@
 </code></pre></div>
 <p>Daft's API feels familiar to Pandas users, but under the hood it is backed by the same Rust + Arrow stack as Polars and DataFusion. Where Daft truly shines is when your "rows" contain images, PDFs, or tensors.</p>
 <h3 id="benchmark-single-node-performance">Benchmark: Single-Node Performance</h3>
-<p>I benchmarked all four engines (plus native Rust via Polars-rs) on ~2.9M <a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page">NYC yellow taxi trips</a> from January 2024. Full results from the <a href="https://github.com/slavadubrov/engine-comparison-demo">demo repo</a>:</p>
+<p>I benchmarked all four engines (plus native Rust via Polars-rs) on ~41M <a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page">NYC yellow taxi trips</a> from 2024 Full Year. Full results from the <a href="https://github.com/slavadubrov/engine-comparison-demo">demo repo</a>:</p>
 <p><img alt="Benchmark Results: Single-Node Performance" src="../../../../assets/2026-02-21-compute-engines/benchmark-results.svg" /></p>
-<p>At this dataset size (~45 MB Parquet), all engines are fast. The differences become dramatic at scale — but even here, native Rust consistently wins on raw throughput, and Polars and DataFusion are 2–5x faster than Pandas on the ETL pipeline.</p>
+<p>At this dataset size (~660 MB Parquet), all engines are fast. Polars promises up to 94x faster performance than Pandas on specific massive analytical benchmarks (like PDS-H). In my own demo benchmark on ~41M rows, I've got constant improvement over Pandas, but not 94x. It's not the same massive multiplier, but still very good. Especially considering I've compared it with other engines and even clean pure Rust (via Polars-rs), and they perform about the same—with DataFusion showing the fastest total time, and Polars remaining an excellent overall choice across all tools tested.</p>
 <hr />
 <h2 id="part-2-handling-multimodal-data">Part 2: Handling Multimodal Data</h2>
 <p>Traditional ETL typically reduces data volume through filtering and aggregation. In contrast, multimodal AI pipelines often expand data; for example, a single document path might generate numerous text chunks and embeddings.</p>
@@ -1546,41 +1546,8 @@
 <p>An alternative approach is <strong>pipelined execution</strong>: instead of running stages one after another, modern engines overlap I/O, CPU work, and GPU inference — keeping all hardware busy at the same time.</p>
 <h3 id="benchmark-image-processing">Benchmark: Image Processing</h3>
 <p>I benchmarked image processing on 500 real photographs from the <a href="https://huggingface.co/datasets/ethz/food101">Food-101 dataset</a>. Results from the <a href="https://github.com/slavadubrov/engine-comparison-demo">demo repo</a>:</p>
-<table>
-<thead>
-<tr>
-<th>Operation</th>
-<th>Pandas + Pillow</th>
-<th>Daft</th>
-<th>Rust <code>image</code></th>
-<th>Speedup</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Load Images</td>
-<td>0.40s</td>
-<td>—</td>
-<td><strong>0.06s</strong></td>
-<td>6.2x</td>
-</tr>
-<tr>
-<td>Resize 224x224</td>
-<td>0.59s</td>
-<td>—</td>
-<td><strong>0.19s</strong></td>
-<td>3.0x</td>
-</tr>
-<tr>
-<td>Total Pipeline</td>
-<td>1.04s</td>
-<td>0.54s</td>
-<td><strong>0.26s</strong></td>
-<td>4.0x</td>
-</tr>
-</tbody>
-</table>
-<p>Polars and DataFusion are excluded from multimodal because they lack native image operations — image work would still go through sequential Python. The key insight: Daft's Rust-native image operations are 2x faster than Pandas+Pillow, and pure Rust is 4x faster than Pandas for the total pipeline.</p>
+<p><img alt="Benchmark Results: Multimodal Performance" src="../../../../assets/2026-02-21-compute-engines/multimodal-benchmark-results.svg" /></p>
+<p>Polars and DataFusion are excluded from multimodal because they lack native image operations — image work would still go through sequential Python. The key insight: Daft's Rust-native image operations are 3.6x faster than Pandas+Pillow, and pure Rust is 4.2x faster than Pandas for the total pipeline.</p>
 <hr />
 <h2 id="part-3-distributed-processing">Part 3: Distributed Processing</h2>
 <p>When data or compute needs exceed a single machine, you go distributed. This is where architectural differences matter most.</p>
@@ -1835,7 +1802,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 <h2 id="key-takeaways">Key Takeaways</h2>
 <ol>
 <li>
-<p><strong>Don't distribute if you don't have to.</strong> Polars and DataFusion handle up to ~1 TB on one machine with 10-94x speedups over Pandas. Only reach for a cluster when you've actually hit the limits of a single node.</p>
+<p><strong>Don't distribute if you don't have to.</strong> Polars and DataFusion handle up to ~1 TB on one machine with constant, significant speedups over Pandas (promising up to 94x on heavy analytical benchmarks). Only reach for a cluster when you've actually hit the limits of a single node.</p>
 </li>
 <li>
 <p><strong>Understand Pandas' constraints.</strong> Eager execution, single-threading, and intermediate copies are architectural decisions that become limitations for certain workloads. Lazy execution with predicate pushdown and column pruning provides significant performance advantages at scale.</p>
