@@ -944,6 +944,15 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#what-is-a-stream" class="md-nav__link">
+    <span class="md-ellipsis">
+      What is a "Stream"?
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#core-mechanisms" class="md-nav__link">
     <span class="md-ellipsis">
       Core Mechanisms
@@ -962,9 +971,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#the-problem" class="md-nav__link">
+  <a href="#the-catch" class="md-nav__link">
     <span class="md-ellipsis">
-      The Problem
+      The Catch
     </span>
   </a>
   
@@ -1421,13 +1430,13 @@
 
 <h1 id="mhc-how-deepseek-scaled-residual-connections-without-breaking-training">mHC: How DeepSeek Scaled Residual Connections Without Breaking Training</h1>
 <p>The success of modern deep learning rests on a deceptively simple idea: the residual connection. Yet after a decade of stacking layers deeper and deeper, researchers at DeepSeek asked a different question—what if we could scale <em>width</em> instead? Their answer, <strong><a href="https://arxiv.org/abs/2512.24880">Manifold-Constrained Hyper-Connections (mHC)</a></strong>, solves a fundamental instability problem that has blocked this path for years.</p>
-<p>This article breaks down the evolution from basic residuals to mHC, explaining why each step was necessary and what makes DeepSeek's solution work at scale.</p>
+<p>In this post, I'll break down the evolution from basic residuals to mHC, explaining why each step was necessary and how exactly DeepSeek's solution works at scale.</p>
 <!-- more -->
 
 <p><strong>TL;DR</strong>: Hyper-Connections expand residual streams into multiple parallel flows for faster convergence, but break the identity mapping property that keeps training stable. mHC restores stability by constraining mixing matrices to the Birkhoff Polytope (doubly stochastic matrices) using the differentiable Sinkhorn-Knopp algorithm—achieving only 6.7% training overhead with 4 parallel streams.</p>
 <hr />
 <h2 id="the-foundation-why-residual-connections-work">The Foundation: Why Residual Connections Work</h2>
-<p>Before understanding what mHC fixes, we need to understand what it builds on.</p>
+<p>Before we dive into what mHC fixes, we first need to understand what it builds on.</p>
 <h3 id="the-depth-problem">The Depth Problem</h3>
 <p>Stacking more layers should increase a model's capacity to learn complex functions. In practice, very deep networks become <em>harder</em> to train—not because they lack capacity, but because gradient-based optimization fails to find good parameters. Gradients either vanish (shrinking to near-zero) or explode (growing unboundedly) as they propagate through many layers.</p>
 <h3 id="the-residual-solution">The Residual Solution</h3>
@@ -1472,18 +1481,23 @@
 <h2 id="hyper-connections-the-width-revolution">Hyper-Connections: The Width Revolution</h2>
 <p><a href="https://arxiv.org/abs/2409.19606">Hyper-Connections (HC)</a> took a fundamentally different approach: instead of just adding depth, expand the residual stream <em>width</em>.</p>
 <p><img alt="Hyper-Connections Architecture" src="../../../../assets/2026-01-21-mhc-hyper-connections/hyper_connections.svg" /></p>
+<h3 id="what-is-a-stream">What is a "Stream"?</h3>
+<p>In standard transformers, the input token embeddings form a single <span class="arithmatex">\(d\)</span>-dimensional vector representing the token's features. This single vector sequence is the "residual stream" that passes through every block.</p>
+<p>In Hyper-Connections, a <strong>stream</strong> is simply one of <span class="arithmatex">\(n\)</span> parallel instantiations of this state.</p>
+<p><strong>How do we get them?</strong> At the very beginning of the network, the initial input embedding vector is exactly <strong>replicated <span class="arithmatex">\(n\)</span> times</strong> (where <span class="arithmatex">\(n\)</span> is the "expansion rate", typically 4). This transforms the standard <span class="arithmatex">\(d\)</span>-dimensional hidden state into an <span class="arithmatex">\(n \times d\)</span> "hyper hidden matrix".</p>
+<p>As these <span class="arithmatex">\(n\)</span> initially identical streams pass through the network's transformer layers, they are dynamically aggregated, routed, and expanded differently by the mechanisms below. This causes them to immediately diverge and capture distinct representation pathways.</p>
 <h3 id="core-mechanisms">Core Mechanisms</h3>
-<p>HC introduces three operations controlled by learnable weight matrices (typically with n=4 parallel streams):</p>
+<p>Instead of a single residual pathway, HC maintains these <span class="arithmatex">\(n\)</span> parallel streams flowing throughout the entire network. At each transformer block, it applies three operations controlled by small learnable weights:</p>
 <ol>
-<li><strong>Aggregation</strong>: Weighted combination of n parallel streams into a single input for the transformer block</li>
-<li><strong>Expansion</strong>: Distributing the block's output back to n streams</li>
-<li><strong>Mixing</strong>: Inter-stream communication via an n×n "feature router" matrix</li>
+<li><strong>Aggregation (<span class="arithmatex">\(H_{pre}\)</span> - Pre-mapping)</strong>: The <span class="arithmatex">\(n\)</span> incoming parallel streams are compressed into a single, unified input vector for the transformer block using a learnable matrix <span class="arithmatex">\(H_{pre}\)</span>. This acts as an input filter, where each stream is multiplied by a learnable importance weight.</li>
+<li><strong>Expansion (<span class="arithmatex">\(H_{post}\)</span> - Post-mapping)</strong>: After this single vector passes through the core transformer block (Attention or MLP), its output is broadcasted into <span class="arithmatex">\(n\)</span> separate streams using a learnable matrix <span class="arithmatex">\(H_{post}\)</span>. This acts as an output gate, with each stream receiving the output scaled by a unique learnable weight.</li>
+<li><strong>Mixing (Inter-stream Routing)</strong>: Finally, these newly expanded streams are merged with the original residual streams. An <span class="arithmatex">\(n \times n\)</span> learnable "feature router" matrix (<span class="arithmatex">\(\mathbf{H}^{res}\)</span>) controls how information from each stream bleeds into the others, cross-pollinating features before the next layer.</li>
 </ol>
 <p>The mixing matrix H acts as a traffic controller, dynamically routing features between streams based on learned patterns. This creates a much richer flow of information than a single residual path.</p>
 <h3 id="the-results">The Results</h3>
 <p><img alt="HC Performance" src="../../../../assets/2026-01-21-mhc-hyper-connections/hc_performance.svg" /></p>
 <p>HC achieves <strong>~1.8× faster convergence</strong> compared to standard residuals. The parallel streams provide more pathways for gradient flow and allow the network to maintain more diverse representations.</p>
-<h3 id="the-problem">The Problem</h3>
+<h3 id="the-catch">The Catch</h3>
 <p>But there's a critical issue: <strong>HC is unstable at scale</strong>.</p>
 <hr />
 <h2 id="why-hyper-connections-break">Why Hyper-Connections Break</h2>
@@ -1502,7 +1516,7 @@
 <li><strong>Explodes</strong>: values &gt; 1.0 compound exponentially</li>
 <li><strong>Vanishes</strong>: values &lt; 1.0 decay exponentially</li>
 </ul>
-<p>The DeepSeek team measured this with "Amax Gain Magnitude"—a metric tracking the maximum ratio of output to input signal magnitude across all layers. In standard HC, this metric hits <strong>~3000</strong> in deep networks. Training becomes impossible.</p>
+<p>The DeepSeek team measured this with "Amax Gain Magnitude"—a metric tracking the maximum ratio of output to input signal magnitude across all layers. In standard HC, this metric hits a staggering <strong>~3000</strong> in deep networks. At that point, training becomes practically impossible.</p>
 <p><img alt="The Root Cause: Loss of Identity" src="../../../../assets/2026-01-21-mhc-hyper-connections/loss_of_identity.svg" /></p>
 <p>The core problem: unconstrained matrices can have arbitrary values—negative numbers, large magnitudes, anything. We need a way to constrain them to "well-behaved" matrices that preserve signal energy like the identity matrix does.</p>
 <hr />
@@ -1581,16 +1595,16 @@
 <h2 id="complete-mhc-architecture">Complete mHC Architecture</h2>
 <p>Putting it all together:</p>
 <p><img alt="mHC Complete Architecture" src="../../../../assets/2026-01-21-mhc-hyper-connections/mhc_architecture.svg" /></p>
-<p>The flow is:</p>
+<p>The flow through each block is:</p>
 <ol>
-<li><strong>n input streams</strong> enter the block</li>
-<li><strong>Aggregation</strong> combines streams (weighted by Sinkhorn-constrained H)</li>
-<li><strong>Transformer block</strong> processes the aggregated input</li>
-<li><strong>Expansion</strong> distributes output back to n streams</li>
-<li><strong>Mixing</strong> allows inter-stream communication (constrained to Birkhoff Polytope)</li>
-<li><strong>n output streams</strong> proceed to next layer</li>
+<li><strong>Input</strong>: <span class="arithmatex">\(n\)</span> parallel residual streams enter the layer.</li>
+<li><strong>Aggregation (<span class="arithmatex">\(H_{pre}\)</span>)</strong>: The <span class="arithmatex">\(n\)</span> streams are combined into a single vector via a weighted sum using the <span class="arithmatex">\(H_{pre}\)</span> matrix. In mHC, these aggregation weights are locally constrained (<span class="arithmatex">\(\sigma(\cdot)\)</span>) to be non-negative to prevent unnatural scaling and destructive interference.</li>
+<li><strong>Computation</strong>: The standard Transformer block (Attention or MLP) processes the single aggregated vector.</li>
+<li><strong>Expansion (<span class="arithmatex">\(H_{post}\)</span>)</strong>: The block's single output is broadcasted and scaled out to form <span class="arithmatex">\(n\)</span> separate update streams using the <span class="arithmatex">\(H_{post}\)</span> matrix, which is also constrained to be non-negative.</li>
+<li><strong>Mixing (<span class="arithmatex">\(H_{res}\)</span> Routing)</strong>: The streams share information via an <span class="arithmatex">\(n \times n\)</span> mixing matrix <span class="arithmatex">\(\mathbf{H}^{res}\)</span>. In mHC, this matrix is strictly constrained to the Birkhoff Polytope (doubly stochastic), ensuring signal energy is perfectly conserved.</li>
+<li><strong>Output</strong>: The updated <span class="arithmatex">\(n\)</span> streams proceed to the next layer without exploding or vanishing.</li>
 </ol>
-<p>The key difference from standard HC: all mixing operations pass through Sinkhorn projection, guaranteeing stability.</p>
+<p>The key difference from standard HC: all mixing and aggregation operations are mathematically constrained (passing through Sinkhorn constraints or similar normalizations), guaranteeing signal stability across hundreds of layers.</p>
 <hr />
 <h2 id="infrastructure-making-it-practical">Infrastructure: Making It Practical</h2>
 <p>Expanding to n=4 streams creates significant overhead. Each stream needs its own memory, and Sinkhorn adds 20 iterations per layer. The DeepSeek team solved this with aggressive optimization:</p>
@@ -1607,46 +1621,16 @@
 <p>With these optimizations, <strong>expansion rate n=4 runs with only 6.7% training overhead</strong> compared to the baseline—proving complex topological routing is practical at scale.</p>
 <hr />
 <h2 id="empirical-validation">Empirical Validation</h2>
-<p>The theoretical guarantees translate to real improvements:</p>
-<table>
-<thead>
-<tr>
-<th>Metric</th>
-<th>Standard HC</th>
-<th>mHC</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Amax Gain (deep nets)</td>
-<td>~3000</td>
-<td>~1.6</td>
-</tr>
-<tr>
-<td>Training stability</td>
-<td>Frequent spikes</td>
-<td>Stable</td>
-</tr>
-<tr>
-<td>GSM8K benchmark</td>
-<td>Baseline</td>
-<td>Better</td>
-</tr>
-<tr>
-<td>MATH benchmark</td>
-<td>Baseline</td>
-<td>Better</td>
-</tr>
-</tbody>
-</table>
-<p>The mHC-27B model (based on DeepSeek-V3 architecture) outperforms both standard ResNet and unconstrained HC on mathematical reasoning benchmarks—confirming that the gains come from the architecture itself, not noise from training instability.</p>
+<p>So, do these theoretical guarantees actually map to real-world improvements?</p>
+<p>When looking at the raw training dynamics, the difference is significant. Without constraints, deep networks using standard Hyper-Connections see their signal magnitude (Amax Gain) explode to roughly 3,000, leading to massive instability and frequent loss spikes. By enforcing the doubly stochastic constraint, mHC tames this explosion, keeping the Amax Gain at a rock-solid ~1.6 throughout training.</p>
+<p>But stability doesn't matter if the model's actual performance degrades. To test representational capacity, the team evaluated an mHC-27B model (built on the DeepSeek-V3 architecture) against both standard ResNet and unconstrained HC baselines. On rigorous reasoning benchmarks like GSM8K and MATH, mHC consistently comes out on top. This confirms the core hypothesis: the performance gains from parallel stream routing are real, and with Sinkhorn constraints, we can finally train these extremely wide residual pathways at scale.</p>
 <hr />
 <h2 id="trade-offs-and-considerations">Trade-offs and Considerations</h2>
-<p>mHC is not free:</p>
+<p>Of course, mHC isn't a free lunch. Here are the main trade-offs to keep in mind:</p>
 <ol>
-<li><strong>Computational overhead</strong>: 6.7% is excellent, but still more than standard residuals</li>
-<li><strong>Implementation complexity</strong>: Requires custom CUDA kernels for efficiency</li>
-<li><strong>Strong inductive bias</strong>: The doubly stochastic constraint is <em>conservation</em>—signal can't be amplified. For tasks genuinely requiring signal amplification, this could be limiting</li>
+<li><strong>Computational overhead</strong>: While 6.7% is incredibly low for what it accomplishes, it's still additional overhead compared to standard residuals.</li>
+<li><strong>Implementation complexity</strong>: You can't just write this in native PyTorch and expect it to be fast. Getting that low overhead requires custom, finely-tuned CUDA kernels.</li>
+<li><strong>Strong inductive bias</strong>: The doubly stochastic constraint forces strict signal conservation. If you're working on a task that genuinely requires signal amplification deeper in the network, this constraint will actively fight you.</li>
 </ol>
 <hr />
 <h2 id="key-takeaways">Key Takeaways</h2>
