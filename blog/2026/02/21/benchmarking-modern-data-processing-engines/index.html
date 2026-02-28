@@ -1541,7 +1541,7 @@
 <p>Traditional ETL typically reduces data volume through filtering and aggregation. In contrast, multimodal AI pipelines often expand data; for example, a single document path might generate numerous text chunks and embeddings.</p>
 <p>Spark treats complex types like images and audio as binary data. Processing them usually requires serializing the data from the JVM to Python (via Py4J), processing it with libraries like Pillow or OpenCV, and serializing it back. This serialization round-trip can introduce substantial overhead.</p>
 <h3 id="pipelined-execution-and-gpu-utilization">Pipelined Execution and GPU Utilization</h3>
-<p>Spark processes data in partitions sequentially. During image decoding and classification, a core will download, parse, and process a partition. This sequential processing can lead to underutilization of resources, where GPUs wait for network downloads or network bandwidth is unused during inference.</p>
+<p>Spark processes partitions in parallel across cores, but its <strong>stage-based (bulk synchronous) execution</strong> creates a different bottleneck. Within a single task, all operations — download, decode, classify — are fused and run sequentially on one core with no async I/O overlap. More importantly, all tasks in a stage must complete before the next stage begins: GPUs sit completely idle while CPUs preprocess data, and CPUs sit idle during GPU inference. Intermediate results must be fully materialized between stages, which can also cause memory pressure.</p>
 <p><img alt="Pipelined Execution Model" src="../../../../assets/2026-02-21-compute-engines/pipelined-execution.svg" /></p>
 <p>An alternative approach is <strong>pipelined execution</strong>: instead of running stages one after another, modern engines overlap I/O, CPU work, and GPU inference — keeping all hardware busy at the same time.</p>
 <h3 id="benchmark-image-processing">Benchmark: Image Processing</h3>
@@ -1620,7 +1620,7 @@
 <p>An important detail: as you add more CPUs per GPU, Ray Data keeps getting faster while other engines plateau. In <a href="https://www.anyscale.com/blog/ray-data-daft-benchmarking-multimodal-ai-workloads">Anyscale's benchmarks</a>, going from a 4:1 to a 32:1 CPU-to-GPU ratio gave a 3x performance jump for image inference — the CPU "feeder" tasks could finally keep up with GPU demand.</p>
 <h3 id="daft-distributed">Daft (Distributed)</h3>
 <p>Daft scales to distributed mode via its <a href="https://www.daft.ai/blog/introducing-flotilla-simplifying-multimodal-data-processing-at-scale">Flotilla engine</a>, which puts one <strong>Swordfish</strong> worker per node. Swordfish handles local Rust execution while Flotilla manages cluster-wide scheduling. The key: it pipelines I/O with compute through small-batch streaming, keeping each node fully utilized.</p>
-<p>In benchmarks across four multimodal workloads, Daft with Flotilla ran <a href="https://www.daft.ai/blog/benchmarks-for-multimodal-ai-workloads">2-18x faster than Spark</a>. On the heaviest workload (video object detection with YOLO11n), Spark took over 3.5 hours while Daft finished in under 12 minutes — 18x faster, mostly because Spark wastes time on serialization and sequential I/O.</p>
+<p>In benchmarks across four multimodal workloads, Daft with Flotilla ran <a href="https://www.daft.ai/blog/benchmarks-for-multimodal-ai-workloads">2-18x faster than Spark</a>. On the heaviest workload (video object detection with YOLO11n), Spark took over 3.5 hours while Daft finished in under 12 minutes — 18x faster, mostly because Spark wastes time on serialization overhead and stage barriers.</p>
 <p>Worth noting: Anyscale (the company behind Ray) published <a href="https://www.anyscale.com/blog/ray-data-daft-benchmarking-multimodal-ai-workloads">their own benchmarks</a> showing that with manual tuning, Ray Data narrows the gap and can beat Daft on high-CPU instances. This is an active race — both engines are improving fast.</p>
 <p>From <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/distributed_daft.ipynb"><code>distributed_daft.ipynb</code></a>:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">daft</span>
@@ -1673,7 +1673,7 @@
 </tr>
 <tr>
 <td><strong>GPU Utilization</strong></td>
-<td>Poor (sequential partitions)</td>
+<td>Poor (stage-based, no CPU/GPU overlap)</td>
 <td>Excellent (explicit resource assignment)</td>
 <td>Excellent (async I/O-compute pipelining)</td>
 </tr>
@@ -1733,9 +1733,9 @@
 <hr />
 <h2 id="part-5-adopting-multiple-engines">Part 5: Adopting Multiple Engines</h2>
 <p>The most practical takeaway: don't pick <em>one</em> engine — use each where it excels.</p>
-<p><img alt="The Coexistence Model: A Relay Race" src="../../../../assets/2026-02-21-compute-engines/coexistence-relay.svg" /></p>
+<p><img alt="The Coexistence Model: Multi-Engine Pipeline" src="../../../../assets/2026-02-21-compute-engines/coexistence-relay.svg" /></p>
 <p>The pattern in production looks like this: raw data in a lake gets cleaned by <strong>Spark</strong> (or <strong>Dask</strong> for Python-native teams) into Parquet/Delta tables. Those tables then get fed into <strong>Ray Data</strong> or <strong>Daft</strong> for "last mile" work — GPU inference, embedding generation, multimodal transforms that Spark was never designed for. For ad-hoc analysis and local dev, <strong>Polars</strong> and <strong>DuckDB</strong> give you instant feedback without cluster overhead.</p>
-<p>Open formats — Parquet, Delta, Iceberg, Arrow — are the baton in this relay race. Every engine reads and writes them natively.</p>
+<p>The glue that makes this work: <strong>open formats</strong> — Parquet, Delta, Iceberg, Arrow. Every engine reads and writes them natively, so data flows between stages without conversion or lock-in.</p>
 <h3 id="summary-of-engine-use-cases">Summary of Engine Use Cases</h3>
 <p><img alt="Engine Selection Matrix" src="../../../../assets/2026-02-21-compute-engines/engine-selection.svg" /></p>
 <table>
@@ -1808,7 +1808,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 <p><strong>Understand Pandas' constraints.</strong> Eager execution, single-threading, and intermediate copies are architectural decisions that become limitations for certain workloads. Lazy execution with predicate pushdown and column pruning provides significant performance advantages at scale.</p>
 </li>
 <li>
-<p><strong>Pipelined execution improves hardware utilization.</strong> Spark's sequential partition model can leave GPUs idle during CPU preprocessing. Pipelined execution models (like Ray Data and Daft) overlap operations to keep resources better utilized.</p>
+<p><strong>Pipelined execution improves hardware utilization.</strong> Spark's stage-based execution model can leave GPUs idle during CPU preprocessing. Pipelined execution models (like Ray Data and Daft) overlap operations to keep resources better utilized.</p>
 </li>
 <li>
 <p><strong>Use each engine where it shines.</strong> Spark for petabyte ETL, Polars/DuckDB for ad-hoc analysis, Ray Data for GPU training pipelines, Daft for multimodal data loading, DataFusion for custom query engines.</p>
