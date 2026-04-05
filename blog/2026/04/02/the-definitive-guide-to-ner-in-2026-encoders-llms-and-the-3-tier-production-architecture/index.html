@@ -1052,13 +1052,13 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#uniner-and-nuner-two-paths-one-insight" class="md-nav__link">
+  <a href="#uniner-and-nuner-how-small-can-you-go" class="md-nav__link">
     <span class="md-ellipsis">
-      UniNER and NuNER: Two Paths, One Insight
+      UniNER and NuNER: How Small Can You Go?
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="UniNER and NuNER: Two Paths, One Insight">
+    <nav class="md-nav" aria-label="UniNER and NuNER: How Small Can You Go?">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1094,9 +1094,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-bi-encoder-breakthrough-million-label-ner" class="md-nav__link">
+  <a href="#the-bi-encoder-scaling-to-million-label-ner" class="md-nav__link">
     <span class="md-ellipsis">
-      The Bi-Encoder Breakthrough: Million-Label NER
+      The Bi-Encoder: Scaling to Million-Label NER
     </span>
   </a>
   
@@ -1750,19 +1750,19 @@
 <p>OCR turns images into text. NER turns text into structured fields. Together, they power document digitization at scale.</p>
 <p>The standard pipeline: run OCR (Tesseract, Azure Document Intelligence, AWS Textract) to get text and bounding boxes, then run NER to extract structured fields — <code>invoice_number</code>, <code>vendor_name</code>, <code>line_items</code>, <code>total</code>, <code>due_date</code> — from what was a JPEG of a paper invoice. The same approach works for contracts, medical records, and regulatory filings.</p>
 <p>Modern platforms combine three steps: <strong>layout understanding</strong> (is this a header or a table cell?), <strong>entity extraction</strong> (what type is this text?), and <strong>relation extraction</strong> (which values belong together). GLiNER 2 handles all three in one forward pass — a single model call can return <code>{vendor: "Acme Corp", amount: "\$4,200", due_date: "2026-04-15"}</code> from an invoice.</p>
-<p>Scale is where economics matter. A mid-sized accounting firm processes tens of thousands of invoices monthly. Routing each one through an LLM — even a cost-efficient model like GPT-5.4 Nano — costs hundreds of dollars per day. A fine-tuned GLiNER on CPU costs cents. The path: annotate 500 sample invoices with an LLM, fine-tune GLiNER on the results, deploy on CPU at $0.10/hour.</p>
+<p>This is where cost matters. A mid-sized accounting firm processes tens of thousands of invoices monthly. Routing each one through an LLM — even a cost-efficient model like GPT-5.4 Nano — costs hundreds of dollars per day. A fine-tuned GLiNER on CPU costs cents. The path: annotate 500 sample invoices with an LLM, fine-tune GLiNER on the results, deploy on CPU at $0.10/hour.</p>
 <h3 id="pii-detection-and-llm-guardrails">PII Detection and LLM Guardrails</h3>
 <p>Privacy regulations (GDPR, HIPAA, CCPA) require finding personal data before it reaches downstream systems. For LLM deployments, that means scanning inputs before they hit the model and outputs before they reach the user.</p>
 <p>NER handles this directly. De-identification models find <code>PERSON</code>, <code>SSN</code>, <code>PHONE</code>, <code>EMAIL</code>, <code>ADDRESS</code> spans and either redact them or replace them with fake equivalents. <a href="https://www.johnsnowlabs.com/comparing-medical-text-de-identification-performance-john-snow-labs-openai-azure-health-data-services-and-amazon-comprehend-medical/">John Snow Labs' clinical models</a> hit <strong>96% F1</strong> on PHI detection — ahead of Azure (91%), AWS (83%), and GPT-4o (79%) — while processing 100K+ clinical notes per day.</p>
 <p>For LLM guardrails, NER works as a <strong>pre-screening layer</strong>: scan user input for PII before sending it to an external API, then block or anonymize. This is faster and simpler than asking the LLM to self-moderate. GLiNER is especially useful here because PII categories vary by jurisdiction — you can add new entity types (like "genetic information" under a new regulation) without retraining.</p>
 <hr />
 <h2 id="gliner-rewrites-ner-economics-with-a-300m-parameter-model">GLiNER Rewrites NER Economics with a 300M-Parameter Model</h2>
-<p>GLiNER (NAACL 2024, Zaratiana et al.) is the model that changed the economics. Instead of treating NER as sequence labeling or text generation, GLiNER treats it as a <strong>matching problem</strong>: score every candidate text span — each contiguous sequence of words like "Bill Gates" or "Microsoft" — against every entity type label, keep the high-scoring pairs.</p>
+<p>GLiNER (NAACL 2024, Zaratiana et al.) made encoder-based NER competitive with LLMs at a fraction of the cost. Instead of treating NER as sequence labeling or text generation, GLiNER treats it as a <strong>matching problem</strong>: score every candidate text span — each contiguous sequence of words like "Bill Gates" or "Microsoft" — against every entity type label, keep the high-scoring pairs.</p>
 <p>Here's how it works. The model takes entity type labels and input text as a single sequence: <code>[ENT] person [ENT] organization [ENT] date [SEP] Bill Gates founded Microsoft...</code>. A bidirectional transformer (DeBERTa-v3) encodes everything together. From the output, the model builds two sets of representations: one for entity types (from <code>[ENT]</code> token positions) and one for text spans (by combining start and end token vectors through a small FFN). A dot product between a span representation and an entity type representation gives a score — apply sigmoid and you get the probability that the span from token <span class="arithmatex">\(i\)</span> to token <span class="arithmatex">\(j\)</span> belongs to entity type <span class="arithmatex">\(t\)</span>: <span class="arithmatex">\(\phi(i, j, t) = \sigma(S_{ij}^T \cdot q_t)\)</span>, where <span class="arithmatex">\(S_{ij}\)</span> is the span vector produced by the FFN and <span class="arithmatex">\(q_t\)</span> is the entity type embedding from the corresponding <code>[ENT]</code> token (<a href="https://arxiv.org/abs/2311.08526">Zaratiana et al., 2024</a>, Eq. 1). Spans are capped at <strong>12 tokens</strong> to keep things fast.</p>
 <p><img alt="GLiNER architecture: entity type tokens and text tokens are jointly encoded by DeBERTa, then span representations are scored against entity type embeddings via dot product" src="../../../../assets/2026-04-02-definitive-guide-ner-2026/gliner-architecture.svg" /></p>
-<p>The key benefit: <strong>any natural language description works as a label at inference time</strong>, no retraining needed. You just pass in whatever entity types you want — "person", "adverse drug reaction", "financial instrument" — and the model scores spans against them. Three sizes are available: GLiNER-S (<strong>50M</strong> params), GLiNER-M (<strong>90M</strong>), and GLiNER-L (<strong>300M</strong>). Training data comes from the Pile-NER dataset: <strong>44,889 passages</strong> with <strong>240K entity spans</strong> across <strong>13K entity types</strong>, all labeled by ChatGPT. Training GLiNER-L takes about 4 hours on a single A100 (<a href="https://arxiv.org/abs/2311.08526">Zaratiana et al., 2024</a>).</p>
+<p>What makes this useful in practice: <strong>any natural language description works as a label at inference time</strong>, no retraining needed. You just pass in whatever entity types you want — "person", "adverse drug reaction", "financial instrument" — and the model scores spans against them. Three sizes are available: GLiNER-S (<strong>50M</strong> params), GLiNER-M (<strong>90M</strong>), and GLiNER-L (<strong>300M</strong>). Training data comes from the Pile-NER dataset: <strong>44,889 passages</strong> with <strong>240K entity spans</strong> across <strong>13K entity types</strong>, all labeled by ChatGPT. Training GLiNER-L takes about 4 hours on a single A100 (<a href="https://arxiv.org/abs/2311.08526">Zaratiana et al., 2024</a>).</p>
 <h3 id="benchmark-results">Benchmark Results</h3>
-<p>Zero-shot results from <a href="https://arxiv.org/abs/2311.08526">Zaratiana et al. (2024)</a>, Table 2:</p>
+<p>Zero-shot results from <a href="https://arxiv.org/abs/2311.08526">Zaratiana et al. (2024)</a>, Tables 1 and 2:</p>
 <table>
 <thead>
 <tr>
@@ -1780,7 +1780,7 @@
 <td><strong>47.8%</strong></td>
 </tr>
 <tr>
-<td>GoLLIE-7B</td>
+<td>GoLLIE</td>
 <td>7B</td>
 <td>58.0%</td>
 <td>--</td>
@@ -1795,13 +1795,19 @@
 <td>GLiNER-M</td>
 <td>90M</td>
 <td>55.4%</td>
-<td>43.2%</td>
+<td>--</td>
+</tr>
+<tr>
+<td>UniNER-7B</td>
+<td>7B</td>
+<td>53.7%</td>
+<td>45.7%</td>
 </tr>
 <tr>
 <td>GLiNER-S</td>
 <td>50M</td>
-<td>50.5%</td>
-<td>38.1%</td>
+<td>52.7%</td>
+<td>--</td>
 </tr>
 <tr>
 <td>ChatGPT (GPT-3.5)</td>
@@ -1834,7 +1840,7 @@
 <p>GLiNER does <strong>open-vocabulary NER</strong>: any label works at inference time, no retraining needed. This makes it the better choice when entity types are unknown in advance, change often, or are domain-specific ("adverse drug reaction", "financial instrument", "threat indicator").</p>
 <p>My recommendation: use <strong>spaCy for standard entity types</strong> where pretrained pipelines are well-validated. Use <strong>GLiNER when you need flexible, zero-shot types</strong> or when your pipeline must adapt without retraining. They work well together — spaCy handles tokenization and sentence splitting, GLiNER handles entity extraction.</p>
 <hr />
-<h2 id="uniner-and-nuner-two-paths-one-insight">UniNER and NuNER: Two Paths, One Insight</h2>
+<h2 id="uniner-and-nuner-how-small-can-you-go">UniNER and NuNER: How Small Can You Go?</h2>
 <p><strong>UniNER</strong> (ICLR 2024, Zhou et al.) and <strong>NuNER</strong> (EMNLP 2024, Bogdanov et al.) both distill LLM annotations into smaller NER models — but they disagree on how small you can go.</p>
 <h3 id="uniner-the-maximalist-path">UniNER: The Maximalist Path</h3>
 <p>UniNER fine-tunes LLaMA-7B/13B on <strong>44,889 NER pairs</strong> (240K entities, 13K types) generated by ChatGPT. For each entity type, the model answers "What describes [type] in the text?" and outputs JSON lists. A key training trick: <strong>frequency-based negative sampling</strong> boosts F1 from 31.5% to <strong>53.4%</strong> (<a href="https://arxiv.org/abs/2308.03279">Zhou et al., 2024</a>).</p>
@@ -1843,7 +1849,7 @@
 <h3 id="nuner-the-minimalist-path">NuNER: The Minimalist Path</h3>
 <p>NuNER starts from <strong>RoBERTa-base (125M parameters)</strong> and uses contrastive training with <strong>4.38 million GPT-3.5 annotations</strong> across <strong>200K concepts</strong> — total annotation cost under <strong>$500</strong>. After training, the concept encoder is thrown away; the text encoder slots into any standard NER pipeline as a RoBERTa replacement (<a href="https://arxiv.org/abs/2402.15343">Bogdanov et al., 2024</a>).</p>
 <p>The results: NuNER beats plain RoBERTa by <strong>6-15 F1 points</strong> across all few-shot sizes. With just a dozen examples per entity type, <strong>NuNER matches UniNER-7B despite being 56x smaller</strong> (<a href="https://arxiv.org/abs/2402.15343">Bogdanov et al., 2024</a>).</p>
-<p>The takeaway from both papers: LLM distillation produces NER models that beat their teacher. And you don't need 7B parameters to capture that knowledge — <strong>125M is enough when fine-tuning data is available</strong>, with MIT licensing and CPU-friendly inference.</p>
+<p>Both papers show the same thing: distilling LLM annotations into smaller models produces NER that beats the teacher. And you don't need 7B parameters — <strong>125M is enough when fine-tuning data is available</strong>, with MIT licensing and CPU-friendly inference.</p>
 <hr />
 <h2 id="gliner-2-one-model-four-tasks">GLiNER 2: One Model, Four Tasks</h2>
 <p>The original GLiNER ecosystem had a growing problem: separate models for NER (GLiNER), relation extraction (GLiREL), classification (GLiClass), and document-level RE (GLiDRE) — each needing its own deployment. GLiNER 2 (EMNLP 2025, Zaratiana et al.) merges all four into a single <strong>205M-parameter</strong> model with a schema-driven interface.</p>
@@ -1864,10 +1870,10 @@
 </code></pre></div>
 <p>One model deployment replaces four. Simpler infrastructure, competitive accuracy.</p>
 <hr />
-<h2 id="the-bi-encoder-breakthrough-million-label-ner">The Bi-Encoder Breakthrough: Million-Label NER</h2>
+<h2 id="the-bi-encoder-scaling-to-million-label-ner">The Bi-Encoder: Scaling to Million-Label NER</h2>
 <p>The original GLiNER encodes labels and text together — which creates a bottleneck. More entity types means a longer input sequence, and performance drops fast beyond ~30 types. The <strong>GLiNER bi-encoder</strong> (February 2026, Stepanov et al.; arXiv 2602.18487) fixes this by splitting text and label encoding into <strong>two separate transformers</strong>.</p>
 <p><img alt="Cross-encoder vs bi-encoder: the cross-encoder jointly encodes labels and text, while the bi-encoder uses separate encoders with pre-computed label embeddings" src="../../../../assets/2026-04-02-definitive-guide-ner-2026/cross-vs-bi-encoder.svg" /></p>
-<p>The text encoder uses <strong>ModernBERT</strong> (Ettin family), the label encoder uses sentence transformers (<strong>BGE</strong> or <strong>MiniLM</strong>). Spans and labels are scored via dot product. The key insight: <strong>entity type embeddings can be pre-computed once and cached</strong>. At inference, only the text needs encoding — label lookup is instant.</p>
+<p>The text encoder uses <strong>ModernBERT</strong> (Ettin family), the label encoder uses sentence transformers (<strong>BGE</strong> or <strong>MiniLM</strong>). Spans and labels are scored via dot product. The trick: <strong>entity type embeddings can be pre-computed once and cached</strong>. At inference, only the text needs encoding — label lookup is instant.</p>
 <p>Four model sizes are available, all benchmarked on CrossNER (<a href="https://arxiv.org/abs/2602.18487">Stepanov et al., 2026</a>, Table 1):</p>
 <table>
 <thead>
@@ -1910,7 +1916,7 @@
 </tr>
 </tbody>
 </table>
-<p>The scaling difference is dramatic. At <strong>1,024 entity types</strong>, the bi-encoder (edge, pre-computed) loses only <strong>5.2% throughput</strong> versus a single label. The cross-encoder loses <strong>98.7%</strong> (10.7 → 0.14 ex/s). That's a <strong>130x throughput advantage</strong> at scale. With 100 entity types on a single H100, the bi-encoder processes <strong>1.96 million predictions per day</strong> versus 368K for the cross-encoder (<a href="https://arxiv.org/abs/2602.18487">Stepanov et al., 2026</a>).</p>
+<p>The numbers speak for themselves. At <strong>1,024 entity types</strong>, the bi-encoder (edge, pre-computed) loses only <strong>5.2% throughput</strong> versus a single label. The cross-encoder loses <strong>98.7%</strong> (10.7 → 0.14 ex/s). That's a <strong>130x throughput advantage</strong> at scale. With 100 entity types on a single H100, the bi-encoder processes <strong>1.96 million predictions per day</strong> versus 368K for the cross-encoder (<a href="https://arxiv.org/abs/2602.18487">Stepanov et al., 2026</a>).</p>
 <p>Quality doesn't suffer: bi-encoder-large hits <strong>61.5% CrossNER F1</strong>, slightly ahead of the cross-encoder's 60.9%. The authors recommend <strong>bi-base-v2.0 (194M)</strong> as the sweet spot — 98% of the large model's accuracy at 2.6x the speed (<a href="https://arxiv.org/abs/2602.18487">Stepanov et al., 2026</a>).</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">gliner</span><span class="w"> </span><span class="kn">import</span> <span class="n">GLiNER</span>
 
@@ -1923,10 +1929,10 @@
 <span class="c1"># Inference only encodes text — labels are a cached lookup</span>
 <span class="n">outputs</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">batch_predict_with_embeds</span><span class="p">(</span><span class="n">texts</span><span class="p">,</span> <span class="n">entity_embeddings</span><span class="p">,</span> <span class="n">entity_types</span><span class="p">)</span>
 </code></pre></div>
-<p>Applications include biomedical NER against the UMLS ontology (4M+ concepts), enterprise taxonomies that evolve without model retraining, and entity linking via the companion <strong>GLiNKER</strong> framework.</p>
+<p>Applications include biomedical NER against the UMLS ontology (4M+ concepts), enterprise taxonomies that evolve without model retraining, and entity linking via the companion <a href="https://github.com/Knowledgator/GLinker"><strong>GLiNKER</strong></a> framework.</p>
 <hr />
 <h2 id="llms-as-teachers-the-70-pipeline-that-beats-the-8hour-model">LLMs as Teachers: The $70 Pipeline That Beats the $8/Hour Model</h2>
-<p>The LLM-as-teacher pattern has become a standard production pipeline. Three studies define the economics.</p>
+<p>The LLM-as-teacher pattern has become a standard production pipeline. Three studies show what it costs and what you get.</p>
 <p><img alt="The LLM-as-teacher pipeline: LLM labels raw data, humans review a subset, the encoder is fine-tuned and deployed at 80x lower cost" src="../../../../assets/2026-04-02-definitive-guide-ner-2026/llm-as-teacher-pipeline.svg" /></p>
 <h3 id="the-cfm-case-study">The CFM Case Study</h3>
 <p>Capital Fund Management extracted company names from ~900K financial news headlines. Zero-shot GLiNER scored <strong>87.0% F1</strong>. They used Llama 3.1-70b (the strongest open model at the time) to annotate the full dataset in ~8 hours for <strong>~$70</strong>, then human-reviewed 2,714 samples via Argilla in another 8 hours. Fine-tuning GLiNER on this data pushed performance to <strong>93.4% F1</strong> — beating even the Llama 70b teacher's 92.7%. The fine-tuned model runs at <strong>$0.10/hour on CPU</strong> versus $8/hour for the teacher — <strong>80x cheaper</strong> with better accuracy (<a href="https://huggingface.co/blog/cfm-case-study">CFM Case Study</a>). Today you'd get even better teacher annotations with Llama 4 Maverick or GPT-5.4 Mini at similar or lower cost.</p>
@@ -1940,11 +1946,11 @@
 <li>Write annotation guidelines in natural language</li>
 <li>Create a small human-labeled <strong>validation set</strong> (50-200 documents)</li>
 <li>Use an LLM (GPT-5.4 Mini, Llama 4 Maverick, or Qwen3.5) to label bulk training data</li>
-<li>Review a subset via Argilla or Label Studio</li>
-<li>Fine-tune a compact encoder (GLiNER, SpanMarker, RoBERTa)</li>
+<li>Review a subset via <a href="https://github.com/argilla-io/argilla">Argilla</a> or <a href="https://github.com/HumanSignal/label-studio">Label Studio</a></li>
+<li>Fine-tune a compact encoder (GLiNER, <a href="https://github.com/tomaarsen/SpanMarkerNER">SpanMarker</a>, RoBERTa)</li>
 <li>Deploy at 16-80x lower inference cost</li>
 </ol>
-<p>The shift in mindset: the cost of NER is no longer "annotate all your training data." It's "build a good validation set, write clear guidelines, and let the LLM handle the rest."</p>
+<p>The cost of NER is no longer "annotate all your training data." It's "build a good validation set, write clear guidelines, and let the LLM handle the rest."</p>
 <hr />
 <h2 id="where-gliner-fails-and-llms-remain-essential">Where GLiNER Fails and LLMs Remain Essential</h2>
 <p>The <a href="https://sease.io/2025/10/gliner-as-an-alternative-to-llms-for-query-parsing-evaluation.html">Sease benchmark</a> (October 2025) tested GLiNER against GPT-4.1-mini on 30 query-parsing tasks. GPT-4.1-mini got <strong>100% fully correct</strong>. GLiNER got <strong>53%</strong> (16 of 30). But GLiNER responded in <strong>0.08 seconds</strong> versus the LLM's <strong>1.21 seconds</strong> — 15x faster.</p>
@@ -1956,7 +1962,7 @@
 </ol>
 <h3 id="nested-and-overlapping-entities">Nested and Overlapping Entities</h3>
 <p>GLiNER also struggles with <strong>nested entities</strong>. In "New York University," a human might label both "New York" (LOCATION) and "New York University" (ORGANIZATION). GLiNER picks only the highest-scoring span. This matters in biomedical text ("acute myeloid leukemia" contains both a disease and a modifier) and legal text (nested organizational hierarchies). Specialized models handle nesting, but GLiNER's flat-span design does not.</p>
-<p>The boundary is clear: GLiNER excels at <strong>explicit entity extraction</strong> — the core of production NER. LLMs are needed when extraction requires <strong>inference, reasoning, or mapping to predefined ontologies</strong>. The two are complementary, not competing.</p>
+<p>In practice: GLiNER handles <strong>explicit entity extraction</strong> — the core of production NER. LLMs step in when extraction requires <strong>inference, reasoning, or mapping to predefined ontologies</strong>. Use both.</p>
 <hr />
 <h2 id="evaluating-ner-metrics-pitfalls-and-building-test-sets">Evaluating NER: Metrics, Pitfalls, and Building Test Sets</h2>
 <p>I've seen teams ship models scoring 95% F1 on their test set that failed in production — because the test set didn't reflect real document distribution. Getting evaluation right matters.</p>
@@ -1993,7 +1999,7 @@
 <p>The <a href="https://dl.acm.org/doi/10.1145/2976749.2978315"><strong>iACE system</strong></a> (CCS 2016) processed <strong>71,000 articles</strong> from 45 security blogs, extracting <strong>900K IOC items</strong> at <strong>98% precision and 93% recall</strong>. Modern systems like <a href="https://github.com/aiforsec/CyNER"><strong>CyNER</strong></a> combine DeBERTa (F1 &gt;91%) with regex-based IOC heuristics. The <a href="https://arxiv.org/abs/2510.26499"><strong>CyberNER</strong></a> unified dataset (2025) harmonizes four datasets into 21 STIX 2.1-aligned entity types, with RoBERTa hitting 0.736 F1.</p>
 <hr />
 <h2 id="deployment-optimization-from-python-to-sub-millisecond-inference">Deployment Optimization: From Python to Sub-Millisecond Inference</h2>
-<p>Three optimization layers take research models to production speed. I tested each in the companion repo.</p>
+<p>I tested three ways to speed up GLiNER for production in the companion repo.</p>
 <h3 id="onnx-export">ONNX Export</h3>
 <p>GLiNER has native ONNX conversion, and pre-converted models exist on HuggingFace (<code>onnx-community/gliner_small-v2.1</code>). ONNX Runtime delivers <strong>1.5-3x speedup</strong> on CPU over PyTorch, with four optimization levels from basic to mixed-precision.</p>
 <p>From <a href="https://github.com/slavadubrov/ner-field-guide"><code>onnx_export.py</code></a>:</p>
@@ -2027,7 +2033,7 @@
 <span class="kd">let</span><span class="w"> </span><span class="n">output</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">model</span><span class="p">.</span><span class="n">inference</span><span class="p">(</span><span class="n">input</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
 <span class="c1">// =&gt; &quot;James Bond&quot; : &quot;person&quot; (99.7%)</span>
 </code></pre></div>
-<p>The <strong>fast-gliner</strong> package provides Python bindings via PyO3 — Rust speed with Python ergonomics.</p>
+<p>The <a href="https://github.com/talmago/fast_gliner"><strong>fast-gliner</strong></a> package provides Python bindings via PyO3 — Rust speed with Python ergonomics.</p>
 <h3 id="optimization-stack-summary">Optimization Stack Summary</h3>
 <table>
 <thead>
@@ -2062,8 +2068,8 @@
 <td>High-throughput, latency-critical</td>
 </tr>
 <tr>
-<td>All combined</td>
-<td>6-10x+</td>
+<td>gline-rs + INT8</td>
+<td>4-8x</td>
 <td>2.4x smaller</td>
 <td>&lt;1% loss</td>
 <td>Production at scale</td>
@@ -2073,7 +2079,7 @@
 <hr />
 <h2 id="structured-extraction-instructor-vs-outlines">Structured Extraction: Instructor vs Outlines</h2>
 <p>When you need more flexibility than encoder models offer — implicit entities, reasoning, ontology mapping — two libraries handle structured extraction from LLMs.</p>
-<p><strong>Instructor</strong> (~12,600 GitHub stars, ~8.8M downloads/month as of March 2026) by Jason Liu patches LLM SDKs to accept Pydantic response models, with <strong>automatic retry on validation failure</strong>. It supports 15+ providers and inspired OpenAI's native structured output feature.</p>
+<p><a href="https://github.com/instructor-ai/instructor"><strong>Instructor</strong></a> (~12,600 GitHub stars, ~8.8M downloads/month as of March 2026) by Jason Liu patches LLM SDKs to accept Pydantic response models, with <strong>automatic retry on validation failure</strong>. It supports 15+ providers and inspired OpenAI's native structured output feature.</p>
 <p>From <a href="https://github.com/slavadubrov/ner-field-guide"><code>structured_extraction.py</code></a>:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">instructor</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
@@ -2094,7 +2100,7 @@
     <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;BioNTech SE acquired InstaDeep in the U.K.&quot;</span><span class="p">}])</span>
 <span class="c1"># entities=[Entity(name=&#39;BioNTech SE&#39;, label=&#39;ORGANIZATION&#39;), ...]</span>
 </code></pre></div>
-<p><strong>Outlines</strong> (~13,600 GitHub stars) by dottxt takes a different approach: <strong>constrained token generation</strong> via Finite State Machines. Instead of generating output and retrying on validation failure, Outlines prevents invalid tokens from being generated at all — <strong>100% schema compliance</strong>, zero retries. <a href="https://aws.amazon.com/blogs/machine-learning/generate-structured-output-from-llms-with-dottxt-outlines-in-aws/">AWS benchmarks</a> show <strong>98% schema adherence</strong> vs. 76% for post-generation validation, with <strong>5x faster generation</strong> compared to unconstrained generation with post-validation retries.</p>
+<p><a href="https://github.com/dottxt-ai/outlines"><strong>Outlines</strong></a> (~13,600 GitHub stars) by dottxt takes a different approach: <strong>constrained token generation</strong> via Finite State Machines. Instead of generating output and retrying on validation failure, Outlines prevents invalid tokens from being generated at all — <strong>100% schema compliance</strong>, zero retries. <a href="https://aws.amazon.com/blogs/machine-learning/generate-structured-output-from-llms-with-dottxt-outlines-in-aws/">AWS benchmarks</a> show <strong>98% schema adherence</strong> vs. 76% for post-generation validation, with <strong>5x faster generation</strong> compared to unconstrained generation with post-validation retries.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">outlines</span>
 
 <span class="n">model</span> <span class="o">=</span> <span class="n">outlines</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">transformers</span><span class="p">(</span><span class="s2">&quot;microsoft/Phi-3-mini-128k-instruct&quot;</span><span class="p">)</span>
@@ -2104,15 +2110,15 @@
 <p>The choice depends on where you run your models. <strong>Instructor</strong> is best for cloud LLM APIs — quick prototyping, multi-provider support, familiar Pydantic patterns. <strong>Outlines</strong> wins for local models where you need format guarantees without external dependencies. Both work well for NER-style extraction, but neither matches encoder throughput: Instructor adds <strong>200ms-2s of API latency</strong> per call, and Outlines depends on local model speed. For high-throughput NER, encoders are still 10-100x faster.</p>
 <hr />
 <h2 id="the-3-tier-production-architecture">The 3-Tier Production Architecture</h2>
-<p>Everything above converges on a three-tier architecture for production NER.</p>
+<p>Here's how I'd put all of this together for production NER.</p>
 <p><img alt="The 3-tier architecture: encoder models handle 90%+ of volume at low cost, GLiNER 2 handles multi-task extraction, and LLMs handle the hardest 10% while also training Tier 1 models" src="../../../../assets/2026-04-02-definitive-guide-ner-2026/three-tier-architecture.svg" /></p>
 <p><strong>Tier 1 — Encoder models for known entity types.</strong> GLiNER (cross-encoder for &lt;30 types, bi-encoder for 30+), fine-tuned via the LLM-as-teacher pipeline. Deploy with ONNX + INT8 or gline-rs. Handles <strong>&gt;90% of volume</strong> at sub-50ms latency and near-zero cost. The bi-encoder scales to millions of entity types with pre-computed embeddings.</p>
 <p><strong>Tier 2 — GLiNER 2 for multi-task extraction.</strong> When one request needs NER + classification + relation extraction + structured data, GLiNER 2's <strong>205M-parameter</strong> model replaces four deployments. Runs on CPU at 130-208ms regardless of label count — good for document pipelines needing multiple extraction tasks in one pass.</p>
 <p><strong>Tier 3 — LLMs for reasoning-heavy extraction.</strong> When entities are implicit, need contextual inference, or require ontology mapping, route to an LLM (GPT-5.4 Mini, Claude Sonnet 4.6, Llama 4 Maverick) via Instructor (cloud) or Outlines (local). This handles the <strong>~10% of queries</strong> that encoders miss. The same LLMs also generate training data for Tier 1.</p>
-<p>The economics: a fine-tuned GLiNER hitting <strong>93.4% F1</strong> at <strong>$0.10/hour on CPU</strong>, matching the <strong>92.7% F1</strong> of its Llama-70b teacher at <strong>$8/hour</strong> — 80x cheaper.</p>
+<p>What does this cost? A fine-tuned GLiNER hits <strong>93.4% F1</strong> at <strong>$0.10/hour on CPU</strong>, matching the <strong>92.7% F1</strong> of its Llama-70b teacher at <strong>$8/hour</strong> — 80x cheaper.</p>
 <hr />
 <h2 id="trade-offs-and-limitations">Trade-offs and Limitations</h2>
-<p>Every architecture has failure modes. Here are the ones that matter most.</p>
+<p>Nothing here is free. A few things to watch for.</p>
 <p><strong>LLM-as-teacher errors propagate.</strong> If the LLM consistently gets a specific entity type wrong (e.g., confusing subsidiary names with parent companies), the fine-tuned encoder inherits that bias. The fix is targeted human review — focus effort on entity types where the LLM's confidence is low or inconsistent, not random sampling.</p>
 <p><strong>Quantization losses aren't uniform.</strong> The ~0.6% average F1 loss from INT8 can be larger on rare entity types with subtle boundary patterns (chemical compounds, multi-word abbreviations). Always benchmark quantized models on your specific entity types, not just aggregate F1.</p>
 <p><strong>When the 3-tier architecture is overkill.</strong> Single domain, well-defined entity types, 500+ labeled examples? A fine-tuned RoBERTa or spaCy pipeline is simpler and enough. The 3-tier pattern pays off with (a) multiple domains, (b) evolving entity types, or (c) a mix of easy and hard extraction tasks. If you're just extracting names and dates from invoices, Tier 1 alone works.</p>
