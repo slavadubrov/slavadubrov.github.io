@@ -1,0 +1,2802 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A reference for evaluating retrieval-augmented generation end to end, from parser to post-generation verification, including the silent-failure metrics most teams skip such as the filter false-exclusion rate.">
+      
+      
+        <meta name="author" content="Viacheslav Dubrov">
+      
+      
+        <link rel="canonical" href="https://slavadubrov.github.io/blog/2026/05/10/evaluating-rag-metrics-for-every-stage-of-a-production-rag-system/">
+      
+      
+        <link rel="prev" href="../../../04/20/the-guardians--why-agent-security-is-not-llm-safety/">
+      
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="RSS feed" href="../../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="RSS feed of updated content" href="../../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../../assets/favicon-eoc.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.23">
+    
+    
+      
+        <title>Evaluating RAG: Metrics for Every Stage of a Production RAG System - Edge of Context: Practical AI Engineering</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/brand.css">
+    
+      <link rel="stylesheet" href="../../../../../assets/blog-sidebar.css">
+    
+    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-T51K83ENZ5"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-T51K83ENZ5",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+       
+<!-- Open Graph -->
+<meta
+  property="og:title"
+  content="Evaluating RAG: Metrics for Every Stage of a Production RAG System"
+/>
+<meta
+  property="og:description"
+  content="A reference for evaluating retrieval-augmented generation end to end, from parser to post-generation verification, including the silent-failure metrics most teams skip such as the filter false-exclusion rate."
+/>
+<meta property="og:url" content="https://slavadubrov.github.io/blog/2026/05/10/evaluating-rag-metrics-for-every-stage-of-a-production-rag-system/" />
+<meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
+<meta
+  property="og:type"
+  content="article"
+/>
+<meta property="og:image" content="https://slavadubrov.github.io/assets/logo-eoc.svg" />
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary" />
+<meta
+  name="twitter:title"
+  content="Evaluating RAG: Metrics for Every Stage of a Production RAG System"
+/>
+<meta
+  name="twitter:description"
+  content="A reference for evaluating retrieval-augmented generation end to end, from parser to post-generation verification, including the silent-failure metrics most teams skip such as the filter false-exclusion rate."
+/>
+<meta name="twitter:image" content="https://slavadubrov.github.io/assets/logo-eoc.svg" />
+
+<style>
+  /* Header social icons */
+  .md-header__social {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 0.5rem;
+  }
+  .md-header__social a {
+    color: var(--md-primary-bg-color);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+  .md-header__social a:hover {
+    opacity: 1;
+  }
+  .md-header__social svg {
+    width: 1.2rem;
+    height: 1.2rem;
+    fill: currentColor;
+  }
+  /* Adjust search to make room for social icons */
+  .md-search {
+    margin-right: 0;
+  }
+</style>
+
+<!-- Article-specific Open Graph -->
+
+<meta
+  property="article:published_time"
+  content="2026-05-10 00:00:00+00:00"
+/>
+ 
+<meta property="article:modified_time" content="2026-05-10 00:00:00+00:00" />
+ 
+<meta property="article:author" content="Viacheslav Dubrov" />
+
+<!-- Schema.org JSON-LD -->
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Evaluating RAG: Metrics for Every Stage of a Production RAG System",
+    "description": "A reference for evaluating retrieval-augmented generation end to end, from parser to post-generation verification, including the silent-failure metrics most teams skip such as the filter false-exclusion rate.",
+    "url": "https://slavadubrov.github.io/blog/2026/05/10/evaluating-rag-metrics-for-every-stage-of-a-production-rag-system/",
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": "https://slavadubrov.github.io/blog/2026/05/10/evaluating-rag-metrics-for-every-stage-of-a-production-rag-system/"
+    },
+    "datePublished": "2026-05-10 00:00:00+00:00",
+    "dateModified": "2026-05-10 00:00:00+00:00",
+    "author": {
+      "@type": "Person",
+      "name": "Viacheslav Dubrov",
+      "url": "https://www.linkedin.com/in/slavadubrov"
+    },
+    "publisher": {
+      "@type": "Person",
+      "name": "Viacheslav Dubrov"
+    },
+    "isPartOf": {
+      "@type": "Blog",
+      "name": "Edge of Context: Practical AI Engineering",
+      "url": "https://slavadubrov.github.io/"
+    }
+  }
+</script>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#evaluating-rag-metrics-for-every-stage-of-a-production-rag-system" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+     
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../../.." title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Edge of Context: Practical AI Engineering
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Evaluating RAG: Metrics for Every Stage of a Production RAG System
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../../../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Blog
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../about/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  About
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+<script>
+  // Inject social icons into header after DOM loads
+  document.addEventListener("DOMContentLoaded", function () {
+    const header = document.querySelector(".md-header__inner");
+    if (header) {
+      const social = document.createElement("div");
+      social.className = "md-header__social";
+      social.innerHTML = `
+      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
+      </a>
+      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
+      </a>
+      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+      </a>
+    `;
+      header.appendChild(social);
+    }
+  });
+</script>
+
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../.." title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    Edge of Context: Practical AI Engineering
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    Blog
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Blog
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Archive
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            Archive
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../archive/2026/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2026
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../archive/2025/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    2025
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Topics
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            Topics
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/ai-engineering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AI Engineering
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/agentic-ai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Agentic AI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/agents-101/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Agents 101
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/infrastructure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Infrastructure
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/paper-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Paper Review
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/python/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Python
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/search-and-recs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Search and Recs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../category/tooling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tooling
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    About
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#part-1-why-evaluation-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      Part 1 — Why Evaluation First
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 1 — Why Evaluation First">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-senior-signal" class="md-nav__link">
+    <span class="md-ellipsis">
+      The senior signal
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#three-layers-not-one-number" class="md-nav__link">
+    <span class="md-ellipsis">
+      Three layers, not one number
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#component-level-vs-end-to-end" class="md-nav__link">
+    <span class="md-ellipsis">
+      Component-level vs. end-to-end
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-reference-frameworks-opinionated-tour" class="md-nav__link">
+    <span class="md-ellipsis">
+      The reference frameworks (opinionated tour)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-2-the-pipeline-with-evaluation-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      Part 2 — The Pipeline With Evaluation Points
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-3-offline-ingestion-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Part 3 — Offline Ingestion Evaluation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 3 — Offline Ingestion Evaluation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#document-acquisition-and-parsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Document acquisition and parsing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cleaning-and-normalization" class="md-nav__link">
+    <span class="md-ellipsis">
+      Cleaning and normalization
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#chunking-the-stage-that-quietly-decides-retrieval" class="md-nav__link">
+    <span class="md-ellipsis">
+      Chunking — the stage that quietly decides retrieval
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metadata-extraction-and-enrichment" class="md-nav__link">
+    <span class="md-ellipsis">
+      Metadata extraction and enrichment
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#embedding-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Embedding generation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#index-construction" class="md-nav__link">
+    <span class="md-ellipsis">
+      Index construction
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-4-online-inference-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Part 4 — Online Inference Evaluation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 4 — Online Inference Evaluation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#query-understanding-and-rewriting" class="md-nav__link">
+    <span class="md-ellipsis">
+      Query understanding and rewriting
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retrieval-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      Retrieval metrics
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hybrid-retrieval-and-reciprocal-rank-fusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      Hybrid retrieval and reciprocal rank fusion
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reranking" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reranking
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#context-construction-and-lost-in-the-middle" class="md-nav__link">
+    <span class="md-ellipsis">
+      Context construction and lost-in-the-middle
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-5-the-filter-false-exclusion-rate" class="md-nav__link">
+    <span class="md-ellipsis">
+      Part 5 — The Filter False-Exclusion Rate
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 5 — The Filter False-Exclusion Rate">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      The metric
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#companion-metric-predicate-precision-and-recall" class="md-nav__link">
+    <span class="md-ellipsis">
+      Companion metric: predicate precision and recall
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soft-boost-vs-hard-filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      Soft boost vs. hard filter
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-6-generation-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Part 6 — Generation Evaluation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 6 — Generation Evaluation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#faithfulness-and-groundedness" class="md-nav__link">
+    <span class="md-ellipsis">
+      Faithfulness and groundedness
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#atomic-fact-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Atomic-fact evaluation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#citation-accuracy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Citation accuracy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#answer-correctness-completeness-refusal" class="md-nav__link">
+    <span class="md-ellipsis">
+      Answer correctness, completeness, refusal
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-generation-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      Post-generation verification
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-7-ontology-grounded-rag-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Part 7 — Ontology-Grounded RAG Evaluation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 7 — Ontology-Grounded RAG Evaluation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#entity-linking-accuracy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Entity linking accuracy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hierarchy-aware-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Hierarchy-aware evaluation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter-false-exclusion-rate-reprise-now-critical" class="md-nav__link">
+    <span class="md-ellipsis">
+      Filter false-exclusion rate (reprise, now critical)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#constrained-generation-conformance" class="md-nav__link">
+    <span class="md-ellipsis">
+      Constrained generation conformance
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#auditability" class="md-nav__link">
+    <span class="md-ellipsis">
+      Auditability
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-8-system-level-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Part 8 — System-Level Evaluation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 8 — System-Level Evaluation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#holistic-answer-quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      Holistic answer quality
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Holistic answer quality">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#schema-guided-reasoning-for-judges" class="md-nav__link">
+    <span class="md-ellipsis">
+      Schema-Guided Reasoning for judges
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#latency-and-cost" class="md-nav__link">
+    <span class="md-ellipsis">
+      Latency and cost
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ab-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      A/B testing
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-9-test-set-construction" class="md-nav__link">
+    <span class="md-ellipsis">
+      Part 9 — Test Set Construction
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 9 — Test Set Construction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#synthetic-query-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Synthetic query generation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#golden-dataset-construction" class="md-nav__link">
+    <span class="md-ellipsis">
+      Golden dataset construction
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adversarial-test-sets" class="md-nav__link">
+    <span class="md-ellipsis">
+      Adversarial test sets
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coverage-and-continuous-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Coverage and continuous evaluation
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-10-production-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      Part 10 — Production Monitoring
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Part 10 — Production Monitoring">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#implicit-and-explicit-feedback" class="md-nav__link">
+    <span class="md-ellipsis">
+      Implicit and explicit feedback
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#drift-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      Drift detection
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shadow-evaluation-and-human-in-the-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      Shadow evaluation and human-in-the-loop
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-minimum-guardrail-set" class="md-nav__link">
+    <span class="md-ellipsis">
+      The minimum guardrail set
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#caveats" class="md-nav__link">
+    <span class="md-ellipsis">
+      Caveats
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#coming-up-in-this-series" class="md-nav__link">
+    <span class="md-ellipsis">
+      Coming Up in This Series
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Takeaways
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      References
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="References">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#frameworks-and-benchmarks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Frameworks and benchmarks
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retrieval-and-ranking" class="md-nav__link">
+    <span class="md-ellipsis">
+      Retrieval and ranking
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#generation-faithfulness-judges" class="md-nav__link">
+    <span class="md-ellipsis">
+      Generation, faithfulness, judges
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#drift-and-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      Drift and production
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#companion-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      Companion code
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+<div class="md-content md-content--post" data-md-component="content">
+  <div
+    class="md-sidebar md-sidebar--post"
+    data-md-component="sidebar"
+    data-md-type="navigation"
+  >
+    <div class="md-sidebar__scrollwrap">
+      <div class="md-sidebar__inner md-post">
+        <nav class="md-nav md-nav--primary">
+          <div class="md-post__back">
+            <div class="md-nav__title md-nav__container">
+              <a href="../../../../" class="md-nav__link">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+                <span class="md-ellipsis"> Back to index </span>
+              </a>
+            </div>
+          </div>
+
+          
+          <ul class="md-post__meta md-nav__list">
+            <li class="md-nav__item md-nav__item--section">
+              <div class="md-post__title">
+                <span class="md-ellipsis">Topics</span>
+              </div>
+              <nav class="md-nav">
+                        
+                 
+                <div
+                  class="blog-category-section blog-category-section--active"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🤖</span
+                    >
+                    <span class="blog-category-name">AI Engineering</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post blog-category-post--active"
+                    >
+                      <a href="./">Evaluating RAG: Metrics for Every Stage of a Production RAG System</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../04/02/the-definitive-guide-to-ner-in-2026-encoders-llms-and-the-3-tier-production-architecture/">The Definitive Guide to NER in 2026: Encoders, LLMs, and the 3-Tier Production Architecture</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../03/13/the-llm-engineering-field-guide-45-concepts-every-practitioner-needs/">The LLM Engineering Field Guide: 45 Concepts Every Practitioner Needs</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../03/04/the-definitive-guide-to-ocr-in-2026-from-pipelines-to-vlms/">The Definitive Guide to OCR in 2026: From Pipelines to VLMs</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/04/the-complete-guide-to-llm-fine-tuning-in-2025-from-theory-to-production/">The Complete Guide to LLM Fine-Tuning in 2025: From Theory to Production</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/22/lorax-playbook---orchestrating-thousands-of-lora-adapters-on-kubernetes/">LoRAX Playbook - Orchestrating Thousands of LoRA Adapters on Kubernetes</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/11/choosing-the-right-open-source-llm-variant--file-format/">Choosing the Right Open-Source LLM Variant & File Format</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/10/quick-guide-on-running-llms-locally-on-macos/">Quick-guide on Running LLMs Locally on macOS</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/04/scaling-large-language-models-multi-gpu-and-multi-node-strategies-that-hold-up-in-practice/">Scaling Large Language Models: Multi-GPU and Multi-Node Strategies That Hold Up in Practice</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >📚</span
+                    >
+                    <span class="blog-category-name">Agents 101</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../04/20/the-guardians--why-agent-security-is-not-llm-safety/">The Guardians — Why Agent Security Is Not LLM Safety</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../03/24/the-hands--tool-ergonomics-and-the-agent-computer-interface/">The Hands — Tool Ergonomics and the Agent-Computer Interface</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../02/14/the-cortex-architecting-memory-for-ai-agents/">The Cortex: Architecting Memory for AI Agents</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/31/the-cognitive-engine-choosing-the-right-reasoning-loop/">The Cognitive Engine: Choosing the Right Reasoning Loop</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🦾</span
+                    >
+                    <span class="blog-category-name">Agentic AI</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/11/enterprise-rag-challenge-3-winning-approaches-for-autonomous-ai-agents/">Enterprise RAG Challenge 3: Winning Approaches for Autonomous AI Agents</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/12/28/schema-guided-reasoning-on-vllm---turning-llms-into-reliable-business-logic-engines/">Schema-Guided Reasoning on vLLM - Turning LLMs into Reliable Business Logic Engines</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/20/domain-driven-design-for-ai-agents-a-beginner-friendly-guide/">Domain-driven design for AI agents: a beginner-friendly guide</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/05/context-engineering-in-the-agenticai-era--and-how-to-cook-it/">Context Engineering in the Agentic‑AI Era — and How to Cook It</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🔧</span
+                    >
+                    <span class="blog-category-name">Infrastructure</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../02/21/benchmarking-modern-data-processing-engines/">Benchmarking Modern Data Processing Engines</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/06/mlops-in-the-age-of-foundation-models-evolving-infrastructure-for-llms-and-beyond/">MLOps in the Age of Foundation Models. Evolving Infrastructure for LLMs and Beyond</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      ></span
+                    >
+                    <span class="blog-category-name">Paper Review</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/21/mhc-how-deepseek-scaled-residual-connections-without-breaking-training/">mHC: How DeepSeek Scaled Residual Connections Without Breaking Training</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🐍</span
+                    >
+                    <span class="blog-category-name">Python</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/08/the-ultimate-guide-to-pyprojecttoml/">The Ultimate Guide to `pyproject.toml`</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/04/17/quick-guide-managing-python-on-macos-with-uv/">Quick Guide: Managing Python on macOS with uv</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🔍</span
+                    >
+                    <span class="blog-category-name">Search and Recs</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../02/08/building-a-modern-search-ranking-stack-from-embeddings-to-llm-powered-relevance/">Building a Modern Search Ranking Stack: From Embeddings to LLM-Powered Relevance</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🛠️</span
+                    >
+                    <span class="blog-category-name">Tooling</span>
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/06/10/building-a-custom-featurestorelite-mcp-server-using-uv/">Building a Custom FeatureStoreLite MCP Server Using uv</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/10/quick-guide-on-local-stable-diffusion-toolkits-for-macos/">Quick-guide on Local Stable-Diffusion Toolkits for macOS</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/07/mastering-zsh-startup-zprofile-vs-zshrc/">Mastering Zsh Startup: `~/.zprofile` vs `~/.zshrc`</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/04/19/quick-guide-on-setting-up-a-macbook-for-ai-engineering/">Quick-Guide on setting up a MacBook for AI Engineering</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                
+              </nav>
+            </li>
+          </ul>
+
+          
+        </nav>
+        
+      </div>
+    </div>
+  </div>
+  <article class="md-content__inner md-typeset">
+     
+  
+
+
+
+
+<h1 id="evaluating-rag-metrics-for-every-stage-of-a-production-rag-system">Evaluating RAG: Metrics for Every Stage of a Production RAG System</h1>
+<p><strong>Part 1 of the Production RAG series</strong></p>
+<p>A RAG system with broken filters can run for months before anyone notices. The pipeline returns answers, the latency dashboards stay green, and the only sign something is wrong is that the answers themselves are subtly wrong. "Subtly wrong" doesn't page anyone.</p>
+<p>Better logs won't catch this. Evaluation will, but only if it covers each stage of the pipeline with its own metric. This article is the reference I wish I'd had when I was figuring out which metrics actually matter.</p>
+<!-- more -->
+
+<div class="admonition tip">
+<p class="admonition-title">Want to skip ahead and run code?</p>
+<p>I packaged the metrics in this article into a runnable companion repo: <a href="https://github.com/slavadubrov/rag-evals-demo"><code>slavadubrov/rag-evals-demo</code></a>. <code>make eval</code> runs the full suite — retrieval metrics, hybrid + RRF, reranker uplift, filter false-exclusion, faithfulness, lost-in-the-middle, LLM-as-judge with bias mitigation, latency — on the SciFact corpus. <code>make benchmark</code> sweeps chunking × embedding × LLM and writes a markdown report. Notebooks 00–09 walk each metric individually; same vocabulary as this article, real numbers, no Docker (embedded Qdrant).</p>
+</div>
+<p><strong>TL;DR</strong></p>
+<ul>
+<li>Evaluation defines the system. A stage without a metric is a stage that fails silently.</li>
+<li>A useful evaluation stack covers ingestion, retrieval, generation grounding, ontology conformance, and system signals. <a href="https://docs.ragas.io/">RAGAS</a>, <a href="https://www.trulens.org/">TruLens</a>, <a href="https://deepeval.com/">DeepEval</a>, <a href="https://phoenix.arize.com/">Arize Phoenix</a>, and the <a href="https://trec.nist.gov/data/rag2024.html">TREC 2024 RAG Track</a> give you tooling. They do not choose your metrics for you.</li>
+<li>For metadata- and ontology-grounded RAG, the most common failure is the silent filter. A wrong tag or a brittle hard predicate collapses recall to zero. Faithfulness can still look fine because the model faithfully said "I don't know."</li>
+</ul>
+<p>The follow-ups go deep on individual sections. Use this one as the index.</p>
+<hr />
+<h2 id="part-1-why-evaluation-first">Part 1 — Why Evaluation First</h2>
+<h3 id="the-senior-signal">The senior signal</h3>
+<p>On a RAG project, the architecture diagram should not be the first artifact. The eval set should be.</p>
+<p>You cannot choose between BM25 and dense retrieval, recursive and semantic chunking, or Cohere Rerank and BGE until you know what you are optimizing. "Better answers" is not a metric. "Faithfulness ≥ 0.85 on a 200-query golden set covering our top three intents, with p95 latency &lt; 1.5s and filter false-exclusion rate &lt; 2%" is a metric.</p>
+<p>Define the harness before you write the retrieval code. The first harness will be wrong, and you will revise it. Revising a metric is much cheaper than revising a system you have already shipped.</p>
+<h3 id="three-layers-not-one-number">Three layers, not one number</h3>
+<p>Modern RAG is a pipeline, so evaluation has to be a pipeline. No single number catches every failure mode.</p>
+<p>Production evaluation has three layers: offline (was the knowledge base prepared correctly?), online (was the right evidence found and used for this query?), and post-generation (is the answer faithful and verifiable?). Each layer asks a different question. Collapse them into one score and you can miss basic failures, like a normalization bug that destroys recall.</p>
+<p><img alt="The three-layer evaluation discipline" src="../../../../assets/2026-05-10-rag-evaluation/eval-layers.svg" /></p>
+<p>The same split clarifies online vs. offline evaluation. Offline runs against a fixed dataset with known ground truth. It is reproducible, cheap to iterate, and the right place for component selection, A/B comparisons, and CI gates. Online runs against live traffic. It captures signals you cannot fake offline: regeneration rate, dwell time, thumbs, and real query drift. It is noisy and harder to instrument well.</p>
+<p>You need both. Offline-only misses live drift. Online-only makes regressions hard to reproduce. Doing both is more work, but it is the only setup that gives you useful feedback before and after launch.</p>
+<h3 id="component-level-vs-end-to-end">Component-level vs. end-to-end</h3>
+<p>There are two common mistakes. End-to-end-only evaluation tells you the system is broken, but not where. Component-only evaluation can show every part passing while the full system still fails. The fix is a few headline end-to-end metrics for go/no-go decisions, plus component metrics for diagnosis. Retrieval metrics catch retriever regressions. Generation metrics catch generator regressions. End-to-end answer correctness catches integration failures.</p>
+<h3 id="the-reference-frameworks-opinionated-tour">The reference frameworks (opinionated tour)</h3>
+<table>
+<thead>
+<tr>
+<th>Framework</th>
+<th>Best at</th>
+<th>Where it falls down</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>RAGAS</strong></td>
+<td>Reference-free RAG metrics (faithfulness, answer relevancy, context precision/recall); the de facto vocabulary</td>
+<td>LLM-judge cost; opaque score components when debugging; English-centric defaults</td>
+</tr>
+<tr>
+<td><strong>ARES</strong></td>
+<td>Trained classifier judges per pipeline; fewer annotations than RAGAS-style approaches; high precision for close systems</td>
+<td>Heavier setup; you have to actually train models</td>
+</tr>
+<tr>
+<td><strong>TruLens</strong></td>
+<td>Composable feedback functions with strong explainability; OpenTelemetry traces; production-friendly</td>
+<td>Less batteries-included on RAG-specific metrics than RAGAS</td>
+</tr>
+<tr>
+<td><strong>DeepEval</strong></td>
+<td>Pytest-style unit tests for LLM outputs; G-Eval, custom metrics, CI/CD-native</td>
+<td>Heavy LLM-judge usage = cost spikes</td>
+</tr>
+<tr>
+<td><strong>Arize Phoenix</strong></td>
+<td>Strong tracing and embedding visualization; spots embedding drift visually; OTEL-native</td>
+<td>You bring your own metric definitions</td>
+</tr>
+<tr>
+<td><strong>TREC 2024 RAG Track</strong></td>
+<td>Public benchmark for nugget evaluation (AutoNuggetizer), support evaluation, and fluency on MS MARCO Segment v2.1</td>
+<td>Not a runtime tool; a benchmark to calibrate against</td>
+</tr>
+</tbody>
+</table>
+<p>My default stack is RAGAS for the metric vocabulary, DeepEval for CI gates, Phoenix for production tracing, plus custom code for ontology-specific metrics. You will outgrow whatever you start with. Pick the framework that makes custom metrics easy.</p>
+<p>For benchmarks, use <a href="https://arxiv.org/abs/2104.08663">BEIR</a> (Thakur et al., NeurIPS 2021) for zero-shot retrieval generalization, <a href="https://huggingface.co/spaces/mteb/leaderboard">MTEB</a> for general embedding quality, <a href="https://project-miracl.github.io/">MIRACL</a> for multilingual retrieval, and the <a href="https://trec.nist.gov/data/rag2024.html">TREC 2024 RAG Track</a> for end-to-end RAG evaluation.</p>
+<hr />
+<h2 id="part-2-the-pipeline-with-evaluation-points">Part 2 — The Pipeline With Evaluation Points</h2>
+<p>A production RAG system is larger than "embed documents, retrieve chunks, call an LLM." Every stage between document acquisition and answer delivery can fail.</p>
+<p><img alt="The full RAG pipeline with metric badges at every stage" src="../../../../assets/2026-05-10-rag-evaluation/rag-pipeline-eval-points.svg" /></p>
+<p>Each stage in the diagram has at least one metric. A stage with no metric can fail without anyone noticing.</p>
+<p>The three lanes match where failures happen. The offline lane covers everything before a query exists: parsing, cleaning, chunking, embedding, indexing. The online lane covers everything after a query arrives: rewriting, retrieval, reranking, context assembly. The post-generation lane covers checks after the model writes an answer: faithfulness, citation verification, drift signals, and production telemetry.</p>
+<p>Errors compound down the chain. Bad parsing limits chunking. Bad chunking limits retrieval. Bad retrieval limits reranking. Bad reranking limits generation. Faithfulness only measures the final answer, never the upstream cause.</p>
+<hr />
+<h2 id="part-3-offline-ingestion-evaluation">Part 3 — Offline Ingestion Evaluation</h2>
+<p>Many production RAG failures start in ingestion. The system works on clean test documents, then fails on real PDFs, scans, tables, and messy corpus pages.</p>
+<h3 id="document-acquisition-and-parsing">Document acquisition and parsing</h3>
+<p>What to measure:</p>
+<ul>
+<li><strong>Text extraction completeness</strong>: <code>extracted_chars / expected_chars</code> on a labeled sample, computed per document class. There is no canonical package — write a small harness that compares parser output against a hand-cleaned reference. Watch for missing footnotes, headers, captions.</li>
+<li>
+<p><strong>OCR accuracy</strong>: CER (Character Error Rate) and WER (Word Error Rate), the standard speech/OCR metrics:</p>
+<div class="arithmatex">\[
+\text{CER} = \frac{S + D + I}{N}, \qquad \text{WER} = \frac{S_w + D_w + I_w}{N_w}
+\]</div>
+<p>where <span class="arithmatex">\(S\)</span>, <span class="arithmatex">\(D\)</span>, <span class="arithmatex">\(I\)</span> are character-level substitutions, deletions, insertions and <span class="arithmatex">\(N\)</span> is the reference character count (subscript <span class="arithmatex">\(w\)</span> for the word version). CER 1–2% is good for printed text; &gt;10% is unusable. For handwritten or multilingual material, ≤20% may still be workable. Compute with <a href="https://github.com/jitsi/jiwer"><code>jiwer</code></a> (<code>jiwer.cer(refs, hyps)</code>, <code>jiwer.wer(refs, hyps)</code>) or HuggingFace <a href="https://huggingface.co/spaces/evaluate-metric/cer"><code>evaluate</code></a>. For evaluation corpora, <a href="https://guillaumejaume.github.io/FUNSD/">FUNSD</a> and <a href="https://rrc.cvc.uab.es/?ch=13">SROIE</a> are the public benchmarks.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">jiwer</span><span class="w"> </span><span class="kn">import</span> <span class="n">cer</span><span class="p">,</span> <span class="n">wer</span>
+
+<span class="n">refs</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Mars has two moons, Phobos and Deimos.&quot;</span><span class="p">]</span>
+<span class="n">hyps</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Mars has two m00ns, Phobos and Deirnos.&quot;</span><span class="p">]</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;CER = </span><span class="si">{</span><span class="n">cer</span><span class="p">(</span><span class="n">refs</span><span class="p">,</span><span class="w"> </span><span class="n">hyps</span><span class="p">)</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># CER = 0.077</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;WER = </span><span class="si">{</span><span class="n">wer</span><span class="p">(</span><span class="n">refs</span><span class="p">,</span><span class="w"> </span><span class="n">hyps</span><span class="p">)</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># WER = 0.286</span>
+</code></pre></div>
+</li>
+<li>
+<p><strong>Table extraction fidelity</strong>: TEDS (Tree-Edit-Distance-based Similarity) measures how close a predicted HTML table tree is to the reference, normalized by the size of the larger tree. From <a href="https://arxiv.org/abs/1911.10683">Zhong et al., 2020</a> (PubTabNet):</p>
+<div class="arithmatex">\[
+\text{TEDS}(T_a, T_b) = 1 - \frac{\text{EditDist}(T_a, T_b)}{\max(|T_a|, |T_b|)}
+\]</div>
+<p>TEDS uses both structure (rows, columns, spans) and cell content; TEDS-S strips the content and scores structure only. Reference implementation: <a href="https://github.com/ibm-aur-nlp/PubTabNet/tree/master/src">PubTabNet's <code>teds.py</code></a> (uses <a href="https://github.com/JoaoFelipe/apted"><code>apted</code></a> under the hood). For evaluation corpora, see PubTabNet, <a href="https://developer.ibm.com/exchanges/data/all/fintabnet/">FinTabNet</a>, and SciTSR. Naive parsers often fail on tables; benchmark before trusting them.</p>
+</li>
+<li>
+<p><strong>Layout / structure preservation</strong>: heading order, list integrity, reading order on multi-column PDFs. Use <a href="https://github.com/DS4SD/DocLayNet">DocLayNet</a> for a labeled benchmark; for an off-the-shelf parser comparison, <a href="https://github.com/Unstructured-IO/unstructured"><code>unstructured</code></a>, <a href="https://github.com/pymupdf/PyMuPDF"><code>pymupdf</code></a>, and a VLM parser like <a href="https://github.com/DS4SD/docling"><code>docling</code></a> cover most of the design space.</p>
+</li>
+</ul>
+<p>My take: benchmark three parsers (a Tesseract baseline, a VLM-OCR model, and your vendor candidate) on a stratified sample of real document classes (clean scans, photos, table-heavy pages, multilingual, math, handwriting) at fixed DPI. Report CER/WER per class plus TEDS for table pages. Without that, you are guessing.</p>
+<h3 id="cleaning-and-normalization">Cleaning and normalization</h3>
+<ul>
+<li><strong>Boilerplate removal accuracy</strong>: precision/recall against human-labeled boilerplate spans. Aggressive removal kills relevant content; lazy removal pollutes embeddings. Tools to compare: <a href="https://github.com/adbar/trafilatura"><code>trafilatura</code></a>, <a href="https://github.com/miso-belica/jusText"><code>jusText</code></a>, <a href="https://github.com/chatnoir-eu/chatnoir-resiliparse"><code>Resiliparse</code></a>. <a href="https://aclanthology.org/2021.acl-demo.15/">Barbaresi (2021)</a> benchmarks these head-to-head.</li>
+<li><strong>Unicode normalization</strong>: percent of documents producing identical NFC and NFKC outputs (computed with the stdlib <a href="https://docs.python.org/3/library/unicodedata.html"><code>unicodedata.normalize</code></a>) is a useful drift signal. Mismatches are how zero-width joiners and lookalike characters destroy retrieval recall.</li>
+<li><strong>Language detection accuracy</strong>: F1 on a labeled multilingual sample. Critical for multilingual indexes. Use <a href="https://github.com/zafercavdar/fasttext-langdetect"><code>fasttext-langdetect</code></a> (Facebook's <code>lid.176</code>), <a href="https://github.com/pemistahl/lingua-py"><code>lingua-py</code></a>, or <a href="https://github.com/google/cld3"><code>cld3</code></a>; FLORES-200 is the standard benchmark for low-resource languages.</li>
+<li>
+<p><strong>Deduplication effectiveness (MinHash / LSH)</strong>: precision/recall of your near-duplicate detector against a hand-labeled set. The underlying idea: estimate Jaccard similarity <span class="arithmatex">\(J(A, B) = \frac{|A \cap B|}{|A \cup B|}\)</span> between document shingle sets via <span class="arithmatex">\(k\)</span> random permutation hashes (<a href="https://www.cs.princeton.edu/courses/archive/spring13/cos598C/broder97resemblance.pdf">Broder, 1997</a>) and bucket near-duplicates with LSH banding (<a href="https://dl.acm.org/doi/10.1145/276698.276876">Indyk &amp; Motwani, 1998</a>). Standard MinHash with 128 hash functions and LSH banding tuned to a Jaccard threshold of 0.7–0.85 is the default; benchmark on your data because the right threshold is corpus-specific. Track false-merge rate (corrupts answers) separately from missed-merge rate (wastes index space). <a href="https://github.com/ekzhu/datasketch"><code>datasketch</code></a> is the canonical Python package:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datasketch</span><span class="w"> </span><span class="kn">import</span> <span class="n">MinHash</span><span class="p">,</span> <span class="n">MinHashLSH</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">shingles</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">return</span> <span class="p">{</span><span class="n">text</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">i</span> <span class="o">+</span> <span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">-</span> <span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)}</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">to_minhash</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">num_perm</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">128</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MinHash</span><span class="p">:</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">MinHash</span><span class="p">(</span><span class="n">num_perm</span><span class="o">=</span><span class="n">num_perm</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">shingles</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+        <span class="n">m</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">m</span>
+
+<span class="n">docs</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;d1&quot;</span><span class="p">:</span> <span class="s2">&quot;Mars has two moons, Phobos and Deimos.&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;d2&quot;</span><span class="p">:</span> <span class="s2">&quot;Mars has two moons, Phobos and Deimos!&quot;</span><span class="p">,</span>   <span class="c1"># near-dup</span>
+    <span class="s2">&quot;d3&quot;</span><span class="p">:</span> <span class="s2">&quot;Curiosity rover landed on Mars in 2012.&quot;</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">lsh</span> <span class="o">=</span> <span class="n">MinHashLSH</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">num_perm</span><span class="o">=</span><span class="mi">128</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">did</span><span class="p">,</span> <span class="n">text</span> <span class="ow">in</span> <span class="n">docs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="n">lsh</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">did</span><span class="p">,</span> <span class="n">to_minhash</span><span class="p">(</span><span class="n">text</span><span class="p">))</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">lsh</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">to_minhash</span><span class="p">(</span><span class="n">docs</span><span class="p">[</span><span class="s2">&quot;d1&quot;</span><span class="p">])))</span>   <span class="c1"># [&#39;d1&#39;, &#39;d2&#39;]</span>
+</code></pre></div>
+</li>
+<li>
+<p><strong>PII scrubbing</strong>: precision and recall, computed separately per entity type (emails, SSNs, names, addresses). Recall errors create compliance risk; precision errors hurt answer quality. Set the operating point with the legal team. Tools: <a href="https://github.com/microsoft/presidio">Microsoft Presidio</a> (the most complete), <a href="https://github.com/LeapBeyond/scrubadub"><code>scrubadub</code></a>, or a fine-tuned NER model on a labeled set.</p>
+</li>
+</ul>
+<h3 id="chunking-the-stage-that-quietly-decides-retrieval">Chunking — the stage that quietly decides retrieval</h3>
+<p>Chunking is one of the highest-impact decisions in RAG. The wrong strategy can produce a multi-point recall gap with the same embeddings. <a href="https://developer.nvidia.com/blog/finding-the-best-chunking-strategy-for-accurate-ai-responses/">NVIDIA's 2024 benchmarks</a> gave page-level chunking the highest accuracy with the lowest variance for paginated documents; semantic chunking (cluster adjacent sentences by embedding similarity and cut on dissimilar boundaries — implemented in <a href="https://python.langchain.com/docs/how_to/semantic-chunker/">LangChain's <code>SemanticChunker</code></a> and <a href="https://docs.llamaindex.ai/en/stable/api_reference/node_parsers/semantic_splitter/">LlamaIndex's <code>SemanticSplitterNodeParser</code></a>) can improve recall over fixed-window chunking; recursive character splitting (try paragraph breaks first, then sentence breaks, then word breaks, until each chunk fits the target size — see <a href="https://python.langchain.com/api_reference/text_splitters/character/langchain_text_splitters.character.RecursiveCharacterTextSplitter.html">LangChain's <code>RecursiveCharacterTextSplitter</code></a>) at 400–512 tokens with 10–20% overlap remains a good default for general text.</p>
+<p>Metrics to track:</p>
+<ul>
+<li><strong>Chunk coherence</strong>: <span class="arithmatex">\(\text{coherence} = \overline{\cos(s_i, s_j)}_{\text{within}} - \overline{\cos(s_i, s_j)}_{\text{across boundary}}\)</span>, where <span class="arithmatex">\(s_i\)</span> are sentence embeddings. Healthy chunks are internally similar and at-boundary dissimilar. Compute with <a href="https://github.com/UKPLab/sentence-transformers"><code>sentence-transformers</code></a> plus <a href="https://scikit-learn.org/"><code>scikit-learn</code></a>'s <code>cosine_similarity</code>.</li>
+<li><strong>Boundary quality</strong>: human-labeled "is this a sensible cut?" on a sample, plus a structural check that chunks don't split tables, lists, or numbered sections (your most common production bug).</li>
+<li><strong>Optimal chunk size</strong>: sweep token sizes (128, 256, 512, 1024) and plot Recall@k vs. size on your golden set. Pick the knee. Don't pick whatever the tutorial said.</li>
+<li><strong>Overlap effectiveness</strong>: ablate overlap fraction (0%, 10%, 20%, 30%) and measure Recall@k. Diminishing returns past ~20% in most corpora.</li>
+<li><strong>Chunk attribution fidelity</strong>: percent of chunks that retain a verifiable source pointer (page number, section anchor, doc ID). Auditability requires this.</li>
+<li><strong>Late vs. early chunking</strong>: <a href="https://arxiv.org/abs/2409.04701">late chunking</a> (Günther et al., 2024) embeds the full document then segments, preserving global context (reference implementation in <a href="https://huggingface.co/jinaai/jina-embeddings-v3"><code>jina-embeddings-v3</code></a>). <a href="https://www.anthropic.com/news/contextual-retrieval">Contextual Retrieval</a> (Anthropic, 2024) prepends LLM-generated context to each chunk. Both add cost. Benchmark on your corpus before adopting either one.</li>
+</ul>
+<p>My opinion: structural chunking (splitting on headings, tables, and sections — implemented by parsers like <a href="https://github.com/Unstructured-IO/unstructured">unstructured.io</a> or by walking the AST your parser already produced) is underused. If your documents have structure, use it before adding similarity heuristics. Recursive character splitting is the baseline; semantic chunking is worth the overhead mainly on unstructured prose.</p>
+<h3 id="metadata-extraction-and-enrichment">Metadata extraction and enrichment</h3>
+<ul>
+<li><strong>NER precision/recall/F1</strong>: per entity type, on a labeled subset. Standard CoNLL/MUC-style. Compute with <a href="https://github.com/chakki-works/seqeval"><code>seqeval</code></a> (<code>from seqeval.metrics import f1_score</code>) for the BIO/IOB-tag-aware version, or scikit-learn for span-set comparisons. CoNLL-2003 and OntoNotes 5.0 are the canonical reference corpora.</li>
+<li><strong>Relation extraction F1</strong>: even more important for ontology-grounded systems. Hand-label 200 documents. TACRED and DocRED are the public benchmarks; for production code, <a href="https://github.com/thunlp/OpenNRE"><code>opennre</code></a> and <a href="https://spacy.io/"><code>spaCy</code></a> relation pipelines are reasonable starting points.</li>
+<li><strong>Title / heading extraction accuracy</strong>: exact-match plus normalized Levenshtein similarity (<span class="arithmatex">\(1 - \frac{\text{edit\_dist}(a, b)}{\max(|a|, |b|)}\)</span>) against ground truth — <code>python-Levenshtein</code> or <code>rapidfuzz</code> give you both in one call.</li>
+<li><strong>Hierarchical metadata preservation</strong>: percent of chunks that correctly retain their parent section, parent document, and ancestry path. This is the metric that decides whether your RAG can answer "what does the <em>child</em> of policy X say?" type questions.</li>
+</ul>
+<h3 id="embedding-generation">Embedding generation</h3>
+<ul>
+<li><strong>Model selection benchmarks</strong>: MTEB for general capability (nDCG@10 is the headline; the <a href="https://github.com/embeddings-benchmark/mteb">MTEB Python package</a> lets you reproduce the leaderboard locally), BEIR for zero-shot generalization, <a href="https://project-miracl.github.io/">MIRACL</a> for multilingual. Top retrieval models cluster in a narrow nDCG@10 band, but English MTEB scores poorly predict performance on lower-resource languages.</li>
+<li><strong>Domain-specific evaluation</strong>: do not trust general benchmarks for domain corpora. Build a domain golden set of 200–500 query/doc pairs and re-rank candidate models on it with <a href="https://github.com/AmenRa/ranx"><code>ranx</code></a> or <a href="https://github.com/cvangysel/pytrec_eval"><code>pytrec_eval</code></a>. I have repeatedly seen a model that's #5 on MTEB beat a model that's #1 by 15+ points on a specific domain.</li>
+<li><strong>Embedding drift detection</strong>: track distributional KL or model-based drift between a fixed reference window and rolling production embeddings; nearest-neighbor stability for a fixed probe set is the simplest practical signal. <a href="https://github.com/evidentlyai/evidently"><code>evidently</code></a> and <a href="https://github.com/SeldonIO/alibi-detect"><code>alibi-detect</code></a> both implement model-based and statistical drift detectors. Evidently's <a href="https://www.evidentlyai.com/blog/embedding-drift-detection">comparative study</a> favors model-based drift detection as the default.</li>
+<li><strong>Multi-vector vs. single-vector</strong>: late-interaction (ColBERT / ColBERTv2 — see <a href="https://arxiv.org/abs/2004.12832">Khattab &amp; Zaharia, 2020</a>; reference implementations in <a href="https://github.com/AnswerDotAI/RAGatouille">RAGatouille</a> and <a href="https://github.com/lightonai/pylate">PyLate</a>) typically wins out-of-domain at 6–10× the storage cost (with PLAID-style compression; uncompressed is much larger). Worth it when your corpus is far from the embedding model's training distribution. Otherwise, stick with single-vector.</li>
+</ul>
+<h3 id="index-construction">Index construction</h3>
+<ul>
+<li><strong>Recall@k under approximation</strong>: compare the approximate-nearest-neighbour (ANN) index against an exact brute-force baseline at the same k — in <a href="https://github.com/facebookresearch/faiss">FAISS</a>, that's <code>IndexHNSWFlat</code> (or <code>IndexIVFFlat</code>) vs. <code>IndexFlatIP</code>/<code>IndexFlatL2</code>. Aim for ≥95% recall@10 vs. flat. The <a href="https://github.com/erikbern/ann-benchmarks"><code>ann-benchmarks</code></a> project tracks recall–QPS Pareto curves across libraries.</li>
+<li><strong>HNSW tuning</strong>: HNSW (Hierarchical Navigable Small World — a layered proximity graph; see <a href="https://arxiv.org/abs/1603.09320">Malkov &amp; Yashunin, 2018</a>, implemented in <a href="https://github.com/nmslib/hnswlib"><code>hnswlib</code></a>, FAISS's <code>IndexHNSWFlat</code>, and most vector DBs) exposes three knobs: <code>M</code> (graph fan-out), <code>efConstruction</code> (build-time candidate width), <code>efSearch</code> (query-time candidate width). Pragmatic defaults: M=16–32, efConstruction=150, efSearch starting at 100 and tuned upward until recall plateaus. A 10M-vector dataset with efSearch=500 might hit 98% recall at 5ms; efSearch=100 drops to 85% at 1ms. Pick the recall point your evaluation set demands.</li>
+<li><strong>IVF tuning</strong>: IVF (Inverted File index — partition vectors with k-means into <code>nlist</code> cells, then at query time scan the <code>nprobe</code> nearest cells; see FAISS's <code>IndexIVFFlat</code> and <code>IndexIVFPQ</code>). Use <code>nlist</code> ≈ √N as a starting heuristic and tune <code>nprobe</code> at runtime. IVF generally handles filtered search more efficiently than HNSW, which matters for ontology-grounded systems with lots of metadata predicates.</li>
+<li><strong>Update freshness lag</strong>: time from doc commit to retrievability. Track p50 and p99. For systems with regulatory requirements, also track the percent of queries served against stale indexes.</li>
+</ul>
+<hr />
+<h2 id="part-4-online-inference-evaluation">Part 4 — Online Inference Evaluation</h2>
+<p>The online lane is where most production metrics live. Many teams stop at Recall@k. That is not enough.</p>
+<h3 id="query-understanding-and-rewriting">Query understanding and rewriting</h3>
+<ul>
+<li><strong>Query expansion quality</strong>: Recall@k uplift on your golden set, expanded query vs. raw. If it's not at least +5% on hard queries, your expander is hurting more than helping. Classical PRF (pseudo-relevance feedback) baselines like <a href="https://github.com/castorini/anserini">RM3</a> and <a href="https://terrier.org/">Bo1</a> are still useful sanity checks; LLM-based expansion needs to beat them.</li>
+<li><strong>HyDE evaluation</strong>: <a href="https://arxiv.org/abs/2212.10496">HyDE</a> (Gao et al., 2022) generates a hypothetical answer with the LLM, embeds it, and retrieves against that — a useful tool that adds latency and a hallucination surface. Evaluate by Recall@10 uplift on out-of-domain queries (where it shines) and confirm there is no degradation on in-domain queries (where it can hurt). Use as a fallback when retrieval confidence is low, not as a default. Anchor with a cross-encoder reranker downstream to validate hypothetical-driven retrievals.</li>
+<li><strong>Multi-query generation</strong>: Recall@k union of N rewrites vs. single query. Diminishing returns past 3–4 rewrites. Implementations: LangChain's <a href="https://python.langchain.com/docs/how_to/MultiQueryRetriever/"><code>MultiQueryRetriever</code></a>, LlamaIndex's <a href="https://docs.llamaindex.ai/en/stable/api_reference/retrievers/query_fusion/"><code>QueryFusionRetriever</code></a>.</li>
+<li><strong>Intent classification accuracy</strong>: standard precision/recall/F1 per intent (compute with <code>sklearn.metrics.classification_report</code>), but the operative metric is <em>routing correctness</em> — does the right downstream pipeline get invoked?</li>
+<li><strong>Adaptive routing</strong>: <a href="https://arxiv.org/abs/2403.14403">Adaptive-RAG</a> (Jeong et al., NAACL 2024) makes the case that not every query deserves the same retrieval strategy. Track router accuracy as a classification problem against a labeled set of "needs no retrieval / one-shot / iterative."</li>
+</ul>
+<h3 id="retrieval-metrics">Retrieval metrics</h3>
+<p>These are the baseline metrics. If you do not track them, you cannot tell whether retrieval is improving.</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>What it measures</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Recall@k</strong></td>
+<td>percent of queries where any relevant doc is in top k</td>
+<td>the most important retrieval metric for RAG; if it's low, nothing downstream matters</td>
+</tr>
+<tr>
+<td><strong>Precision@k</strong></td>
+<td>percent of top-k that are relevant</td>
+<td>useful when context window is the bottleneck</td>
+</tr>
+<tr>
+<td><strong>MRR</strong></td>
+<td>average of 1/rank of the first relevant doc</td>
+<td>when users only look at the top-1 or top-3</td>
+</tr>
+<tr>
+<td><strong>nDCG@k</strong></td>
+<td>position-discounted gain weighted by relevance grades</td>
+<td>the retrieval gold standard; handles graded relevance</td>
+</tr>
+<tr>
+<td><strong>MAP</strong></td>
+<td>mean over queries of average precision</td>
+<td>when you care about the entire ranked list</td>
+</tr>
+<tr>
+<td><strong>Hit Rate@k</strong></td>
+<td>binary version of Recall@k</td>
+<td>quick sanity metric</td>
+</tr>
+<tr>
+<td><strong>Coverage</strong></td>
+<td>percent of golden docs ever retrieved across all queries</td>
+<td>catches systematic gaps in the index</td>
+</tr>
+</tbody>
+</table>
+<p>The formulas, for reference (binary relevance with relevant set <span class="arithmatex">\(R_q\)</span> for query <span class="arithmatex">\(q\)</span>, and <span class="arithmatex">\(\text{rel}_i = 1\)</span> if the <span class="arithmatex">\(i\)</span>-th retrieved doc is in <span class="arithmatex">\(R_q\)</span>):</p>
+<div class="arithmatex">\[
+\text{Recall@k} = \frac{|R_q \cap \{d_1, \dots, d_k\}|}{|R_q|},
+\quad \text{Precision@k} = \frac{|R_q \cap \{d_1, \dots, d_k\}|}{k}
+\]</div>
+<div class="arithmatex">\[
+\text{RR}_q = \frac{1}{\text{rank of first relevant doc}},
+\quad \text{MRR} = \frac{1}{|Q|} \sum_{q \in Q} \text{RR}_q
+\]</div>
+<div class="arithmatex">\[
+\text{DCG@k} = \sum_{i=1}^{k} \frac{2^{\text{rel}_i} - 1}{\log_2(i + 1)},
+\quad \text{nDCG@k} = \frac{\text{DCG@k}}{\text{IDCG@k}}
+\]</div>
+<p>For graded relevance, <span class="arithmatex">\(\text{rel}_i \in \{0, 1, 2, \dots\}\)</span>; binary nDCG is the special case used in the code below. MAP is the mean over queries of <span class="arithmatex">\(\text{AP}_q = \frac{1}{|R_q|}\sum_{i: \text{rel}_i = 1} \text{Precision@}i\)</span>. See <a href="https://nlp.stanford.edu/IR-book/">Manning, Raghavan, Schütze, <em>Introduction to Information Retrieval</em></a>, chapter 8 for derivations.</p>
+<p>For production code, use <a href="https://github.com/AmenRa/ranx"><code>ranx</code></a>, <a href="https://github.com/cvangysel/pytrec_eval"><code>pytrec_eval</code></a>, or <a href="https://github.com/terrierteam/ir_measures"><code>ir_measures</code></a> — they implement the entire TREC metric family and handle graded relevance correctly. Reasonable starting targets: Recall@10 ≥ 0.85, MRR ≥ 0.6, nDCG@10 ≥ 0.7. They should be set against a realistic golden set, not pulled from a tutorial.</p>
+<p>The test harness for these is short. You can run it from a notebook before you've even chosen a vector database.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">math</span><span class="w"> </span><span class="kn">import</span> <span class="n">log2</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">statistics</span><span class="w"> </span><span class="kn">import</span> <span class="n">mean</span>
+
+<span class="c1"># synthetic gold set: query_id -&gt; set of relevant doc ids</span>
+<span class="n">gold</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;q1&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;d3&quot;</span><span class="p">},</span>
+    <span class="s2">&quot;q2&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;d7&quot;</span><span class="p">,</span> <span class="s2">&quot;d2&quot;</span><span class="p">},</span>
+    <span class="s2">&quot;q3&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;d11&quot;</span><span class="p">},</span>
+    <span class="s2">&quot;q4&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;d5&quot;</span><span class="p">},</span>
+<span class="p">}</span>
+
+<span class="c1"># ranked retrieval results: query_id -&gt; ranked list of doc ids (top-10)</span>
+<span class="n">runs</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;q1&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;d8&quot;</span><span class="p">,</span> <span class="s2">&quot;d3&quot;</span><span class="p">,</span> <span class="s2">&quot;d1&quot;</span><span class="p">,</span> <span class="s2">&quot;d4&quot;</span><span class="p">,</span> <span class="s2">&quot;d2&quot;</span><span class="p">,</span> <span class="s2">&quot;d9&quot;</span><span class="p">,</span> <span class="s2">&quot;d6&quot;</span><span class="p">,</span> <span class="s2">&quot;d10&quot;</span><span class="p">,</span> <span class="s2">&quot;d12&quot;</span><span class="p">,</span> <span class="s2">&quot;d13&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;q2&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;d2&quot;</span><span class="p">,</span> <span class="s2">&quot;d6&quot;</span><span class="p">,</span> <span class="s2">&quot;d4&quot;</span><span class="p">,</span> <span class="s2">&quot;d7&quot;</span><span class="p">,</span> <span class="s2">&quot;d1&quot;</span><span class="p">,</span> <span class="s2">&quot;d3&quot;</span><span class="p">,</span> <span class="s2">&quot;d8&quot;</span><span class="p">,</span> <span class="s2">&quot;d11&quot;</span><span class="p">,</span> <span class="s2">&quot;d5&quot;</span><span class="p">,</span> <span class="s2">&quot;d9&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;q3&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;d11&quot;</span><span class="p">,</span> <span class="s2">&quot;d2&quot;</span><span class="p">,</span> <span class="s2">&quot;d3&quot;</span><span class="p">,</span> <span class="s2">&quot;d4&quot;</span><span class="p">,</span> <span class="s2">&quot;d1&quot;</span><span class="p">,</span> <span class="s2">&quot;d6&quot;</span><span class="p">,</span> <span class="s2">&quot;d7&quot;</span><span class="p">,</span> <span class="s2">&quot;d8&quot;</span><span class="p">,</span> <span class="s2">&quot;d10&quot;</span><span class="p">,</span> <span class="s2">&quot;d12&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;q4&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;d1&quot;</span><span class="p">,</span> <span class="s2">&quot;d2&quot;</span><span class="p">,</span> <span class="s2">&quot;d3&quot;</span><span class="p">,</span> <span class="s2">&quot;d6&quot;</span><span class="p">,</span> <span class="s2">&quot;d8&quot;</span><span class="p">,</span> <span class="s2">&quot;d9&quot;</span><span class="p">,</span> <span class="s2">&quot;d10&quot;</span><span class="p">,</span> <span class="s2">&quot;d12&quot;</span><span class="p">,</span> <span class="s2">&quot;d13&quot;</span><span class="p">,</span> <span class="s2">&quot;d14&quot;</span><span class="p">],</span>
+<span class="p">}</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">recall_at_k</span><span class="p">(</span><span class="n">ranked</span><span class="p">,</span> <span class="n">gold_set</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">gold_set</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mf">0.0</span>
+    <span class="n">hit</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">ranked</span><span class="p">[:</span><span class="n">k</span><span class="p">]</span> <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">gold_set</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">hit</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">gold_set</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">reciprocal_rank</span><span class="p">(</span><span class="n">ranked</span><span class="p">,</span> <span class="n">gold_set</span><span class="p">):</span>
+    <span class="c1"># MRR contribution per query: 1/rank of the first relevant doc.</span>
+    <span class="k">for</span> <span class="n">rank</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ranked</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">gold_set</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">rank</span>
+    <span class="k">return</span> <span class="mf">0.0</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">ndcg_at_k</span><span class="p">(</span><span class="n">ranked</span><span class="p">,</span> <span class="n">gold_set</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="c1"># binary relevance: rel ∈ {0, 1}</span>
+    <span class="n">gains</span> <span class="o">=</span> <span class="p">[</span><span class="mf">1.0</span> <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">gold_set</span> <span class="k">else</span> <span class="mf">0.0</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">ranked</span><span class="p">[:</span><span class="n">k</span><span class="p">]]</span>
+    <span class="n">dcg</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">g</span> <span class="o">/</span> <span class="n">log2</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">gains</span><span class="p">))</span>
+    <span class="c1"># ideal DCG: all gold docs ranked first, capped by k</span>
+    <span class="n">n_gold_in_topk</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">gold_set</span><span class="p">))</span>
+    <span class="n">idcg</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">log2</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_gold_in_topk</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">dcg</span> <span class="o">/</span> <span class="n">idcg</span> <span class="k">if</span> <span class="n">idcg</span> <span class="k">else</span> <span class="mf">0.0</span>
+
+<span class="n">K</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Recall@</span><span class="si">{</span><span class="n">K</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">mean</span><span class="p">(</span><span class="n">recall_at_k</span><span class="p">(</span><span class="n">runs</span><span class="p">[</span><span class="n">q</span><span class="p">],</span><span class="w"> </span><span class="n">gold</span><span class="p">[</span><span class="n">q</span><span class="p">],</span><span class="w"> </span><span class="n">K</span><span class="p">)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">q</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">gold</span><span class="p">)</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MRR:       </span><span class="si">{</span><span class="n">mean</span><span class="p">(</span><span class="n">reciprocal_rank</span><span class="p">(</span><span class="n">runs</span><span class="p">[</span><span class="n">q</span><span class="p">],</span><span class="w"> </span><span class="n">gold</span><span class="p">[</span><span class="n">q</span><span class="p">])</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">q</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">gold</span><span class="p">)</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;nDCG@</span><span class="si">{</span><span class="n">K</span><span class="si">}</span><span class="s2">:  </span><span class="si">{</span><span class="n">mean</span><span class="p">(</span><span class="n">ndcg_at_k</span><span class="p">(</span><span class="n">runs</span><span class="p">[</span><span class="n">q</span><span class="p">],</span><span class="w"> </span><span class="n">gold</span><span class="p">[</span><span class="n">q</span><span class="p">],</span><span class="w"> </span><span class="n">K</span><span class="p">)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">q</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">gold</span><span class="p">)</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="c1"># Recall@5: 0.750</span>
+<span class="c1"># MRR:       0.625</span>
+<span class="c1"># nDCG@5:    0.627</span>
+</code></pre></div>
+<p>That is your retrieval CI gate. Wire it to a 200-query golden set and run it on every PR. If one of the three numbers regresses, block the merge and fix the regression.</p>
+<p>The companion repo pins the exact numbers above (<code>Recall@5 = 0.750</code>, <code>MRR = 0.625</code>, <code>nDCG@5 = 0.627</code>) as a unit test in <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/tests/test_retrieval_metrics.py"><code>tests/test_retrieval_metrics.py</code></a>; <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/notebooks/01_retrieval_metrics.ipynb">notebook 01</a> sweeps Recall@k / MRR / nDCG over a real SciFact index, and the production-shaped harness lives in <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/src/rag_evals/evaluation/retrieval.py"><code>evaluation/retrieval.py</code></a>.</p>
+<h3 id="hybrid-retrieval-and-reciprocal-rank-fusion">Hybrid retrieval and reciprocal rank fusion</h3>
+<p>BM25 (the classic sparse lexical scorer from <a href="https://dl.acm.org/doi/10.5555/188490.188561">Robertson &amp; Walker, 1994</a> — exact-term matching with TF-IDF-style weighting and length normalization, available in <code>rank_bm25</code>, Elasticsearch/OpenSearch, and most search engines) plus dense fusion via <a href="https://doi.org/10.1145/1571941.1572114">Reciprocal Rank Fusion</a> (Cormack, Clarke, Buettcher, SIGIR 2009) with k=60 is a strong default. RRF is score-agnostic, so it sidesteps the score-normalization problems that come with linear interpolation. If you have 50+ labeled query pairs, try convex combination and tune α. Hybrid plus a cross-encoder reranker usually beats dense-only or sparse-only retrieval on technical, log-style, and code corpora. On heavily semantic corpora, the gain can be small. Measure on your data; a bad fusion config can underperform dense-only.</p>
+<p>The implementation fits in a few lines.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">defaultdict</span>
+
+<span class="c1"># two retrieval lanes: dense embeddings and BM25.</span>
+<span class="n">dense</span>  <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;d3&quot;</span><span class="p">,</span> <span class="s2">&quot;d7&quot;</span><span class="p">,</span> <span class="s2">&quot;d1&quot;</span><span class="p">,</span> <span class="s2">&quot;d4&quot;</span><span class="p">,</span> <span class="s2">&quot;d2&quot;</span><span class="p">,</span> <span class="s2">&quot;d9&quot;</span><span class="p">,</span> <span class="s2">&quot;d10&quot;</span><span class="p">]</span>
+<span class="n">sparse</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;d2&quot;</span><span class="p">,</span> <span class="s2">&quot;d3&quot;</span><span class="p">,</span> <span class="s2">&quot;d8&quot;</span><span class="p">,</span> <span class="s2">&quot;d1&quot;</span><span class="p">,</span> <span class="s2">&quot;d11&quot;</span><span class="p">,</span> <span class="s2">&quot;d4&quot;</span><span class="p">,</span> <span class="s2">&quot;d6&quot;</span><span class="p">]</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">rrf</span><span class="p">(</span><span class="n">rankings</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">60</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reciprocal Rank Fusion (Cormack et al., SIGIR 2009).</span>
+
+<span class="sd">    score(d) = sum over rankings of 1 / (k + rank(d))</span>
+<span class="sd">    Score-agnostic: only rank position matters. k=60 is the canonical default.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">scores</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ranking</span> <span class="ow">in</span> <span class="n">rankings</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">rank</span><span class="p">,</span> <span class="n">doc</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ranking</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">scores</span><span class="p">[</span><span class="n">doc</span><span class="p">]</span> <span class="o">+=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">k</span> <span class="o">+</span> <span class="n">rank</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">scores</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">kv</span><span class="p">:</span> <span class="n">kv</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="n">fused</span> <span class="o">=</span> <span class="n">rrf</span><span class="p">([</span><span class="n">dense</span><span class="p">,</span> <span class="n">sparse</span><span class="p">],</span> <span class="n">k</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">doc</span><span class="p">,</span> <span class="n">score</span> <span class="ow">in</span> <span class="n">fused</span><span class="p">[:</span><span class="mi">5</span><span class="p">]:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">doc</span><span class="si">}</span><span class="s2">  score=</span><span class="si">{</span><span class="n">score</span><span class="si">:</span><span class="s2">.5f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="c1"># d3  score=0.03252   &lt;- rank 1 dense, rank 2 sparse</span>
+<span class="c1"># d2  score=0.03178   &lt;- rank 5 dense, rank 1 sparse</span>
+<span class="c1"># d1  score=0.03150</span>
+</code></pre></div>
+<p>Note what RRF <em>doesn't</em> do: it never looks at the raw similarity scores. A dense retriever returning cosine 0.98 and a BM25 lane returning score 17.4 are not directly comparable. If you normalize them with z-scores or min-max scaling, you can end up favoring the lane with the highest variance in that batch.</p>
+<p>RRF uses rank only. If a retriever puts a document at position 2, that vote is worth <code>1 / (60 + 2)</code>, regardless of the raw score that produced it.</p>
+<p>Hybrid + RRF on SciFact: <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/notebooks/02_hybrid_and_rrf.ipynb">notebook 02</a> compares dense vs BM25 vs RRF with per-query deltas. The production-shaped fuser is in <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/src/rag_evals/retrieval/hybrid_rrf.py"><code>retrieval/hybrid_rrf.py</code></a>; <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/tests/test_rrf.py"><code>tests/test_rrf.py</code></a> pins the canonical <code>d3 / d2 / d1</code> ordering at <code>k=60</code>.</p>
+<h3 id="reranking">Reranking</h3>
+<ul>
+<li><strong>ΔnDCG / ΔMRR</strong>: the only honest reranker metric — uplift over no-rerank, on your golden set, at the depth your application actually uses. Compute by running your retrieval metrics with and without the reranker on identical candidate sets.</li>
+<li><strong>Cross-encoder vs. bi-encoder</strong>: a bi-encoder embeds query and doc independently (one vector per side) and scores by dot product; a cross-encoder concatenates query+doc and runs a single forward pass that attends jointly across both. Cross-encoders almost always win on relevance, at the cost of a forward pass per candidate. Reference implementation: <a href="https://www.sbert.net/"><code>sentence-transformers</code></a> <code>CrossEncoder</code>. In published benchmarks BGE-reranker-v2-m3 hits ~80ms per 100 candidates on GPU and ~350ms on CPU, and matches Cohere Rerank on quality at zero ongoing cost. Treat the numbers as orders of magnitude — your hardware and batch size will move them.</li>
+<li><strong>Listwise vs. pointwise</strong>: pointwise scores each (query, doc) pair independently; listwise scores the whole candidate list jointly so the model can directly optimize a ranking objective. Listwise (BGE, ZeRank-2 with calibrated outputs) generally wins on nDCG; pointwise is easier to threshold. ZeRank-2's calibrated probabilities let you use simple <code>score &gt; 0.7</code> thresholds; raw BGE/MiniLM scores need per-corpus tuning.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">sentence_transformers</span><span class="w"> </span><span class="kn">import</span> <span class="n">CrossEncoder</span>
+
+<span class="n">reranker</span> <span class="o">=</span> <span class="n">CrossEncoder</span><span class="p">(</span><span class="s2">&quot;BAAI/bge-reranker-v2-m3&quot;</span><span class="p">)</span>
+
+<span class="n">query</span> <span class="o">=</span> <span class="s2">&quot;How do I rotate database credentials in production?&quot;</span>
+<span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;Production database credentials are rotated via Vault every 30 days.&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;The new logo was unveiled at the all-hands meeting.&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;To rotate prod DB creds, run the `rotate-secrets` GitHub Action.&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+
+<span class="n">scores</span> <span class="o">=</span> <span class="n">reranker</span><span class="o">.</span><span class="n">predict</span><span class="p">([(</span><span class="n">query</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">])</span>
+<span class="n">ranked</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">candidates</span><span class="p">,</span> <span class="n">scores</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="o">-</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="k">for</span> <span class="n">doc</span><span class="p">,</span> <span class="n">score</span> <span class="ow">in</span> <span class="n">ranked</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">score</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">doc</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>A reranker is often the most valuable addition to a basic RAG pipeline. On most corpora I've seen, adding one moves Precision@1 by 15–40%. If your RAG does not have one, add it before spending time on smaller retrieval tweaks.</p>
+<p>ΔnDCG and ΔPrecision@1 from a cross-encoder on SciFact: <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/notebooks/03_reranking.ipynb">notebook 03</a>; module: <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/src/rag_evals/retrieval/reranker.py"><code>retrieval/reranker.py</code></a>.</p>
+<h3 id="context-construction-and-lost-in-the-middle">Context construction and lost-in-the-middle</h3>
+<p>This is where many "good retrieval, bad answer" failures come from.</p>
+<ul>
+<li><strong>Context relevance</strong>: per-chunk relevance score from <a href="https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_relevance/">RAGAS <code>ContextRelevancy</code></a> or a cross-encoder, aggregated as mean and as percent of chunks below a threshold.</li>
+<li><strong>Context utilization</strong>: of the chunks placed in context, how many were actually cited or used in the answer. Compute as <span class="arithmatex">\(\frac{|\text{cited chunks}|}{|\text{retrieved chunks}|}\)</span> over a labeled sample. Low utilization (&lt; 30%) means you're paying for tokens you don't need.</li>
+<li><strong>Lost-in-the-middle detection</strong>: synthetic eval where you place the gold chunk at positions {first, middle, last} of a long context and measure answer correctness. The U-shaped degradation is real and documented in <a href="https://arxiv.org/abs/2307.03172">Liu et al. (TACL 2023)</a>. Modern models do better than 2023-era models, but the bias persists. Mitigations: rerank then reorder the top-k so the highest-scored chunk is first or last (LangChain's <a href="https://python.langchain.com/api_reference/community/document_transformers/langchain_community.document_transformers.long_context_reorder.LongContextReorder.html"><code>LongContextReorder</code></a> does exactly this), or compress middle chunks aggressively. Measure with a position-stratified eval, not just an aggregate score. A worked, runnable position-stratified eval lives in <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/notebooks/06_lost_in_the_middle.ipynb">notebook 06</a> (module: <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/src/rag_evals/evaluation/lost_in_middle.py"><code>evaluation/lost_in_middle.py</code></a>).</li>
+<li><strong>Context compression</strong>: report compression ratio (input tokens / output tokens) alongside answer correctness. Tools: LangChain's <a href="https://python.langchain.com/docs/how_to/contextual_compression/"><code>ContextualCompressionRetriever</code></a>, LongLLMLingua. If compression drops correctness by more than 2 points, you've gone too far.</li>
+</ul>
+<hr />
+<h2 id="part-5-the-filter-false-exclusion-rate">Part 5 — The Filter False-Exclusion Rate</h2>
+<p>This metric gets its own section because most teams skip it, and it causes real production failures.</p>
+<p>A hard metadata filter like <code>tenant_id = X AND product = Y AND locale = en-US</code> can drop effective recall to zero without changing the standard retrieval metrics. The gold doc is excluded <em>before</em> ranking starts. Recall@k is computed over the surviving candidate set, so it can look fine. Faithfulness is computed against the retrieved context, so it can also look fine; the model faithfully said "I don't know."</p>
+<p>The red branch in the tree is the common failure: the right document exists, but the filter removes it before retrieval.</p>
+<p><img alt="Silent failure taxonomy with the metric that catches each mode" src="../../../../assets/2026-05-10-rag-evaluation/silent-failure-taxonomy.svg" /></p>
+<h3 id="the-metric">The metric</h3>
+<div class="highlight"><pre><span></span><code>filter_false_exclusion_rate =
+    (# queries where gold doc was excluded by metadata filter) /
+    (# queries with at least one gold doc)
+</code></pre></div>
+<p>To compute it, you need (a) ground-truth doc IDs for each eval query and (b) instrumentation that logs the <strong>filter predicates applied</strong>, not just the final results. A reasonable target is &lt; 2% on production traffic. If the rate is higher, your filter logic is destroying recall.</p>
+<p>Here's a working implementation that also illustrates why the failure is invisible to a naively written retrieval harness.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># A small worked example that drops recall to zero silently.</span>
+<span class="n">docs</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;d1&quot;</span><span class="p">,</span> <span class="s2">&quot;tenant&quot;</span><span class="p">:</span> <span class="s2">&quot;acme&quot;</span><span class="p">,</span>   <span class="s2">&quot;locale&quot;</span><span class="p">:</span> <span class="s2">&quot;en-US&quot;</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;d2&quot;</span><span class="p">,</span> <span class="s2">&quot;tenant&quot;</span><span class="p">:</span> <span class="s2">&quot;acme&quot;</span><span class="p">,</span>   <span class="s2">&quot;locale&quot;</span><span class="p">:</span> <span class="s2">&quot;en-GB&quot;</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;d3&quot;</span><span class="p">,</span> <span class="s2">&quot;tenant&quot;</span><span class="p">:</span> <span class="s2">&quot;globex&quot;</span><span class="p">,</span> <span class="s2">&quot;locale&quot;</span><span class="p">:</span> <span class="s2">&quot;en-US&quot;</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;d4&quot;</span><span class="p">,</span> <span class="s2">&quot;tenant&quot;</span><span class="p">:</span> <span class="s2">&quot;acme&quot;</span><span class="p">,</span>   <span class="s2">&quot;locale&quot;</span><span class="p">:</span> <span class="s2">&quot;en-US&quot;</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;d5&quot;</span><span class="p">,</span> <span class="s2">&quot;tenant&quot;</span><span class="p">:</span> <span class="s2">&quot;acme&quot;</span><span class="p">,</span>   <span class="s2">&quot;locale&quot;</span><span class="p">:</span> <span class="s2">&quot;de-DE&quot;</span><span class="p">},</span>
+<span class="p">]</span>
+
+<span class="n">queries</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="c1"># the gold doc lives in en-GB but the dynamic filter forced en-US</span>
+    <span class="p">{</span><span class="s2">&quot;qid&quot;</span><span class="p">:</span> <span class="s2">&quot;q1&quot;</span><span class="p">,</span> <span class="s2">&quot;gold&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;d2&quot;</span><span class="p">},</span> <span class="s2">&quot;filter&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;locale&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;en-US&quot;</span><span class="p">},</span>
+    <span class="c1"># the gold doc is correctly within the tenant filter</span>
+    <span class="p">{</span><span class="s2">&quot;qid&quot;</span><span class="p">:</span> <span class="s2">&quot;q2&quot;</span><span class="p">,</span> <span class="s2">&quot;gold&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;d4&quot;</span><span class="p">},</span> <span class="s2">&quot;filter&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;tenant&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;acme&quot;</span><span class="p">},</span>
+    <span class="c1"># the gold doc is in a different tenant — silently dropped</span>
+    <span class="p">{</span><span class="s2">&quot;qid&quot;</span><span class="p">:</span> <span class="s2">&quot;q3&quot;</span><span class="p">,</span> <span class="s2">&quot;gold&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;d3&quot;</span><span class="p">},</span> <span class="s2">&quot;filter&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;tenant&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;acme&quot;</span><span class="p">},</span>
+    <span class="c1"># the gold doc passes the filter (de-DE locale match)</span>
+    <span class="p">{</span><span class="s2">&quot;qid&quot;</span><span class="p">:</span> <span class="s2">&quot;q4&quot;</span><span class="p">,</span> <span class="s2">&quot;gold&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;d5&quot;</span><span class="p">},</span> <span class="s2">&quot;filter&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;locale&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;de-DE&quot;</span><span class="p">},</span>
+<span class="p">]</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">filter_false_exclusion_rate</span><span class="p">(</span><span class="n">queries</span><span class="p">,</span> <span class="n">docs</span><span class="p">):</span>
+    <span class="n">n_with_gold</span><span class="p">,</span> <span class="n">n_excluded</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">q</span> <span class="ow">in</span> <span class="n">queries</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">q</span><span class="p">[</span><span class="s2">&quot;gold&quot;</span><span class="p">]:</span>
+            <span class="k">continue</span>
+        <span class="n">n_with_gold</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">survivors</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">docs</span> <span class="k">if</span> <span class="n">q</span><span class="p">[</span><span class="s2">&quot;filter&quot;</span><span class="p">](</span><span class="n">d</span><span class="p">)}</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="s2">&quot;gold&quot;</span><span class="p">]</span> <span class="o">&amp;</span> <span class="n">survivors</span><span class="p">):</span>
+            <span class="n">n_excluded</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">n_excluded</span> <span class="o">/</span> <span class="n">n_with_gold</span> <span class="k">if</span> <span class="n">n_with_gold</span> <span class="k">else</span> <span class="mf">0.0</span>
+
+<span class="n">rate</span> <span class="o">=</span> <span class="n">filter_false_exclusion_rate</span><span class="p">(</span><span class="n">queries</span><span class="p">,</span> <span class="n">docs</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;filter_false_exclusion_rate = </span><span class="si">{</span><span class="n">rate</span><span class="si">:</span><span class="s2">.2%</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="c1"># filter_false_exclusion_rate = 50.00%</span>
+
+<span class="c1"># The trap: a recall harness that only iterates over the SURVIVORS will</span>
+<span class="c1"># either skip the empty-gold queries or report perfect recall on a doomed set.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">naive_recall_over_survivors</span><span class="p">(</span><span class="n">queries</span><span class="p">,</span> <span class="n">docs</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+    <span class="n">recalls</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">q</span> <span class="ow">in</span> <span class="n">queries</span><span class="p">:</span>
+        <span class="n">survivors</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">docs</span> <span class="k">if</span> <span class="n">q</span><span class="p">[</span><span class="s2">&quot;filter&quot;</span><span class="p">](</span><span class="n">d</span><span class="p">)][:</span><span class="n">k</span><span class="p">]</span>
+        <span class="n">survivor_ids</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">survivors</span><span class="p">}</span>
+        <span class="n">denom</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="s2">&quot;gold&quot;</span><span class="p">]</span> <span class="o">&amp;</span> <span class="p">{</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">docs</span><span class="p">})</span>
+        <span class="k">if</span> <span class="n">denom</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">continue</span>  <span class="c1"># silently drops the query</span>
+        <span class="n">visible_gold</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="s2">&quot;gold&quot;</span><span class="p">]</span> <span class="o">&amp;</span> <span class="n">survivor_ids</span>
+        <span class="n">recalls</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">visible_gold</span><span class="p">)</span> <span class="o">/</span> <span class="n">denom</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">recalls</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">recalls</span><span class="p">)</span> <span class="k">if</span> <span class="n">recalls</span> <span class="k">else</span> <span class="mf">0.0</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;naive recall (filtered universe) = </span><span class="si">{</span><span class="n">naive_recall_over_survivors</span><span class="p">(</span><span class="n">queries</span><span class="p">,</span><span class="w"> </span><span class="n">docs</span><span class="p">)</span><span class="si">:</span><span class="s2">.2%</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="c1"># naive recall (filtered universe) = 50.00%</span>
+
+<span class="k">assert</span> <span class="n">rate</span> <span class="o">==</span> <span class="mf">0.5</span>
+</code></pre></div>
+<p>Half the queries lose their gold doc to the filter. The naive recall harness reports 50% and you blame the retriever. The exclusion rate shows the real problem: this is a predicate bug. Two queries had their answer removed before the retriever ran. No model can recover a document that was filtered out.</p>
+<p>The 50% rate above is reproduced as a unit test in the companion repo: <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/tests/test_filter_exclusion.py"><code>tests/test_filter_exclusion.py::test_50_percent_exclusion_rate</code></a>. <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/notebooks/04_filter_false_exclusion.ipynb">Notebook 04</a> runs it on SciFact with synthetic metadata so you can watch a real filter zero out recall; the runtime metric (with predicate-precision/recall companion) is in <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/src/rag_evals/evaluation/filter_exclusion.py"><code>evaluation/filter_exclusion.py</code></a>.</p>
+<h3 id="companion-metric-predicate-precision-and-recall">Companion metric: predicate precision and recall</h3>
+<p>When filtering is dynamic (for example, an LLM extracts filter predicates from the query), treat the predicate extractor as a classification model and evaluate it as one. Predicate precision/recall against a labeled set of (query, correct predicate) pairs. If your extractor is wrong 8% of the time and applies hard filters, you have a hard ceiling on recall around 92%, and no amount of reranking helps.</p>
+<h3 id="soft-boost-vs-hard-filter">Soft boost vs. hard filter</h3>
+<p>This metric forces a design decision. Use hard filters when correctness is binary: legal jurisdiction, ACL boundaries, published-versus-draft. Use soft boosts when relevance is graded: locale preference, recency, version. Without exclusion-rate measurement, the wrong choice is hard to see.</p>
+<p>The decision rule, measurable:</p>
+<div class="highlight"><pre><span></span><code>For each filter predicate F:
+  hard_recall_F  = retrieval_recall@k with F as a hard filter
+  soft_recall_F  = retrieval_recall@k with F as a +0.X rerank boost
+  hard_precision = relevant_in_top_k / k under hard filter
+  soft_precision = relevant_in_top_k / k under soft boost
+  exclusion_rate = % of queries where the gold doc was filtered out (hard)
+
+Use hard filter only if exclusion_rate &lt; ε AND hard_precision &gt;&gt; soft_precision.
+Otherwise prefer soft boost.
+</code></pre></div>
+<p>ε in the 1–2% range is reasonable; lower for high-stakes domains. A dedicated post in this series goes deeper on this trade-off.</p>
+<hr />
+<h2 id="part-6-generation-evaluation">Part 6 — Generation Evaluation</h2>
+<p>Retrieval metrics tell you the system <em>could</em> answer correctly. They do not tell you it <em>did</em>. Generation metrics cover that gap.</p>
+<h3 id="faithfulness-and-groundedness">Faithfulness and groundedness</h3>
+<p><a href="https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/faithfulness/">RAGAS faithfulness</a> decomposes the answer into atomic claims (short, self-contained factual statements), then verifies each against the retrieved context via an LLM judge:</p>
+<div class="arithmatex">\[
+\text{faithfulness} = \frac{|\text{claims supported by context}|}{|\text{total claims}|}
+\]</div>
+<p>The percent of supported claims is the score. The structure is more useful than any single number, because it tells you <em>which</em> claims are unsupported. Production code lives in the <a href="https://github.com/explodinggradients/ragas"><code>ragas</code></a> package — usage looks like:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ragas</span><span class="w"> </span><span class="kn">import</span> <span class="n">evaluate</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ragas.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">faithfulness</span><span class="p">,</span> <span class="n">answer_relevancy</span><span class="p">,</span> <span class="n">context_precision</span>
+
+<span class="n">samples</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">from_dict</span><span class="p">({</span>
+    <span class="s2">&quot;question&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;How many moons does Mars have?&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;answer&quot;</span><span class="p">:</span>   <span class="p">[</span><span class="s2">&quot;Mars has two moons, Phobos and Deimos.&quot;</span><span class="p">],</span>
+    <span class="s2">&quot;contexts&quot;</span><span class="p">:</span> <span class="p">[[</span><span class="s2">&quot;Mars has two moons named Phobos and Deimos.&quot;</span><span class="p">]],</span>
+    <span class="s2">&quot;ground_truth&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Mars has two moons.&quot;</span><span class="p">],</span>
+<span class="p">})</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">evaluate</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">metrics</span><span class="o">=</span><span class="p">[</span><span class="n">faithfulness</span><span class="p">,</span> <span class="n">answer_relevancy</span><span class="p">,</span> <span class="n">context_precision</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+</code></pre></div>
+<p>Below is the same loop unrolled with a deterministic stand-in judge so you can see the shape end-to-end.</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">extract_claims</span><span class="p">(</span><span class="n">answer</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="c1"># Production: an LLM call that decomposes the answer.</span>
+    <span class="c1"># Demo: split on sentence-final punctuation.</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">answer</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;?&quot;</span><span class="p">,</span> <span class="s2">&quot;.&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;!&quot;</span><span class="p">,</span> <span class="s2">&quot;.&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">verify_claim</span><span class="p">(</span><span class="n">claim</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="c1"># Production: an NLI (natural-language inference) model or LLM judge.</span>
+    <span class="c1"># Demo: a deterministic stand-in so the example runs offline.</span>
+    <span class="n">entailed_pairs</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;Mars has two moons&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">&quot;Phobos and Deimos orbit Mars&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">&quot;Mars has a thick atmosphere&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>  <span class="c1"># unsupported by context</span>
+        <span class="s2">&quot;Curiosity landed in 2012&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">entailed_pairs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="n">claim</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">or</span> <span class="n">claim</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="n">k</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span>
+            <span class="k">return</span> <span class="n">v</span>
+    <span class="n">words</span> <span class="o">=</span> <span class="p">[</span><span class="n">w</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">claim</span><span class="o">.</span><span class="n">split</span><span class="p">()</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">w</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">3</span><span class="p">]</span>
+    <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">w</span> <span class="ow">in</span> <span class="n">context</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">words</span><span class="p">)</span> <span class="k">if</span> <span class="n">words</span> <span class="k">else</span> <span class="kc">False</span>
+
+<span class="n">context</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">&quot;Mars has two moons, Phobos and Deimos. NASA&#39;s Curiosity rover &quot;</span>
+    <span class="s2">&quot;landed on Mars in 2012.&quot;</span>
+<span class="p">)</span>
+<span class="n">answer</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">&quot;Mars has two moons. Phobos and Deimos orbit Mars. &quot;</span>
+    <span class="s2">&quot;Mars has a thick atmosphere. Curiosity landed in 2012.&quot;</span>
+<span class="p">)</span>
+
+<span class="n">claims</span> <span class="o">=</span> <span class="n">extract_claims</span><span class="p">(</span><span class="n">answer</span><span class="p">)</span>
+<span class="n">verdicts</span> <span class="o">=</span> <span class="p">[(</span><span class="n">c</span><span class="p">,</span> <span class="n">verify_claim</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">context</span><span class="p">))</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">claims</span><span class="p">]</span>
+<span class="n">faithfulness</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">ok</span> <span class="ow">in</span> <span class="n">verdicts</span> <span class="k">if</span> <span class="n">ok</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">verdicts</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">ok</span> <span class="ow">in</span> <span class="n">verdicts</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  [</span><span class="si">{</span><span class="s1">&#39;✓&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">ok</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;✗&#39;</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;faithfulness = </span><span class="si">{</span><span class="n">faithfulness</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="c1"># faithfulness = 0.75   (one unsupported claim about the atmosphere)</span>
+</code></pre></div>
+<p>The structure matters. In production, <code>verify_claim</code> becomes an NLI model or an LLM call. The rest of the harness stays the same: extract, verify, aggregate.</p>
+<p>End-to-end claim extraction + verification on generated SciFact answers: <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/notebooks/05_faithfulness.ipynb">notebook 05</a>; module: <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/src/rag_evals/evaluation/faithfulness.py"><code>evaluation/faithfulness.py</code></a>. The repo also runs an HHEM-style cross-family verifier in the same loop so you can see which judge family agrees with which.</p>
+<p>A purpose-built alternative to LLM-as-judge is <a href="https://huggingface.co/vectara/hallucination_evaluation_model">HHEM-2.1-Open</a> (Hughes Hallucination Evaluation Model, Vectara), a 600 MB classifier fine-tuned for hallucination detection. The default threshold is usually 0.5 (&gt;0.5 = factual, ≤0.5 = hallucinated), but calibrate on your own labeled set. It runs on CPU and reportedly outperforms generic LLM judges on AggreFact and RAGTruth. The newer commercial HHEM-2.3 and FaithJudge sit on the current Pareto frontier on Vectara's leaderboard. Re-benchmark before committing; leaderboards drift.</p>
+<h3 id="atomic-fact-evaluation">Atomic-fact evaluation</h3>
+<p><a href="https://arxiv.org/abs/2305.14251">FActScore</a> (Min et al., EMNLP 2023) decomposes long-form generations into atomic facts, retrieves evidence per fact, labels each <code>supported / not-supported</code>, and reports the supported fraction:</p>
+<div class="arithmatex">\[
+\text{FActScore} = \frac{|\text{supported atomic facts}|}{|\text{total atomic facts}|}
+\]</div>
+<p>Reference implementation: <a href="https://github.com/shmsw25/FActScore"><code>shmsw25/FActScore</code></a>. It works well for biographies, summaries, and other long-form outputs. Watch out: repetitive trivial facts can inflate the score, and "MontageLie" attacks (true facts in deceptive order) can defeat it. <a href="https://arxiv.org/abs/2406.19276">VeriScore</a> handles claims with necessary modifiers; the <a href="https://arxiv.org/abs/2407.03572">Core</a> filter helps prevent fact-padding.</p>
+<h3 id="citation-accuracy">Citation accuracy</h3>
+<p>Track citation precision (cited spans actually support the claim) and citation recall (claims that should be cited, are):</p>
+<div class="arithmatex">\[
+\text{cite\_precision} = \frac{|\text{cited spans that support a claim}|}{|\text{cited spans}|},
+\quad \text{cite\_recall} = \frac{|\text{claims with at least one supporting cited span}|}{|\text{claims that should be cited}|}
+\]</div>
+<p>The TREC 2024 RAG Track's <em>support evaluation</em> is the academic standard. <a href="https://arxiv.org/abs/2504.15205">Upadhyay et al. (SIGIR 2025)</a> report GPT-4o agreeing with human judges 56% of the time on manual assessment from scratch, rising to 72% with post-editing of LLM predictions. That is useful as a force multiplier, not as a replacement for human assessment in high-stakes contexts. For an automated approximation, <a href="https://github.com/princeton-nlp/ALCE">ALCE</a> (Gao et al., EMNLP 2023) implements citation precision/recall with NLI-based verification.</p>
+<h3 id="answer-correctness-completeness-refusal">Answer correctness, completeness, refusal</h3>
+<ul>
+<li><strong>Answer correctness vs. ground truth</strong>: when you have it, exact match or token-F1 for short-answer tasks (<code>evaluate.load("squad")</code>), semantic similarity for open-ended (<a href="https://github.com/Tiiiger/bert_score"><code>bert-score</code></a>, embedding cosine via <code>sentence-transformers</code>, or RAGAS <a href="https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/answer_correctness/"><code>AnswerCorrectness</code></a>).</li>
+<li><strong>Completeness via nuggets</strong>: a "nugget" is a single atomic piece of information that any correct answer must contain (e.g., for "When was the company founded?" the nuggets might be <code>{year: 1994, founder: Jane Doe}</code>). TREC's <a href="https://arxiv.org/abs/2411.09607">AutoNuggetizer</a> extracts the gold nuggets of a correct answer from a reference, then scores what fraction the system covers — strong correlation with manual evaluation across 21 topics × 45 runs at TREC 2024.</li>
+<li><strong>Refusal behavior</strong>: queries with no answer in the corpus should produce abstention, not hallucination. Track abstention precision (refusals that were correct) and abstention recall (out-of-scope queries that triggered refusal). <a href="https://arxiv.org/abs/2312.11361">NoMIRACL</a> is the public benchmark; in your own domain, label a slice of out-of-scope queries and track abstention accuracy.</li>
+</ul>
+<h3 id="post-generation-verification">Post-generation verification</h3>
+<p>The cheapest reliability gains often come from deterministic post-checks, not larger models.</p>
+<ul>
+<li><strong>Entity grounding check</strong>: every named entity in the answer must appear in (or be derivable from) the retrieved context. A simple regex + exact-match check (or <code>spaCy</code>'s <code>ents</code> against a normalized context string) catches a surprising fraction of hallucinations.</li>
+<li><strong>Claim verification</strong>: extract claims, run NLI against context, fail or flag any below threshold. NLI-as-faithfulness models: <code>cross-encoder/nli-deberta-v3-large</code>, <code>MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli-ling-wanli</code>. Adds latency. Worth it for high-stakes domains.</li>
+<li><strong>Self-consistency</strong> (<a href="https://arxiv.org/abs/2203.11171">Wang et al., ICLR 2023</a>): sample N=5 generations at temperature &gt; 0; report agreement rate (e.g., proportion of generations that match the modal answer, or pairwise BERTScore); flag low-agreement answers for human review.</li>
+<li><strong>Confidence calibration</strong>: collect verbalized confidence ("How confident are you, 0–1?") and compare to actual correctness on the eval set. Plot a calibration curve and report Expected Calibration Error: <span class="arithmatex">\(\text{ECE} = \sum_{m=1}^{M} \frac{|B_m|}{n} |\text{acc}(B_m) - \text{conf}(B_m)|\)</span>, where <span class="arithmatex">\(B_m\)</span> are confidence bins. Implementations: <a href="https://github.com/EFS-OpenSource/calibration-framework"><code>netcal</code></a>, <a href="https://lightning.ai/docs/torchmetrics/stable/classification/calibration_error.html"><code>torchmetrics.CalibrationError</code></a>. A model that says 0.9 should be right 90% of the time. They almost never are.</li>
+</ul>
+<hr />
+<h2 id="part-7-ontology-grounded-rag-evaluation">Part 7 — Ontology-Grounded RAG Evaluation</h2>
+<p>The standard metrics above cover open-corpus RAG. Ontology-grounded systems need more. If your RAG retrieves against a structured ontology, taxonomy, or knowledge graph (products in a catalog, conditions in SNOMED, components in a BOM, security techniques in MITRE ATT&amp;CK), standard RAG metrics are necessary but not sufficient. You also need to measure the ontology layer.</p>
+<h3 id="entity-linking-accuracy">Entity linking accuracy</h3>
+<p>The first task is mapping a query mention to an ontology entity ("Aspirin" → <code>wikidata:Q18216</code>, "the 737" → <code>aircraft:Boeing_737</code>).</p>
+<ul>
+<li><strong>Mention-level precision/recall/F1</strong>: standard, against gold mention spans (compute with <code>seqeval</code> or a span-set comparator).</li>
+<li><strong>Disambiguation accuracy</strong>: of correctly-detected mentions, what fraction map to the right entity ID? Public references include <a href="https://github.com/amazon-science/ReFinED">ReFinED</a>, <a href="https://github.com/informagi/REL">REL</a>, and <a href="https://github.com/facebookresearch/GENRE">GENRE</a>; benchmarks like <a href="https://www.mpi-inf.mpg.de/departments/databases-and-information-systems/research/ambiverse-nlu/aida/downloads">AIDA-CoNLL</a> and <a href="https://github.com/sg-wbi/belb">BELB</a> report end-to-end F1 in the 60–90% range depending on system and domain.</li>
+<li><strong>NIL handling</strong>: precision/recall on "entity not in ontology." This is where most production EL systems quietly fail. They over-link to a near-but-wrong entity rather than abstaining.</li>
+</ul>
+<h3 id="hierarchy-aware-evaluation">Hierarchy-aware evaluation</h3>
+<p>Plain accuracy treats "predicted <em>Sedan</em> when truth is <em>Hatchback</em>" the same as "predicted <em>Sedan</em> when truth is <em>Submarine</em>." Those errors are not equal.</p>
+<ul>
+<li>
+<p><strong>Hierarchical precision/recall/F1</strong> (<a href="https://arxiv.org/abs/1306.6802">Kosmopoulos et al., 2015</a>): credit ancestors and descendants in the ontology DAG. With <span class="arithmatex">\(\hat{P}_q\)</span> the predicted node plus all its ancestors and <span class="arithmatex">\(T_q\)</span> the true node plus all its ancestors:</p>
+<div class="arithmatex">\[
+hP = \frac{\sum_q |\hat{P}_q \cap T_q|}{\sum_q |\hat{P}_q|},
+\quad hR = \frac{\sum_q |\hat{P}_q \cap T_q|}{\sum_q |T_q|},
+\quad hF1 = \frac{2 \cdot hP \cdot hR}{hP + hR}
+\]</div>
+<p>Implementable in ~30 lines with <a href="https://networkx.org/"><code>networkx</code></a> on the ontology graph; see <a href="https://github.com/cetinsamet/hierarchical-classifier-metrics"><code>hierarchical-classifier-metrics</code></a> for a reference.</p>
+</li>
+<li>
+<p><strong>Wu-Palmer similarity</strong> between predicted and gold entity in the taxonomy (<a href="https://aclanthology.org/P94-1019/">Wu &amp; Palmer, 1994</a>):</p>
+<div class="arithmatex">\[
+\text{WuP}(c_1, c_2) = \frac{2 \cdot \text{depth}(\text{LCA}(c_1, c_2))}{\text{depth}(c_1) + \text{depth}(c_2)}
+\]</div>
+<p>where LCA is the lowest common ancestor in the taxonomy. Available out of the box in NLTK for WordNet (<code>from nltk.corpus import wordnet as wn; wn.synset("car.n.01").wup_similarity(wn.synset("truck.n.01"))</code>); for custom taxonomies, compute LCA with <code>networkx</code>.</p>
+</li>
+<li>
+<p><strong>Sibling/parent confusion rate</strong>: separately track confusions to siblings, parents, and children — <code>count_sibling / total_errors</code>, <code>count_parent / total_errors</code>, <code>count_descendant / total_errors</code>. Sibling confusions usually mean ambiguous mentions; parent confusions mean the model is hedging up the hierarchy.</p>
+</li>
+</ul>
+<h3 id="filter-false-exclusion-rate-reprise-now-critical">Filter false-exclusion rate (reprise, now critical)</h3>
+<p>In ontology-grounded systems, hard filters often come from the ontology itself ("only retrieve docs tagged with category X"). The exclusion-rate metric (defined in <a href="#part-5-the-filter-false-exclusion-rate">Part 5</a>) becomes a primary correctness signal. A wrong category prediction can silently zero out recall.</p>
+<h3 id="constrained-generation-conformance">Constrained generation conformance</h3>
+<p>When your output must conform to an ontology (every entity name in the answer must be a valid ontology member; every predicate must come from a closed vocabulary), measure:</p>
+<ul>
+<li><strong>Schema validity rate</strong>: percent of outputs that parse and validate against the ontology schema. Validate with <a href="https://github.com/python-jsonschema/jsonschema"><code>jsonschema</code></a> or <a href="https://docs.pydantic.dev/"><code>pydantic</code></a>. <a href="https://arxiv.org/abs/2501.10868">JSONSchemaBench</a> is the public benchmark for general structured output; for ontology-specific schemas, build your own validator.</li>
+<li><strong>Vocabulary conformance</strong>: percent of named entities in the output that are valid ontology IDs — a one-line set-membership check against the closed vocabulary.</li>
+<li><strong>Semantic conformance</strong>: validity is necessary but insufficient. A syntactically valid output can pick the wrong-but-valid entity. Pair conformance with downstream answer correctness.</li>
+</ul>
+<p>Constrained decoding frameworks (<a href="https://github.com/dottxt-ai/outlines">Outlines</a>, <a href="https://github.com/mlc-ai/xgrammar">XGrammar</a>, <a href="https://github.com/guidance-ai/guidance">Guidance</a>, <a href="https://platform.openai.com/docs/guides/structured-outputs">OpenAI Structured Outputs</a>) can get you to ~100% schema validity at modest latency cost. Per JSONSchemaBench, Guidance currently leads on the efficiency × coverage × quality Pareto front.</p>
+<h3 id="auditability">Auditability</h3>
+<p>For ontology-grounded systems where answers face review:</p>
+<ul>
+<li><strong>Citation completeness</strong>: percent of factual claims with at least one verifiable citation.</li>
+<li><strong>Provenance depth</strong>: percent of citations that resolve all the way back to a source document with a stable ID, not just a chunk hash.</li>
+<li><strong>Reproducibility rate</strong>: re-running the same query at a fixed snapshot returns the same answer (modulo temperature). If this isn't ~100% on temp=0, you have non-determinism elsewhere in the pipeline.</li>
+</ul>
+<hr />
+<h2 id="part-8-system-level-evaluation">Part 8 — System-Level Evaluation</h2>
+<h3 id="holistic-answer-quality">Holistic answer quality</h3>
+<ul>
+<li><strong>LLM-as-judge</strong> (<a href="https://arxiv.org/abs/2306.05685">Zheng et al., NeurIPS 2023</a>): the dominant approach. G-Eval (an LLM-judge protocol that has the model generate its own chain-of-thought rubric before scoring) auto-generates the rubric from a natural-language criterion, then scores with log-prob-weighted output. Strong human alignment with GPT-4-class judges.</li>
+<li><strong>Pairwise preference</strong>: present judge with answer A vs. answer B; record preference. Avoids absolute-score calibration issues. Roughly 80% human-judge agreement at the GPT-4 tier, which matches human-human agreement.</li>
+</ul>
+<p>LLM-as-judge has real biases:</p>
+<ul>
+<li><strong>Position bias</strong>: judges prefer the first or second answer regardless of quality. Mitigation: randomize order, or run both orders and average.</li>
+<li><strong>Verbosity bias</strong>: judges prefer longer answers. The 2025–2026 research is more nuanced. Modern instruction-tuned judges penalize filler on length-controlled tests but reward genuine completeness on truncation pairs. Even so, tell the judge explicitly how to treat length, and consider length-controlled win rates.</li>
+<li><strong>Self-preference bias</strong>: GPT-4 prefers GPT-4 outputs; the bias correlates with output perplexity (judges prefer text that's familiar to them). Mitigation: use a different judge family from the system being evaluated. Do not use a model to judge itself.</li>
+</ul>
+<p>Practical recipe: GPT-4o or Claude as judge, randomized order, masked model identities, explicit length policy in the rubric, and multiple runs averaged. For high-stakes evals, use two judges and analyze disagreements.</p>
+<h4 id="schema-guided-reasoning-for-judges">Schema-Guided Reasoning for judges</h4>
+<p>Free-form judge output is the main reason judge runs are hard to reproduce. Two runs against the same answer can give different scores not because the judge changed its mind, but because it organized its reasoning differently. The fix is to force the judge into a structured rubric — what I've been calling <a href="https://slavadubrov.github.io/blog/2025/12/28/schema-guided-reasoning-on-vllm--turning-llms-into-reliable-business-logic-engines/">Schema-Guided Reasoning (SGR)</a>: define the reasoning steps as a Pydantic schema, run with constrained decoding (Outlines, XGrammar, vLLM's structured outputs, OpenAI's <code>response_format</code>), and the judge has to emit each field in order. No skipped steps, no hidden bias toward longer answers.</p>
+<p>For RAG eval the schema decomposes the judgment into explicit, auditable fields rather than letting the model jump straight to a number:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">Field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FaithfulnessJudgment</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">extracted_claims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Atomic factual claims in the answer, one per item.&quot;</span>
+    <span class="p">)</span>
+    <span class="n">supported_claims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Subset of extracted_claims that are entailed by the context.&quot;</span>
+    <span class="p">)</span>
+    <span class="n">unsupported_claims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Subset that is NOT entailed by the context.&quot;</span>
+    <span class="p">)</span>
+    <span class="n">failure_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span>
+        <span class="s2">&quot;none&quot;</span><span class="p">,</span> <span class="s2">&quot;fabrication&quot;</span><span class="p">,</span> <span class="s2">&quot;overgeneralization&quot;</span><span class="p">,</span> <span class="s2">&quot;wrong_entity&quot;</span><span class="p">,</span> <span class="s2">&quot;stale_fact&quot;</span>
+    <span class="p">]</span>
+    <span class="n">score</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+    <span class="n">rationale</span><span class="p">:</span> <span class="nb">str</span>
+</code></pre></div>
+<p>Three things change once the judge is constrained to this shape. The score is recoverable from the structured fields (<code>len(supported) / len(extracted)</code>), so position bias and verbosity bias have less room to operate. Disagreements between two judges become diagnosable — you can see exactly which claim each judge flagged. And because the rubric is the schema, you can version it like code: a change to the rubric is a Pydantic diff, not a prompt rewrite.</p>
+<p>This works for any rubric-based judge, not just faithfulness. Pairwise preference, citation support, and refusal correctness all benefit from the same treatment.</p>
+<p>A G-Eval / pairwise / position-bias / cross-family judge harness lives in <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/notebooks/07_llm_as_judge.ipynb">notebook 07</a>; module: <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/src/rag_evals/evaluation/llm_judge.py"><code>evaluation/llm_judge.py</code></a>. The benchmark sweep (<code>make benchmark</code> in the repo) wires three frontier-tier models — <code>gpt-5-mini</code>, <code>claude-haiku-4-5</code>, <code>gemini-2.5-flash</code> — into a rotating-judge pairwise A/B so every model judges the other two, surfacing self-preference numerically.</p>
+<h3 id="latency-and-cost">Latency and cost</h3>
+<ul>
+<li><strong>p50, p95, p99</strong> at every pipeline stage. p95 is the right SLO (service level objective) target for most applications; p99 is what you alert on.</li>
+<li><strong>Time-to-first-token</strong> vs. total generation time. Users care about TTFT for streaming UX.</li>
+<li><strong>Stage breakdown</strong>: retrieval, reranking, generation, post-processing. The biggest p95 spikes are almost always rerankers running on CPU.</li>
+<li><strong>Total $/query</strong> = embedding + retrieval + rerank + generation + storage amortized. Track p50 and p99; the long tail is where the budget goes.</li>
+<li><strong>Cache hit rates</strong> at the embedding cache, retrieval cache, and KV-cache levels. A 30%+ cache hit rate is usually achievable for repeated workloads and is the cheapest single cost optimization.</li>
+</ul>
+<p>Per-stage p50/p95/p99 with a stage breakdown is built into <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/notebooks/08_full_eval_dashboard.ipynb">notebook 08</a> and the runner at <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/src/rag_evals/evaluation/latency.py"><code>evaluation/latency.py</code></a>; the benchmark report combines latency with faithfulness in a single matrix you can re-run with <code>make benchmark</code>.</p>
+<h3 id="ab-testing">A/B testing</h3>
+<ul>
+<li><strong>Unit of randomization</strong>: per-user or per-session, never per-query (same user seeing inconsistent quality is worse than either system alone).</li>
+<li><strong>Primary, guardrails, exploratory metrics</strong>: pre-register them. Primary is usually a satisfaction proxy (thumbs / regenerations / dwell). Guardrails are latency and cost. Exploratory metrics are everything else.</li>
+<li><strong>Sample size</strong>: power-analyze before launching. Most RAG A/B tests are underpowered, declare false wins, and ship regressions.</li>
+</ul>
+<hr />
+<h2 id="part-9-test-set-construction">Part 9 — Test Set Construction</h2>
+<p>A metric is only as good as the test set it runs on. If your golden set covers three intents and production traffic spans twelve, your Recall@10 number is a measurement of three intents wearing a costume. Worse, a test set that overfits to easy questions ("What is the company's refund policy?") will quietly approve a system that fails on the hard ones ("Refund eligibility for a partial cancellation under the 2023 EU Digital Services Act, billed in EUR, originating in Ireland?"). The number goes up, the dashboard turns green, and the system ships broken.</p>
+<p>The same problem hits ground truth. If SMEs labeled the obvious docs but missed the long-tail relevant ones, Recall@k will under-credit a retriever that actually found them. You optimize toward the labels, not toward the truth.</p>
+<p>So the right order is: build the test set that captures real distribution and real difficulty first; pick metrics that are sensitive to the failure modes you care about second; tune the system third.</p>
+<h3 id="synthetic-query-generation">Synthetic query generation</h3>
+<p>Use an LLM to generate questions from your corpus:</p>
+<ul>
+<li>Per-chunk: "Generate 3 questions a user might ask that this chunk answers."</li>
+<li>Multi-hop: sample two chunks, generate a question requiring both.</li>
+<li>Adversarial: generate questions with distractor entities, near-duplicate phrasing, ambiguous mentions.</li>
+</ul>
+<p><a href="https://github.com/vibrantlabsai/ragas">RAGAS</a> has built-in question-type distribution (reasoning, conditional, multi-context); newer work like DataMorgana generates more diverse synthetic benchmarks via multi-axis user/question categorizations. Synthetic data is useful for cold starts and coverage testing. It cannot replace real user queries.</p>
+<h3 id="golden-dataset-construction">Golden dataset construction</h3>
+<p>The gold standard is human-curated.</p>
+<ol>
+<li>Sample real user queries (or simulated ones if pre-launch) stratified by intent.</li>
+<li>Have SMEs answer each question and identify which doc(s) contain the answer.</li>
+<li>Aim for 200–500 queries minimum; coverage matters more than size.</li>
+<li>Re-curate quarterly. Distributions drift.</li>
+</ol>
+<h3 id="adversarial-test-sets">Adversarial test sets</h3>
+<ul>
+<li><strong>Counterfactuals</strong>: swap key entities in the query. Does the system retrieve the right chunks for the swapped query?</li>
+<li><strong>Distractors</strong>: queries where the corpus contains a plausible-but-wrong answer that should not be retrieved. This is what <a href="https://arxiv.org/abs/2309.01431">RGB</a> (Chen et al., AAAI 2024) stress-tests: noise robustness, negative rejection, information integration, and counterfactual robustness.</li>
+<li><strong>Negation and quantifiers</strong>: queries with "not," "except," and "only." Dense retrievers often struggle with these.</li>
+<li><strong>Out-of-scope</strong>: queries with no answer in the corpus. The system should say "I don't know," not hallucinate. <a href="https://arxiv.org/abs/2312.11361">NoMIRACL</a> lives here. Most production models need explicit evaluation for abstention.</li>
+</ul>
+<h3 id="coverage-and-continuous-evaluation">Coverage and continuous evaluation</h3>
+<ul>
+<li>Build a coverage matrix: query intent × document type × ontology branch. Aim for ≥1 query per cell. Empty cells are unmonitored regions where regressions hide.</li>
+<li>Regression suite runs on every PR, on a small fast subset (~50 queries).</li>
+<li>Full eval runs nightly or on release candidates, on the full golden set.</li>
+<li>Drift eval runs weekly on a rolling sample of production queries (with thumbs-down queries weighted heavier).</li>
+</ul>
+<hr />
+<h2 id="part-10-production-monitoring">Part 10 — Production Monitoring</h2>
+<p>The eval suite you ship describes the system at launch. Production traffic changes after that.</p>
+<h3 id="implicit-and-explicit-feedback">Implicit and explicit feedback</h3>
+<ul>
+<li><strong>Click-through / open rate</strong> on cited sources (if your UI exposes them).</li>
+<li><strong>Dwell time</strong> on the answer.</li>
+<li><strong>Regeneration rate</strong>: percent of answers the user re-asks or asks the system to redo. The strongest implicit dissatisfaction signal in most products.</li>
+<li><strong>Copy / share / export</strong> rates — strong positive signal.</li>
+<li><strong>Follow-up patterns</strong>: "Are you sure?" or "But what about X?" patterns suggest distrust.</li>
+<li><strong>Thumbs up/down</strong> with optional reason categories (wrong, incomplete, off-topic, harmful, slow). Inline edits, when your UI allows them, are the highest-information feedback signal there is.</li>
+</ul>
+<h3 id="drift-detection">Drift detection</h3>
+<ul>
+<li><strong>Query drift</strong>: track query embedding distribution vs. a reference window using KL divergence, MMD, or a model-based detector. Alert on shift, then segment-debug.</li>
+<li><strong>Embedding drift</strong>: pin a probe set of fixed documents; periodically re-embed and measure cosine to the original embeddings. Even small drift between provider model versions silently breaks retrieval. Versioned embedding storage (immutable per-version snapshots) is the cheapest mitigation.</li>
+<li><strong>Performance drift</strong>: track production-equivalent metrics (regeneration rate by intent) over time. Sudden jumps mean something broke; slow drifts mean the world changed.</li>
+</ul>
+<h3 id="shadow-evaluation-and-human-in-the-loop">Shadow evaluation and human-in-the-loop</h3>
+<p>Run the candidate system in parallel with production, compare outputs offline, and do not serve them to users. This catches regressions before launch. It costs extra inference, but it has no customer impact.</p>
+<p>For human-in-the-loop (HITL) review:</p>
+<ul>
+<li>Sample low-confidence outputs into a review queue.</li>
+<li>Sample 1–2% of all production traffic randomly for blind review.</li>
+<li>Weight thumbs-down outputs heavily.</li>
+<li>Use reviewed outputs to extend the golden set.</li>
+</ul>
+<h3 id="the-minimum-guardrail-set">The minimum guardrail set</h3>
+<p>Alert on these, in priority order:</p>
+<ol>
+<li><strong>Faithfulness/HHEM score</strong> below threshold on a rolling production sample.</li>
+<li><strong>p95 latency</strong> above SLO.</li>
+<li><strong>Filter false-exclusion rate</strong> above threshold (sample-based).</li>
+<li><strong>Regeneration rate</strong> above baseline + 2σ.</li>
+<li><strong>Cost/query</strong> above budget.</li>
+</ol>
+<p>If an alert fires without a corresponding code or model change, you likely have drift. If it fires after a change, you likely have a regression. Either way, you get a signal before support tickets arrive.</p>
+<hr />
+<h2 id="caveats">Caveats</h2>
+<ul>
+<li><strong>Targets are illustrative, not universal.</strong> "Recall@10 ≥ 0.85" and "filter false-exclusion &lt; 2%" are reasonable defaults from systems I have worked on. Calibrate to your domain, stakes, and user expectations. A medical RAG at 95% faithfulness is not safe; a brainstorm-assistant RAG at 70% probably is.</li>
+<li><strong>The framework space moves fast.</strong> Specific numbers (BGE latency, MTEB top scores, HHEM versions, RAGAS metric names) are accurate as of writing in May 2026 and will drift. Re-benchmark before committing.</li>
+<li><strong>LLM-as-judge agreement numbers come with asterisks.</strong> The 80% GPT-4-vs-human figure is from MT-Bench / Chatbot Arena conditions. On niche domains and adversarial cases, agreement drops sharply. Use judges as a force multiplier, not a replacement for spot-checking.</li>
+<li><strong>Vendor benchmark uplifts are often not independently reproducible.</strong> Reproduce on your own data before believing a number, especially for newer rerankers and OCR systems.</li>
+<li><strong>No metric is a substitute for looking at outputs.</strong> Sit with your team for 30 minutes a week and read 50 random production answers. The metrics scale that habit; they do not replace it.</li>
+</ul>
+<hr />
+<h2 id="coming-up-in-this-series">Coming Up in This Series</h2>
+<p>This was the index. The follow-ups I am planning:</p>
+<ul>
+<li><strong>Soft Boosts vs. Hard Filters</strong>: a deep dive on filter false-exclusion rate, with code, real production examples, and a decision framework.</li>
+<li><strong>Chunking Is the Hidden Variable</strong>: a controlled experiment across recursive, semantic, late, and structural chunking on three corpora.</li>
+<li><strong>Reranker Selection in 2026</strong>: BGE vs. Cohere vs. ZeRank vs. current cross-encoder models, head-to-head on cost, latency, and uplift.</li>
+<li><strong>Ontology-Grounded RAG: An End-to-End Walkthrough</strong>: building the full evaluation harness for an entity-grounded retrieval system.</li>
+<li><strong>LLM-as-Judge Without the Self-Preference Trap</strong>: practical recipes for unbiased automated evaluation.</li>
+<li><strong>Online Evaluation in Production</strong>: instrumentation patterns, alerting policies, and the dashboards that catch real regressions.</li>
+</ul>
+<hr />
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ol>
+<li><strong>Start with the eval set, not the architecture.</strong> Define what "better" means in numbers before choosing the system design.</li>
+<li><strong>Use three layers of evaluation.</strong> Offline corpus and index. Online retrieval and generation. Post-generation verification plus production telemetry. Each catches a different class of failure.</li>
+<li><strong>Track the filter false-exclusion rate.</strong> A wrong predicate or a brittle hard filter zeros recall before ranking starts, and standard retrieval metrics will not see it.</li>
+<li><strong>Faithfulness measures the last link in the chain.</strong> It cannot detect a parsing bug, a chunking bug, an embedding drift, or a filter exclusion. Every stage needs its own metric.</li>
+<li><strong>Hybrid retrieval with RRF is the strong default.</strong> Score-agnostic, immune to normalization disasters, k=60 from the original Cormack paper. Hybrid plus a cross-encoder reranker beats either lane alone on most corpora.</li>
+<li><strong>Add a reranker before tuning anything else.</strong> On most corpora it moves Precision@1 by 15–40%, more uplift than any other single change.</li>
+<li><strong>LLM-as-judge has real biases.</strong> Position, verbosity, self-preference. Randomize order, mask identities, never use a model to judge itself, and run two judges on high-stakes evals.</li>
+<li><strong>Production drifts.</strong> Shadow eval, HITL queues, and rolling production samples keep the launch eval suite relevant as traffic changes.</li>
+</ol>
+<hr />
+<h2 id="references">References</h2>
+<h3 id="frameworks-and-benchmarks">Frameworks and benchmarks</h3>
+<ul>
+<li>Es et al., <em><a href="https://arxiv.org/abs/2309.15217">Ragas: Automated Evaluation of Retrieval Augmented Generation</a></em>, 2023.</li>
+<li><a href="https://docs.ragas.io/">RAGAS documentation</a> and <a href="https://github.com/vibrantlabsai/ragas">GitHub</a>.</li>
+<li>Saad-Falcon et al., <em><a href="https://arxiv.org/abs/2311.09476">ARES: An Automated Evaluation Framework for Retrieval-Augmented Generation Systems</a></em>, NAACL 2024.</li>
+<li><a href="https://github.com/truera/trulens">TruLens</a>, <a href="https://github.com/confident-ai/deepeval">DeepEval</a>, <a href="https://github.com/Arize-ai/phoenix">Arize Phoenix</a>.</li>
+<li>Thakur et al., <em><a href="https://arxiv.org/abs/2104.08663">BEIR: A Heterogenous Benchmark for Zero-shot Evaluation of Information Retrieval Models</a></em>, NeurIPS 2021.</li>
+<li><a href="https://huggingface.co/spaces/mteb/leaderboard">MTEB Leaderboard</a>.</li>
+<li><a href="https://trec.nist.gov/data/rag2024.html">TREC 2024 RAG Track</a>.</li>
+<li>Pradeep et al., <em><a href="https://arxiv.org/abs/2411.09607">Initial Nugget Evaluation Results for the TREC 2024 RAG Track with the AutoNuggetizer Framework</a></em>, 2024.</li>
+</ul>
+<h3 id="retrieval-and-ranking">Retrieval and ranking</h3>
+<ul>
+<li>Cormack, Clarke, Buettcher, <em><a href="https://doi.org/10.1145/1571941.1572114">Reciprocal Rank Fusion Outperforms Condorcet and Individual Rank Learning Methods</a></em>, SIGIR 2009.</li>
+<li>Gao et al., <em><a href="https://arxiv.org/abs/2212.10496">Precise Zero-Shot Dense Retrieval Without Relevance Labels (HyDE)</a></em>, 2022.</li>
+<li>Jeong et al., <em><a href="https://arxiv.org/abs/2403.14403">Adaptive-RAG: Learning to Adapt Retrieval-Augmented Large Language Models through Question Complexity</a></em>, NAACL 2024.</li>
+<li>Anthropic, <em><a href="https://www.anthropic.com/news/contextual-retrieval">Introducing Contextual Retrieval</a></em>, September 2024.</li>
+<li>Günther et al., <em><a href="https://arxiv.org/abs/2409.04701">Late Chunking: Contextual Chunk Embeddings Using Long-Context Embedding Models</a></em>, 2024.</li>
+<li>Sarthi et al., <em><a href="https://arxiv.org/abs/2401.18059">RAPTOR: Recursive Abstractive Processing for Tree-Organized Retrieval</a></em>, 2024.</li>
+</ul>
+<h3 id="generation-faithfulness-judges">Generation, faithfulness, judges</h3>
+<ul>
+<li>Min et al., <em><a href="https://arxiv.org/abs/2305.14251">FActScore: Fine-grained Atomic Evaluation of Factual Precision in Long Form Text Generation</a></em>, EMNLP 2023.</li>
+<li>Liu et al., <em><a href="https://arxiv.org/abs/2307.03172">Lost in the Middle: How Language Models Use Long Contexts</a></em>, TACL 2023.</li>
+<li>Chen et al., <em><a href="https://arxiv.org/abs/2309.01431">Benchmarking Large Language Models in Retrieval-Augmented Generation (RGB)</a></em>, AAAI 2024.</li>
+<li>Vectara, <em><a href="https://huggingface.co/vectara/hallucination_evaluation_model">HHEM-2.1-Open hallucination evaluation model</a></em>.</li>
+<li>Zheng et al., <em><a href="https://arxiv.org/abs/2306.05685">Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena</a></em>, NeurIPS 2023.</li>
+<li>Upadhyay et al., <em><a href="https://arxiv.org/abs/2504.15205">Support Evaluation for the TREC 2024 RAG Track: Comparing Human versus LLM Judges</a></em>, SIGIR 2025.</li>
+<li>Thakur et al., <em><a href="https://arxiv.org/abs/2312.11361">NoMIRACL: Knowing When You Don't Know for Robust Multilingual Retrieval-Augmented Generation</a></em>, 2023.</li>
+<li>Geng et al., <em><a href="https://arxiv.org/abs/2501.10868">JSONSchemaBench: A Rigorous Benchmark of Structured Outputs for Language Models</a></em>, 2025.</li>
+<li>Kosmopoulos et al., <em><a href="https://arxiv.org/abs/1306.6802">Evaluation Measures for Hierarchical Classification: a unified view and novel approaches</a></em>, 2015.</li>
+</ul>
+<h3 id="drift-and-production">Drift and production</h3>
+<ul>
+<li>Evidently, <em><a href="https://www.evidentlyai.com/blog/embedding-drift-detection">Embedding drift detection methods compared</a></em>.</li>
+</ul>
+<h3 id="companion-code">Companion code</h3>
+<ul>
+<li><a href="https://github.com/slavadubrov/rag-evals-demo"><code>slavadubrov/rag-evals-demo</code></a> — runnable harness for every metric in this article on the SciFact corpus, plus a chunking × embedding × LLM benchmark sweep. Notebooks 00–09, unit tests that pin the worked examples above, and an embedded-Qdrant index so it runs without Docker.</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+  
+
+
+  
+
+
+ 
+  </article>
+</div>
+
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../../../../..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../../../../javascripts/mermaid-init.js"></script>
+      
+        <script src="../../../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

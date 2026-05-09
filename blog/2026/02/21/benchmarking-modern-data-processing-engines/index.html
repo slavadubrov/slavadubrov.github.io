@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://slavadubrov.github.io/blog/2026/02/21/benchmarking-modern-data-processing-engines/">
       
       
-        <link rel="prev" href="../../14/the-cortex--architecting-memory-for-ai-agents/">
+        <link rel="prev" href="../../14/the-cortex-architecting-memory-for-ai-agents/">
       
       
         <link rel="next" href="../../../03/04/the-definitive-guide-to-ocr-in-2026-from-pipelines-to-vlms/">
@@ -1144,9 +1144,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#diagonal-scaling-the-new-frontier" class="md-nav__link">
+  <a href="#diagonal-scaling" class="md-nav__link">
     <span class="md-ellipsis">
-      Diagonal Scaling: The New Frontier
+      Diagonal Scaling
     </span>
   </a>
   
@@ -1285,6 +1285,12 @@
                     <li
                       class="blog-category-post"
                     >
+                      <a href="../../../05/10/evaluating-rag-metrics-for-every-stage-of-a-production-rag-system/">Evaluating RAG: Metrics for Every Stage of a Production RAG System</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
                       <a href="../../../04/02/the-definitive-guide-to-ner-in-2026-encoders-llms-and-the-3-tier-production-architecture/">The Definitive Guide to NER in 2026: Encoders, LLMs, and the 3-Tier Production Architecture</a>
                     </li>
                     
@@ -1327,7 +1333,7 @@
                     <li
                       class="blog-category-post"
                     >
-                      <a href="../../../../2025/05/04/scaling-large-language-models---practical-multi-gpu-and-multi-node-strategies-for-2025/">Scaling Large Language Models - Practical Multi-GPU and Multi-Node Strategies for 2025</a>
+                      <a href="../../../../2025/05/04/scaling-large-language-models-multi-gpu-and-multi-node-strategies-that-hold-up-in-practice/">Scaling Large Language Models: Multi-GPU and Multi-Node Strategies That Hold Up in Practice</a>
                     </li>
                      
                   </ul>
@@ -1359,7 +1365,7 @@
                     <li
                       class="blog-category-post"
                     >
-                      <a href="../../14/the-cortex--architecting-memory-for-ai-agents/">The Cortex — Architecting Memory for AI Agents</a>
+                      <a href="../../14/the-cortex-architecting-memory-for-ai-agents/">The Cortex: Architecting Memory for AI Agents</a>
                     </li>
                     
                     <li
@@ -1391,7 +1397,7 @@
                     <li
                       class="blog-category-post"
                     >
-                      <a href="../../../../2025/12/28/schema-guided-reasoning-on-vllm--turning-llms-into-reliable-business-logic-engines/">Schema-Guided Reasoning on vLLM — Turning LLMs into Reliable Business Logic Engines</a>
+                      <a href="../../../../2025/12/28/schema-guided-reasoning-on-vllm---turning-llms-into-reliable-business-logic-engines/">Schema-Guided Reasoning on vLLM - Turning LLMs into Reliable Business Logic Engines</a>
                     </li>
                     
                     <li
@@ -1527,7 +1533,7 @@
                     <li
                       class="blog-category-post"
                     >
-                      <a href="../../../../2025/05/07/mastering-zsh-startup-zprofile-vs-zshrc-/">Mastering Zsh Startup: ~/.zprofile vs ~/.zshrc 🚀</a>
+                      <a href="../../../../2025/05/07/mastering-zsh-startup-zprofile-vs-zshrc/">Mastering Zsh Startup: `~/.zprofile` vs `~/.zshrc`</a>
                     </li>
                     
                     <li
@@ -1557,27 +1563,27 @@
 
 
 <h1 id="benchmarking-modern-data-processing-engines">Benchmarking Modern Data Processing Engines</h1>
-<p>Historically, data processing often relied on <strong>Pandas</strong> for in-memory workloads and <strong>Apache Spark</strong> for distributed processing. This approach was highly effective for structured tabular data.</p>
-<p>However, modern workloads increasingly involve multimodal data, such as images, audio, and video frames. In these scenarios, traditional challenges like the JVM's garbage collection overhead and Python's Global Interpreter Lock can become performance bottlenecks, especially when integrating GPU inference. This shift has accelerated the adoption of engines built on <strong>Rust</strong> and <strong>Apache Arrow</strong>.</p>
-<p>Having transitioned many of my own single-instance pipelines to Polars, I wanted to objectively evaluate how it compares to other modern engines. This article presents a comparison of several Rust-based compute frameworks using real-world datasets to provide a practical guide for choosing the right tool.</p>
-<p>The entire benchmark suite and runnable code can be found in the <a href="https://github.com/slavadubrov/engine-comparison-demo">engine-comparison-demo repository</a>. I encourage you to clone it, run the benchmarks on your own hardware, and verify the results yourself.</p>
+<p>For years, <strong>Pandas</strong> handled in-memory tabular work and <strong>Apache Spark</strong> handled the distributed kind. That split worked fine when the data was structured.</p>
+<p>Modern workloads aren't always structured anymore. Image, audio, and video pipelines now sit alongside the tabular ones, and once GPU inference enters the picture, the JVM's garbage collection and Python's GIL stop being annoyances and start being the bottleneck. That's a big part of why a new generation of engines built on <strong>Rust</strong> and <strong>Apache Arrow</strong> has taken off.</p>
+<p>I've moved most of my single-node pipelines to Polars over the last year, and I wanted to see how it actually stacks up against the rest of the new stack. So I benchmarked Polars, DataFusion, Daft, Ray Data, and Spark on real datasets — NYC taxi trips for the tabular side, Food-101 images for the multimodal side.</p>
+<p>All of the code lives in the <a href="https://github.com/slavadubrov/engine-comparison-demo">engine-comparison-demo repository</a>. Clone it and run the benchmarks on your own hardware — your numbers will be different from mine, and that's the point.</p>
 <!-- more -->
 
-<p><strong>TL;DR</strong>: Rust-native engines promise up to 94x speedups over Pandas on single nodes. You might see constant but smaller improvements in real workloads, with Polars still being the best overall. For multimodal AI, pipelined execution models (Ray Data, Daft) achieve up to 18x faster processing than Spark by keeping GPUs saturated. There is no single "best" engine — the right choice depends on your data modality, scale, and whether you need GPUs.</p>
+<p><strong>TL;DR</strong>: On the marketing-friendly benchmarks, Rust-native engines hit 94x speedups over Pandas on a single node. On real workloads you'll see something more modest but consistent — Polars and DataFusion are both solid defaults. For multimodal pipelines, pipelined engines like Ray Data and Daft run up to 18x faster than Spark because they actually keep GPUs busy. There's no winner across the board. The right pick depends on your data, your scale, and whether GPUs are in the loop.</p>
 <hr />
 <h2 id="data-processing-workload-types">Data Processing Workload Types</h2>
-<p>Before selecting an engine, it is helpful to categorize workloads, as different tools are optimized for different requirements. The primary distinction is between structured and multimodal data.</p>
+<p>Engines specialize, so the first question to answer is what kind of workload you actually have. The biggest split is structured vs. multimodal.</p>
 <p><img alt="Two Worlds of Data: Structured vs. Multimodal" src="../../../../assets/2026-02-21-compute-engines/data-bifurcation.svg" /></p>
-<p><strong>Structured / Tabular Data.</strong> These CPU-bound workloads—such as filtering, aggregating, and joining data—often fit in memory. Many of these workloads are run on distributed systems unnecessarily; roughly <a href="https://pola.rs/posts/polars-cloud-what-we-are-building/">90% of queries process less than 1 TB of data</a>, which can typically be processed on a single machine.</p>
-<p><strong>Multimodal AI.</strong> These workloads are often GPU-bound, involving images, video, and audio. In traditional pipelines, preprocessing can become a bottleneck because deep learning models consume data faster than CPUs can decode it. On standard VM shapes like AWS <code>g6.xlarge</code> (4 CPUs per GPU), GPU utilization can drop below 20%. Maintaining adequate data throughput to the GPU is critical for overall pipeline efficiency.</p>
-<p>The new engines address both worlds: Rust for raw speed, Apache Arrow for zero-copy data sharing, and streaming execution to handle datasets larger than RAM.</p>
+<p><strong>Structured / Tabular Data.</strong> Filtering, aggregating, joining. CPU-bound, usually in memory. A lot of this work runs on distributed clusters that didn't need to be distributed in the first place — about <a href="https://pola.rs/posts/polars-cloud-what-we-are-building/">90% of queries process less than 1 TB of data</a>, which fits comfortably on a single machine these days.</p>
+<p><strong>Multimodal AI.</strong> Images, audio, video. GPU-bound on the inference side, but the CPU preprocessing is what kills you. Deep learning models eat data faster than CPUs can decode it, so on a standard <code>g6.xlarge</code> (4 CPUs per GPU), GPU utilization drops below 20%. The whole pipeline ends up gated by how fast you can feed the GPU.</p>
+<p>The new engines target both. Rust gives them speed, Arrow gives them zero-copy data sharing across processes, and streaming execution lets them handle datasets bigger than RAM.</p>
 <hr />
 <h2 id="part-1-single-node-processing">Part 1: Single-Node Processing</h2>
-<p>The Pandas bottleneck is not a bug — it is baked into the design. Pandas loads entire files into RAM at once (eager execution), creates intermediate copies for almost every operation, and is stuck on a single thread because of Python's GIL. In official <a href="https://pola.rs/posts/benchmarks/">PDS-H benchmarks</a> at scale factor 10, Pandas took about <strong>365 seconds</strong> to finish a standard query suite. Polars, using its streaming engine, finished the same suite in <strong>3.89 seconds</strong> — promising performance up to <strong>94x faster</strong>.</p>
+<p>The Pandas bottleneck isn't a bug. It's the design. Pandas loads files into RAM eagerly, copies intermediates on almost every operation, and stays on one thread because of the GIL. In the <a href="https://pola.rs/posts/benchmarks/">PDS-H benchmarks</a> at scale factor 10, Pandas takes about <strong>365 seconds</strong> to finish a standard query suite. Polars's streaming engine finishes the same work in <strong>3.89 seconds</strong> — about <strong>94x faster</strong>.</p>
 <p><img alt="Eager vs. Lazy Execution" src="../../../../assets/2026-02-21-compute-engines/eager-vs-lazy.svg" /></p>
 <h3 id="polars-tabular-data-processing">Polars: Tabular Data Processing</h3>
-<p><a href="https://github.com/pola-rs/polars">Polars</a> has effectively replaced Pandas for high-performance local ETL. Written entirely in Rust, it uses a <strong>lazy execution</strong> model: instead of running every line immediately, Polars builds an optimized query plan — applying predicate pushdown, projection pruning, and column pruning — before executing it across all available CPU cores in streaming batches.</p>
-<p>The performance advantage grows with dataset size. At <a href="https://pola.rs/posts/benchmarks/">scale factor 100 (~100 GB)</a>, Polars' streaming engine completed the benchmark in 23.94 seconds versus 152.27 seconds for its own in-memory engine — over <strong>6x faster</strong> — proving that streaming execution handles larger-than-memory workloads gracefully.</p>
+<p><a href="https://github.com/pola-rs/polars">Polars</a> has replaced Pandas as the default for serious local ETL in a lot of teams I've talked to. It's written in Rust and uses <strong>lazy execution</strong>: instead of running each line as it comes, it builds a query plan, optimizes it (predicate pushdown, projection pruning, column pruning), then executes across every CPU core in streaming batches.</p>
+<p>The gap widens as the data grows. At <a href="https://pola.rs/posts/benchmarks/">scale factor 100 (~100 GB)</a>, Polars's streaming engine finished in 23.94 seconds against 152.27 seconds for its own in-memory engine — about <strong>6x faster</strong>, on data that's larger than RAM.</p>
 <p>From <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/engine_comparison_examples.ipynb"><code>engine_comparison_examples.ipynb</code></a>:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
 
@@ -1599,9 +1605,10 @@
 <span class="c1"># The entire plan is optimized and executed here, in parallel</span>
 <span class="n">result</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
 </code></pre></div>
-<p>The difference from Pandas is not syntax — it is architecture. Polars builds a plan of all operations and optimizes the entire pipeline before touching data. The <code>filter</code> predicate gets pushed down into the Parquet reader, skipping entire row groups. Only the columns used in the query are read from disk. Pandas cannot do this — every line runs immediately, creating expensive intermediate copies.</p>
+<p>The difference from Pandas isn't the API. It's the architecture. Polars builds the plan first and optimizes the whole pipeline before touching data. The <code>filter</code> gets pushed down into the Parquet reader, so entire row groups are skipped. Only the columns referenced in the query come off disk. Pandas can't do any of that — each line runs as soon as it's parsed and intermediate copies fall out everywhere.</p>
 <h3 id="apache-datafusion-extensible-query-engine">Apache DataFusion: Extensible Query Engine</h3>
-<p>Where Polars is a library for end-users, <a href="https://datafusion.apache.org/">DataFusion</a> is the "engine behind the engines." It powers <a href="https://www.influxdata.com/glossary/apache-datafusion/">InfluxDB 3.0</a>, <a href="https://github.com/GreptimeTeam/greptimedb">GreptimeDB</a>, and Apple's <a href="https://github.com/apache/datafusion-comet">Comet Spark accelerator</a>. In November 2024, DataFusion became the <a href="https://datafusion.apache.org/blog/2024/11/18/datafusion-fastest-single-node-parquet-clickbench/">fastest single-node engine for querying Parquet files in ClickBench</a>, beating DuckDB, chDB, and ClickHouse on the same hardware. The Embucket team then showed DataFusion could <a href="https://embucket.com/blog/running_tpc_h_1000_on_apache_data_fusion">run TPC-H at scale factor 1000 (~1 TB) on a single node</a> — proving that most workloads do not need a distributed cluster.</p>
+<p>Where Polars is a library you use directly, <a href="https://datafusion.apache.org/">DataFusion</a> is the engine you build other engines on top of. It powers <a href="https://www.influxdata.com/glossary/apache-datafusion/">InfluxDB 3.0</a>, <a href="https://github.com/GreptimeTeam/greptimedb">GreptimeDB</a>, and Apple's <a href="https://github.com/apache/datafusion-comet">Comet Spark accelerator</a>.</p>
+<p>In November 2024, DataFusion became the <a href="https://datafusion.apache.org/blog/2024/11/18/datafusion-fastest-single-node-parquet-clickbench/">fastest single-node engine for querying Parquet files in ClickBench</a>, ahead of DuckDB, chDB, and ClickHouse on the same hardware. The Embucket team later ran <a href="https://embucket.com/blog/running_tpc_h_1000_on_apache_data_fusion">TPC-H at scale factor 1000 (~1 TB) on a single node</a> on top of it. That's a useful number to keep in mind whenever someone says they need a cluster.</p>
 <p>From <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/engine_comparison_examples.ipynb"><code>engine_comparison_examples.ipynb</code></a>:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datafusion</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionContext</span>
 
@@ -1621,9 +1628,9 @@
 <span class="s2">&quot;&quot;&quot;</span><span class="p">)</span>
 <span class="n">result</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
 </code></pre></div>
-<p>DataFusion's strength is its <a href="https://datafusion.apache.org/library-user-guide/">modularity</a>. It provides extension APIs for custom catalogs, table providers, optimizer rules, and execution plans — making it the go-to choice when you need to build a custom data platform or embed a query engine into your own product.</p>
+<p>DataFusion's strength is its <a href="https://datafusion.apache.org/library-user-guide/">modularity</a>. The extension APIs cover custom catalogs, table providers, optimizer rules, and execution plans, which is why it shows up whenever someone is building a custom data platform or embedding a query engine in their own product.</p>
 <h3 id="daft-multimodal-data-processing">Daft: Multimodal Data Processing</h3>
-<p><a href="https://github.com/Eventual-Inc/Daft">Daft</a> differentiates itself by treating multimodal data — images, audio, video, embeddings — as first-class citizens in the DataFrame abstraction. Where Pandas treats images as opaque byte arrays and Spark serializes them through the JVM, Daft exposes native Rust-powered expressions for decoding images, downloading URLs, and generating tensors, bypassing the Python loop overhead entirely.</p>
+<p><a href="https://github.com/Eventual-Inc/Daft">Daft</a> is the one that takes multimodal data seriously. Images, audio, video, embeddings — they're real types in the DataFrame, not opaque bytes. Pandas treats an image as a byte array, Spark serializes it through the JVM, but Daft has native Rust expressions for decoding images, fetching URLs, and producing tensors without the Python loop in the middle.</p>
 <p>From <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/engine_comparison_examples.ipynb"><code>engine_comparison_examples.ipynb</code></a>:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">daft</span>
 
@@ -1643,28 +1650,28 @@
     <span class="o">.</span><span class="n">collect</span><span class="p">()</span>
 <span class="p">)</span>
 </code></pre></div>
-<p>Daft's API feels familiar to Pandas users, but under the hood it is backed by the same Rust + Arrow stack as Polars and DataFusion. Where Daft truly shines is when your "rows" contain images, PDFs, or tensors.</p>
+<p>The API will feel familiar if you know Pandas, but the engine is the same Rust + Arrow stack you find in Polars and DataFusion. Where Daft pays off is when the "rows" in your DataFrame are images, PDFs, or tensors.</p>
 <h3 id="benchmark-single-node-performance">Benchmark: Single-Node Performance</h3>
-<p>I benchmarked all four engines (plus native Rust via Polars-rs) on ~41M <a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page">NYC yellow taxi trips</a> from 2024 Full Year. Full results from the <a href="https://github.com/slavadubrov/engine-comparison-demo">demo repo</a>:</p>
+<p>I ran all four engines, plus native Rust via Polars-rs, on ~41M <a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page">NYC yellow taxi trips</a> for full year 2024. Full results in the <a href="https://github.com/slavadubrov/engine-comparison-demo">demo repo</a>:</p>
 <p><img alt="Benchmark Results: Single-Node Performance" src="../../../../assets/2026-02-21-compute-engines/benchmark-results.svg" /></p>
-<p>At this dataset size (~660 MB Parquet), all engines are fast. Polars promises up to 94x faster performance than Pandas on specific massive analytical benchmarks (like PDS-H). In my own demo benchmark on ~41M rows, I've got constant improvement over Pandas, but not 94x. It's not the same massive multiplier, but still very good. Especially considering I've compared it with other engines and even clean pure Rust (via Polars-rs), and they perform about the same—with DataFusion showing the fastest total time, and Polars remaining an excellent overall choice across all tools tested.</p>
+<p>At this size (~660 MB Parquet), every modern engine is fast. The headline 94x Polars vs. Pandas number comes from PDS-H, a synthetic analytical benchmark — on my 41M-row workload I got a real, consistent improvement over Pandas, but nowhere near 94x. The more interesting result is that Polars, DataFusion, Daft, and pure Rust via Polars-rs all land in roughly the same ballpark on this workload. DataFusion edges out the rest on total time. Polars is the most pleasant to write and a solid all-rounder.</p>
 <hr />
 <h2 id="part-2-handling-multimodal-data">Part 2: Handling Multimodal Data</h2>
-<p>Traditional ETL typically reduces data volume through filtering and aggregation. In contrast, multimodal AI pipelines often expand data; for example, a single document path might generate numerous text chunks and embeddings.</p>
-<p>Spark treats complex types like images and audio as binary data. Processing them usually requires serializing the data from the JVM to Python (via Py4J), processing it with libraries like Pillow or OpenCV, and serializing it back. This serialization round-trip can introduce substantial overhead.</p>
+<p>Tabular ETL usually shrinks data: filter, aggregate, write less than you read. Multimodal AI pipelines do the opposite. A single document path might fan out into dozens of text chunks and embedding vectors.</p>
+<p>Spark treats images and audio as binary blobs. Touching them in Python means a JVM-to-Python hop through Py4J, processing with Pillow or OpenCV, then a serialization back. That round-trip dominates the wall-clock time on a lot of real workloads.</p>
 <h3 id="pipelined-execution-and-gpu-utilization">Pipelined Execution and GPU Utilization</h3>
-<p>Spark processes partitions in parallel across cores, but its <strong>stage-based (bulk synchronous) execution</strong> creates a different bottleneck. Within a single task, all operations — download, decode, classify — are fused and run sequentially on one core with no async I/O overlap. More importantly, all tasks in a stage must complete before the next stage begins: GPUs sit completely idle while CPUs preprocess data, and CPUs sit idle during GPU inference. Intermediate results must be fully materialized between stages, which can also cause memory pressure.</p>
+<p>Spark parallelizes partitions across cores, but its <strong>stage-based (bulk synchronous) execution</strong> is the catch. Inside a single task, every step (download, decode, classify) runs sequentially on one core with no async overlap. And every task in a stage has to finish before the next stage starts. GPUs sit idle while CPUs preprocess; CPUs sit idle while GPUs run inference. Each stage materializes its output before the next one begins, which puts memory pressure on top of everything.</p>
 <p><img alt="Pipelined Execution Model" src="../../../../assets/2026-02-21-compute-engines/pipelined-execution.svg" /></p>
-<p>An alternative approach is <strong>pipelined execution</strong>: instead of running stages one after another, modern engines overlap I/O, CPU work, and GPU inference — keeping all hardware busy at the same time.</p>
+<p><strong>Pipelined execution</strong> is the alternative. Instead of running stages back-to-back, the engine overlaps I/O, CPU work, and GPU inference, so the slow component is the only thing waiting at any given time.</p>
 <h3 id="benchmark-image-processing">Benchmark: Image Processing</h3>
 <p>I benchmarked image processing on 500 real photographs from the <a href="https://huggingface.co/datasets/ethz/food101">Food-101 dataset</a>. Results from the <a href="https://github.com/slavadubrov/engine-comparison-demo">demo repo</a>:</p>
 <p><img alt="Benchmark Results: Multimodal Performance" src="../../../../assets/2026-02-21-compute-engines/multimodal-benchmark-results.svg" /></p>
-<p>Polars and DataFusion are excluded from multimodal because they lack native image operations — image work would still go through sequential Python. The key insight: Daft's Rust-native image operations are 3.6x faster than Pandas+Pillow, and pure Rust is 4.2x faster than Pandas for the total pipeline.</p>
+<p>Polars and DataFusion don't show up here because they don't have native image operations — image work would fall back to sequential Python and the comparison wouldn't be fair. The numbers that matter: Daft's Rust-native image ops are 3.6x faster than Pandas + Pillow, and pure Rust is 4.2x faster than Pandas across the whole pipeline.</p>
 <hr />
 <h2 id="part-3-distributed-processing">Part 3: Distributed Processing</h2>
-<p>When data or compute needs exceed a single machine, you go distributed. This is where architectural differences matter most.</p>
+<p>Once a single machine isn't enough, you have to pick how to spread the work. This is where the architectural differences between engines actually start to matter.</p>
 <h3 id="apache-spark">Apache Spark</h3>
-<p>Spark is still the go-to for petabyte-scale tabular ETL with complex shuffles. Its strengths: battle-tested fault tolerance via RDD lineage, a mature ecosystem (Databricks, AWS EMR), and proven reliability for multi-TB joins. But for AI workloads, Spark struggles with GPUs: its stage-based execution model assigns tasks to JVM executors, leaving GPUs idle while waiting for slow CPU preprocessing.</p>
+<p>Spark is still what I'd reach for on petabyte-scale tabular ETL with messy shuffles. Fault tolerance through RDD lineage works, the ecosystem is huge (Databricks, EMR), and multi-TB joins are well-trodden ground. AI workloads are where it falls apart. Tasks get scheduled onto JVM executors that don't know about GPUs, so GPUs sit idle waiting on CPU preprocessing.</p>
 <p>From <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/distributed_spark.ipynb"><code>distributed_spark.ipynb</code></a>:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pyspark.sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">SparkSession</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pyspark.sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">functions</span> <span class="k">as</span> <span class="n">F</span>
@@ -1691,8 +1698,8 @@
 <span class="p">)</span>
 </code></pre></div>
 <h3 id="ray-data-gpu-utilization">Ray Data: GPU Utilization</h3>
-<p><a href="https://www.ray.io/">Ray Data</a> was built for the AI era. Unlike Spark's stage-based execution, Ray uses a <a href="https://docs.ray.io/en/latest/data/data-internals.html">streaming model</a> designed to keep GPUs fed. Its killer feature is <strong>mixed resource scheduling</strong>: you can assign specific resources (e.g., "1 GPU, 4 CPUs") to different actors within the same pipeline.</p>
-<p>Amazon reported saving <a href="https://aws.amazon.com/blogs/opensource/amazons-exabyte-scale-migration-from-apache-spark-to-ray-on-amazon-ec2/">over $120 million per year</a> by migrating specific workloads from Spark to Ray. Their proof-of-concept showed 91% better cost efficiency and 13x more data per hour; in production the number settled at 82% better cost efficiency per GiB of S3 input.</p>
+<p><a href="https://www.ray.io/">Ray Data</a> was designed around AI workloads. Instead of Spark's stage barriers, it uses a <a href="https://docs.ray.io/en/latest/data/data-internals.html">streaming model</a> that keeps GPUs fed. The feature that earns its existence is <strong>mixed resource scheduling</strong>: you can declare that one actor wants "1 GPU, 4 CPUs" and another wants only CPUs, and Ray figures out the rest.</p>
+<p>Amazon reported saving <a href="https://aws.amazon.com/blogs/opensource/amazons-exabyte-scale-migration-from-apache-spark-to-ray-on-amazon-ec2/">over $120 million per year</a> by moving specific workloads from Spark to Ray. Their PoC numbers were 91% better cost efficiency and 13x more data per hour; the production number settled at 82% better cost efficiency per GiB of S3 input.</p>
 <p>From <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/distributed_ray.ipynb"><code>distributed_ray.ipynb</code></a>:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">ray</span>
 
@@ -1729,11 +1736,11 @@
 <span class="p">)</span>
 <span class="n">predictions</span><span class="o">.</span><span class="n">write_parquet</span><span class="p">(</span><span class="s2">&quot;s3://output/predictions/&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>An important detail: as you add more CPUs per GPU, Ray Data keeps getting faster while other engines plateau. In <a href="https://www.anyscale.com/blog/ray-data-daft-benchmarking-multimodal-ai-workloads">Anyscale's benchmarks</a>, going from a 4:1 to a 32:1 CPU-to-GPU ratio gave a 3x performance jump for image inference — the CPU "feeder" tasks could finally keep up with GPU demand.</p>
+<p>One detail worth knowing: as you add more CPUs per GPU, Ray Data scales while other engines plateau. In <a href="https://www.anyscale.com/blog/ray-data-daft-benchmarking-multimodal-ai-workloads">Anyscale's benchmarks</a>, going from a 4:1 to a 32:1 CPU-to-GPU ratio gave a 3x speedup on image inference, because the CPU feeders finally kept up with the GPU.</p>
 <h3 id="daft-distributed">Daft (Distributed)</h3>
-<p>Daft scales to distributed mode via its <a href="https://www.daft.ai/blog/introducing-flotilla-simplifying-multimodal-data-processing-at-scale">Flotilla engine</a>, which puts one <strong>Swordfish</strong> worker per node. Swordfish handles local Rust execution while Flotilla manages cluster-wide scheduling. The key: it pipelines I/O with compute through small-batch streaming, keeping each node fully utilized.</p>
-<p>In benchmarks across four multimodal workloads, Daft with Flotilla ran <a href="https://www.daft.ai/blog/benchmarks-for-multimodal-ai-workloads">2-18x faster than Spark</a>. On the heaviest workload (video object detection with YOLO11n), Spark took over 3.5 hours while Daft finished in under 12 minutes — 18x faster, mostly because Spark wastes time on serialization overhead and stage barriers.</p>
-<p>Worth noting: Anyscale (the company behind Ray) published <a href="https://www.anyscale.com/blog/ray-data-daft-benchmarking-multimodal-ai-workloads">their own benchmarks</a> showing that with manual tuning, Ray Data narrows the gap and can beat Daft on high-CPU instances. This is an active race — both engines are improving fast.</p>
+<p>Daft scales out through its <a href="https://www.daft.ai/blog/introducing-flotilla-simplifying-multimodal-data-processing-at-scale">Flotilla engine</a>: one <strong>Swordfish</strong> worker per node, with Flotilla on top doing cluster-wide scheduling. Swordfish handles local Rust execution and pipelines I/O with compute through small-batch streaming, so each node stays busy without waiting on the next stage.</p>
+<p>Across four multimodal workloads, Daft with Flotilla ran <a href="https://www.daft.ai/blog/benchmarks-for-multimodal-ai-workloads">2–18x faster than Spark</a>. On the heaviest one (video object detection with YOLO11n), Spark took over 3.5 hours and Daft finished in under 12 minutes — 18x, mostly because Spark spends that time on serialization and stage barriers.</p>
+<p>One caveat: Anyscale, the company behind Ray, published <a href="https://www.anyscale.com/blog/ray-data-daft-benchmarking-multimodal-ai-workloads">their own benchmarks</a> showing Ray Data closing or reversing the gap on high-CPU instances with manual tuning. The two are leapfrogging each other on a quarterly basis at the moment.</p>
 <p>From <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/distributed_daft.ipynb"><code>distributed_daft.ipynb</code></a>:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">daft</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">daft</span><span class="w"> </span><span class="kn">import</span> <span class="n">col</span>
@@ -1805,9 +1812,9 @@
 </table>
 <hr />
 <h2 id="part-4-the-role-of-rust-and-arrow">Part 4: The Role of Rust and Arrow</h2>
-<p>Under all the competition, something interesting is happening: Polars, Daft, DataFusion, and even Ray's core all share the same foundation — <a href="https://arrow.apache.org/">Apache Arrow</a> for the in-memory format and Rust for safe, high-performance concurrency.</p>
+<p>Underneath the competition, the convergence is the more interesting story. Polars, Daft, DataFusion, and Ray's core all share the same foundation: <a href="https://arrow.apache.org/">Apache Arrow</a> for the in-memory format and Rust for the concurrency.</p>
 <p><img alt="Rust and Arrow Convergence" src="../../../../assets/2026-02-21-compute-engines/rust-arrow-convergence.svg" /></p>
-<p>This has real practical impact. The <a href="https://arrow.apache.org/docs/format/CDataInterface/PyCapsuleInterface.html">Arrow PyCapsule Interface</a> (<code>__arrow_c_stream__</code> protocol) lets you move data between engines without serialization: compute a result in DataFusion and hand it to Polars or PyArrow with zero overhead. Use Daft for multimodal preprocessing and pass Arrow batches straight into a PyTorch DataLoader. This significantly reduces serialization overhead across the pipeline.</p>
+<p>That's not just architectural neatness. The <a href="https://arrow.apache.org/docs/format/CDataInterface/PyCapsuleInterface.html">Arrow PyCapsule Interface</a> (<code>__arrow_c_stream__</code> protocol) lets you hand data between engines with no serialization: compute in DataFusion, pass the result to Polars or PyArrow at zero cost; do multimodal preprocessing in Daft and feed Arrow batches straight into a PyTorch DataLoader.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datafusion</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionContext</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
 
@@ -1829,25 +1836,25 @@
     <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;event_count&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">rank</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;rank&quot;</span><span class="p">)</span>
 <span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">&quot;rank&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>Why Rust over the JVM? Three reasons:</p>
+<p>So why Rust instead of the JVM?</p>
 <ol>
 <li>
-<p><strong>No garbage collection pauses.</strong> Rust uses ownership and borrowing instead of a garbage collector. No "stop-the-world" pauses, no unpredictable latency spikes. This eliminates the class of OOM errors that haunt JVM-based systems at scale.</p>
+<p><strong>No garbage collection pauses.</strong> Ownership and borrowing replace GC, which means no stop-the-world pauses and no unpredictable latency spikes. The OOM errors that show up at scale on JVM systems mostly disappear.</p>
 </li>
 <li>
-<p><strong>No object tax.</strong> The JVM adds 12-16 bytes per object header. When processing billions of small objects, this overhead adds up fast. Rust has no such overhead.</p>
+<p><strong>No object header tax.</strong> The JVM adds 12–16 bytes of object header to every object. Across billions of small objects, that's a memory budget all by itself. Rust doesn't pay it.</p>
 </li>
 <li>
-<p><strong>Compile-time thread safety.</strong> Rust's type system catches data races at compile time, so you get safe multi-threaded execution without subtle concurrency bugs.</p>
+<p><strong>Compile-time thread safety.</strong> Rust's type system rejects data races before the binary builds, so multi-threaded execution doesn't come with the usual class of subtle concurrency bugs.</p>
 </li>
 </ol>
-<p>Combined with Arrow's columnar memory layout, the serialization bottleneck — which eats up to 30% of CPU cycles in legacy stacks — just disappears.</p>
+<p>Combined with Arrow's columnar memory layout, the serialization bottleneck that eats up to 30% of CPU cycles in legacy JVM stacks goes away.</p>
 <hr />
 <h2 id="part-5-adopting-multiple-engines">Part 5: Adopting Multiple Engines</h2>
-<p>The most practical takeaway: don't pick <em>one</em> engine — use each where it excels.</p>
+<p>The honest answer is that you don't pick one engine. You compose them.</p>
 <p><img alt="The Coexistence Model: Multi-Engine Pipeline" src="../../../../assets/2026-02-21-compute-engines/coexistence-relay.svg" /></p>
-<p>The pattern in production looks like this: raw data in a lake gets cleaned by <strong>Spark</strong> (or <strong>Dask</strong> for Python-native teams) into Parquet/Delta tables. Those tables then get fed into <strong>Ray Data</strong> or <strong>Daft</strong> for "last mile" work — GPU inference, embedding generation, multimodal transforms that Spark was never designed for. For ad-hoc analysis and local dev, <strong>Polars</strong> and <strong>DuckDB</strong> give you instant feedback without cluster overhead.</p>
-<p>The glue that makes this work: <strong>open formats</strong> — Parquet, Delta, Iceberg, Arrow. Every engine reads and writes them natively, so data flows between stages without conversion or lock-in.</p>
+<p>In production, this usually looks like a relay. Raw data in a lake gets cleaned and joined by <strong>Spark</strong> (or <strong>Dask</strong> if your team is Python-only) into Parquet or Delta tables. Those tables flow into <strong>Ray Data</strong> or <strong>Daft</strong> for the last-mile work — GPU inference, embedding generation, multimodal transforms — that Spark was never designed for. For ad-hoc analysis and local development, <strong>Polars</strong> and <strong>DuckDB</strong> give you instant feedback without spinning up a cluster.</p>
+<p>What makes this composition possible is <strong>open formats</strong>: Parquet, Delta, Iceberg, Arrow. Every engine in the stack reads and writes them natively, so the handoff between stages is just a file path.</p>
 <h3 id="summary-of-engine-use-cases">Summary of Engine Use Cases</h3>
 <p><img alt="Engine Selection Matrix" src="../../../../assets/2026-02-21-compute-engines/engine-selection.svg" /></p>
 <table>
@@ -1891,12 +1898,12 @@
 </tr>
 </tbody>
 </table>
-<h3 id="diagonal-scaling-the-new-frontier">Diagonal Scaling: The New Frontier</h3>
-<p>For years the choice was simple: Scale Up (bigger machine) or Scale Out (more machines). Modern engines offer a third option — <strong>Diagonal Scaling</strong>. <a href="https://pola.rs/posts/polars-cloud-what-we-are-building/">Polars Cloud</a> does exactly this: it scales horizontally to multiple nodes when reading from cloud storage to max out I/O, but once filters and aggregations shrink the data, it switches to a single big node for compute — skipping the overhead of a distributed shuffle.</p>
-<p>The surprising finding: bigger, more expensive instances can be <em>cheaper per job</em> because they drive higher GPU utilization, cutting total execution time enough to lower the overall bill.</p>
+<h3 id="diagonal-scaling">Diagonal Scaling</h3>
+<p>For a long time the choice was scale up (a bigger machine) or scale out (more machines). <a href="https://pola.rs/posts/polars-cloud-what-we-are-building/">Polars Cloud</a> is doing something in between, which they call <strong>diagonal scaling</strong>: scale horizontally while reading from cloud storage to max out I/O, then collapse to a single big node once filters and aggregations have shrunk the data, skipping the distributed shuffle entirely.</p>
+<p>The counterintuitive part: a bigger, more expensive instance can come out <em>cheaper per job</em> because it pushes GPU utilization up high enough that total execution time drops faster than the hourly rate goes up.</p>
 <hr />
 <h2 id="try-it-yourself">Try It Yourself</h2>
-<p>The <a href="https://github.com/slavadubrov/engine-comparison-demo">companion demo repository</a> includes everything you need to reproduce these benchmarks:</p>
+<p>The <a href="https://github.com/slavadubrov/engine-comparison-demo">companion demo repository</a> has everything you need to reproduce these benchmarks:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Install dependencies</span>
 uv<span class="w"> </span>sync
 
@@ -1909,27 +1916,27 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 <span class="c1"># Run native Rust benchmarks (Polars-rs + image crate)</span>
 <span class="nb">cd</span><span class="w"> </span>rust_benchmark<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cargo<span class="w"> </span>run<span class="w"> </span>--release<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..
 </code></pre></div>
-<p>The repo also includes interactive notebooks for side-by-side API comparisons, and Docker Compose configurations for local distributed experiments with Spark, Ray, and Daft.</p>
+<p>The repo also has notebooks for side-by-side API comparisons and Docker Compose setups for local distributed runs of Spark, Ray, and Daft.</p>
 <hr />
 <h2 id="key-takeaways">Key Takeaways</h2>
 <ol>
 <li>
-<p><strong>Don't distribute if you don't have to.</strong> Polars and DataFusion handle up to ~1 TB on one machine with constant, significant speedups over Pandas (promising up to 94x on heavy analytical benchmarks). Only reach for a cluster when you've actually hit the limits of a single node.</p>
+<p><strong>Don't distribute if you don't have to.</strong> Polars and DataFusion handle up to ~1 TB on a single machine, with consistent speedups over Pandas (and 94x on heavy analytical benchmarks like PDS-H). Reach for a cluster when you've actually hit the limits of a single node, not before.</p>
 </li>
 <li>
-<p><strong>Understand Pandas' constraints.</strong> Eager execution, single-threading, and intermediate copies are architectural decisions that become limitations for certain workloads. Lazy execution with predicate pushdown and column pruning provides significant performance advantages at scale.</p>
+<p><strong>Pandas's limits are architectural.</strong> Eager execution, single-threading, intermediate copies — these are deliberate design choices that turn into bottlenecks once data gets large. Lazy execution with predicate pushdown and column pruning is what changes that.</p>
 </li>
 <li>
-<p><strong>Pipelined execution improves hardware utilization.</strong> Spark's stage-based execution model can leave GPUs idle during CPU preprocessing. Pipelined execution models (like Ray Data and Daft) overlap operations to keep resources better utilized.</p>
+<p><strong>Pipelined execution beats stage barriers for GPU work.</strong> Spark's stages leave GPUs idle while CPUs preprocess. Ray Data and Daft overlap I/O, CPU, and GPU work so that no resource is sitting around waiting for the next stage.</p>
 </li>
 <li>
-<p><strong>Use each engine where it shines.</strong> Spark for petabyte ETL, Polars/DuckDB for ad-hoc analysis, Ray Data for GPU training pipelines, Daft for multimodal data loading, DataFusion for custom query engines.</p>
+<p><strong>Use each engine for what it's good at.</strong> Spark for petabyte ETL, Polars and DuckDB for ad-hoc analysis, Ray Data for GPU training pipelines, Daft for multimodal data loading, DataFusion for custom query engines.</p>
 </li>
 <li>
-<p><strong>Rust + Arrow is the new foundation.</strong> This is not a coincidence — it eliminates GC pauses, serialization overhead, and concurrency bugs at the infrastructure level.</p>
+<p><strong>Rust + Arrow is the shared foundation.</strong> It's not a coincidence that Polars, DataFusion, Daft, and Ray all converge here — it gets rid of GC pauses, cross-process serialization overhead, and a whole class of concurrency bugs.</p>
 </li>
 </ol>
-<p>The best engine is the one that keeps your hardware busy and your developers productive.</p>
+<p>If you're not sure where to start: Polars on a single machine, then Daft or Ray Data when GPUs enter the picture. Spark only when you actually have a petabyte.</p>
 <hr />
 <h2 id="references">References</h2>
 <h3 id="benchmarks-and-performance-data">Benchmarks and Performance Data</h3>
