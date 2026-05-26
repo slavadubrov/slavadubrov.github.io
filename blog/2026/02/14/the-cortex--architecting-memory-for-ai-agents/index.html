@@ -1660,7 +1660,7 @@
 
 <h1 id="the-cortex-architecting-memory-for-ai-agents">The Cortex — architecting memory for AI agents</h1>
 <p><strong>Part 2 of the Engineering the Agentic Stack series</strong></p>
-<p>State is what separates a chatbot from an agent. Without memory, every interaction starts from zero. The agent cannot pause and resume, cannot learn from past sessions, cannot personalize. <a href="/blog/2026/01/31/the-cognitive-engine-choosing-the-right-reasoning-loop/">Part 1</a> covered the cognitive engine that decides <em>how</em> an agent thinks. This post is about the infrastructure that determines <em>what</em> it remembers.</p>
+<p>State is what separates a chatbot from an agent. Without memory, every interaction starts from zero. The agent cannot pause and resume, cannot learn from past sessions, cannot personalize. <a href="/blog/2026/01/31/the-cognitive-engine--choosing-the-right-reasoning-loop/">Part 1</a> covered the cognitive engine that decides <em>how</em> an agent thinks. This post is about the infrastructure that determines <em>what</em> it remembers.</p>
 <p>I'll walk through the memory architecture of the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>, showing how hot and cold memory layers work together for checkpointing, pause/resume, and cross-session learning. Then I'll cover a third tier — document memory — that doesn't get much theoretical treatment but turns up everywhere in practice.</p>
 <!-- more -->
 
@@ -1674,7 +1674,7 @@
 <li><strong>Personalization</strong>: a returning user expects the agent to know their risk tolerance, preferred analysis depth, and past interactions.</li>
 <li><strong>Human-in-the-loop (HITL)</strong>: the agent drafts a report and waits for approval. The "waiting" state has to survive process restarts.</li>
 </ul>
-<p>Take the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a> from <a href="/blog/2026/01/31/the-cognitive-engine-choosing-the-right-reasoning-loop/">Part 1</a>. A user asks "Analyze NVDA". The agent builds a plan, calls five tools, gathers data, drafts a report. The user replies "looks good, but add competitor analysis." Without checkpointed state, the agent has no idea what "looks good" refers to and has to start over. With a checkpoint store, it loads the state from the last node, including the gathered research, and just adds a competitor step.</p>
+<p>Take the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a> from <a href="/blog/2026/01/31/the-cognitive-engine--choosing-the-right-reasoning-loop/">Part 1</a>. A user asks "Analyze NVDA". The agent builds a plan, calls five tools, gathers data, drafts a report. The user replies "looks good, but add competitor analysis." Without checkpointed state, the agent has no idea what "looks good" refers to and has to start over. With a checkpoint store, it loads the state from the last node, including the gathered research, and just adds a competitor step.</p>
 <p>Now imagine the same user comes back a week later: "Update my NVDA analysis." Without long-term memory, the agent doesn't know this user prefers conservative risk assessments or that they're interested in semiconductor stocks. With a vector-backed memory store, it recalls those facts and personalizes the response without re-asking.</p>
 <p>LangGraph splits this cleanly. Every graph execution runs inside a <strong>thread</strong> — a single conversation or task. State within a thread is <strong>working memory</strong>. State that persists across threads is <strong>long-term memory</strong>. The engineering question is which storage backend to use for each.</p>
 <p><img alt="Memory Taxonomy" src="../../../../assets/2026-02-14-memory/memory-taxonomy.svg" /></p>
@@ -1747,7 +1747,7 @@
 <h2 id="short-term-hot-memory-the-checkpoint-store">Short-term "hot" memory: the checkpoint store</h2>
 <p>Every time a LangGraph node executes, the framework serializes the full graph state and writes it to a <strong>checkpoint store</strong>. That's the foundation for pause/resume, time-travel debugging, and HITL workflows.</p>
 <p><img alt="Hot Memory Checkpoint Flow" src="../../../../assets/2026-02-14-memory/hot-memory-checkpoint.svg" /></p>
-<p>A checkpoint contains the graph state needed to resume: the <code>AgentState</code> from <a href="/blog/2026/01/31/the-cognitive-engine-choosing-the-right-reasoning-loop/">Part 1</a> (messages, identity, user profile, plan steps, research data, execution mode), plus LangGraph metadata like which node produced it and a monotonically increasing sequence number. When the graph resumes — after a HITL interrupt or a process restart — it loads the latest checkpoint and continues from exactly where it stopped. A checkpoint is not the same thing as an append-only event log or trace; <a href="/blog/2026/05/26/the-runtime--running-agents-for-hours-not-seconds/">Part 5</a> separates those runtime observability surfaces explicitly.</p>
+<p>A checkpoint contains the graph state needed to resume: the <code>AgentState</code> from <a href="/blog/2026/01/31/the-cognitive-engine--choosing-the-right-reasoning-loop/">Part 1</a> (messages, identity, user profile, plan steps, research data, execution mode), plus LangGraph metadata like which node produced it and a monotonically increasing sequence number. When the graph resumes — after a HITL interrupt or a process restart — it loads the latest checkpoint and continues from exactly where it stopped. A checkpoint is not the same thing as an append-only event log or trace; <a href="/blog/2026/05/26/the-runtime--running-agents-for-hours-not-seconds/">Part 5</a> separates those runtime observability surfaces explicitly.</p>
 <h3 id="how-langgraph-checkpointing-works">How LangGraph checkpointing works</h3>
 <p>LangGraph's <code>BaseCheckpointSaver</code> is a simple interface: <code>put()</code> writes a checkpoint, <code>get_tuple()</code> reads the latest one for a thread, <code>list()</code> returns the history. Every checkpoint is keyed by <code>(thread_id, checkpoint_ns, checkpoint_id)</code>, where <code>thread_id</code> identifies the conversation, <code>checkpoint_ns</code> handles subgraph namespacing, and <code>checkpoint_id</code> is a unique version.</p>
 <p>The decision that matters is which backend to put behind it. LangGraph ships two production options: PostgreSQL and Redis.</p>
@@ -2377,7 +2377,7 @@
 <p>The architecture has three memory paths:</p>
 <ol>
 <li>
-<p><strong>Hot path (checkpoint store)</strong>: Every node in the LangGraph writes its resumable graph state to the checkpoint store. When the graph hits an <code>interrupt_before</code> node (like the reporter in <a href="/blog/2026/01/31/the-cognitive-engine-choosing-the-right-reasoning-loop/">Part 1</a>), execution pauses. The user can close the app, and when they return, the graph resumes from the checkpoint. Runtime event logs and traces are separate production concerns.</p>
+<p><strong>Hot path (checkpoint store)</strong>: Every node in the LangGraph writes its resumable graph state to the checkpoint store. When the graph hits an <code>interrupt_before</code> node (like the reporter in <a href="/blog/2026/01/31/the-cognitive-engine--choosing-the-right-reasoning-loop/">Part 1</a>), execution pauses. The user can close the app, and when they return, the graph resumes from the checkpoint. Runtime event logs and traces are separate production concerns.</p>
 </li>
 <li>
 <p><strong>Cold path (long-term store)</strong>: At the start of each conversation, the agent queries the long-term store for relevant user context. At the end, it extracts and stores new facts. This runs asynchronously — it should never block the main reasoning loop.</p>
@@ -2439,7 +2439,7 @@
 <p><strong>Router + Planner</strong>: The router classifies this as <code>DEEP_RESEARCH</code>. The planner creates a 5-step research plan personalized to the recalled preferences. It includes a competitor analysis step because the user's history shows they want one. The plan follows the format from the conventions document.</p>
 </li>
 <li>
-<p><strong>Executor loop (hot memory)</strong>: Each step executes via the ReAct pattern from <a href="/blog/2026/01/31/the-cognitive-engine-choosing-the-right-reasoning-loop/">Part 1</a>. After every node (router, planner, each executor step) LangGraph writes a checkpoint to PostgreSQL. If the process crashes after step 3 of 5, you restart and continue from step 4.</p>
+<p><strong>Executor loop (hot memory)</strong>: Each step executes via the ReAct pattern from <a href="/blog/2026/01/31/the-cognitive-engine--choosing-the-right-reasoning-loop/">Part 1</a>. After every node (router, planner, each executor step) LangGraph writes a checkpoint to PostgreSQL. If the process crashes after step 3 of 5, you restart and continue from step 4.</p>
 </li>
 <li>
 <p><strong>HITL interrupt</strong>: The graph reaches the <code>reporter</code> node with <code>interrupt_before</code>. The draft report is in the checkpoint. The user reviews it hours later, and the graph loads the checkpoint and continues.</p>
@@ -2593,7 +2593,7 @@
 <p><em>The full Market Analyst Agent code, including the memory architecture in this post, is on <a href="https://github.com/slavadubrov/market-analyst-agent">GitHub</a> if you want to read along.</em></p>
 <p><strong>Series: Engineering the Agentic Stack</strong></p>
 <ul>
-<li><a href="/blog/2026/01/31/the-cognitive-engine-choosing-the-right-reasoning-loop/">Part 1: The Cognitive Engine</a> — Choosing the right reasoning loop</li>
+<li><a href="/blog/2026/01/31/the-cognitive-engine--choosing-the-right-reasoning-loop/">Part 1: The Cognitive Engine</a> — Choosing the right reasoning loop</li>
 <li><strong>Part 2: The Cortex</strong> (this post) — Architecting memory for AI agents</li>
 <li><a href="/blog/2026/03/24/the-hands--tool-ergonomics-and-the-agent-computer-interface/">Part 3: The Hands</a> — Tool ergonomics and the ACI</li>
 <li><a href="/blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/">Part 4: The Guardians</a> — Policy, sandboxes, permissions, agent threat models</li>
