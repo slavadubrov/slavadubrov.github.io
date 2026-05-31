@@ -1067,9 +1067,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#3-running-tools-with-uvx" class="md-nav__link">
+  <a href="#3-running-tools-with-uvx-and-uv-tool-install" class="md-nav__link">
     <span class="md-ellipsis">
-      3. Running tools with uvx
+      3. Running tools with uvx and uv tool install
     </span>
   </a>
   
@@ -1084,6 +1084,48 @@
   <a href="#legacy-projects-requirementstxt" class="md-nav__link">
     <span class="md-ellipsis">
       Legacy projects (requirements.txt)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#single-file-scripts-with-inline-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      Single-file scripts with inline dependencies
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Single-file scripts with inline dependencies">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-this-is-great-for-skill-and-automation-scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      Why this is great for skill and automation scripts
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#locking-and-pinning-scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      Locking and pinning scripts
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tips-and-tricks-worth-knowing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tips and tricks worth knowing
     </span>
   </a>
   
@@ -1458,6 +1500,9 @@ uv<span class="w"> </span>run<span class="w"> </span>train.py<span class="w">   
 <span class="c1"># Run tools without installing them</span>
 uvx<span class="w"> </span>ruff<span class="w"> </span>check<span class="w"> </span>.<span class="w">       </span><span class="c1"># run linter</span>
 uvx<span class="w"> </span>black<span class="w"> </span>.<span class="w">            </span><span class="c1"># run formatter</span>
+
+<span class="c1"># Run a single-file script with its own dependencies (no project needed)</span>
+uv<span class="w"> </span>run<span class="w"> </span>fetch.py<span class="w">        </span><span class="c1"># uv reads the inline deps and runs it</span>
 </code></pre></div>
 <!-- more -->
 
@@ -1513,7 +1558,7 @@ uv<span class="w"> </span>add<span class="w"> </span>pytest<span class="w"> </sp
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>python<span class="w"> </span>pin<span class="w"> </span><span class="m">3</span>.11
 </code></pre></div>
 <p>This writes a <code>.python-version</code> file. On the next <code>uv run</code>, it uses the pinned version and downloads it if needed. Your team and CI end up on the same Python version without any extra coordination.</p>
-<h3 id="3-running-tools-with-uvx">3. Running tools with <code>uvx</code></h3>
+<h3 id="3-running-tools-with-uvx-and-uv-tool-install">3. Running tools with <code>uvx</code> and <code>uv tool install</code></h3>
 <p><code>uvx</code> (an alias for <code>uv tool run</code>) runs Python command-line tools without adding them to your global environment or project dependencies.</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Run a linter</span>
 uvx<span class="w"> </span>ruff<span class="w"> </span>check<span class="w"> </span>.
@@ -1525,18 +1570,122 @@ uvx<span class="w"> </span>black<span class="w"> </span>.
 uvx<span class="w"> </span>--from<span class="w"> </span>jupyterlab<span class="w"> </span>jupyter<span class="w"> </span>lab
 </code></pre></div>
 <p>Each tool runs in its own temporary environment, so there's no version conflict with whatever your project already has installed.</p>
+<p><img alt="uvx versus uv tool install" src="../../../../assets/2025-04-17-uv-on-macos/uvx-vs-tool-install.svg" /></p>
+<p>Two details I reach for constantly:</p>
+<ul>
+<li><strong>Pin the version inline</strong> with <code>@</code>: <code>uvx ruff@0.6.0 check .</code>, or force the newest with <code>uvx ruff@latest</code>.</li>
+<li><strong>The command name doesn't match the package?</strong> Use <code>--from</code>. The package <code>jupyterlab</code> ships the <code>jupyter</code> command, so it's <code>uvx --from jupyterlab jupyter lab</code>. Same for <code>--from httpie http</code>.</li>
+<li><strong>Need an extra dependency</strong> for a plugin? Add it with <code>--with</code>: <code>uvx --with mkdocs-material mkdocs serve</code>.</li>
+</ul>
+<p>If you use a tool every day, install it once instead of spinning up a fresh environment each time:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>ruff<span class="w">      </span><span class="c1"># now `ruff` is on your PATH</span>
+uv<span class="w"> </span>tool<span class="w"> </span>list<span class="w">              </span><span class="c1"># see what&#39;s installed</span>
+uv<span class="w"> </span>tool<span class="w"> </span>upgrade<span class="w"> </span>--all<span class="w">     </span><span class="c1"># update everything</span>
+uv<span class="w"> </span>tool<span class="w"> </span>uninstall<span class="w"> </span>ruff
+</code></pre></div>
+<p>The rule of thumb: <code>uvx</code> for one-off or CI runs, <code>uv tool install</code> for your daily drivers.</p>
 <hr />
 <h2 id="legacy-projects-requirementstxt">Legacy projects (requirements.txt)</h2>
-<p>For an existing project using <code>requirements.txt</code>, <code>uv</code> works as a drop-in replacement for <code>pip</code> and <code>venv</code>.</p>
-<p>Set it up:</p>
+<p><code>requirements.txt</code> has had a good run. It's a flat list of packages with no lockfile, no separation between app and dev dependencies, and no record of why anything is pinned. That's fine until the day you try to reproduce a build from eight months ago and discover that "pinned" meant whatever PyPI happened to resolve at the time.</p>
+<p>If you own the project, migrate it. <code>uv</code> reads your existing list straight into a <code>pyproject.toml</code>:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>init<span class="w"> </span>--bare<span class="w">                        </span><span class="c1"># minimal pyproject.toml, no scaffolding</span>
+uv<span class="w"> </span>add<span class="w"> </span>-r<span class="w"> </span>requirements.txt<span class="w">            </span><span class="c1"># import runtime dependencies</span>
+uv<span class="w"> </span>add<span class="w"> </span>--dev<span class="w"> </span>-r<span class="w"> </span>requirements-dev.txt<span class="w">  </span><span class="c1"># and dev ones, if you split them</span>
+</code></pre></div>
+<p>You now have a <code>pyproject.toml</code> and a real <code>uv.lock</code> that pins exact resolved versions. Confirm everything came across with <code>uv pip freeze</code>, delete the old <code>requirements.txt</code>, and don't look back.</p>
+<p>But maybe you've been running the same <code>requirements.txt</code> since Python 3.6 and you're not interested in my opinion about it. Fair. <code>uv</code> still works as a drop-in replacement for <code>pip</code> and <code>venv</code>, no migration required:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Create a virtual environment</span>
 uv<span class="w"> </span>venv
 
 <span class="c1"># Install dependencies</span>
 uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+
+<span class="c1"># Run it</span>
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>app.py
+</code></pre></div>
+<p>Same commands you already know, just faster. Nothing about the old workflow gets worse; it's only that you no longer have to use it.</p>
+<hr />
+<h2 id="single-file-scripts-with-inline-dependencies">Single-file scripts with inline dependencies</h2>
+<p>This is the feature that changed how I write throwaway and glue code. A Python script can declare its own dependencies inside the file, in a comment block defined by <a href="https://peps.python.org/pep-0723/">PEP 723</a>. No <code>pyproject.toml</code>, no <code>requirements.txt</code>, no virtual environment to create — <code>uv run</code> reads the block, builds a cached environment, and runs the file.</p>
+<p>Worth being clear about what's doing the work here: this isn't a Python language feature, and it isn't a <code>uv</code> invention. The block is just a comment, so plain <code>python fetch.py</code> ignores it and fails on the missing imports. PEP 723 is a shared standard, so any compatible runner reads the same block — <code>pipx run</code>, Hatch, and PDM all support it too. <code>uv</code> happens to be the fastest way to use it, which is why the rest of this section uses <code>uv run</code>.</p>
+<p><img alt="Anatomy of a self-contained script" src="../../../../assets/2025-04-17-uv-on-macos/uv-inline-script.svg" /></p>
+<p>Here's the whole thing in one file, <code>fetch.py</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># /// script</span>
+<span class="c1"># requires-python = &quot;&gt;=3.12&quot;</span>
+<span class="c1"># dependencies = [</span>
+<span class="c1">#     &quot;httpx&quot;,</span>
+<span class="c1">#     &quot;rich&quot;,</span>
+<span class="c1"># ]</span>
+<span class="c1"># ///</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">httpx</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rich</span><span class="w"> </span><span class="kn">import</span> <span class="nb">print</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">httpx</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;https://api.github.com/repos/astral-sh/uv&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">())</span>
 </code></pre></div>
 <p>Run it:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>app.py
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>fetch.py
+</code></pre></div>
+<p>The first run resolves and installs <code>httpx</code> and <code>rich</code> into a cached environment; later runs reuse it and start instantly.</p>
+<p>You don't have to write the metadata block by hand. <code>uv</code> will scaffold and edit it for you:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Create a new script with the block pre-filled</span>
+uv<span class="w"> </span>init<span class="w"> </span>--script<span class="w"> </span>fetch.py<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.12
+
+<span class="c1"># Add or remove dependencies</span>
+uv<span class="w"> </span>add<span class="w"> </span>--script<span class="w"> </span>fetch.py<span class="w"> </span>httpx<span class="w"> </span>rich
+uv<span class="w"> </span>remove<span class="w"> </span>--script<span class="w"> </span>fetch.py<span class="w"> </span>rich
+</code></pre></div>
+<p>For a quick experiment you can even skip the block entirely and pass dependencies on the command line:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--with<span class="w"> </span>httpx<span class="w"> </span>--with<span class="w"> </span>rich<span class="w"> </span>fetch.py
+</code></pre></div>
+<h3 id="why-this-is-great-for-skill-and-automation-scripts">Why this is great for skill and automation scripts</h3>
+<p>I lean on this for the small scripts that don't deserve a project: a one-off data fix, a CI helper, a <a href="https://code.claude.com/docs/en/skills">Claude Code skill</a> script, a cron job. The script is the unit. You can drop it in a gist, commit it to any repo, or hand it to a teammate, and <code>uv run</code> is the only thing they need to run it correctly.</p>
+<p>Make it directly executable with a shebang:</p>
+<div class="highlight"><pre><span></span><code><span class="ch">#!/usr/bin/env -S uv run --script</span>
+<span class="c1"># /// script</span>
+<span class="c1"># dependencies = [&quot;httpx&quot;]</span>
+<span class="c1"># ///</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">httpx</span>
+<span class="o">...</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>chmod<span class="w"> </span>+x<span class="w"> </span>fetch.py
+./fetch.py<span class="w">        </span><span class="c1"># uv handles the environment behind the scenes</span>
+</code></pre></div>
+<p>The <code>-S</code> splits the shebang into separate arguments so <code>env</code> passes <code>--script</code> through to <code>uv</code>.</p>
+<h3 id="locking-and-pinning-scripts">Locking and pinning scripts</h3>
+<p>For scripts that need to keep working months from now, you have two options.</p>
+<p>Lock the exact resolution next to the script:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>lock<span class="w"> </span>--script<span class="w"> </span>fetch.py<span class="w">   </span><span class="c1"># writes fetch.py.lock</span>
+</code></pre></div>
+<p>Or pin a point in time so <code>uv</code> only considers packages released before a given date — handy for reproducibility without a lockfile:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># /// script</span>
+<span class="c1"># dependencies = [&quot;httpx&quot;]</span>
+<span class="c1"># [tool.uv]</span>
+<span class="c1"># exclude-newer = &quot;2025-04-17T00:00:00Z&quot;</span>
+<span class="c1"># ///</span>
+</code></pre></div>
+<hr />
+<h2 id="tips-and-tricks-worth-knowing">Tips and tricks worth knowing</h2>
+<p>A few more things I use regularly that aren't obvious from the quick start.</p>
+<p><strong>Sync from the lockfile in CI.</strong> <code>uv sync</code> installs exactly what's in <code>uv.lock</code>. Add <code>--frozen</code> to fail loudly if the lockfile is stale instead of silently re-resolving — exactly what you want in CI and Docker builds.</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>sync<span class="w"> </span>--frozen
+</code></pre></div>
+<p><strong>Group your dev dependencies.</strong> Beyond <code>--dev</code>, you can define named dependency groups in <code>pyproject.toml</code> (docs, lint, test) and sync only what you need:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span>--group<span class="w"> </span>docs<span class="w"> </span>mkdocs-material
+uv<span class="w"> </span>sync<span class="w"> </span>--only-group<span class="w"> </span>docs
+</code></pre></div>
+<p><strong>Inspect the dependency tree.</strong> <code>uv tree</code> shows what pulled in what — and <code>--outdated</code> flags upgrades:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tree
+uv<span class="w"> </span>tree<span class="w"> </span>--outdated
+</code></pre></div>
+<p><strong>Export to requirements.txt</strong> when a downstream tool still expects one:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span><span class="nb">export</span><span class="w"> </span>--format<span class="w"> </span>requirements-txt<span class="w"> </span>&gt;<span class="w"> </span>requirements.txt
+</code></pre></div>
+<p><strong>Run a one-off Python with extra packages</strong>, no project required:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--with<span class="w"> </span>pandas<span class="w"> </span>--with<span class="w"> </span>matplotlib<span class="w"> </span>python
+</code></pre></div>
+<p><strong>Manage the cache</strong> when disk space gets tight or a build goes sideways:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>cache<span class="w"> </span>clean<span class="w">      </span><span class="c1"># wipe the whole cache</span>
+uv<span class="w"> </span>cache<span class="w"> </span>prune<span class="w">       </span><span class="c1"># remove only unused entries</span>
 </code></pre></div>
 <hr />
 <h2 id="why-its-fast">Why it's fast</h2>
@@ -1573,9 +1722,24 @@ uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </s
 <td style="text-align: left;"><code>uv run script.py</code></td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>Run tool</strong></td>
+<td style="text-align: left;"><strong>Script + deps</strong></td>
+<td style="text-align: left;">a project, or a manual venv just for one file</td>
+<td style="text-align: left;">inline PEP 723 block + <code>uv run</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Run tool once</strong></td>
 <td style="text-align: left;"><code>pipx run black</code></td>
 <td style="text-align: left;"><code>uvx black</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Install a tool</strong></td>
+<td style="text-align: left;"><code>pipx install ruff</code></td>
+<td style="text-align: left;"><code>uv tool install ruff</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Reproducible CI</strong></td>
+<td style="text-align: left;"><code>pip install -r requirements.txt</code></td>
+<td style="text-align: left;"><code>uv sync --frozen</code></td>
 </tr>
 </tbody>
 </table>
