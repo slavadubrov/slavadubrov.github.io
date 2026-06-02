@@ -1,0 +1,2328 @@
+
+<!doctype html>
+<html lang="ru" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Как построить стек ранжирования поиска с BM25, плотными эмбеддингами, гибридным RRF, cross-encoder-реранжированием и listwise-реранжированием с помощью LLM на Amazon ESCI.">
+      
+      
+        <meta name="author" content="Viacheslav Dubrov">
+      
+      
+        <link rel="canonical" href="https://slavadubrov.github.io/ru/blog/2026/02/08/building-a-modern-search-ranking-stack-from-embeddings-to-llm-powered-relevance/">
+      
+      
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="RSS канал" href="../../../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="RSS канал с новым контентом" href="../../../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../../../assets/favicon-eoc.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.23">
+    
+    
+      
+        <title>Стек ранжирования поиска в 2026: BM25, эмбеддинги, cross-encoder'ы и LLM-реранжирование - Edge of Context: Practical AI Engineering</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../../assets/brand.css">
+    
+      <link rel="stylesheet" href="../../../../../../assets/blog-sidebar.css">
+    
+    <script>__md_scope=new URL("../../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-T51K83ENZ5"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-T51K83ENZ5",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+        
+
+
+<!-- Open Graph -->
+<meta property="og:title" content="Стек ранжирования поиска в 2026: BM25, эмбеддинги, cross-encoder'ы и LLM-реранжирование" />
+<meta property="og:description" content="Как построить стек ранжирования поиска с BM25, плотными эмбеддингами, гибридным RRF, cross-encoder-реранжированием и listwise-реранжированием с помощью LLM на Amazon ESCI." />
+<meta property="og:url" content="https://slavadubrov.github.io/ru/blog/2026/02/08/building-a-modern-search-ranking-stack-from-embeddings-to-llm-powered-relevance/" />
+<meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
+<meta
+  property="og:type"
+  content="article"
+/>
+<meta property="og:image" content="https://slavadubrov.github.io/assets/logo-eoc.svg" />
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Стек ранжирования поиска в 2026: BM25, эмбеддинги, cross-encoder'ы и LLM-реранжирование" />
+<meta name="twitter:description" content="Как построить стек ранжирования поиска с BM25, плотными эмбеддингами, гибридным RRF, cross-encoder-реранжированием и listwise-реранжированием с помощью LLM на Amazon ESCI." />
+<meta name="twitter:image" content="https://slavadubrov.github.io/assets/logo-eoc.svg" />
+<!-- Site identity schema -->
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Person",
+        "@id": "https://slavadubrov.github.io/#person",
+        "name": "Viacheslav Dubrov",
+        "alternateName": "Slava Dubrov",
+        "url": "https://slavadubrov.github.io/about/",
+        "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/"]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://slavadubrov.github.io/#website",
+        "name": "Edge of Context: Practical AI Engineering",
+        "alternateName": "Edge of Context",
+        "url": "https://slavadubrov.github.io/",
+        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
+        "inLanguage": "ru",
+        "publisher": {
+          "@id": "https://slavadubrov.github.io/#person"
+        }
+      },
+      {
+        "@type": "Blog",
+        "@id": "https://slavadubrov.github.io/#blog",
+        "name": "Edge of Context: Practical AI Engineering",
+        "url": "https://slavadubrov.github.io/blog/",
+        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
+        "inLanguage": "ru",
+        "author": {
+          "@id": "https://slavadubrov.github.io/#person"
+        },
+        "publisher": {
+          "@id": "https://slavadubrov.github.io/#person"
+        },
+        "isPartOf": {
+          "@id": "https://slavadubrov.github.io/#website"
+        }
+      }
+    ]
+  }
+</script>
+
+<style>
+  /* Header social icons */
+  .md-header__social {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 0.5rem;
+  }
+  .md-header__social a {
+    color: var(--md-primary-bg-color);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+  .md-header__social a:hover {
+    opacity: 1;
+  }
+  .md-header__social svg {
+    width: 1.2rem;
+    height: 1.2rem;
+    fill: currentColor;
+  }
+  /* Adjust search to make room for social icons */
+  .md-search {
+    margin-right: 0;
+  }
+</style>
+
+<!-- Article-specific Open Graph -->
+   
+<meta property="article:published_time" content="2026-02-08" />
+ 
+<meta property="article:modified_time" content="2026-05-31" />
+ 
+<meta property="article:author" content="Viacheslav Dubrov" />
+
+<!-- Schema.org JSON-LD -->
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "@id": "https://slavadubrov.github.io/ru/blog/2026/02/08/building-a-modern-search-ranking-stack-from-embeddings-to-llm-powered-relevance/#blogposting",
+    "headline": "\u0421\u0442\u0435\u043a \u0440\u0430\u043d\u0436\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f \u043f\u043e\u0438\u0441\u043a\u0430 \u0432 2026: BM25, \u044d\u043c\u0431\u0435\u0434\u0434\u0438\u043d\u0433\u0438, cross-encoder\u0027\u044b \u0438 LLM-\u0440\u0435\u0440\u0430\u043d\u0436\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435",
+    "description": "\u041a\u0430\u043a \u043f\u043e\u0441\u0442\u0440\u043e\u0438\u0442\u044c \u0441\u0442\u0435\u043a \u0440\u0430\u043d\u0436\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f \u043f\u043e\u0438\u0441\u043a\u0430 \u0441 BM25, \u043f\u043b\u043e\u0442\u043d\u044b\u043c\u0438 \u044d\u043c\u0431\u0435\u0434\u0434\u0438\u043d\u0433\u0430\u043c\u0438, \u0433\u0438\u0431\u0440\u0438\u0434\u043d\u044b\u043c RRF, cross-encoder-\u0440\u0435\u0440\u0430\u043d\u0436\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435\u043c \u0438 listwise-\u0440\u0435\u0440\u0430\u043d\u0436\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435\u043c \u0441 \u043f\u043e\u043c\u043e\u0449\u044c\u044e LLM \u043d\u0430 Amazon ESCI.",
+    "url": "https://slavadubrov.github.io/ru/blog/2026/02/08/building-a-modern-search-ranking-stack-from-embeddings-to-llm-powered-relevance/",
+    "image": "https://slavadubrov.github.io/assets/logo-eoc.svg",
+    "inLanguage": "ru",
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": "https://slavadubrov.github.io/ru/blog/2026/02/08/building-a-modern-search-ranking-stack-from-embeddings-to-llm-powered-relevance/"
+    },
+    "datePublished": "2026-02-08",
+    "dateModified": "2026-05-31",
+    "author": {
+      "@type": "Person",
+      "@id": "https://slavadubrov.github.io/#person",
+      "name": "Viacheslav Dubrov",
+      "alternateName": "Slava Dubrov",
+      "url": "https://slavadubrov.github.io/about/",
+      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/"]
+    },
+    "publisher": {
+      "@type": "Person",
+      "@id": "https://slavadubrov.github.io/#person",
+      "name": "Viacheslav Dubrov",
+      "alternateName": "Slava Dubrov",
+      "url": "https://slavadubrov.github.io/about/",
+      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/"]
+    },
+    "isPartOf": {
+      "@type": "Blog",
+      "@id": "https://slavadubrov.github.io/#blog",
+      "name": "Edge of Context: Practical AI Engineering",
+      "url": "https://slavadubrov.github.io/"
+    },
+    "keywords": "Search and Recs"
+  }
+</script>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#2026-bm25-cross-encoder-llm-" class="md-skip">
+          Перейти к содержанию
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+     
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Верхний колонтитул">
+    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Edge of Context: Practical AI Engineering
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Стек ранжирования поиска в 2026: BM25, эмбеддинги, cross-encoder'ы и LLM-реранжирование
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Выберите язык">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../../../../../blog/2026/02/08/building-a-modern-search-ranking-stack-from-embeddings-to-llm-powered-relevance/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../../../de/blog/2026/02/08/building-a-modern-search-ranking-stack-from-embeddings-to-llm-powered-relevance/" hreflang="de" class="md-select__link">
+              Deutsch
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="ru" class="md-select__link">
+              Русский
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Поиск" placeholder="Поиск" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Поиск">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Очистить" aria-label="Очистить" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Инициализация поиска
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Вкладки" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Главная
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Блог
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../about/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Об авторе
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+<script>
+  // Inject social icons into header after DOM loads
+  document.addEventListener("DOMContentLoaded", function () {
+    const header = document.querySelector(".md-header__inner");
+    if (header) {
+      const social = document.createElement("div");
+      social.className = "md-header__social";
+      social.innerHTML = `
+      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
+      </a>
+      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
+      </a>
+      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+      </a>
+    `;
+      header.appendChild(social);
+    }
+  });
+</script>
+
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Навигация" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    Edge of Context: Practical AI Engineering
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Главная
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    Блог
+    
+  </span>
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Блог
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Об авторе
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Содержание">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Содержание
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Как мы к этому пришли
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Как мы к этому пришли">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bm25-retrieval" class="md-nav__link">
+    <span class="md-ellipsis">
+      BM25 и лексический retrieval
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dense-retrieval" class="md-nav__link">
+    <span class="md-ellipsis">
+      Dense retrieval и эмбеддинги
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cross-encoder-llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      Cross-encoder'ы и LLM
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Многостадийная воронка
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Демо: пятистадийный пайплайн
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Демо: пятистадийный пайплайн">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      Быстрый старт
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#amazon-esci" class="md-nav__link">
+    <span class="md-ellipsis">
+      Датасет: Amazon ESCI
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#retrieval" class="md-nav__link">
+    <span class="md-ellipsis">
+      Retrieval: гибридный поиск
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Retrieval: гибридный поиск">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bm25-baseline" class="md-nav__link">
+    <span class="md-ellipsis">
+      BM25: лексический baseline
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dense-bi-encoder-retrieval" class="md-nav__link">
+    <span class="md-ellipsis">
+      Dense Bi-Encoder: семантический retrieval
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dense Bi-Encoder: семантический retrieval">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bi-encoder" class="md-nav__link">
+    <span class="md-ellipsis">
+      Как bi-encoder'ы учатся хорошим представлениям
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bi-encoder-" class="md-nav__link">
+    <span class="md-ellipsis">
+      Сервинг bi-encoder-эмбеддингов в масштабе
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bm25-dense-retrieval" class="md-nav__link">
+    <span class="md-ellipsis">
+      Почему гибрид: у BM25 и dense retrieval дополняющие друг друга провалы
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reciprocal-rank-fusion-rrf" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reciprocal Rank Fusion (RRF)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-encoder-reranking" class="md-nav__link">
+    <span class="md-ellipsis">
+      Cross-encoder reranking
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cross-encoder reranking">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cross-attention" class="md-nav__link">
+    <span class="md-ellipsis">
+      Почему cross-attention важен
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cross-encoder" class="md-nav__link">
+    <span class="md-ellipsis">
+      Как обучаются cross-encoder'ы
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      Компромисс скорость/качество
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm-listwise-reranking" class="md-nav__link">
+    <span class="md-ellipsis">
+      LLM listwise reranking
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="LLM listwise reranking">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#listwise-prompt" class="md-nav__link">
+    <span class="md-ellipsis">
+      Listwise prompt
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      Три режима выполнения
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      Парсинг и fallback
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      Результаты: каждая стадия оправдывает себя
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Результаты: каждая стадия оправдывает себя">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      Ключевые наблюдения
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Evaluation: измеряем то, что важно
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Evaluation: измеряем то, что важно">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ndcg10" class="md-nav__link">
+    <span class="md-ellipsis">
+      NDCG@10 (основная метрика)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mrr10" class="md-nav__link">
+    <span class="md-ellipsis">
+      MRR@10 (пользовательский опыт)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recall100-retrieval" class="md-nav__link">
+    <span class="md-ellipsis">
+      Recall@100 (покрытие retrieval)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hnsw-vs-ivf" class="md-nav__link">
+    <span class="md-ellipsis">
+      Векторная индексация: HNSW vs. IVF
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Векторная индексация: HNSW vs. IVF">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hnsw-hierarchical-navigable-small-world" class="md-nav__link">
+    <span class="md-ellipsis">
+      HNSW (Hierarchical Navigable Small World)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ivf-inverted-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      IVF (Inverted File)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm-reranking" class="md-nav__link">
+    <span class="md-ellipsis">
+      Слой LLM: не только reranking
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Слой LLM: не только reranking">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      Понимание запроса
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#llm-as-a-judge-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      LLM-as-a-judge для evaluation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      Дистилляция знаний
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      Персонализация: важно, кто именно ищет
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Персонализация: важно, кто именно ищет">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-tower-" class="md-nav__link">
+    <span class="md-ellipsis">
+      Two-tower-модели для персонализации
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#position-bias" class="md-nav__link">
+    <span class="md-ellipsis">
+      Position bias: тихое искажение
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#domain-gap" class="md-nav__link">
+    <span class="md-ellipsis">
+      Как закрыть domain gap
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Как закрыть domain gap">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      Генерация синтетических данных
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rmsc-soft-tokens-domain-adaptation" class="md-nav__link">
+    <span class="md-ellipsis">
+      RMSC: soft tokens для domain adaptation
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      Практический путь зрелости
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reasoning-reranker-agentic-search" class="md-nav__link">
+    <span class="md-ellipsis">
+      Передний край: reasoning reranker'ы и agentic search
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Передний край: reasoning reranker&#39;ы и agentic search">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reasoning-based-reranker" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reasoning-based reranker'ы
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agentic-search" class="md-nav__link">
+    <span class="md-ellipsis">
+      Agentic search
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      Ключевые выводы
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      References
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="References">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#papers" class="md-nav__link">
+    <span class="md-ellipsis">
+      Papers
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datasets-and-benchmarks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Datasets and Benchmarks
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#models-used-in-the-demo" class="md-nav__link">
+    <span class="md-ellipsis">
+      Models Used in the Demo
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tools-and-platforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tools and Platforms
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#industry-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      Industry References
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#demo-project" class="md-nav__link">
+    <span class="md-ellipsis">
+      Demo Project
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+             
+<div class="md-content md-content--post" data-md-component="content">
+  <div
+    class="md-sidebar md-sidebar--post"
+    data-md-component="sidebar"
+    data-md-type="navigation"
+  >
+    <div class="md-sidebar__scrollwrap">
+      <div class="md-sidebar__inner md-post">
+        <nav class="md-nav md-nav--primary">
+          <div class="md-post__back">
+            <div class="md-nav__title md-nav__container">
+              <a href="../../../../../.." class="md-nav__link">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+                <span class="md-ellipsis"> На главную </span>
+              </a>
+            </div>
+          </div>
+
+          
+          <ul class="md-post__meta md-nav__list">
+            <li class="md-nav__item md-nav__item--section">
+              <div class="md-post__title">
+                <span class="md-ellipsis"
+                  >Темы</span
+                >
+              </div>
+              <nav class="md-nav">
+                          
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🤖</span
+                    >
+                    <span class="blog-category-name"
+                      >AI-инженерия</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../05/10/evaluating-rag-metrics-for-every-stage-of-a-production-rag-system/">Оценка RAG: метрики для каждого этапа production-системы RAG</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../04/02/the-definitive-guide-to-ner-in-2026-encoders-llms-and-the-3-tier-production-architecture/">Полное руководство по NER в 2026 году: энкодеры, LLM и 3-уровневая production-архитектура</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../03/13/the-llm-engineering-field-guide-45-concepts-every-practitioner-needs/">Руководство по LLM Engineering: 45 концепций для inference, обучения, архитектуры и эксплуатации</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../03/04/the-definitive-guide-to-ocr-in-2026-from-pipelines-to-vlms/">Полное руководство по OCR в 2026 году: от пайплайнов к VLM</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/04/the-complete-guide-to-llm-fine-tuning-in-2025-from-theory-to-production/">Руководство по fine-tuning LLM: LoRA, QLoRA, DoRA, Unsloth, Axolotl и deployment</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/22/lorax-playbook---orchestrating-thousands-of-lora-adapters-on-kubernetes/">Руководство по развертыванию LoRAX: тысячи LoRA-адаптеров в Kubernetes</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/11/choosing-the-right-open-source-llm-variant--file-format/">Варианты open-source LLM и форматы файлов: Instruct, GGUF, GPTQ, AWQ и MoE</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/10/quick-guide-on-running-llms-locally-on-macos/">Локальные LLM на macOS: Ollama, LM Studio, llama.cpp, MLX и Apple Silicon</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/04/scaling-large-language-models-multi-gpu-and-multi-node-strategies-that-hold-up-in-practice/">Масштабирование больших языковых моделей: стратегии multi-GPU и multi-node, которые реально работают на практике</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >📚</span
+                    >
+                    <span class="blog-category-name"
+                      >Агенты 101</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../05/26/the-runtime--running-agents-for-hours-not-seconds/">Runtime для долгоживущих AI-агентов в 2026 году: сессии, sandbox, checkpoints и harness</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../04/20/the-guardians--why-agent-security-is-not-llm-safety/">Безопасность AI-агентов в 2026: guardrails, права доступа, песочницы и угрозы MCP</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../03/24/the-hands--tool-ergonomics-and-the-agent-computer-interface/">Использование инструментов AI-агентами в 2026 году: MCP, CLI, Skills и выполнение кода</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../14/the-cortex--architecting-memory-for-ai-agents/">Архитектура памяти AI-агента в 2026 году: чекпойнты, vector stores и файловая память</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/31/the-cognitive-engine--choosing-the-right-reasoning-loop/">Циклы рассуждений AI-агентов в 2026 году: ReAct vs ReWOO vs Plan-and-Execute</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🦾</span
+                    >
+                    <span class="blog-category-name"
+                      >Агентный ИИ</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/11/enterprise-rag-challenge-3-winning-approaches-for-autonomous-ai-agents/">Enterprise RAG Challenge 3 (ECR3): Побеждающие архитектуры AI-агентов</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/12/28/schema-guided-reasoning-on-vllm---turning-llms-into-reliable-business-logic-engines/">Schema-Guided Reasoning в vLLM: структурированные ответы с xgrammar и Pydantic</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/20/domain-driven-design-for-ai-agents-a-beginner-friendly-guide/">Предметно-ориентированное проектирование для AI-агентов: ограниченные контексты, инструменты и бизнес-правила</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/05/context-engineering-in-the-agenticai-era/">Контекстная инженерия для AI-агентов: окна контекста, память, инструменты и guardrails</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🔧</span
+                    >
+                    <span class="blog-category-name"
+                      >Инфраструктура</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../21/benchmarking-modern-data-processing-engines/">Сравнение современных движков обработки данных: Polars, DataFusion, Daft, Ray Data, Pandas и Spark</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/06/mlops-in-the-age-of-foundation-models-evolving-infrastructure-for-llms-and-beyond/">MLOps vs LLMOps: инфраструктура для foundation models и LLM-систем</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      ></span
+                    >
+                    <span class="blog-category-name"
+                      >Разбор статей</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/21/mhc-how-deepseek-scaled-residual-connections-without-breaking-training/">Manifold-Constrained Hyper-Connections (mHC): масштабирование residual-потока в DeepSeek</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🐍</span
+                    >
+                    <span class="blog-category-name"
+                      >Python</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/08/the-ultimate-guide-to-pyprojecttoml/">Руководство по `pyproject.toml`: упаковка Python, зависимости и конфигурация инструментов</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/04/17/quick-guide-managing-python-on-macos-with-uv/">uv на macOS: управление версиями Python, проектами и инструментами</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section blog-category-section--active"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🔍</span
+                    >
+                    <span class="blog-category-name"
+                      >Поиск и рекомендации</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post blog-category-post--active"
+                    >
+                      <a href="./">Стек ранжирования поиска в 2026: BM25, эмбеддинги, cross-encoder'ы и LLM-реранжирование</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🛠️</span
+                    >
+                    <span class="blog-category-name"
+                      >Инструменты</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/06/10/building-a-custom-featurestorelite-mcp-server-using-uv/">Руководство по MCP Server с uv и FastMCP: создаем сервер FeatureStoreLite</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/10/quick-guide-on-local-stable-diffusion-toolkits-for-macos/">Stable Diffusion на macOS: Draw Things, DiffusionBee, ComfyUI, A1111 и Fooocus</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/07/mastering-zsh-startup-zprofile-vs-zshrc/">Файлы запуска Zsh: `~/.zprofile` и `~/.zshrc` в macOS и Linux</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/04/19/quick-guide-on-setting-up-a-macbook-for-ai-engineering/">Настройка MacBook для AI-инженерии: инструменты macOS, Python, Docker и workflow в терминале</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                
+              </nav>
+            </li>
+          </ul>
+
+          
+        </nav>
+        
+      </div>
+    </div>
+  </div>
+  <article class="md-content__inner md-typeset">
+     
+  
+
+
+
+
+<!-- automated-translation-notice:start -->
+<div class="admonition info">
+<p class="admonition-title">Автоматический перевод</p>
+<p>Эта статья была автоматически переведена с оригинальной английской версии.</p>
+</div>
+<!-- automated-translation-notice:end -->
+
+<h1 id="2026-bm25-cross-encoder-llm-">Стек ранжирования поиска в 2026: BM25, эмбеддинги, cross-encoder'ы и LLM-реранжирование</h1>
+<p>Поиск уже давно перестал быть задачей сопоставления строк. Когда пользователь вводит "wireless headphones" в поиске по товарам, он ожидает увидеть не просто позиции, содержащие эти два слова. Он хочет лучший результат с учетом семантической релевантности, качества товара, пользовательских предпочтений и доступности. Разрыв между тем, что возвращает BM25, и тем, что реально нужно пользователям, изменил подход к построению поисковых систем.</p>
+<p>В этом посте разбирается современный стек ранжирования поиска: многостадийный пайплайн, сочетающий sparse retrieval на BM25, плотные семантические эмбеддинги, reciprocal rank fusion, cross-encoder-реранжирование и LLM listwise ranking. Я собрал <a href="https://github.com/slavadubrov/search-ranking-stack">рабочее демо</a>, которое сравнивает все стадии на датасете товарного поиска Amazon ESCI, так что вклад каждого слоя виден в реальных метриках.</p>
+<!-- more -->
+
+<p><strong>TL;DR</strong>: Многостадийный гибридный пайплайн — практический дефолт для продакшена. Запускайте BM25 и dense retrieval параллельно, объединяйте их через Reciprocal Rank Fusion, реранжируйте выживших cross-encoder'ом и отдавайте финальный слой точности LLM. На бенчмарке Amazon ESCI это дает <strong>улучшение NDCG@10 на 22.5%</strong> по сравнению с одним BM25 (0.585 → 0.717). Наибольший одиночный прирост дает LLM reranker (+0.072).</p>
+<hr />
+<h2 id="_1">Как мы к этому пришли</h2>
+<p>Ранжирование поиска прошло через три условные фазы, и каждая исправляла конкретное ограничение предыдущей. Современный стек понятен только если видеть весь этот путь.</p>
+<h3 id="bm25-retrieval">BM25 и лексический retrieval</h3>
+<p>В течение десятилетий <a href="https://en.wikipedia.org/wiki/Okapi_BM25">BM25</a> был стандартом по умолчанию. Это вероятностная модель, которая оценивает документы по частоте терминов запроса в документе с нормализацией по длине документа и обратной частоте документа (IDF).</p>
+<p>BM25 отлично работает на точном совпадении ключевых слов. Поиск по конкретному коду ошибки, SKU товара или HTTP status code работает, потому что системе нужно лишь буквальное пересечение токенов. Ограничение здесь — <strong>проблема vocabulary mismatch</strong>: запрос "cheap laptop" пропускает документы про "budget notebook computer", потому что слова не совпадают. У BM25 нет представления о семантическом намерении.</p>
+<p>При этом BM25 остается сильным базовым уровнем. Он набирает 0.429 среднего nDCG@10 на <a href="https://arxiv.org/abs/2104.08663">бенчмарке BEIR</a> из 18 датасетов и <a href="https://arxiv.org/abs/2407.07790">до сих пор превосходит некоторые neural-модели</a> на задачах argumentative retrieval, например <a href="https://webis.de/events/touche-20/">Touche-2020</a>.</p>
+<h3 id="dense-retrieval">Dense retrieval и эмбеддинги</h3>
+<p>BERT и Transformer принесли <strong>dense retrieval</strong>. Вместо сопоставления ключевых слов и запросы, и документы отображаются в общее высокоразмерное векторное пространство (обычно 768 или 1024 измерения). Релевантность становится cosine similarity между двумя векторами.</p>
+<p>Архитектура <strong>bi-encoder</strong> (или "two-tower") обрабатывает запрос и документ независимо через отдельные encoder towers, выдавая эмбеддинги фиксированной длины. Векторы документов можно заранее вычислить и проиндексировать офлайн, а затем быстро извлекать через алгоритмы Approximate Nearest Neighbor (ANN). Теперь "cheap laptop" и "budget notebook" оказываются рядом в векторном пространстве.</p>
+<p>Под капотом bi-encoder'ы используют <strong>Siamese architecture</strong> (<a href="https://arxiv.org/abs/1908.10084">Sentence-BERT</a>, Reimers &amp; Gurevych, EMNLP 2019): обе башни разделяют одни и те же веса Transformer'а. Каждая башня обрабатывает свой входной текст, затем усредняет скрытые состояния токенов в один вектор фиксированной длины (часто 384 или 768 измерений). Совместное использование весов помещает запросы и документы в одно и то же семантическое пространство, и именно это делает cosine similarity осмысленной.</p>
+<p>Такие модели обучаются через <strong>contrastive learning</strong>, обычно с функцией потерь <a href="https://arxiv.org/abs/1807.03748">InfoNCE</a>. Имея батч пар (query, positive_document), цель — максимизировать <code>sim(query, positive_doc)</code> и минимизировать <code>sim(query, negative_docs)</code>. Негативы берутся из позитивных документов других запросов в том же батче (in-batch negatives). Параметр температуры <span class="arithmatex">\(\\tau\)</span> управляет резкостью распределения: более низкие значения заставляют модель жестче различать позитивы и негативы.</p>
+<p>Самый сильный рычаг для качества bi-encoder'а — качество обучающих данных. Модели стартуют с пар (query, positive_document) из датасетов вроде <a href="https://arxiv.org/abs/1611.09268">MS MARCO</a>, а затем дополняются <strong>hard negatives</strong> — документами, которые текущая модель ранжирует высоко, но которые на самом деле нерелевантны. Случайные негативы слишком просты и ничего не дают для обучения. Hard negatives заставляют модель учить тонкие различия. Фреймворк <a href="https://arxiv.org/abs/2210.11773">SimANS</a> (Zhou et al., EMNLP 2022) формализует это: исключать легкие негативы (слишком низкий ранг) и потенциальные false negatives (слишком высокий ранг), обучаясь на "сложной середине".</p>
+<p>Цена за это — bottleneck представления. Bi-encoder'ы сжимают всю семантическую информацию в один вектор фиксированного размера, поэтому часто пропускают тонкие взаимодействия между конкретными терминами запроса и конкретным содержимым документа.</p>
+<h3 id="cross-encoder-llm">Cross-encoder'ы и LLM</h3>
+<p><strong>Cross-encoder'ы</strong> (<a href="https://arxiv.org/abs/1901.04085">Nogueira &amp; Cho, 2019</a>) подают запрос и документ в Transformer совместно как конкатенированную последовательность (<code>[CLS] Query [SEP] Document</code>), так что каждый токен запроса может attend'иться к каждому токену документа через полный self-attention. Это глубокое взаимодействие улавливает нюансы, которые независимое кодирование теряет.</p>
+<p><strong>LLM reranking</strong> идет дальше. Большая языковая модель выступает как zero-shot listwise ranker — фактически как человек-эксперт, который может рассуждать, <em>почему</em> один документ лучше другого. <a href="https://arxiv.org/abs/2304.09542">RankGPT</a> (Sun et al., EMNLP 2023 Outstanding Paper) показал, что GPT-4 в роли zero-shot listwise reranker сопоставим или превосходит supervised methods.</p>
+<p>Точность высокая. Стоимость тоже. Предварительно вычислить оценки нельзя, а inference в 100 раз медленнее, чем retrieval через bi-encoder. Именно эта цена и диктует архитектурный паттерн современного поиска: многостадийную воронку.</p>
+<hr />
+<h2 id="_2">Многостадийная воронка</h2>
+<p>Прогонять дорогой cross-encoder или LLM по миллионам документов нереалистично, поэтому современные поисковые стеки используют воронку. На каждой стадии пул кандидатов уменьшается, а сложность модели растет.</p>
+<p>Одностадийный поиск либо слишком медленный (сложные модели на всем), либо слишком неточный (простые модели везде). Воронка дает компромисс, и это стандартная продакшен-схема в больших системах.</p>
+<p><img alt="Многостадийная воронка ранжирования" src="../../../../assets/2026-02-08-search-ranking-stack/multi_stage_funnel.svg" /></p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Candidate Pool</th>
+<th>Primary Objective</th>
+<th>Model Complexity</th>
+<th>Latency Budget</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Retrieval</strong></td>
+<td>10^9 - 10^12</td>
+<td>Maximum Recall</td>
+<td>Low (BM25, Bi-Encoders)</td>
+<td>&lt; 50ms</td>
+</tr>
+<tr>
+<td><strong>Pre-Ranking</strong></td>
+<td>10^4 - 10^5</td>
+<td>Efficient Filtering</td>
+<td>Medium (Two-Tower, GBDT)</td>
+<td>&lt; 100ms</td>
+</tr>
+<tr>
+<td><strong>Full Ranking</strong></td>
+<td>10^2 - 10^3</td>
+<td>Maximum Precision</td>
+<td>High (Cross-Encoders, LLMs)</td>
+<td>&lt; 500ms</td>
+</tr>
+<tr>
+<td><strong>Blending</strong></td>
+<td>10^1 - 10^2</td>
+<td>Diversity and Safety</td>
+<td>Rules and Multi-Objective</td>
+<td>&lt; 20ms</td>
+</tr>
+</tbody>
+</table>
+<p>Retrieval задает потолок, а reranking оптимизирует внутри него. Если релевантный документ не пережил retrieval, ни одна downstream-модель уже не сможет его вернуть.</p>
+<hr />
+<h2 id="_3">Демо: пятистадийный пайплайн</h2>
+<p>Чтобы сделать это конкретным, я собрал демо <a href="https://github.com/slavadubrov/search-ranking-stack">search-ranking-stack</a>, которое запускает пятистадийный пайплайн на бенчмарке товарного поиска <a href="https://github.com/amazon-science/esci-data">Amazon ESCI</a>. Каждая стадия измеряется отдельно, так что видно, откуда именно приходят улучшения.</p>
+<p><img alt="Архитектура демо-пайплайна" src="../../../../assets/2026-02-08-search-ranking-stack/demo_architecture.svg" /></p>
+<p>Пайплайн:</p>
+<ol>
+<li><strong>BM25 Sparse Retrieval</strong> — лексический baseline (rank_bm25)</li>
+<li><strong>Dense Bi-Encoder Retrieval</strong> — семантический поиск (all-MiniLM-L6-v2)</li>
+<li><strong>Hybrid RRF Fusion</strong> — объединяет sparse и dense результаты</li>
+<li><strong>Cross-Encoder Reranking</strong> — тонкая оценка релевантности (ms-marco-MiniLM-L-12-v2)</li>
+<li><strong>LLM Listwise Reranking</strong> — финальное ранжирование с рассуждением (Ollama / Claude / local)</li>
+</ol>
+<p>Шаги 1--3 — это стадия <strong>retrieval</strong> воронки (максимизация recall); шаги 4--5 — стадия <strong>full ranking</strong> (максимизация precision). В демо пропущены pre-ranking и blending. При ~8,500 документах можно позволить себе отправлять все гибридные результаты сразу на reranking.</p>
+<h3 id="_4">Быстрый старт</h3>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/slavadubrov/search-ranking-stack.git
+<span class="nb">cd</span><span class="w"> </span>search-ranking-stack
+uv<span class="w"> </span>sync
+
+<span class="c1"># Download and sample ESCI dataset (~2.5GB download, ~5MB sample)</span>
+uv<span class="w"> </span>run<span class="w"> </span>download-data
+
+<span class="c1"># Run the full pipeline (without LLM reranking)</span>
+uv<span class="w"> </span>run<span class="w"> </span>run-all
+
+<span class="c1"># Run with LLM reranking via Ollama</span>
+uv<span class="w"> </span>run<span class="w"> </span>run-all<span class="w"> </span>--llm-mode<span class="w"> </span>ollama
+</code></pre></div>
+<h3 id="amazon-esci">Датасет: Amazon ESCI</h3>
+<p>Демо использует <strong>Amazon Shopping Queries Dataset</strong> (ESCI) из <a href="https://github.com/amazon-science/esci-data">KDD Cup 2022</a> — реальный бенчмарк товарного поиска с четырехуровневыми метками graded relevance:</p>
+<table>
+<thead>
+<tr>
+<th>Label</th>
+<th>Gain</th>
+<th>Meaning</th>
+<th>Example (Query: "wireless headphones")</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Exact (E)</strong></td>
+<td>3</td>
+<td>Satisfies all query requirements</td>
+<td>Sony WH-1000XM5 Wireless Headphones</td>
+</tr>
+<tr>
+<td><strong>Substitute (S)</strong></td>
+<td>2</td>
+<td>Functional alternative</td>
+<td>Wired headphones with Bluetooth adapter</td>
+</tr>
+<tr>
+<td><strong>Complement (C)</strong></td>
+<td>1</td>
+<td>Related useful item</td>
+<td>Headphone carrying case</td>
+</tr>
+<tr>
+<td><strong>Irrelevant (I)</strong></td>
+<td>0</td>
+<td>No meaningful relationship</td>
+<td>USB charging cable</td>
+</tr>
+</tbody>
+</table>
+<p>Graded relevance важна, потому что позволяет использовать <strong>NDCG</strong> (Normalized Discounted Cumulative Gain), который различает "идеальный" рейтинг и "просто приемлемый". Бинарные метрики считают оба варианта одинаково релевантными и не различают разные уровни релевантности в одной и той же позиции.</p>
+<p>Я выбрал ~500 "сложных" запросов (флаг <code>small_version</code> в ESCI), ~8,500 товаров и ~12,000 оценок. Достаточно мало, чтобы прогонять на ноутбуке за минуты, и достаточно много, чтобы получить статистически значимые результаты.</p>
+<hr />
+<h2 id="retrieval">Retrieval: гибридный поиск</h2>
+<p>Задача retrieval-слоя — максимизировать recall: забросить максимально широкую сеть, чтобы ничего релевантного не проскользнуло мимо.</p>
+<h3 id="bm25-baseline">BM25: лексический baseline</h3>
+<p>BM25 оценивает документы по пересечению терминов с запросом с учетом насыщения term frequency и нормализации длины документа:</p>
+<div class="arithmatex">\[
+\\text{BM25}(q, d) = \\sum_{t \\in q} \\text{IDF}(t) \\cdot \\frac{tf(t,d) \\cdot (k_1 + 1)}{tf(t,d) + k_1 \\cdot (1 - b + b \\cdot |d|/\\text{avgdl})}
+\]</div>
+<p>Где <a href="https://en.wikipedia.org/wiki/Okapi_BM25"><span class="arithmatex">\(\\text{IDF}(t)\)</span></a> — обратная частота документа для термина <span class="arithmatex">\(t\)</span>, <span class="arithmatex">\(tf(t,d)\)</span> — частота термина в документе <span class="arithmatex">\(d\)</span>, <span class="arithmatex">\(|d|\)</span> — длина документа, а <span class="arithmatex">\(\\text{avgdl}\)</span> — средняя длина документа по корпусу. Важны два параметра: <span class="arithmatex">\(k_1\)</span> (обычно 1.2--2.0) управляет насыщением TF — насколько быстро повторяющиеся термины перестают добавлять ценность — а <span class="arithmatex">\(b\)</span> (обычно 0.75) управляет нормализацией по длине документа.</p>
+<p>Реализация короткая. Простая токенизация по пробелам с <code>rank_bm25</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># src/search_ranking_stack/stages/s01_bm25.py</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">rank_bm25</span><span class="w"> </span><span class="kn">import</span> <span class="n">BM25Okapi</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_bm25</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">ESCIData</span><span class="p">,</span> <span class="n">top_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">):</span>
+    <span class="n">doc_ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">corpus</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="n">tokenized_corpus</span> <span class="o">=</span> <span class="p">[</span><span class="n">text</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span> <span class="k">for</span> <span class="n">text</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">corpus</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span>
+
+    <span class="n">bm25</span> <span class="o">=</span> <span class="n">BM25Okapi</span><span class="p">(</span><span class="n">tokenized_corpus</span><span class="p">)</span>
+
+    <span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">query_id</span><span class="p">,</span> <span class="n">query_text</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">queries</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">scores</span> <span class="o">=</span> <span class="n">bm25</span><span class="o">.</span><span class="n">get_scores</span><span class="p">(</span><span class="n">query_text</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+        <span class="n">top_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">scores</span><span class="p">)[::</span><span class="o">-</span><span class="mi">1</span><span class="p">][:</span><span class="n">top_k</span><span class="p">]</span>
+        <span class="n">results</span><span class="p">[</span><span class="n">query_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">doc_ids</span><span class="p">[</span><span class="n">idx</span><span class="p">]:</span> <span class="nb">float</span><span class="p">(</span><span class="n">scores</span><span class="p">[</span><span class="n">idx</span><span class="p">])</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">top_indices</span><span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">results</span>
+</code></pre></div>
+<p>BM25 дает Recall@100 = <strong>0.741</strong> — 74% релевантных товаров попадают куда-то в топ-100. Неплохо для чисто лексического метода, но 26% релевантных объектов остаются невидимыми для всех downstream-стадий.</p>
+<h3 id="dense-bi-encoder-retrieval">Dense Bi-Encoder: семантический retrieval</h3>
+<p>Bi-encoder независимо отображает запросы и документы в общее пространство эмбеддингов:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># src/search_ranking_stack/stages/s02_dense.py</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">sentence_transformers</span><span class="w"> </span><span class="kn">import</span> <span class="n">SentenceTransformer</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">SentenceTransformer</span><span class="p">(</span><span class="s2">&quot;sentence-transformers/all-MiniLM-L6-v2&quot;</span><span class="p">)</span>
+
+<span class="c1"># Encode corpus once, cache to disk</span>
+<span class="n">corpus_embeddings</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span>
+    <span class="n">doc_texts</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">normalize_embeddings</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># Cosine sim = dot product</span>
+    <span class="n">convert_to_numpy</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># At query time: encode query, compute dot product</span>
+<span class="n">query_embeddings</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">query_texts</span><span class="p">,</span> <span class="n">normalize_embeddings</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">similarity_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">query_embeddings</span><span class="p">,</span> <span class="n">corpus_embeddings</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+</code></pre></div>
+<p>При нормализованных эмбеддингах cosine similarity сводится к dot product — одно матричное умножение позволяет извлечь результаты сразу для всех запросов. Модель <code>all-MiniLM-L6-v2</code> на 22M параметров спокойно работает на CPU и поднимает Recall@100 до <strong>0.825</strong>, что на 11% лучше BM25.</p>
+<h4 id="bi-encoder">Как bi-encoder'ы учатся хорошим представлениям</h4>
+<p>Обучение bi-encoder'ов обычно идет в <strong>две фазы</strong>. Сначала модель pre-train'ится на датасетах Natural Language Inference (NLI) и Semantic Textual Similarity (STS), которые учат общему семантическому пониманию — модель усваивает, что "a cat sits on a mat" и "a feline rests on a rug" должны иметь похожие эмбеддинги. Затем она fine-tune'ится на retrieval-специфичных данных вроде MS MARCO, где учится тому, что поисковый запрос и релевантный passage должны быть ближе друг к другу, чем запрос и нерелевантные passage'и.</p>
+<p>Критический ингредиент второй фазы — <strong>hard negative mining</strong>. Случайные негативы (например, документ про готовку в паре с запросом про наушники) тривиально различимы — модель на них ничему не учится. Вместо этого используется сама текущая модель для поиска документов, которые она ранжирует высоко, но которые на самом деле не релевантны.</p>
+<p>Подход <strong><a href="https://arxiv.org/abs/2210.11773">SimANS</a></strong> (Simple Ambiguous Negatives Sampling) формализует это: ранжируйте все документы текущим bi-encoder'ом, затем исключайте легкие негативы (слишком низкий ранг — модель и так их различает) и потенциальные false negatives (слишком высокий ранг — они могут быть релевантными, но неразмеченными). Максимальный обучающий сигнал дает именно "сложная середина".</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># What a training triplet looks like after hard negative mining</span>
+<span class="n">training_triplet</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;query&quot;</span><span class="p">:</span> <span class="s2">&quot;wireless noise canceling headphones&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;positive&quot;</span><span class="p">:</span> <span class="s2">&quot;Sony WH-1000XM5 Wireless Noise Cancelling Headphones&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;negative&quot;</span><span class="p">:</span> <span class="s2">&quot;Sony headphone replacement ear pads&quot;</span><span class="p">,</span>  <span class="c1"># Hard negative: same brand, related product, but wrong intent</span>
+<span class="p">}</span>
+<span class="c1"># The bi-encoder must learn that &quot;ear pads&quot; is NOT what the user wants,</span>
+<span class="c1"># even though it shares many tokens with the positive document.</span>
+</code></pre></div>
+<p>Контрастивная функция потерь (InfoNCE) связывает это воедино. Для каждого запроса <span class="arithmatex">\(q\)</span> с позитивным документом <span class="arithmatex">\(d^+\)</span> и набором негативных документов <span class="arithmatex">\(\\{d^-_1, \\ldots, d^-_n\\}\)</span>:</p>
+<div class="arithmatex">\[
+\\mathcal{L} = -\\log \\frac{e^{\\text{sim}(q, d^+) / \\tau}}{e^{\\text{sim}(q, d^+) / \\tau} + \\sum_{i=1}^{n} e^{\\text{sim}(q, d^-_i) / \\tau}}
+\]</div>
+<p>Где <span class="arithmatex">\(\\text{sim}(q, d)\)</span> — cosine similarity между эмбеддингами запроса и документа, а <span class="arithmatex">\(\\tau\)</span> — параметр температуры (обычно 0.05--0.1), который контролирует резкость распределения: меньшие значения делают loss более чувствительным к hard negatives. По сути это <a href="https://arxiv.org/abs/1807.03748">softmax cross-entropy</a>: поднимать similarity позитивной пары относительно всех негативов. Когда <span class="arithmatex">\(\\tau\)</span> мал, даже небольшие различия в similarity дают большие градиенты, что заставляет модель различать объекты более тонко.</p>
+<p><img alt="Пайплайн обучения bi-encoder'а" src="../../../../assets/2026-02-08-search-ranking-stack/bi_encoder_training_pipeline.svg" /></p>
+<h4 id="bi-encoder-">Сервинг bi-encoder-эмбеддингов в масштабе</h4>
+<p>Архитектурное преимущество bi-encoder'ов — чистое <strong>offline/online split</strong>. Все эмбеддинги документов вычисляются один раз на этапе индексации и сохраняются в vector index. Во время запроса только сам query требует одного forward pass через encoder (~5ms), после чего выполняется ANN search по заранее вычисленным эмбеддингам (~10ms). Именно эта асимметрия и делает dense retrieval практичным в масштабе.</p>
+<p>В демо математика скромная: 8,500 документов <span class="arithmatex">\(\\times\)</span> 384 измерения <span class="arithmatex">\(\\times\)</span> 4 байта на float = ~13 MB эмбеддингов. В продакшен-масштабе цифры уже другие: 1 миллиард документов с эмбеддингами размерности 768 требует ~3 TiB хранилища. Здесь и появляются quantization (сжатие 32-bit float в 8-bit integer), <a href="https://ieeexplore.ieee.org/document/5432202">product quantization</a> (разложение векторов на подпространства) и SSD-backed индексы вроде <a href="https://proceedings.neurips.cc/paper/2019/hash/09853c7fb1d3f8ee67a61b6bf4a7f8e6-Abstract.html">DiskANN</a>. Алгоритмы индексации разбираются в разделе <a href="#vector-indexing-hnsw-vs-ivf">Vector Indexing: HNSW vs. IVF</a>.</p>
+<p><img alt="Пайплайн сервинга bi-encoder'а" src="../../../../assets/2026-02-08-search-ranking-stack/bi_encoder_serving_pipeline.svg" /></p>
+<h3 id="bm25-dense-retrieval">Почему гибрид: у BM25 и dense retrieval дополняющие друг друга провалы</h3>
+<p>Ни один из методов по отдельности не достаточен. BM25 выигрывает на именах собственных, точных SKU товаров и кодах ошибок — "iPhone 15 Pro Max 256GB" требует точного совпадения токенов. Dense retrieval выигрывает на vocabulary mismatch — сопоставление "cheap laptop" и "budget notebook computer" требует семантического понимания.</p>
+<p>Стандартное решение — <strong>hybrid search</strong>: запускать оба retrieval-метода параллельно и затем объединять результаты.</p>
+<h3 id="reciprocal-rank-fusion-rrf">Reciprocal Rank Fusion (RRF)</h3>
+<p>Проблема hybrid search в том, что BM25 и dense retrieval выдают scores в совершенно разных шкалах. У BM25 оценка не ограничена сверху (0 до 100+), а cosine similarity ограничена интервалом от -1 до 1. Простая линейная комбинация требует постоянного тюнинга, чтобы не ломаться.</p>
+<p><img alt="Гибридный поиск с RRF" src="../../../../assets/2026-02-08-search-ranking-stack/hybrid_search_rrf.svg" /></p>
+<p><a href="https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf">Reciprocal Rank Fusion</a> (Cormack et al., 2009) полностью отбрасывает сырые scores и использует только позицию в ранге:</p>
+<div class="arithmatex">\[
+\\text{RRF}(d) = \\sum_{r \\in \\text{Rankings}} \\frac{1}{k + \\text{rank}(d, r)}
+\]</div>
+<p>Где <span class="arithmatex">\(k\)</span> — smoothing-константа (обычно 60), смягчающая доминирование выбросов. RRF вознаграждает объекты, которые стабильно находятся в верхней части ранжирования в обоих методах, даже если одна система оценивает их намного выше другой. При переходе к rank-based схеме проблема несовпадения шкал исчезает.</p>
+<p>Реализация:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># src/search_ranking_stack/stages/s03_hybrid_rrf.py</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">reciprocal_rank_fusion</span><span class="p">(</span><span class="n">ranked_lists</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">top_k</span><span class="o">=</span><span class="mi">100</span><span class="p">):</span>
+    <span class="n">fused_results</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">for</span> <span class="n">query_id</span> <span class="ow">in</span> <span class="n">all_query_ids</span><span class="p">:</span>
+        <span class="n">rrf_scores</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">results</span> <span class="ow">in</span> <span class="n">ranked_lists</span><span class="p">:</span>
+            <span class="n">sorted_docs</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">results</span><span class="p">[</span><span class="n">query_id</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span>
+                                 <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">rank</span><span class="p">,</span> <span class="p">(</span><span class="n">doc_id</span><span class="p">,</span> <span class="n">_score</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">sorted_docs</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">rrf_scores</span><span class="p">[</span><span class="n">doc_id</span><span class="p">]</span> <span class="o">+=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">k</span> <span class="o">+</span> <span class="n">rank</span><span class="p">)</span>
+
+        <span class="n">sorted_rrf</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">rrf_scores</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span>
+                            <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)[:</span><span class="n">top_k</span><span class="p">]</span>
+        <span class="n">fused_results</span><span class="p">[</span><span class="n">query_id</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">sorted_rrf</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">fused_results</span>
+</code></pre></div>
+<p>Hybrid RRF дает <strong>Recall@100 = 0.842</strong> и <strong>NDCG@10 = 0.628</strong> — лучше, чем у BM25 (0.585) и Dense (0.611) по отдельности. Документу достаточно хорошо ранжироваться <em>в одном</em> из методов, чтобы пережить fusion.</p>
+<hr />
+<h2 id="cross-encoder-reranking">Cross-encoder reranking</h2>
+<p>Когда у вас по 100 гибридных кандидатов на запрос, можно позволить себе более дорогую модель. Cross-encoder обрабатывает запрос и документ <strong>вместе</strong> через один Transformer, с полным cross-attention между всеми токенами.</p>
+<p><img alt="Bi-Encoder vs. Cross-Encoder" src="../../../../assets/2026-02-08-search-ranking-stack/bi_encoder_vs_cross_encoder.svg" /></p>
+<h3 id="cross-attention">Почему cross-attention важен</h3>
+<p>Ключевое отличие — в <strong>матрице attention</strong>. В bi-encoder attention block-diagonal: токены запроса attend'ятся только к токенам запроса, а токены документа — только к токенам документа. Эти два представления никогда не встречаются на уровне токенов — они пересекаются только в конце через dot product. Cross-encoder вычисляет <strong>полную матрицу attention</strong>, где каждый токен запроса attend'ится к каждому токену документа и наоборот. Именно этот cross-attention и открывает глубокое взаимодействие на уровне токенов.</p>
+<p><img alt="Архитектура attention в cross-encoder'е" src="../../../../assets/2026-02-08-search-ranking-stack/cross_encoder_architecture.svg" /></p>
+<p>В bi-encoder запрос "apple" каждый раз дает один и тот же эмбеддинг. Он кодируется независимо, до просмотра какого-либо документа. Cross-encoder видит запрос и документ одновременно, поэтому может разрешать неоднозначность в контексте. Преимущества выходят далеко за пределы полисемии:</p>
+<ul>
+<li><strong>Negation</strong>: запрос "headphones that are <em>not</em> wireless" — bi-encoder-эмбеддинги для "not wireless" почти идентичны "wireless", потому что отрицание слабо меняет mean-pooled вектор. Cross-encoder видит, как токен "not" напрямую attend'ится к "wireless", и правильно поднимает выше проводные наушники.</li>
+<li><strong>Qualification</strong>: запрос "laptop under \<span class="arithmatex">\(500" — ценовое ограничение влияет на релевантность. Cross-encoder может attend'иться от "\\\)</span>500" к цене в описании товара и проверить, соблюдается ли ограничение.</li>
+</ul>
+<p>Вход cross-encoder'а форматируется как <code>[CLS] query tokens [SEP] document tokens [SEP]</code>. <code>[CLS]</code> — это classification token, чье финальное hidden state подается в linear head для получения единого score релевантности. Segment embeddings различают токены запроса и документа, а <code>[SEP]</code> отмечает границу между сегментами.</p>
+<h3 id="cross-encoder">Как обучаются cross-encoder'ы</h3>
+<p>Обучение cross-encoder'ов концептуально проще, чем у bi-encoder'ов. Модель получает тройки (query, document, relevance_label) и учится предсказывать метку через обычное supervised learning — без contrastive loss.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Cross-encoder training data format</span>
+<span class="n">training_example</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;query&quot;</span><span class="p">:</span> <span class="s2">&quot;wireless headphones&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;document&quot;</span><span class="p">:</span> <span class="s2">&quot;Sony WH-1000XM5 Wireless Headphones&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span>  <span class="c1"># Relevant</span>
+<span class="p">}</span>
+<span class="c1"># Forward pass: [CLS] hidden state → Linear layer → sigmoid → score</span>
+<span class="c1"># Loss: binary cross-entropy between predicted score and label</span>
+</code></pre></div>
+<p>Classification head находится поверх финального hidden state токена <code>[CLS]</code>: один linear layer отображает hidden dimension в скаляр, после чего идет sigmoid. Для бинарных меток релевантности подходит binary cross-entropy loss; для градуированных меток вроде четырехуровневой шкалы ESCI лучше работает MSE loss, потому что он сохраняет порядковое отношение между уровнями.</p>
+<p><a href="https://link.springer.com/chapter/10.1007/978-3-030-99736-6_44">Hard negative mining еще важнее для cross-encoder'ов</a>, чем для bi-encoder'ов. Cross-encoder'ы дороги в обучении — каждый тренировочный пример требует полного forward pass по конкатенированной последовательности — поэтому тратить вычисления на тривиально легкие негативы нельзя. Практический рецепт: используйте bi-encoder для retrieval top-K кандидатов по каждому обучающему запросу, а затем берите hard negatives из конкретных диапазонов рангов (например, 10–100). Это дает cross-encoder'у примеры, где различить релевантное и нерелевантное можно только через глубокое взаимодействие токенов.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># src/search_ranking_stack/stages/s04_cross_encoder.py</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">sentence_transformers</span><span class="w"> </span><span class="kn">import</span> <span class="n">CrossEncoder</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">CrossEncoder</span><span class="p">(</span><span class="s2">&quot;cross-encoder/ms-marco-MiniLM-L-12-v2&quot;</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_cross_encoder</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">hybrid_results</span><span class="p">,</span> <span class="n">top_k_rerank</span><span class="o">=</span><span class="mi">50</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">query_id</span><span class="p">,</span> <span class="n">query_text</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">queries</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">candidates</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">hybrid_results</span><span class="p">[</span><span class="n">query_id</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">())[:</span><span class="n">top_k_rerank</span><span class="p">]</span>
+
+        <span class="c1"># Form (query, document) pairs for joint encoding</span>
+        <span class="n">pairs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">doc_ids</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">doc_id</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
+            <span class="n">doc_text</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">corpus</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">doc_id</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)[:</span><span class="mi">2048</span><span class="p">]</span>
+            <span class="n">pairs</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">query_text</span><span class="p">,</span> <span class="n">doc_text</span><span class="p">])</span>
+            <span class="n">doc_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">doc_id</span><span class="p">)</span>
+
+        <span class="c1"># Score all pairs with full cross-attention</span>
+        <span class="n">scores</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">pairs</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">)</span>
+
+        <span class="c1"># Rerank by cross-encoder score</span>
+        <span class="n">scored_docs</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">doc_ids</span><span class="p">,</span> <span class="n">scores</span><span class="p">),</span>
+                             <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">reranked_results</span><span class="p">[</span><span class="n">query_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">doc_id</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">score</span><span class="p">)</span> <span class="k">for</span> <span class="n">doc_id</span><span class="p">,</span> <span class="n">score</span> <span class="ow">in</span> <span class="n">scored_docs</span>
+        <span class="p">}</span>
+</code></pre></div>
+<p>Модель <code>ms-marco-MiniLM-L-12-v2</code> на 33M параметров в среднем работает около 100ms на запрос на CPU для 50 кандидатов. NDCG@10 поднимается до <strong>0.645</strong> — хороший прирост на +0.017 относительно гибридного retrieval.</p>
+<h3 id="_5">Компромисс скорость/качество</h3>
+<p>Почему бы не использовать cross-encoder'ы везде? Потому что <strong>предварительные вычисления невозможны</strong>. Эмбеддинги документов в bi-encoder query-independent, поэтому их можно вычислить один раз и сохранить. Выход cross-encoder'а зависит одновременно и от запроса, <em>и</em> от документа. Score релевантности для пары "wireless headphones" и товара Sony возникает из полного cross-attention между этими конкретными токенами. Его нельзя закэшировать или переиспользовать для другого запроса.</p>
+<p>Разница в стоимости радикальная. Retrieval через bi-encoder требует 1 forward pass (чтобы закодировать запрос) плюс N dot product'ов по заранее вычисленным эмбеддингам документов — dot product'ы практически бесплатны. Cross-encoder требует N полных Transformer forward pass'ов, каждый из которых обрабатывает конкатенированную последовательность query + document со стоимостью <span class="arithmatex">\(O(L^2)\)</span> для суммарной длины последовательности <span class="arithmatex">\(L\)</span>. Для 50 кандидатов и средней общей длины 128 токенов это 50 отдельных forward pass'ов через 12 Transformer layers. Для 100,000 кандидатов это уже минуты на современной GPU против ~17ms у bi-encoder'а.</p>
+<p>Правило, которое подтверждает демо: <strong>Recall@100 остается неизменным на уровне 0.842 через обе стадии reranking.</strong> Reranking может переставлять результаты, но не добавлять документы. Потолок задается retrieval-слоем.</p>
+<hr />
+<h2 id="llm-listwise-reranking">LLM listwise reranking</h2>
+<p>Финальная стадия использует LLM для <strong>listwise</strong> reranking. Вместо того чтобы оценивать каждый документ независимо (pointwise), LLM видит сразу все top-10 результатов и выдает полное ранжирование. Этот подход, вдохновленный <a href="https://arxiv.org/abs/2304.09542">RankGPT</a>, позволяет модели сравнивать товары друг с другом — то, чего pointwise-модели делать не могут.</p>
+<p><img alt="Подходы к LLM reranking" src="../../../../assets/2026-02-08-search-ranking-stack/llm_reranking_approaches.svg" /></p>
+<h3 id="listwise-prompt">Listwise prompt</h3>
+<p>Шаблон prompt'а просит LLM учитывать иерархию релевантности ESCI:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># src/search_ranking_stack/stages/s05_llm_rerank.py</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_create_listwise_prompt</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">documents</span><span class="p">,</span> <span class="n">max_words</span><span class="o">=</span><span class="mi">200</span><span class="p">):</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">documents</span><span class="p">)</span>
+
+    <span class="n">doc_texts</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">doc_id</span><span class="p">,</span> <span class="n">doc_text</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">documents</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">words</span> <span class="o">=</span> <span class="n">doc_text</span><span class="o">.</span><span class="n">split</span><span class="p">()[:</span><span class="n">max_words</span><span class="p">]</span>
+        <span class="n">doc_texts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">words</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;I will provide you with </span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2"> product listings, each indicated by &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;a numerical identifier [1] to [</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2">]. Rank the products based on &quot;</span>
+        <span class="sa">f</span><span class="s1">&#39;their relevance to the search query: &quot;</span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="s1">&quot;</span><span class="se">\n\n</span><span class="s1">&#39;</span>
+        <span class="s2">&quot;Consider:</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;- Exact matches should rank highest</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;- Substitutes should rank above complements</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;- Irrelevant products should rank lowest</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">chr</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">doc_texts</span><span class="p">)</span><span class="si">}</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;Output ONLY a comma-separated list of identifiers: [3], [1], [2], ...</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;Do not explain your reasoning.&quot;</span>
+    <span class="p">)</span>
+</code></pre></div>
+<h3 id="_6">Три режима выполнения</h3>
+<p>Демо поддерживает три backend'а для LLM reranking:</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Model</th>
+<th>How It Runs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ollama</code></td>
+<td><code>llama3.2:3b</code> (configurable)</td>
+<td>Local via Ollama API</td>
+</tr>
+<tr>
+<td><code>api</code></td>
+<td><code>claude-haiku-4-5-20251001</code></td>
+<td>Anthropic API</td>
+</tr>
+<tr>
+<td><code>local</code></td>
+<td><code>Qwen/Qwen2.5-1.5B-Instruct</code></td>
+<td>HuggingFace Transformers</td>
+</tr>
+</tbody>
+</table>
+<h3 id="fallback">Парсинг и fallback</h3>
+<p>Выходы LLM недетерминированы, поэтому важны устойчивый парсинг и fallback-path:</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">_parse_ranking</span><span class="p">(</span><span class="n">output</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Parse LLM output to extract ranking order.&quot;&quot;&quot;</span>
+    <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\[(\d+)\]&quot;</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">matches</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">positions</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">]</span>
+
+    <span class="c1"># Pad with remaining positions if LLM returned partial output</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">positions</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">n</span><span class="p">:</span>
+        <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">positions</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+                <span class="n">positions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">positions</span><span class="p">[:</span><span class="n">n</span><span class="p">]</span>
+</code></pre></div>
+<p>Если парсинг полностью проваливается, система возвращается к порядку cross-encoder'а. Любая production-интеграция с LLM должна иметь такой fallback-path — не стоит допускать, чтобы ошибка парсинга опускала результаты ниже качества предыдущей стадии.</p>
+<hr />
+<h2 id="_7">Результаты: каждая стадия оправдывает себя</h2>
+<p>Вот результаты полного пайплайна на ~500 запросах ESCI:</p>
+<p><img alt="Результаты пайплайна" src="../../../../assets/2026-02-08-search-ranking-stack/pipeline_results.svg" /></p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>NDCG@10</th>
+<th>MRR@10</th>
+<th>Recall@100</th>
+<th>NDCG Delta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BM25</td>
+<td>0.585</td>
+<td>0.812</td>
+<td>0.741</td>
+<td>--</td>
+</tr>
+<tr>
+<td>Dense Bi-Encoder</td>
+<td>0.611</td>
+<td>0.808</td>
+<td>0.825</td>
+<td>+0.026</td>
+</tr>
+<tr>
+<td>Hybrid (RRF)</td>
+<td>0.628</td>
+<td>0.834</td>
+<td>0.842</td>
+<td>+0.017</td>
+</tr>
+<tr>
+<td>+ Cross-Encoder</td>
+<td>0.645</td>
+<td>0.860</td>
+<td>0.842</td>
+<td>+0.017</td>
+</tr>
+<tr>
+<td>+ LLM Reranker</td>
+<td>0.717</td>
+<td>0.901</td>
+<td>0.842</td>
+<td>+0.072</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_8">Ключевые наблюдения</h3>
+<p><strong>Hybrid search лучше любого из методов по отдельности.</strong> RRF NDCG (0.628) превосходит и BM25 (0.585), и Dense (0.611). У sparse и dense retrieval дополняющие друг друга режимы отказа, и их комбинация возвращает документы, которые пропустил бы каждый из методов по отдельности.</p>
+<p><strong>Recall определяется на стадии retrieval.</strong> Recall@100 остается на уровне 0.842 на обеих стадиях reranking. Reranker'ы переставляют, но не добавляют документы. Хотите выше recall — чините retrieval-слой.</p>
+<p><strong>LLM reranker дает самый большой одиночный прирост.</strong> Прирост +0.072 NDCG@10 при переходе от cross-encoder к LLM reranker — крупнейшее улучшение на одной стадии во всем пайплайне. LLM может рассуждать о товарной релевантности — например, понимать, что "wireless headphone stand" это complement, а не match, — и именно такую дискриминацию статистические модели часто упускают.</p>
+<p><strong>Dense побеждает BM25 на этом датасете.</strong> В предметной области товарного поиска ESCI сильный vocabulary mismatch (пользователи говорят "cheap laptop", а товары — "budget notebook computer"), и это как раз играет на стороне семантического retrieval.</p>
+<hr />
+<h2 id="evaluation">Evaluation: измеряем то, что важно</h2>
+<p>В демо используются три взаимодополняющие метрики. Каждая смотрит на ранжирование под своим углом:</p>
+<h3 id="ndcg10">NDCG@10 (основная метрика)</h3>
+<p><strong>Normalized Discounted Cumulative Gain</strong> измеряет качество top-10 ранжирования с учетом graded relevance. Она вознаграждает за размещение наиболее релевантных документов выше, с логарифмическим discount:</p>
+<div class="arithmatex">\[
+\\text{DCG@k} = \\sum_{i=1}^{k} \\frac{2^{rel_i} - 1}{\\log_2(i + 1)} \\qquad \\text{NDCG@k} = \\frac{\\text{DCG@k}}{\\text{IDCG@k}}
+\]</div>
+<p>NDCG — единственная метрика, которая полностью использует четырехуровневую graded relevance в ESCI: система, ставящая Exact match на позицию 1, получает более высокий score, чем та, что ставит туда Substitute. Поэтому это и есть основная метрика общего качества поиска.</p>
+<h3 id="mrr10">MRR@10 (пользовательский опыт)</h3>
+<p><strong>Mean Reciprocal Rank</strong> измеряет, как быстро пользователь находит первый релевантный результат. Если первый релевантный результат на позиции 1, то MRR = 1.0. На позиции 3 reciprocal rank равен 0.333. Метрика отражает "time to satisfaction" — даже при высоком NDCG пользователей сильнее всего волнует первый хороший результат.</p>
+<h3 id="recall100-retrieval">Recall@100 (покрытие retrieval)</h3>
+<p>Recall измеряет, какая доля всех релевантных документов появляется где-либо в top-100. Это метрика-потолок: если релевантный документ не извлечен, ни один reranker это уже не исправит.</p>
+<hr />
+<h2 id="hnsw-vs-ivf">Векторная индексация: HNSW vs. IVF</h2>
+<p>Плотные эмбеддинги становятся полезны в масштабе только при наличии Approximate Nearest Neighbor (ANN) индекса. В демо используется brute-force cosine similarity (на ~8,500 документах это нормально), но production-системам нужны специализированные индексы.</p>
+<h3 id="hnsw-hierarchical-navigable-small-world">HNSW (Hierarchical Navigable Small World)</h3>
+<p><a href="https://arxiv.org/abs/1603.09320">HNSW</a> (Malkov &amp; Yashunin, 2016) — частый выбор для production-сред с требованиями к latency ниже 100ms. Он строит многослойный граф, где верхние слои дают "экспресс"-связи для грубой навигации, а нижние — плотные связи для точного уточнения. Ключевые tuning-параметры: <code>M</code> (число связей на узел, обычно 16–64) и <code>efSearch</code> (ширина beam на этапе запроса — используйте не меньше 512 для target recall выше 0.95).</p>
+<p>Слабое место HNSW — <strong>проблема tombstone'ов</strong>: при удалении записей в графе остаются фантомные узлы. Со временем они создают недостижимые области, фактически скрывая часть данных от поиска. Это не теоретическая проблема — даже современные vector database, такие как Qdrant, использующие только HNSW, <a href="https://github.com/qdrant/qdrant/issues/7147">сообщают о деградации качества поиска после большого числа удалений</a>, из-за чего приходится полностью перестраивать индекс. Если ваш датасет часто обновляется или чистится, закладывайте периодическую переиндексацию или рассматривайте альтернативы на базе IVF.</p>
+<h3 id="ivf-inverted-file">IVF (Inverted File)</h3>
+<p>IVF-индексы разбивают векторное пространство на ячейки Вороного с помощью k-means clustering. Во время запроса сканируются только <code>nprobe</code> кластеров, ближайших к центроиду запроса. IVF более экономичен по памяти и устойчивее к динамическим датасетам — удаления чистые, без недостижимых узлов. Время построения в 4x–32x быстрее, чем у HNSW.</p>
+<p>Для экстремального масштаба <strong><a href="https://arxiv.org/abs/2405.12497">IVF_RaBitQ</a></strong> (Gao &amp; Long, SIGMOD 2024) сжимает floating-point векторы в однобитные представления. В высокоразмерном пространстве знак координаты (+/-) несет достаточно угловой информации для вычисления similarity.</p>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>HNSW (Graph)</th>
+<th>IVF (Cluster)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Query Speed</strong></td>
+<td>Exceptional</td>
+<td>Moderate</td>
+</tr>
+<tr>
+<td><strong>Build Speed</strong></td>
+<td>Slow</td>
+<td>Fast (4x-32x faster)</td>
+</tr>
+<tr>
+<td><strong>Memory</strong></td>
+<td>High (RAM-bound)</td>
+<td>Low</td>
+</tr>
+<tr>
+<td><strong>Deletions</strong></td>
+<td>Problematic (tombstones)</td>
+<td>Clean</td>
+</tr>
+<tr>
+<td><strong>Best For</strong></td>
+<td>Static, latency-critical</td>
+<td>Dynamic, memory-constrained</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Практическая рекомендация от <a href="https://www.uber.com/blog/evolution-and-scale-of-ubers-delivery-search-platform/">Uber</a>:</strong> они оптимизировали ANN retrieval, уменьшив shard-level search parameter K с 1,200 до 200, и получили снижение latency на 34% и экономию CPU на 17% почти без потерь в recall.</p>
+<hr />
+<h2 id="llm-reranking">Слой LLM: не только reranking</h2>
+<p>LLM улучшают не только стадию reranking. Они меняют и остальную часть поискового пайплайна.</p>
+<h3 id="_9">Понимание запроса</h3>
+<p>LLM-driven query expansion и rewriting борются с vocabulary mismatch еще до начала retrieval. <a href="https://arxiv.org/abs/2303.07678">Query2doc</a> (Wang et al., EMNLP 2023) генерирует псевдо-документы через few-shot prompting LLM и конкатенирует их с исходными запросами, получая <strong>улучшение BM25 на 3–15%</strong> на MS MARCO без какого-либо fine-tuning. LLM "достраивает" ту лексику, которой нет в кратком пользовательском запросе.</p>
+<p>Практические паттерны: раскрытие аббревиатур, обогащение сущностями, декомпозиция на sub-query для multi-hop reasoning и <strong><a href="https://arxiv.org/abs/2402.03367">RAG-Fusion</a></strong> — генерация нескольких вариантов запроса с последующим объединением результатов через RRF.</p>
+<h3 id="llm-as-a-judge-evaluation">LLM-as-a-judge для evaluation</h3>
+<p>Во многих местах LLM уже стали дефолтом для оценки качества поиска. Фреймворк <a href="https://arxiv.org/abs/2305.13233">TALEC</a> достигает <strong>более 80% корреляции с человеческими оценками</strong>, используя domain-specific evaluation criteria. Подход <a href="https://arxiv.org/abs/2410.17152">Pinterest</a> тоже стоит прочитать: Llama-3-8B выступает как offline teacher, генерирующий пятиуровневые метки релевантности на миллиардах search impressions, и превосходит multilingual BERT-base по accuracy на 12.5%; затем эти метки дистиллируются в легкие production-модели.</p>
+<p>Что делает LLM evaluation надежнее:</p>
+<ul>
+<li>Просите модели <strong>объяснять свои оценки</strong> (это заметно улучшает согласованность с людьми)</li>
+<li>Используйте <strong>панели из разных моделей</strong>, чтобы снизить вариативность ("<a href="https://arxiv.org/abs/2404.18796">replacing judges with juries</a>")</li>
+<li>Учитывайте <strong>central tendency bias</strong> в метках, сгенерированных LLM</li>
+</ul>
+<h3 id="_10">Дистилляция знаний</h3>
+<p>Прогонять full LLM на каждый запрос слишком дорого. Решение — distillation:</p>
+<ol>
+<li>Использовать мощную LLM (teacher), чтобы реранжировать тысячи обучающих запросов</li>
+<li>Обучить маленький и быстрый cross-encoder (student, ~100M–200M параметров), чтобы он имитировал распределение ранжирования LLM</li>
+<li>Результат: качество, близкое к LLM, при latency около ~10ms</li>
+</ol>
+<p><a href="https://arxiv.org/abs/2401.06910">InRanker</a> дистиллирует MonoT5-3B в модели на 60M и 220M параметров — уменьшение размера в 50 раз при конкурентном качестве. Подход <a href="https://arxiv.org/abs/2312.02969">Rank-Without-GPT</a> дает 7B open-source listwise reranker'ы, достигающие 97% эффективности GPT-4 благодаря fine-tuning через QLoRA.</p>
+<p>И еще одно замечание по оптимизации затрат от <a href="https://www.zeroentropy.dev/articles/ultimate-guide-to-choosing-the-best-reranking-model-in-2025">ZeroEntropy</a>: реранжирование 75 кандидатов с отправкой в GPT-4o только top-20 снижает API cost на <strong>72%</strong> — с $162K/day до $44K/day при 10 QPS — при сохранении 95% accuracy ответов.</p>
+<hr />
+<h2 id="_11">Персонализация: важно, кто именно ищет</h2>
+<p>Глобальной релевантности хватает только до определенного предела. По запросу "apple" tech-энтузиасту нужно показать iPhone, а пользователю, который до этого читал про кулинарию, — рецепты с яблоками.</p>
+<h3 id="two-tower-">Two-tower-модели для персонализации</h3>
+<p>Распространенная retrieval-архитектура для персонализации использует <strong>two-tower embedding model</strong>: башня запроса кодирует поисковые запросы плюс профиль пользователя в эмбеддинги; башня item'ов кодирует сами item'ы плюс metadata. Релевантность определяется через dot product similarity, что позволяет оставаться в режиме ANN с latency ниже 100ms.</p>
+<p><a href="https://dl.acm.org/doi/10.1145/3219819.3219885">Airbnb</a> одними из первых внедрили listing embeddings на обучении в стиле Word2Vec по click-сессиям — их каналы Search и Similar Listings вместе дают <strong>99% booking conversions</strong>. <a href="https://arxiv.org/abs/2404.16260">OmniSearchSage</a> от Pinterest (WWW 2024) совместно обучает единые эмбеддинги query, pin и product, давая <strong>&gt;8% improvement по релевантности</strong> при 300K requests/second. <a href="https://www.uber.com/blog/innovative-recommendation-applications-using-two-tower-embeddings/">Uber Two-Tower Embeddings</a> обеспечивают retrieval в Eats Homefeed примерно за 100ms.</p>
+<h3 id="position-bias">Position bias: тихое искажение</h3>
+<p>Пользователи чаще кликают по результатам выше в списке вне зависимости от истинной релевантности, что создает самоподдерживающийся feedback loop. Самое практичное production-решение (<a href="https://dl.acm.org/doi/10.1145/3298689.3347033">PAL</a>, Guo et al., RecSys 2019): включать позицию как feature при обучении, а на serving выставлять position=1 для всех объектов. Это debias'ит модель без явного моделирования распределения кликов.</p>
+<hr />
+<h2 id="domain-gap">Как закрыть domain gap</h2>
+<p>Типичная ошибка в поисковой стратегии — считать, что модель, обученная на общих веб-данных (например, MS MARCO), будет хорошо работать в специализированной предметной области. Это <strong>out-of-domain (OOD) problem</strong>.</p>
+<h3 id="_12">Генерация синтетических данных</h3>
+<p>LLM решают проблему нехватки размеченных данных через <strong>Generative Pseudo-Labeling</strong> (<a href="https://arxiv.org/abs/2112.07577">GPL</a>, <a href="https://arxiv.org/abs/2202.05144">InPars</a>):</p>
+<ol>
+<li>Возьмите свой доменный корпус документов</li>
+<li>Дайте LLM prompt вида "Generate a search query that this document would answer"</li>
+<li>Используйте синтетические пары (query, document) для fine-tuning retriever'а и reranker'а</li>
+</ol>
+<p>Эта техника дала сильные улучшения на доменных задачах, где реальных пользовательских запросов мало. Это практический мост между Level 2 и Level 3 на кривой зрелости.</p>
+<h3 id="rmsc-soft-tokens-domain-adaptation">RMSC: soft tokens для domain adaptation</h3>
+<p>Стратегия <a href="https://arxiv.org/abs/2309.09828">RMSC</a> (Robust Multi-Supervision Combining) вводит <strong>soft tokens</strong> — доменные токены <code>[S1]</code>, <code>[T1]</code> и токены релевантности <code>[H1]</code>, <code>[W1]</code>, — которые сообщают модели, какой домен она обрабатывает и насколько надежен supervision signal. Обучение с такими токенами сохраняет domain-specific knowledge в token embeddings вместо того, чтобы перезаписывать параметры основного backbone.</p>
+<hr />
+<h2 id="_13">Практический путь зрелости</h2>
+<p>Если вы строите такой стек сегодня, не начинайте с самой сложной архитектуры. Лучше двигаться по такой кривой зрелости:</p>
+<p><img alt="Практический путь зрелости" src="../../../../assets/2026-02-08-search-ranking-stack/maturity_path.svg" /></p>
+<p><strong>Level 1 (baseline):</strong> Postgres pgvector или Elasticsearch. Гибридный поиск с BM25 + vector retrieval. Без reranker'а.</p>
+<p><strong>Level 2 (reranker):</strong> добавить cross-encoder (например, <code>bge-reranker-v2-m3</code> или <code>ms-marco-MiniLM-L-12-v2</code>) для reranking top 50 результатов. Обычно это <strong>максимальный ROI при минимальных усилиях</strong>. Модель <a href="https://www.elastic.co/search-labs/blog/elastic-semantic-reranker-part-2">Elastic Rerank</a> (184M параметров, DeBERTa v3) достигает 0.565 среднего nDCG@10 на BEIR — это улучшение на 39% относительно BM25.</p>
+<p><strong>Level 3 (fine-tuning):</strong> дообучить embedding model и reranker на доменных данных, используя синтетические запросы, сгенерированные LLM (GPL/InPars). На этом уровне domain-specific performance начинает заметно отрываться от generic-моделей.</p>
+<p><strong>Level 4 (state of the art):</strong> добавить listwise LLM reranking для top 5–10 результатов и внедрить сигналы персонализации. Поэкспериментировать с reasoning-based reranker'ами вроде <a href="https://arxiv.org/abs/2502.18418">Rank1</a>, который генерирует явные цепочки рассуждений перед вынесением суждений о релевантности.</p>
+<p><strong>Для большинства команд sweet spot — это Level 2.</strong> Добавление cross-encoder reranker'а к уже существующему hybrid search setup может резко поднять precision без архитектурной перестройки.</p>
+<hr />
+<h2 id="reasoning-reranker-agentic-search">Передний край: reasoning reranker'ы и agentic search</h2>
+<p>Два паттерна определяют то, куда движется поиск.</p>
+<h3 id="reasoning-based-reranker">Reasoning-based reranker'ы</h3>
+<p><a href="https://arxiv.org/abs/2502.18418">Rank1</a> обучает модели reranking'а генерировать явные reasoning chains перед тем, как принимать решение о релевантности, вдохновляясь DeepSeek-R1 и OpenAI o1. Он дистиллируется из <strong>600,000+ примеров reasoning traces</strong> и достигает state-of-the-art на reasoning-бенчмарке <a href="https://arxiv.org/abs/2407.12883">BRIGHT</a> — иногда с <strong>2x improvement</strong> по сравнению с reranker'ами того же размера. Rank1-0.5B показывает качество, сравнимое с RankLLaMA-13B, будучи при этом в 25 раз меньше.</p>
+<p>Практический вывод: запросы с высокой долей рассуждения (юридический поиск, научная литература, сложный товарный поиск) сильно выигрывают от масштабирования test-time compute в reranker'ах.</p>
+<h3 id="agentic-search">Agentic search</h3>
+<p><a href="https://arxiv.org/abs/2501.05366">Search-o1</a> (EMNLP 2025) позволяет reasoning-моделям (в частности QwQ-32B) автономно генерировать поисковые запросы, когда в процессе рассуждения они сталкиваются с неопределенным знанием, и дает <strong>среднее улучшение exact match на 23.2%</strong> относительно стандартного RAG на multi-hop QA-бенчмарках. Поиск все больше становится инструментом, который AI-агенты вызывают динамически, а не отдельным продуктом.</p>
+<hr />
+<h2 id="_14">Ключевые выводы</h2>
+<ol>
+<li>
+<p><strong>Hybrid search — новый стандарт.</strong> Эмпирические данные по бенчмаркам и production-системам устойчиво это подтверждают, и все крупные vector database теперь поддерживают его нативно. Демо показывает, что RRF NDCG (0.628) превосходит и BM25 (0.585), и Dense (0.611).</p>
+</li>
+<li>
+<p><strong>Retrieval задает потолок, reranking оптимизирует внутри него.</strong> Recall@100 остается на уровне 0.842 на обеих стадиях reranking. Сначала инвестируйте в качество retrieval.</p>
+</li>
+<li>
+<p><strong>Добавление cross-encoder'а — самое выгодное одиночное изменение для большинства команд.</strong> Даже небольшой cross-encoder, реранжирующий 50 документов, дает реальный прирост NDCG. Начинайте с этого.</p>
+</li>
+<li>
+<p><strong>LLM listwise reranking дает самый большой одиночный скачок качества</strong> (+0.072 NDCG@10 в демо), но ценой latency и вычислений. Используйте его выборочно, только на финальном top-10.</p>
+</li>
+<li>
+<p><strong>Knowledge distillation делает reranking уровня LLM практичным.</strong> Возможности больших моделей сжимаются до deployable-размеров за месяцы. Модель на 7B может достигать 97% эффективности GPT-4 в reranking.</p>
+</li>
+<li>
+<p><strong>Качество в продакшене определяется стеком, а не одной моделью.</strong> Оптимизируйте весь пайплайн — взаимодействие между retrieval, fusion и reranking, — а не только отдельный компонент.</p>
+</li>
+</ol>
+<p>Полный код пайплайна находится в <a href="https://github.com/slavadubrov/search-ranking-stack">github.com/slavadubrov/search-ranking-stack</a>. Клонируйте, запускайте, подставляйте другие модели и параметры и смотрите на метрики сами.</p>
+<hr />
+<h2 id="references">References</h2>
+<h3 id="papers">Papers</h3>
+<ul>
+<li><a href="https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf">Reciprocal Rank Fusion</a> — Cormack et al., 2009</li>
+<li><a href="https://arxiv.org/abs/2304.09542">RankGPT: LLMs as Zero-Shot Listwise Rerankers</a> — Sun et al., EMNLP 2023 Outstanding Paper</li>
+<li><a href="https://arxiv.org/abs/2502.18418">Rank1: Reasoning-Based Reranking</a> — Weller et al., COLM 2025</li>
+<li><a href="https://arxiv.org/abs/2405.04141">SCaLR: Self-Calibrated Listwise Reranking</a> — Фреймворк self-calibrating listwise reranking</li>
+<li><a href="https://arxiv.org/abs/2402.12871">GCCP: Global-Consistent Comparative Pointwise</a> — Решение проблемы калибровки в pointwise LLM ranking</li>
+<li><a href="https://arxiv.org/abs/2405.07920">Rank-DistiLLM: Knowledge Distillation for Reranking</a> — Schlatt et al., ECIR 2025</li>
+<li><a href="https://arxiv.org/abs/2303.07678">Query2doc: LLM Query Expansion</a> — Wang et al., EMNLP 2023</li>
+<li><a href="https://arxiv.org/abs/2112.07577">GPL: Generative Pseudo Labeling</a> — Domain adaptation для dense retrieval</li>
+<li><a href="https://arxiv.org/abs/2401.06910">InRanker: Distilled Reranker</a> — Уменьшение размера в 50 раз при конкурентном качестве</li>
+<li><a href="https://arxiv.org/abs/2501.05366">Search-o1: Agentic Retrieval</a> — EMNLP 2025</li>
+<li><a href="https://arxiv.org/abs/2305.13233">TALEC: LLM-as-a-Judge for Search</a> — Evaluation framework</li>
+<li><a href="https://arxiv.org/abs/2309.09828">RMSC: Soft Tokens for Domain Adaptation</a> — Multi-supervision combining</li>
+<li><a href="https://arxiv.org/abs/2104.08663">BEIR Benchmark</a> — Thakur et al., NeurIPS 2021</li>
+<li><a href="https://arxiv.org/abs/1908.10084">Sentence-BERT</a> — Reimers &amp; Gurevych, EMNLP 2019</li>
+<li><a href="https://arxiv.org/abs/1807.03748">InfoNCE / CPC</a> — van den Oord et al., 2018</li>
+<li><a href="https://arxiv.org/abs/2210.11773">SimANS: Hard Negative Sampling</a> — Zhou et al., EMNLP 2022</li>
+<li><a href="https://arxiv.org/abs/1901.04085">Passage Reranking with BERT</a> — Nogueira &amp; Cho, 2019</li>
+<li><a href="https://arxiv.org/abs/1603.09320">HNSW</a> — Malkov &amp; Yashunin, 2016</li>
+<li><a href="https://proceedings.neurips.cc/paper/2019/hash/09853c7fb1d3f8ee67a61b6bf4a7f8e6-Abstract.html">DiskANN</a> — Subramanya et al., NeurIPS 2019</li>
+<li><a href="https://arxiv.org/abs/2405.12497">RaBitQ</a> — Gao &amp; Long, SIGMOD 2024</li>
+<li><a href="https://arxiv.org/abs/2404.18796">Replacing Judges with Juries</a> — Verga et al., 2024</li>
+<li><a href="https://arxiv.org/abs/2402.03367">RAG-Fusion</a> — Rackauckas, 2024</li>
+<li><a href="https://arxiv.org/abs/2202.05144">InPars</a> — Bonifacio et al., SIGIR 2022</li>
+<li><a href="https://arxiv.org/abs/2407.12883">BRIGHT Benchmark</a> — Su et al., ICLR 2025</li>
+<li><a href="https://arxiv.org/abs/2312.02969">Rank-without-GPT</a> — Zhang et al., ECIR 2025</li>
+<li><a href="https://arxiv.org/abs/2410.17152">Pinterest LLM Search Relevance</a> — Wang et al., 2024</li>
+<li><a href="https://arxiv.org/abs/2404.16260">OmniSearchSage</a> — Agarwal et al., WWW 2024</li>
+<li><a href="https://dl.acm.org/doi/10.1145/3298689.3347033">PAL: Position-bias Aware Learning</a> — Guo et al., RecSys 2019</li>
+</ul>
+<h3 id="datasets-and-benchmarks">Datasets and Benchmarks</h3>
+<ul>
+<li><a href="https://github.com/amazon-science/esci-data">Amazon ESCI: Shopping Queries Dataset</a> — KDD Cup 2022</li>
+<li><a href="https://github.com/beir-cellar/beir">BEIR: Benchmarking IR</a> — Гетерогенный бенчмарк для zero-shot evaluation</li>
+<li><a href="https://huggingface.co/spaces/mteb/leaderboard">MTEB: Massive Text Embedding Benchmark</a> — Leaderboard embedding-моделей</li>
+<li><a href="https://arxiv.org/abs/2206.06588">ESCI Paper</a> — Reddy et al., 2022</li>
+</ul>
+<h3 id="models-used-in-the-demo">Models Used in the Demo</h3>
+<ul>
+<li><a href="https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2">all-MiniLM-L6-v2</a> — Bi-encoder на 22M параметров</li>
+<li><a href="https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-12-v2">ms-marco-MiniLM-L-12-v2</a> — Cross-encoder на 33M параметров</li>
+<li><a href="https://www.sbert.net/">Sentence-Transformers</a> — Фреймворк neural retrieval models</li>
+</ul>
+<h3 id="tools-and-platforms">Tools and Platforms</h3>
+<ul>
+<li><a href="https://github.com/dorianbrown/rank_bm25">rank_bm25</a> — Реализация BM25 на Python</li>
+<li><a href="https://github.com/cvangysel/pytrec_eval">pytrec_eval</a> — TREC evaluation toolkit</li>
+<li><a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/retrievers.html">Elasticsearch</a> — Гибридный поиск с Retrievers API</li>
+<li><a href="https://vespa.ai/">Vespa</a> — Единый движок поиска и рекомендаций</li>
+<li><a href="https://weaviate.io/">Weaviate</a> — Vector database с hybrid search</li>
+<li><a href="https://qdrant.tech/">Qdrant</a> — Vector database с multi-stage queries</li>
+</ul>
+<h3 id="industry-references">Industry References</h3>
+<ul>
+<li><a href="https://dl.acm.org/doi/10.1145/3219819.3219885">Airbnb Listing Embeddings</a> — Grbovic &amp; Cheng, KDD 2018</li>
+<li><a href="https://www.uber.com/blog/evolution-and-scale-of-ubers-delivery-search-platform/">Uber Delivery Search</a> — Uber Engineering, 2025</li>
+<li><a href="https://www.uber.com/blog/innovative-recommendation-applications-using-two-tower-embeddings/">Uber Two-Tower Embeddings</a> — Uber Engineering, 2023</li>
+<li><a href="https://www.elastic.co/search-labs/blog/elastic-semantic-reranker-part-2">Elastic Rerank</a> — Elastic, 2024</li>
+<li><a href="https://www.zeroentropy.dev/articles/ultimate-guide-to-choosing-the-best-reranking-model-in-2025">ZeroEntropy Reranking Guide</a> — ZeroEntropy, 2025</li>
+</ul>
+<h3 id="demo-project">Demo Project</h3>
+<ul>
+<li><a href="https://github.com/slavadubrov/search-ranking-stack">search-ranking-stack</a> — Рабочее демо со всем кодом из этого поста</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+  
+
+
+  
+
+
+ 
+  </article>
+</div>
+
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../../../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "\u0421\u043a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u043d\u043e \u0432 \u0431\u0443\u0444\u0435\u0440", "clipboard.copy": "\u041a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0432 \u0431\u0443\u0444\u0435\u0440", "search.result.more.one": "\u0415\u0449\u0451 1 \u043d\u0430 \u044d\u0442\u043e\u0439 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0435", "search.result.more.other": "\u0415\u0449\u0451 # \u043d\u0430 \u044d\u0442\u043e\u0439 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0435", "search.result.none": "\u0421\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0439 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u043e", "search.result.one": "\u041d\u0430\u0439\u0434\u0435\u043d\u043e 1 \u0441\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0435", "search.result.other": "\u041d\u0430\u0439\u0434\u0435\u043d\u043e \u0441\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0439: #", "search.result.placeholder": "\u041d\u0430\u0447\u043d\u0438\u0442\u0435 \u043f\u0435\u0447\u0430\u0442\u0430\u0442\u044c \u0434\u043b\u044f \u043f\u043e\u0438\u0441\u043a\u0430", "search.result.term.missing": "\u041e\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442", "select.version": "\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0432\u0435\u0440\u0441\u0438\u044e"}, "version": null}</script>
+    
+    
+      <script src="../../../../../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../../../../../javascripts/mermaid-init.js"></script>
+      
+        <script src="../../../../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
