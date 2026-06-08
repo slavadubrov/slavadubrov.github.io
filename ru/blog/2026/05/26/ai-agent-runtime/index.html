@@ -1930,7 +1930,7 @@
 
 <h1 id="runtime-ai-2026-sandbox-checkpoints-harness">Runtime для долгоживущих AI-агентов в 2026 году: сессии, sandbox, checkpoints и harness</h1>
 <p><strong>Часть 5 серии Engineering the Agentic Stack</strong></p>
-<p>В предыдущих четырех постах мы разбирали внутреннее устройство агента: <a href="/blog/2026/01/31/ai-agent-reasoning-loops/">циклы рассуждений</a>, <a href="/blog/2026/02/14/ai-agent-memory-architecture/">архитектуру памяти</a>, <a href="/blog/2026/03/24/ai-agent-tool-use/">использование инструментов</a>, <a href="/blog/2026/04/20/ai-agent-security/">безопасность</a>. Этот пост — про внешнюю часть: production runtime вокруг долгоживущих AI-агентов.</p>
+<p>В предыдущих четырех постах мы разбирали внутреннее устройство агента: <a href="/ru/blog/2026/01/31/ai-agent-reasoning-loops/">циклы рассуждений</a>, <a href="/ru/blog/2026/02/14/ai-agent-memory-architecture/">архитектуру памяти</a>, <a href="/ru/blog/2026/03/24/ai-agent-tool-use/">использование инструментов</a>, <a href="/ru/blog/2026/04/20/ai-agent-security/">безопасность</a>. Этот пост — про внешнюю часть: production runtime вокруг долгоживущих AI-агентов.</p>
 <p>Production AI-агенты в 2026 году перестали быть обработчиками запросов и стали фоновыми worker-процессами. Один run может длиться несколько часов. Worker, который его хостит, — не обязательно. Самая интересная инженерия сместилась из агента в runtime вокруг него. Модель выбирает следующий шаг. Runtime решает, что произойдет с этим шагом, если worker умрет посреди вызова.</p>
 <!-- more -->
 
@@ -1969,7 +1969,7 @@
 <p><strong>Checkpoint.</strong> Resumable state. В LangGraph <code>PostgresSaver</code> записывает <code>StateSnapshot</code> на каждой границе super-step, а per-task writes в <code>checkpoint_writes</code> позволяют не пересчитывать успешные outputs узлов, когда соседний узел падает. Snapshot — это JSON-serializable dict (<code>v</code>, <code>ts</code>, <code>id</code>, <code>channel_values</code>, <code>channel_versions</code>, <code>versions_seen</code>, <code>pending_sends</code>), задокументированный на странице PyPI <a href="https://pypi.org/project/langgraph-checkpoint-postgres/"><code>langgraph-checkpoint-postgres</code></a> и в <a href="https://reference.langchain.com/python/langgraph/checkpoints">LangGraph checkpoints reference</a>.</p>
 <p><strong>Trace.</strong> Поверхность для replay и debug. Каждый model call, tool call и шаг sub-agent становится span с таймингами, inputs, outputs, количеством токенов и стоимостью. Когда шестичасовой run падает, trace — это то, что вы читаете, чтобы понять, что пошло не так. Terminal output к этому моменту уже давно исчез. <a href="https://opentelemetry.io/docs/specs/semconv/gen-ai/">GenAI semantic conventions</a> OpenTelemetry стандартизируют имена атрибутов (какая модель, какой provider, сколько токенов, какой conversation, какой workflow), так что один и тот же trace корректно отображается в <a href="https://grafana.com/oss/tempo/">Tempo</a>, <a href="https://www.jaegertracing.io/">Jaeger</a>, <a href="https://www.honeycomb.io/">Honeycomb</a> или <a href="https://smith.langchain.com/">LangSmith</a> без повторной instrumentation.</p>
 <h3 id="policy-secrets-runtime-">Policy и secrets — отдельные runtime-границы</h3>
-<p>Две границы проходят поперек всех пяти примитивов, и о них проще думать как об отдельных concern. Это runtime-версия аргумента про security из <a href="/blog/2026/04/20/ai-agent-security/">Части 4</a>.</p>
+<p>Две границы проходят поперек всех пяти примитивов, и о них проще думать как об отдельных concern. Это runtime-версия аргумента про security из <a href="/ru/blog/2026/04/20/ai-agent-security/">Части 4</a>.</p>
 <h4 id="policy-engine">Policy engine</h4>
 <p>Перед каждым tool call выполняется permission check, который решает, будет ли вызов разрешен. В production распространены два паттерна. Deep Agents позволяет каждому subagent объявить, какие file paths он может читать или писать, а middleware блокирует всё вне этого объявления. Anthropic Managed Agents пропускает каждый tool call через MCP proxy, так что permissions применяются не в коде агента, а в proxy. Когда sensitive call требует human approval, <code>interrupt()</code> в LangGraph и approval hook в Deep Agents ставят graph на паузу, пока человек не скажет yes.</p>
 <h4 id="secret-broker">Secret broker</h4>
@@ -2309,7 +2309,7 @@ sum by (gen_ai_agent_name) (
 <h4 id="artifact-store-s3-gcs">Когда использовать artifact store (S3 / GCS)</h4>
 <p>Object storage нужно в трех ситуациях. Во-первых, когда output больше нескольких сотен KB. Checkpoint DB не рассчитаны на большие blobs, и попытка хранить их там делает болезненными и саму DB, и формат checkpoint. Во-вторых, когда downstream consumers — BI tools, клиенты или другие сервисы — должны получать URL-addressable artifacts напрямую, без прохождения через агента. В-третьих, когда retention window для state run и retention window для deliverable расходятся. Session log можно удалить через 30 дней, а финальный report хранить годами. Ключуйте layout по <code>(thread_id, checkpoint_id, artifact_name)</code>, чтобы всегда можно было восстановить, какой run произвел какой artifact.</p>
 <h3 id="human-approval-gates">Когда добавлять human approval gates</h3>
-<p>Добавляйте gates, когда tool call разрушительный и необратимый (записи в DB, движение денег, отправка внешних коммуникаций), когда tool call выходит за blast radius агента (production deploy, customer-facing publish) или когда review требуют регуляторы. <code>interrupt()</code> в LangGraph и approval middleware в Deep Agents имеют встроенную поддержку таких gate. В <a href="/blog/2026/04/20/ai-agent-security/">Части 4</a> уже разбиралось, почему эти gates — concern permissions, а не prompt.</p>
+<p>Добавляйте gates, когда tool call разрушительный и необратимый (записи в DB, движение денег, отправка внешних коммуникаций), когда tool call выходит за blast radius агента (production deploy, customer-facing publish) или когда review требуют регуляторы. <code>interrupt()</code> в LangGraph и approval middleware в Deep Agents имеют встроенную поддержку таких gate. В <a href="/ru/blog/2026/04/20/ai-agent-security/">Части 4</a> уже разбиралось, почему эти gates — concern permissions, а не prompt.</p>
 <hr />
 <h2 id="production-checklist">Практический production checklist</h2>
 <p>Перед запуском долгоживущего агента в production ответьте на эти вопросы в терминах конкретной инфраструктуры.</p>
@@ -2404,10 +2404,10 @@ sum by (gen_ai_agent_name) (
 </ul>
 <h3 id="_6">Серия</h3>
 <ul>
-<li><a href="/blog/2026/01/31/ai-agent-reasoning-loops/">Часть 1: Cycles рассуждений AI-агентов в 2026 году</a>: ReAct, ReWOO и Plan-and-Execute.</li>
-<li><a href="/blog/2026/02/14/ai-agent-memory-architecture/">Часть 2: Архитектура памяти AI-агентов в 2026 году</a>: checkpoints, vector stores и document memory.</li>
-<li><a href="/blog/2026/03/24/ai-agent-tool-use/">Часть 3: Использование инструментов AI-агентами в 2026 году</a>: MCP, CLI, Skills, исполнение кода и ACI.</li>
-<li><a href="/blog/2026/04/20/ai-agent-security/">Часть 4: Безопасность AI-агентов в 2026 году</a>: guardrails, permissions, sandbox, HITL и MCP scoping.</li>
+<li><a href="/ru/blog/2026/01/31/ai-agent-reasoning-loops/">Часть 1: Cycles рассуждений AI-агентов в 2026 году</a>: ReAct, ReWOO и Plan-and-Execute.</li>
+<li><a href="/ru/blog/2026/02/14/ai-agent-memory-architecture/">Часть 2: Архитектура памяти AI-агентов в 2026 году</a>: checkpoints, vector stores и document memory.</li>
+<li><a href="/ru/blog/2026/03/24/ai-agent-tool-use/">Часть 3: Использование инструментов AI-агентами в 2026 году</a>: MCP, CLI, Skills, исполнение кода и ACI.</li>
+<li><a href="/ru/blog/2026/04/20/ai-agent-security/">Часть 4: Безопасность AI-агентов в 2026 году</a>: guardrails, permissions, sandbox, HITL и MCP scoping.</li>
 <li><strong>Часть 5: Runtime долгоживущих AI-агентов в 2026 году</strong> (этот пост)</li>
 </ul>
 <hr />
