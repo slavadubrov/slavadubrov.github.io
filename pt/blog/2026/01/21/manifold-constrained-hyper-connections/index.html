@@ -1,0 +1,1954 @@
+
+<!doctype html>
+<html lang="pt" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Uma análise técnica das Hyper-Connections Constrangidas à Variedade (mHC) do DeepSeek, do dimensionamento da largura do fluxo residual, do roteamento Sinkhorn e da estabilidade de treino.">
+      
+      
+        <meta name="author" content="Viacheslav Dubrov">
+      
+      
+        <link rel="canonical" href="https://slavadubrov.github.io/pt/blog/2026/01/21/manifold-constrained-hyper-connections/">
+      
+      
+      
+      
+        
+          <link rel="alternate" href="../../../../../../blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="en">
+        
+          <link rel="alternate" href="../../../../../../de/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="de">
+        
+          <link rel="alternate" href="../../../../../../ru/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="ru">
+        
+          <link rel="alternate" href="../../../../../../es/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="es">
+        
+          <link rel="alternate" href="./" hreflang="pt">
+        
+          <link rel="alternate" href="../../../../../../fr/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="fr">
+        
+          <link rel="alternate" href="../../../../../../nl/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="nl">
+        
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="canal RSS" href="../../../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="canal RSS com conteúdo atualizado" href="../../../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../../../assets/favicon-eoc.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Hyper-Connections Constrangidas à Variedade (mHC): explicação do dimensionamento residual do DeepSeek - Edge of Context: Practical AI Engineering</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../../assets/brand.css">
+    
+      <link rel="stylesheet" href="../../../../../../assets/blog-sidebar.css">
+    
+    <script>__md_scope=new URL("../../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-T51K83ENZ5"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-T51K83ENZ5",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+        
+
+ 
+  
+<!-- Open Graph -->
+<meta property="og:title" content="Hyper-Connections Constrangidas à Variedade (mHC): explicação do dimensionamento residual do DeepSeek" />
+<meta property="og:description" content="Uma análise técnica das Hyper-Connections Constrangidas à Variedade (mHC) do DeepSeek, do dimensionamento da largura do fluxo residual, do roteamento Sinkhorn e da estabilidade de treino." />
+<meta property="og:url" content="https://slavadubrov.github.io/pt/blog/2026/01/21/manifold-constrained-hyper-connections/" />
+<meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
+<meta
+  property="og:type"
+  content="article"
+/>
+<meta property="og:image" content="https://slavadubrov.github.io/assets/logo-eoc.svg" />
+<!-- Twitter Card -->
+<meta
+  name="twitter:card"
+  content="summary"
+/>
+<meta name="twitter:title" content="Hyper-Connections Constrangidas à Variedade (mHC): explicação do dimensionamento residual do DeepSeek" />
+<meta name="twitter:description" content="Uma análise técnica das Hyper-Connections Constrangidas à Variedade (mHC) do DeepSeek, do dimensionamento da largura do fluxo residual, do roteamento Sinkhorn e da estabilidade de treino." />
+<meta name="twitter:image" content="https://slavadubrov.github.io/assets/logo-eoc.svg" />
+<!-- Site identity schema -->
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Person",
+        "@id": "https://slavadubrov.github.io/#person",
+        "name": "Viacheslav Dubrov",
+        "alternateName": "Slava Dubrov",
+        "url": "https://slavadubrov.github.io/about/",
+        "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/"]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://slavadubrov.github.io/#website",
+        "name": "Edge of Context: Practical AI Engineering",
+        "alternateName": "Edge of Context",
+        "url": "https://slavadubrov.github.io/",
+        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
+        "inLanguage": "pt",
+        "publisher": {
+          "@id": "https://slavadubrov.github.io/#person"
+        }
+      },
+      {
+        "@type": "Blog",
+        "@id": "https://slavadubrov.github.io/#blog",
+        "name": "Edge of Context: Practical AI Engineering",
+        "url": "https://slavadubrov.github.io/blog/",
+        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
+        "inLanguage": "pt",
+        "author": {
+          "@id": "https://slavadubrov.github.io/#person"
+        },
+        "publisher": {
+          "@id": "https://slavadubrov.github.io/#person"
+        },
+        "isPartOf": {
+          "@id": "https://slavadubrov.github.io/#website"
+        }
+      }
+    ]
+  }
+</script>
+
+<style>
+  /* Header social icons */
+  .md-header__social {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 0.5rem;
+  }
+  .md-header__social a {
+    color: var(--md-primary-bg-color);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+  .md-header__social a:hover {
+    opacity: 1;
+  }
+  .md-header__social svg {
+    width: 1.2rem;
+    height: 1.2rem;
+    fill: currentColor;
+  }
+  /* Adjust search to make room for social icons */
+  .md-search {
+    margin-right: 0;
+  }
+</style>
+
+<!-- Article-specific Open Graph -->
+       
+<meta property="article:published_time" content="2026-01-21" />
+ 
+<meta property="article:modified_time" content="2026-05-31" />
+ 
+<meta property="article:author" content="Viacheslav Dubrov" />
+
+<!-- Schema.org JSON-LD -->
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "@id": "https://slavadubrov.github.io/pt/blog/2026/01/21/manifold-constrained-hyper-connections/#blogposting",
+    "headline": "Hyper-Connections Constrangidas \u00e0 Variedade (mHC): explica\u00e7\u00e3o do dimensionamento residual do DeepSeek",
+    "description": "Uma an\u00e1lise t\u00e9cnica das Hyper-Connections Constrangidas \u00e0 Variedade (mHC) do DeepSeek, do dimensionamento da largura do fluxo residual, do roteamento Sinkhorn e da estabilidade de treino.",
+    "url": "https://slavadubrov.github.io/pt/blog/2026/01/21/manifold-constrained-hyper-connections/",
+    "image": "https://slavadubrov.github.io/assets/logo-eoc.svg",
+    "inLanguage": "pt",
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": "https://slavadubrov.github.io/pt/blog/2026/01/21/manifold-constrained-hyper-connections/"
+    },
+    "datePublished": "2026-01-21",
+    "dateModified": "2026-05-31",
+    "author": {
+      "@type": "Person",
+      "@id": "https://slavadubrov.github.io/#person",
+      "name": "Viacheslav Dubrov",
+      "alternateName": "Slava Dubrov",
+      "url": "https://slavadubrov.github.io/about/",
+      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/"]
+    },
+    "publisher": {
+      "@type": "Person",
+      "@id": "https://slavadubrov.github.io/#person",
+      "name": "Viacheslav Dubrov",
+      "alternateName": "Slava Dubrov",
+      "url": "https://slavadubrov.github.io/about/",
+      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/"]
+    },
+    "isPartOf": {
+      "@type": "Blog",
+      "@id": "https://slavadubrov.github.io/#blog",
+      "name": "Edge of Context: Practical AI Engineering",
+      "url": "https://slavadubrov.github.io/"
+    },
+    "keywords": "Paper Review"
+  }
+</script>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#hyper-connections-constrangidas-a-variedade-mhc-explicacao-do-dimensionamento-residual-do-deepseek" class="md-skip">
+          Ir para o conteúdo
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+     
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Cabeçalho">
+    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Edge of Context: Practical AI Engineering
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Hyper-Connections Constrangidas à Variedade (mHC): explicação do dimensionamento residual do DeepSeek
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Selecione o idioma">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../../../../../blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../../../de/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="de" class="md-select__link">
+              Deutsch
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../../../ru/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="ru" class="md-select__link">
+              Русский
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../../../es/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="es" class="md-select__link">
+              Español
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="pt" class="md-select__link">
+              Português
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../../../fr/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="fr" class="md-select__link">
+              Français
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../../../nl/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="nl" class="md-select__link">
+              Nederlands
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Buscar" placeholder="Buscar" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Pesquisar">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Limpar" aria-label="Limpar" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Inicializando a pesquisa
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Abas" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Início
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Blog
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../fast-answers/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Respostas rápidas
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../about/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Sobre
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+<script>
+  // Inject social icons into header after DOM loads
+  document.addEventListener("DOMContentLoaded", function () {
+    const header = document.querySelector(".md-header__inner");
+    if (header) {
+      const social = document.createElement("div");
+      social.className = "md-header__social";
+      social.innerHTML = `
+      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
+      </a>
+      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
+      </a>
+      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+      </a>
+    `;
+      header.appendChild(social);
+    }
+  });
+</script>
+
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navegação" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    Edge of Context: Practical AI Engineering
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Início
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Blog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../../fast-answers/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Respostas rápidas
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Respostas rápidas
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../fast-answers/ai-agent-frameworks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Frameworks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../fast-answers/rag-evaluation-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG Evaluation Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../fast-answers/local-llm-tools-macos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local LLM Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../fast-answers/ocr-models-document-ai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OCR Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../fast-answers/ner-models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NER Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../fast-answers/agent-security-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Security Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../fast-answers/search-ranking-stack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Search Ranking Stack
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sobre
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Índice">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Índice
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#porque-e-que-as-ligacoes-residuais-funcionam" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Porque é que as ligações residuais funcionam
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Porque é que as ligações residuais funcionam">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#o-problema-da-profundidade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O problema da profundidade
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-solucao-residual" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A solução residual
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-complicacao-dos-transformers-posicionamento-da-layer-normalization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A complicação dos Transformers: posicionamento da Layer Normalization
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hyper-connections-a-revolucao-da-largura" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hyper-Connections: a revolução da largura
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Hyper-Connections: a revolução da largura">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#o-que-e-um-fluxo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O que é um "fluxo"?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mecanismos-centrais" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mecanismos centrais
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#os-resultados" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Os resultados
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#o-problema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O problema
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#porque-e-que-hyper-connections-falham" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Porque é que Hyper-Connections falham
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Porque é que Hyper-Connections falham">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-matematica-da-instabilidade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A matemática da instabilidade
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-solucao-mhc-restricoes-geometricas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A solução mHC: restrições geométricas
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="A solução mHC: restrições geométricas">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#as-tres-restricoes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        As três restrições
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#o-algoritmo-de-sinkhorn-knopp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O algoritmo de Sinkhorn-Knopp
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ajustes-na-inicializacao" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ajustes na inicialização
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#arquitetura-completa-do-mhc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Arquitetura completa do mHC
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#infraestrutura-tornar-isto-pratico" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Infraestrutura: tornar isto prático
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Infraestrutura: tornar isto prático">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fusao-de-kernels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fusão de kernels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recomputacao-seletiva" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recomputação seletiva
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resultados" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resultados
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validacao-empirica" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validação empírica
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#trade-offs-e-consideracoes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trade-offs e considerações
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#principais-conclusoes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Principais conclusões
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#referencias" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Referências
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+             
+<div class="md-content md-content--post" data-md-component="content">
+  <div
+    class="md-sidebar md-sidebar--post"
+    data-md-component="sidebar"
+    data-md-type="navigation"
+  >
+    <div class="md-sidebar__scrollwrap">
+      <div class="md-sidebar__inner md-post">
+        <nav class="md-nav md-nav--primary">
+          <div class="md-post__back">
+            <div class="md-nav__title md-nav__container">
+              <a href="../../../../../.." class="md-nav__link">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+                <span class="md-ellipsis"> Voltar ao índice </span>
+              </a>
+            </div>
+          </div>
+
+          
+          <ul class="md-post__meta md-nav__list">
+            <li class="md-nav__item md-nav__item--section">
+              <div class="md-post__title">
+                <span class="md-ellipsis"
+                  >Temas</span
+                >
+              </div>
+              <nav class="md-nav">
+                          
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🤖</span
+                    >
+                    <span class="blog-category-name"
+                      >Engenharia de IA</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../05/10/rag-evaluation-metrics/">Avaliar RAG: Métricas para Cada Etapa de um Sistema RAG em Produção</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../04/02/ner-guide/">O Guia Definitivo para NER em 2026: Encoders, LLMs e a Arquitetura de Produção em 3 Camadas</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../03/13/llm-engineering-guide/">Guia de Engenharia de LLM: 45 Conceitos para Inferência, Treino, Arquitetura e Operações</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../03/04/ocr-guide/">O Guia Definitivo de OCR em 2026: De Pipelines a VLMs</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../04/llm-fine-tuning-guide/">Guia de Fine-Tuning de LLMs: LoRA, QLoRA, DoRA, Unsloth, Axolotl e Deployment</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Guia de Serving com LoRAX: Milhares de Adaptadores LoRA em Kubernetes</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/11/open-source-llm-formats/">Variantes e Formatos de Ficheiro de LLM Open-Source: Instruct, GGUF, GPTQ, AWQ e MoE</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/10/local-llms-on-macos/">LLMs locais no macOS: Ollama, LM Studio, llama.cpp, MLX e Apple Silicon</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/04/scaling-llms-multi-gpu-multi-node/">Escalar Grandes Modelos de Linguagem: Estratégias Multi-GPU e Multi-Nó Que Funcionam na Prática</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >📚</span
+                    >
+                    <span class="blog-category-name"
+                      >Agentes 101</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../05/26/ai-agent-runtime/">Runtime de Agentes de IA de Longa Duração em 2026: Sessões, Sandboxes, Checkpoints e Harnesses</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../04/20/ai-agent-security/">Segurança de Agentes de IA em 2026: Guardrails, Permissões, Sandboxes e Ameaças MCP</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../03/24/ai-agent-tool-use/">Utilização de Ferramentas por Agentes de IA em 2026: MCP, CLI, Skills e Execução de Código</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../02/14/ai-agent-memory-architecture/">Arquitetura de Memória para Agentes de IA em 2026: Checkpoints, Vector Stores e Memória Baseada em Ficheiros</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../31/ai-agent-reasoning-loops/">Ciclos de raciocínio de agentes de IA em 2026: ReAct vs ReWOO vs Plan-and-Execute</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🦾</span
+                    >
+                    <span class="blog-category-name"
+                      >IA agêntica</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../11/enterprise-rag-challenge-agent-architectures/">Enterprise RAG Challenge 3 (ECR3): Arquiteturas de Agentes de IA Vencedoras</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/12/28/schema-guided-reasoning-vllm/">Raciocínio Guiado por Esquema em vLLM: Outputs Estruturados com xgrammar e Pydantic</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/20/domain-driven-design-ai-agents/">Domain-Driven Design para Agentes de IA: Contextos Delimitados, Ferramentas e Regras de Negócio</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/05/context-engineering-ai-agents/">Engenharia de Contexto para Agentes de IA: Janelas de Contexto, Memória, Ferramentas e Guardrails</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🔧</span
+                    >
+                    <span class="blog-category-name"
+                      >Infraestrutura</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../02/21/modern-data-processing-engines/">Motores Modernos de Processamento de Dados em Comparação: Polars, DataFusion, Daft, Ray Data, Pandas e Spark</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/06/mlops-vs-llmops/">MLOps vs LLMOps: Infraestrutura para Modelos Fundacionais e Sistemas LLM</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section blog-category-section--active"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      ></span
+                    >
+                    <span class="blog-category-name"
+                      >Análise de artigos</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post blog-category-post--active"
+                    >
+                      <a href="./">Hyper-Connections Constrangidas à Variedade (mHC): explicação do dimensionamento residual do DeepSeek</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🐍</span
+                    >
+                    <span class="blog-category-name"
+                      >Python</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/08/pyproject-toml-guide/">Guia de `pyproject.toml`: Empacotamento Python, Dependências e Configuração de Ferramentas</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/04/17/uv-python-on-macos/">uv no macOS: Gerir versões de Python, projetos e ferramentas</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🔍</span
+                    >
+                    <span class="blog-category-name"
+                      >Pesquisa e recomendações</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../02/08/search-ranking-stack/">Search Ranking Stack em 2026: BM25, Embeddings, Cross-Encoders e Reranking com LLM</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🛠️</span
+                    >
+                    <span class="blog-category-name"
+                      >Ferramentas</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/06/10/mcp-server-tutorial-uv-fastmcp/">Tutorial de Servidor MCP com uv e FastMCP: Criar um Servidor FeatureStoreLite</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/10/stable-diffusion-macos-tools/">Stable Diffusion no macOS: Draw Things, DiffusionBee, ComfyUI, A1111 e Fooocus</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/07/zprofile-vs-zshrc/">Ficheiros de arranque do Zsh: `~/.zprofile` vs `~/.zshrc` no macOS e Linux</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/04/19/macbook-ai-engineering-setup/">Configuração de MacBook para Engenharia de IA: ferramentas macOS, Python, Docker e fluxo de trabalho no terminal</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                
+              </nav>
+            </li>
+          </ul>
+
+          
+        </nav>
+        
+      </div>
+    </div>
+  </div>
+  <article class="md-content__inner md-typeset">
+     
+  
+
+
+
+
+<!-- automated-translation-notice:start -->
+
+<div class="admonition info">
+<p class="admonition-title">Tradução automática</p>
+</div>
+<p>Este artigo foi traduzido automaticamente a partir da versão original em inglês.</p>
+<!-- automated-translation-notice:end -->
+
+<h1 id="hyper-connections-constrangidas-a-variedade-mhc-explicacao-do-dimensionamento-residual-do-deepseek">Hyper-Connections Constrangidas à Variedade (mHC): explicação do dimensionamento residual do DeepSeek</h1>
+<p>A aprendizagem profunda moderna assenta na ligação residual. Após uma década a empilhar camadas cada vez mais profundas, os investigadores da DeepSeek colocaram uma questão diferente: e se escalássemos a <em>largura</em> em vez disso? A resposta deles, <strong><a href="https://arxiv.org/abs/2512.24880">Manifold-Constrained Hyper-Connections (mHC)</a></strong>, resolve um problema de estabilidade antigo no dimensionamento em largura.</p>
+<p>Neste artigo, vou percorrer a evolução desde os resíduos básicos até ao mHC, explicando porque foi necessário cada passo e como a solução da DeepSeek funciona realmente à escala.</p>
+<!-- more -->
+
+<p><strong>Resumo</strong>: Hyper-Connections expandem os fluxos residuais em vários fluxos paralelos para uma convergência mais rápida, mas quebram o mapeamento identidade que mantém o treino estável. O mHC restaura a estabilidade ao restringir as matrizes de mistura ao Politopo de Birkhoff (matrizes duplamente estocásticas) usando o algoritmo diferenciável de Sinkhorn-Knopp. Resultado: 4 fluxos paralelos com apenas 6,7% de overhead de treino.</p>
+<hr />
+<h2 id="porque-e-que-as-ligacoes-residuais-funcionam">Porque é que as ligações residuais funcionam</h2>
+<p>Antes de chegarmos ao que o mHC corrige, precisamos de perceber em que é que ele se baseia.</p>
+<h3 id="o-problema-da-profundidade">O problema da profundidade</h3>
+<p>Empilhar mais camadas deveria aumentar a capacidade de um modelo. Na prática, redes muito profundas tornam-se mais difíceis de treinar. A capacidade existe. O que falha é a otimização baseada em gradientes: os gradientes desaparecem (encolhem para perto de zero) ou explodem (crescem sem limite) à medida que se propagam por muitas camadas.</p>
+<h3 id="a-solucao-residual">A solução residual</h3>
+<p>O artigo <a href="https://arxiv.org/abs/1512.03385">ResNet</a> introduziu uma correção elegante. Em vez de aprender um mapeamento direto, aprende-se o <em>resíduo</em>, a diferença relativamente à identidade:</p>
+<p><img alt="Ligação residual padrão" src="../../../../assets/2026-01-21-mhc-hyper-connections/residual_connection.svg" /></p>
+<p>O truque é o <strong>atalho identidade</strong>. Quando a função residual F(x) produz zero, a camada torna-se uma passagem perfeita. Daqui resultam duas consequências:</p>
+<ol>
+<li><strong>Autoestrada de gradiente</strong>: os gradientes fluem diretamente pelo atalho, contornando o desaparecimento.</li>
+<li><strong>Otimização fácil</strong>: se a identidade for ótima, a rede limita-se a aprender F(x) → 0.</li>
+</ol>
+<p>Esta única alteração arquitetural tornou treináveis redes com centenas de camadas.</p>
+<hr />
+<h2 id="a-complicacao-dos-transformers-posicionamento-da-layer-normalization">A complicação dos Transformers: posicionamento da Layer Normalization</h2>
+<p>Os Transformers introduziram uma nova variável: onde colocar a Layer Normalization (LN). A decisão parece pequena e não é.</p>
+<p><img alt="Trade-offs de Post-LN vs Pre-LN" src="../../../../assets/2026-01-21-mhc-hyper-connections/ln_placement.svg" /></p>
+<table>
+<thead>
+<tr>
+<th>Variante</th>
+<th>Posicionamento da LN</th>
+<th>Vantagem</th>
+<th>Limitação principal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Post-LN</strong></td>
+<td>Depois do bloco residual</td>
+<td>Alta capacidade do modelo</td>
+<td>Desaparecimento do gradiente: a LN no caminho principal reescala os gradientes em cada camada</td>
+</tr>
+<tr>
+<td><strong>Pre-LN</strong></td>
+<td>Antes do bloco residual</td>
+<td>Excelente estabilidade</td>
+<td>Colapso da representação: as features tornam-se semelhantes entre camadas</td>
+</tr>
+</tbody>
+</table>
+<p>A arquitetura <a href="https://arxiv.org/abs/2304.14802"><strong>ResiDual</strong></a> tentou resolver isto com caminhos residuais <em>duplos</em>, um Pre-LN para estabilidade e um Post-LN para capacidade. Ainda assim, continua a haver apenas um único fluxo residual. E se fosse possível ter vários fluxos paralelos?</p>
+<hr />
+<h2 id="hyper-connections-a-revolucao-da-largura">Hyper-Connections: a revolução da largura</h2>
+<p><a href="https://arxiv.org/abs/2409.19606">Hyper-Connections (HC)</a> seguiram uma via diferente. Em vez de apenas adicionar profundidade, expandem a <em>largura</em> do fluxo residual.</p>
+<p><img alt="Arquitetura de Hyper-Connections" src="../../../../assets/2026-01-21-mhc-hyper-connections/hyper_connections.svg" /></p>
+<h3 id="o-que-e-um-fluxo">O que é um "fluxo"?</h3>
+<p>Nos transformers padrão, os embeddings dos tokens de entrada formam um único vetor de dimensão <span class="arithmatex">\(d\)</span> que representa as features do token. Esta sequência de vetores única é o "fluxo residual" que atravessa todos os blocos.</p>
+<p>Em Hyper-Connections, um <strong>fluxo</strong> é uma das <span class="arithmatex">\(n\)</span> instanciações paralelas deste estado.</p>
+<p>Como é que os obtemos? No início da rede, o embedding de entrada inicial é replicado <span class="arithmatex">\(n\)</span> vezes (onde <span class="arithmatex">\(n\)</span> é a "taxa de expansão", tipicamente 4). O estado oculto padrão de dimensão <span class="arithmatex">\(d\)</span> torna-se uma "matriz oculta hiper" de dimensão <span class="arithmatex">\(n \\times d\)</span>.</p>
+<p>Estes <span class="arithmatex">\(n\)</span> fluxos idênticos atravessam as camadas transformer da rede, onde são agregados, roteados e expandidos de forma diferente pelos mecanismos abaixo. Por isso, divergem imediatamente e capturam trajetórias de representação distintas.</p>
+<h3 id="mecanismos-centrais">Mecanismos centrais</h3>
+<p>Em vez de um único caminho residual, HC mantém <span class="arithmatex">\(n\)</span> fluxos paralelos a atravessar toda a rede. Em cada bloco transformer, executam-se três operações, cada uma controlada por pequenos pesos aprendíveis:</p>
+<ol>
+<li><strong>Agregação (<span class="arithmatex">\(H_{pre}\)</span>, pré-mapeamento)</strong>: os <span class="arithmatex">\(n\)</span> fluxos de entrada são comprimidos num único vetor para o bloco transformer, usando uma matriz aprendível <span class="arithmatex">\(H_{pre}\)</span>. Cada fluxo é multiplicado por um peso de importância aprendível, pelo que isto funciona como um filtro de entrada.</li>
+<li><strong>Expansão (<span class="arithmatex">\(H_{post}\)</span>, pós-mapeamento)</strong>: depois do bloco transformer central (Attention ou MLP), a sua saída é difundida para <span class="arithmatex">\(n\)</span> fluxos separados usando uma matriz aprendível <span class="arithmatex">\(H_{post}\)</span>. Funciona como uma porta de saída, com cada fluxo escalado por um peso aprendível único.</li>
+<li><strong>Mistura (roteamento entre fluxos)</strong>: os fluxos recém-expandidos fundem-se com os fluxos residuais originais. Uma matriz aprendível <span class="arithmatex">\(n \\times n\)</span> de "roteador de features" (<span class="arithmatex">\(\\mathbf{H}^{res}\)</span>) decide como a informação de cada fluxo se espalha pelos outros, polinizando cruzadamente as features antes da camada seguinte.</li>
+</ol>
+<p>A matriz de mistura H é o controlador de tráfego: encaminha features entre fluxos com base em padrões aprendidos. A informação flui de forma muito mais rica do que através de um único caminho residual.</p>
+<h3 id="os-resultados">Os resultados</h3>
+<p><img alt="Desempenho de HC" src="../../../../assets/2026-01-21-mhc-hyper-connections/hc_performance.svg" /></p>
+<p>HC converge aproximadamente <strong>1,8× mais depressa</strong> do que os resíduos padrão. Os fluxos paralelos dão aos gradientes mais caminhos e permitem à rede manter representações mais diversas.</p>
+<h3 id="o-problema">O problema</h3>
+<p>Há um problema crítico: <strong>HC é instável à escala</strong>.</p>
+<hr />
+<h2 id="porque-e-que-hyper-connections-falham">Porque é que Hyper-Connections falham</h2>
+<p>A flexibilidade que dá poder ao HC é também o que o faz falhar. Destrói o mapeamento identidade que torna os resíduos treináveis em primeiro lugar.</p>
+<p><img alt="Problema de instabilidade do HC" src="../../../../assets/2026-01-21-mhc-hyper-connections/hc_instability.svg" /></p>
+<h3 id="a-matematica-da-instabilidade">A matemática da instabilidade</h3>
+<p>Nos resíduos padrão:</p>
+<div class="arithmatex">\[x_{l+1} = x_l + F(x_l)\]</div>
+<p>Quando <span class="arithmatex">\(F(x) \\rightarrow 0\)</span>, isto é identidade: <span class="arithmatex">\(x_{l+1} = x_l\)</span>. O sinal atravessa sem alteração.</p>
+<p>Em Hyper-Connections, o caminho residual inclui uma multiplicação matricial:</p>
+<div class="arithmatex">\[x_{l+1} = \\mathbf{H}^{res}_l \\cdot x_l + \\dots\]</div>
+<p>Ao longo de L camadas, o sinal torna-se:</p>
+<div class="arithmatex">\[x_L = \\mathbf{H}^{res}_L \\times \\mathbf{H}^{res}_{L-1} \\times \\dots \\times \\mathbf{H}^{res}_1 \\times x_0\]</div>
+<p>Se os valores em H se desviarem, mesmo que ligeiramente, de 1.0, este produto ou:</p>
+<ul>
+<li><strong>Explode</strong>: valores &gt; 1.0 acumulam-se exponencialmente.</li>
+<li><strong>Desaparece</strong>: valores &lt; 1.0 decaem exponencialmente.</li>
+</ul>
+<p>A equipa da DeepSeek mediu isto com a "Amax Gain Magnitude", que acompanha o rácio máximo entre a magnitude do sinal de saída e a do sinal de entrada ao longo de todas as camadas. Em HC padrão, isto atinge <strong>~3000</strong> em redes profundas. A partir daí, o treino deixa de ser viável.</p>
+<p><img alt="A causa raiz: perda de identidade" src="../../../../assets/2026-01-21-mhc-hyper-connections/loss_of_identity.svg" /></p>
+<p>O problema central: matrizes sem restrições podem assumir qualquer valor (números negativos, magnitudes grandes, qualquer coisa). Precisamos de uma forma de as manter no conjunto "bem comportado", onde preservam a energia do sinal da mesma forma que a identidade.</p>
+<hr />
+<h2 id="a-solucao-mhc-restricoes-geometricas">A solução mHC: restrições geométricas</h2>
+<p>A ideia central do mHC é que é possível ter roteamento flexível <em>e</em> estabilidade se restringirmos as matrizes de mistura a uma estrutura matemática específica: o <strong>Politopo de Birkhoff</strong>, o conjunto de todas as matrizes duplamente estocásticas, onde cada linha e coluna soma 1 e todos os elementos são não negativos.</p>
+<p><img alt="A solução mHC" src="../../../../assets/2026-01-21-mhc-hyper-connections/mhc_solution.svg" /></p>
+<h3 id="as-tres-restricoes">As três restrições</h3>
+<p>O mHC restringe a matriz de mistura H^res para que seja <strong>duplamente estocástica</strong>: todas as entradas não negativas, cada linha e cada coluna a somar exatamente 1. Isso impõe três propriedades ao mesmo tempo:</p>
+<table>
+<thead>
+<tr>
+<th>Restrição</th>
+<th>Regra</th>
+<th>Porque importa</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Positividade</strong></td>
+<td>Todos os elementos &gt; 0</td>
+<td>Impede a oscilação de sinal que desestabiliza os gradientes</td>
+</tr>
+<tr>
+<td><strong>Soma da linha = 1</strong></td>
+<td>Cada linha soma 1.0</td>
+<td>Normaliza a contribuição de saída; nenhum fluxo domina</td>
+</tr>
+<tr>
+<td><strong>Soma da coluna = 1</strong></td>
+<td>Cada coluna soma 1.0</td>
+<td>Normaliza a distribuição de entrada; todos os fluxos contribuem de forma justa</td>
+</tr>
+</tbody>
+</table>
+<p>O resultado crítico: <strong>Energia de entrada = energia de saída</strong>. A magnitude do sinal é preservada em profundidade na rede, o que elimina o problema da explosão exponencial.</p>
+<p>Esta restrição também tem consequências matemáticas úteis:</p>
+<ol>
+<li><strong>Norma espectral ≤ 1</strong>: a norma espectral (o maior valor singular) limita a amplificação do sinal. Matrizes duplamente estocásticas são matematicamente <em>não expansivas</em>.</li>
+<li><strong>Fechado sob multiplicação</strong>: compor matrizes duplamente estocásticas produz outra matriz duplamente estocástica.</li>
+<li><strong>Média ponderada</strong>: a operação torna-se uma combinação convexa (uma média ponderada em que os pesos somam 1) das entradas, preservando a magnitude total do sinal.</li>
+</ol>
+<h3 id="o-algoritmo-de-sinkhorn-knopp">O algoritmo de Sinkhorn-Knopp</h3>
+<p>O desafio: como é que se <em>força</em> uma matriz aprendível a ser duplamente estocástica mantendo-a diferenciável? O <strong>algoritmo de Sinkhorn-Knopp</strong> faz isso. É uma projeção iterativa que converge para a forma duplamente estocástica em apenas alguns passos.</p>
+<p><img alt="Algoritmo de Sinkhorn em detalhe" src="../../../../assets/2026-01-21-mhc-hyper-connections/sinkhorn_detailed.svg" /></p>
+<p>Uma explicação com um exemplo concreto:</p>
+<p><strong>Passo 1: positividade.</strong> Aplicar exp() aos pesos brutos para que todos os elementos sejam estritamente positivos:</p>
+<div class="highlight"><pre><span></span><code>Raw Matrix           →    Positive Matrix
+[-0.5  2.1  0.8]          [0.6   7.9   2.2]  Σ=10.7
+[ 1.3 -4.0  1.9]    exp   [3.7   0.02  6.7]  Σ=10.4
+[ 0.1  0.6 -0.2]    →     [1.1   1.8   0.8]  Σ=3.7
+</code></pre></div>
+<p><strong>Passo 2: normalização por linha.</strong> Dividir cada linha pela sua soma:</p>
+<div class="highlight"><pre><span></span><code>Positive Matrix      →    Row Normalized
+[0.6   7.9   2.2]         [0.25  0.65  0.10]  Σ=1.0
+[3.7   0.02  6.7]   /row  [0.35  0.01  0.64]  Σ=1.0
+[1.1   1.8   0.8]    →    [0.30  0.45  0.25]  Σ=1.0
+                           Σ=0.9 Σ=1.1 Σ=0.99  ← columns not yet =1
+</code></pre></div>
+<p><strong>Passo 3: normalização por coluna.</strong> Dividir cada coluna pela sua soma:</p>
+<div class="highlight"><pre><span></span><code>Row Normalized       →    Doubly Stochastic
+[0.25  0.65  0.10]        [0.28  0.45  0.27]  Σ=1.0
+[0.35  0.01  0.64]  /col  [0.40  0.09  0.51]  Σ=1.0
+[0.30  0.45  0.25]   →    [0.32  0.46  0.22]  Σ=1.0
+                           Σ=1.0 Σ=1.0 Σ=1.0  ← converges in few iterations
+</code></pre></div>
+<p><strong>Passo 4: iterar.</strong> Repetir os passos 2-3 durante t_max iterações (tipicamente 20) até à convergência.</p>
+<p>Todo o processo é diferenciável, pelo que os gradientes fluem durante o treino. Sinkhorn-Knopp também é barato, acrescentando overhead mínimo ao ciclo de treino.</p>
+<p>A inicialização também importa.</p>
+<h3 id="ajustes-na-inicializacao">Ajustes na inicialização</h3>
+<p>Para fazer o treino arrancar de forma estável:</p>
+<ul>
+<li><strong>Sigmoid em vez de Tanh</strong>: os coeficientes mantêm-se não negativos e limitados (0 a 1).</li>
+<li><strong>Multiplicador escalar 2</strong>: sigmoid produz ~0.5 na inicialização. Multiplicar por 2 dá um peso inicial de ~1.0, alinhado com o comportamento de identidade.</li>
+</ul>
+<hr />
+<h2 id="arquitetura-completa-do-mhc">Arquitetura completa do mHC</h2>
+<p>Juntando tudo:</p>
+<p><img alt="Arquitetura completa do mHC" src="../../../../assets/2026-01-21-mhc-hyper-connections/mhc_architecture.svg" /></p>
+<p>O fluxo em cada bloco:</p>
+<ol>
+<li><strong>Entrada</strong>: <span class="arithmatex">\(n\)</span> fluxos residuais paralelos entram na camada.</li>
+<li><strong>Agregação (<span class="arithmatex">\(H_{pre}\)</span>)</strong>: os <span class="arithmatex">\(n\)</span> fluxos combinam-se num único vetor através de uma soma ponderada usando a matriz <span class="arithmatex">\(H_{pre}\)</span>. No mHC, estes pesos de agregação são restringidos localmente (<span class="arithmatex">\(\\sigma(\\cdot)\)</span>) para serem não negativos, o que evita escalamento não natural e interferência destrutiva.</li>
+<li><strong>Computação</strong>: o bloco Transformer padrão (Attention ou MLP) processa o único vetor agregado.</li>
+<li><strong>Expansão (<span class="arithmatex">\(H_{post}\)</span>)</strong>: a única saída do bloco é difundida e escalada para <span class="arithmatex">\(n\)</span> fluxos de atualização separados usando a matriz <span class="arithmatex">\(H_{post}\)</span>, que também é restringida a ser não negativa.</li>
+<li><strong>Mistura (roteamento <span class="arithmatex">\(H_{res}\)</span>)</strong>: os fluxos partilham informação através de uma matriz de mistura <span class="arithmatex">\(n \\times n\)</span> <span class="arithmatex">\(\\mathbf{H}^{res}\)</span>. No mHC, esta matriz é estritamente restringida ao Politopo de Birkhoff (duplamente estocástica), pelo que a energia do sinal é conservada.</li>
+<li><strong>Saída</strong>: os <span class="arithmatex">\(n\)</span> fluxos atualizados avançam para a camada seguinte sem explodirem nem desaparecerem.</li>
+</ol>
+<p>A diferença principal face ao HC padrão: todas as operações de mistura e agregação passam por uma restrição de Sinkhorn ou normalização semelhante. É isso que mantém o sinal estável ao longo de centenas de camadas.</p>
+<hr />
+<h2 id="infraestrutura-tornar-isto-pratico">Infraestrutura: tornar isto prático</h2>
+<p>Expandir para n=4 fluxos cria overhead real. Cada fluxo precisa da sua própria memória, e Sinkhorn adiciona 20 iterações por camada. A equipa da DeepSeek contornou isso com várias otimizações.</p>
+<h3 id="fusao-de-kernels">Fusão de kernels</h3>
+<p>Usando <a href="https://arxiv.org/abs/2504.17577">TileLang</a>, fundiram iterações de Sinkhorn com multiplicações em precisão mista em kernels CUDA especializados. Isso reduz as viagens de ida e volta à memória de alta largura de banda (HBM), que normalmente é o verdadeiro bottleneck no hardware moderno.</p>
+<h3 id="recomputacao-seletiva">Recomputação seletiva</h3>
+<p>Guardar todos os estados intermédios de Sinkhorn para backpropagation faria explodir o uso de memória. Em vez disso, o mHC:</p>
+<ul>
+<li>Liberta as ativações intermédias após o forward pass.</li>
+<li>Recalcula-as on-the-fly durante o backward pass.</li>
+</ul>
+<p>Um agendamento <a href="https://arxiv.org/abs/2412.19437">DualPipe</a> modificado sobrepõe essa recomputação com a comunicação de gradientes, pelo que o custo de recomputação fica maioritariamente escondido.</p>
+<h3 id="resultados">Resultados</h3>
+<p>Com estas otimizações, <strong>a taxa de expansão n=4 corre com apenas 6,7% de overhead de treino</strong> face à baseline. O roteamento topológico complexo torna-se prático à escala.</p>
+<hr />
+<h2 id="validacao-empirica">Validação empírica</h2>
+<p>As garantias teóricas traduzem-se realmente em melhorias reais?</p>
+<p>A dinâmica bruta de treino é clara. Sem restrições, redes profundas que usam Hyper-Connections padrão veem a magnitude do sinal (Amax Gain) explodir para cerca de 3.000, com grande instabilidade e picos frequentes na loss. Com a restrição duplamente estocástica imposta, o mHC mantém a Amax Gain perto de ~1,6 ao longo de todo o treino.</p>
+<p>Mas a estabilidade não interessa se o desempenho do modelo degradar. Para testar a capacidade representacional, a equipa avaliou um modelo mHC-27B (construído sobre a arquitetura DeepSeek-V3) face às baselines ResNet padrão e HC sem restrições. Em benchmarks de raciocínio como GSM8K e MATH, o mHC vence de forma consistente. Os ganhos de desempenho do roteamento por fluxos paralelos são reais e, com restrições de Sinkhorn, é finalmente possível treinar estes caminhos residuais muito largos sem que a execução de treino se desintegre.</p>
+<hr />
+<h2 id="trade-offs-e-consideracoes">Trade-offs e considerações</h2>
+<p>mHC não é uma solução sem custo. Há três pontos que vale a pena destacar:</p>
+<ol>
+<li><strong>Overhead computacional</strong>: 6,7% é pouco para o que oferece, mas continua a ser custo extra face aos resíduos padrão.</li>
+<li><strong>Complexidade de implementação</strong>: não se escreve isto em PyTorch puro e se espera que seja rápido. O baixo overhead exige kernels CUDA personalizados e afinados.</li>
+<li><strong>Viés indutivo forte</strong>: a restrição duplamente estocástica impõe conservação estrita do sinal. Se a sua tarefa precisar genuinamente de amplificação do sinal em profundidade na rede, esta restrição vai opor-se ativamente.</li>
+</ol>
+<hr />
+<h2 id="principais-conclusoes">Principais conclusões</h2>
+<ol>
+<li><strong>As ligações residuais funcionam por causa do mapeamento identidade</strong>: a capacidade de fazer passar sinais sem alteração.</li>
+<li><strong>Hyper-Connections escalam a largura em vez da profundidade</strong>, permitindo convergência mais rápida através de roteamento multi-fluxo.</li>
+<li><strong>A flexibilidade do HC destrói o mapeamento identidade</strong>, causando explosão do sinal em redes profundas.</li>
+<li><strong>mHC restringe as matrizes de mistura ao Politopo de Birkhoff</strong>, garantindo matematicamente a estabilidade.</li>
+<li><strong>Sinkhorn-Knopp torna a restrição diferenciável</strong>, permitindo treino end-to-end.</li>
+<li><strong>O trabalho de infraestrutura</strong> (fusão de kernels, recomputação seletiva) é o que torna tudo isto prático.</li>
+</ol>
+<p>Para profissionais: se está a atingir limites com o dimensionamento em profundidade e tem acesso ao desenvolvimento de kernels personalizados, o mHC é uma forma fundamentada de escalar capacidade através da largura mantendo o treino estável.</p>
+<hr />
+<h2 id="referencias">Referências</h2>
+<ul>
+<li><a href="https://arxiv.org/abs/2512.24880">mHC: Manifold-Constrained Hyper-Connections</a> - Xie et al. (DeepSeek)</li>
+<li><a href="https://arxiv.org/abs/1512.03385">Deep Residual Learning for Image Recognition</a> - He et al. (ResNet)</li>
+<li><a href="https://arxiv.org/abs/2409.19606">Hyper-Connections</a> - Artigo original de HC</li>
+<li><a href="https://arxiv.org/abs/2504.17577">TileLang</a> - Framework de otimização de kernels CUDA</li>
+<li><a href="https://arxiv.org/abs/2412.19437">DualPipe</a> - Agendador de paralelismo em pipeline para DeepSeek-V3</li>
+<li><a href="https://arxiv.org/abs/2304.14802">ResiDual</a> - Arquitetura de caminho residual duplo</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+  
+
+
+  
+
+
+ 
+  </article>
+</div>
+
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copiado para \u00e1rea de transfer\u00eancia", "clipboard.copy": "Copiar para \u00e1rea de transfer\u00eancia", "search.result.more.one": "Mais 1 nesta p\u00e1gina", "search.result.more.other": "Mais # nesta p\u00e1gina", "search.result.none": "Nenhum resultado encontrado", "search.result.one": "1 resultado encontrado", "search.result.other": "# resultados encontrados", "search.result.placeholder": "Digite para iniciar a busca", "search.result.term.missing": "Ausente", "select.version": "Selecione a vers\u00e3o"}, "version": null}</script>
+    
+    
+      <script src="../../../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../../../../../javascripts/mermaid-init.js"></script>
+      
+        <script src="../../../../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,2409 @@
+
+<!doctype html>
+<html lang="ru" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Модель GLiNER с 300 млн параметров теперь достигает zero-shot точности NER на уровне UniNER с 13 млрд параметров, работая при этом в 100 раз быстрее. Вариант bi-encoder дает улучшение throughput в 130 раз при масштабировании.">
+      
+      
+        <meta name="author" content="Viacheslav Dubrov">
+      
+      
+        <link rel="canonical" href="https://slavadubrov.github.io/ru/blog/2026/04/02/ner-guide/">
+      
+      
+      
+      
+        
+          <link rel="alternate" href="../../../../../../blog/2026/04/02/ner-guide/" hreflang="en">
+        
+          <link rel="alternate" href="../../../../../../de/blog/2026/04/02/ner-guide/" hreflang="de">
+        
+          <link rel="alternate" href="./" hreflang="ru">
+        
+          <link rel="alternate" href="../../../../../../es/blog/2026/04/02/ner-guide/" hreflang="es">
+        
+          <link rel="alternate" href="../../../../../../pt/blog/2026/04/02/ner-guide/" hreflang="pt">
+        
+          <link rel="alternate" href="../../../../../../fr/blog/2026/04/02/ner-guide/" hreflang="fr">
+        
+          <link rel="alternate" href="../../../../../../nl/blog/2026/04/02/ner-guide/" hreflang="nl">
+        
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="RSS канал" href="../../../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="RSS канал с новым контентом" href="../../../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../../../assets/favicon-eoc.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Полное руководство по NER в 2026 году: энкодеры, LLM и 3-уровневая production-архитектура - Edge of Context: Practical AI Engineering</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../../assets/brand.css">
+    
+      <link rel="stylesheet" href="../../../../../../assets/blog-sidebar.css">
+    
+    <script>__md_scope=new URL("../../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-T51K83ENZ5"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-T51K83ENZ5",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+        
+
+ 
+  
+<!-- Open Graph -->
+<meta property="og:title" content="Полное руководство по NER в 2026 году: энкодеры, LLM и 3-уровневая production-архитектура" />
+<meta property="og:description" content="Модель GLiNER с 300 млн параметров теперь достигает zero-shot точности NER на уровне UniNER с 13 млрд параметров, работая при этом в 100 раз быстрее. Вариант bi-encoder дает улучшение throughput в 130 раз при масштабировании." />
+<meta property="og:url" content="https://slavadubrov.github.io/ru/blog/2026/04/02/ner-guide/" />
+<meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
+<meta
+  property="og:type"
+  content="article"
+/>
+<meta property="og:image" content="https://slavadubrov.github.io/assets/logo-eoc.svg" />
+<!-- Twitter Card -->
+<meta
+  name="twitter:card"
+  content="summary"
+/>
+<meta name="twitter:title" content="Полное руководство по NER в 2026 году: энкодеры, LLM и 3-уровневая production-архитектура" />
+<meta name="twitter:description" content="Модель GLiNER с 300 млн параметров теперь достигает zero-shot точности NER на уровне UniNER с 13 млрд параметров, работая при этом в 100 раз быстрее. Вариант bi-encoder дает улучшение throughput в 130 раз при масштабировании." />
+<meta name="twitter:image" content="https://slavadubrov.github.io/assets/logo-eoc.svg" />
+<!-- Site identity schema -->
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Person",
+        "@id": "https://slavadubrov.github.io/#person",
+        "name": "Viacheslav Dubrov",
+        "alternateName": "Slava Dubrov",
+        "url": "https://slavadubrov.github.io/about/",
+        "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/"]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://slavadubrov.github.io/#website",
+        "name": "Edge of Context: Practical AI Engineering",
+        "alternateName": "Edge of Context",
+        "url": "https://slavadubrov.github.io/",
+        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
+        "inLanguage": "ru",
+        "publisher": {
+          "@id": "https://slavadubrov.github.io/#person"
+        }
+      },
+      {
+        "@type": "Blog",
+        "@id": "https://slavadubrov.github.io/#blog",
+        "name": "Edge of Context: Practical AI Engineering",
+        "url": "https://slavadubrov.github.io/blog/",
+        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
+        "inLanguage": "ru",
+        "author": {
+          "@id": "https://slavadubrov.github.io/#person"
+        },
+        "publisher": {
+          "@id": "https://slavadubrov.github.io/#person"
+        },
+        "isPartOf": {
+          "@id": "https://slavadubrov.github.io/#website"
+        }
+      }
+    ]
+  }
+</script>
+
+<style>
+  /* Header social icons */
+  .md-header__social {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 0.5rem;
+  }
+  .md-header__social a {
+    color: var(--md-primary-bg-color);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+  .md-header__social a:hover {
+    opacity: 1;
+  }
+  .md-header__social svg {
+    width: 1.2rem;
+    height: 1.2rem;
+    fill: currentColor;
+  }
+  /* Adjust search to make room for social icons */
+  .md-search {
+    margin-right: 0;
+  }
+</style>
+
+<!-- Article-specific Open Graph -->
+       
+<meta property="article:published_time" content="2026-04-02" />
+ 
+<meta property="article:modified_time" content="2026-04-02" />
+ 
+<meta property="article:author" content="Viacheslav Dubrov" />
+
+<!-- Schema.org JSON-LD -->
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "@id": "https://slavadubrov.github.io/ru/blog/2026/04/02/ner-guide/#blogposting",
+    "headline": "\u041f\u043e\u043b\u043d\u043e\u0435 \u0440\u0443\u043a\u043e\u0432\u043e\u0434\u0441\u0442\u0432\u043e \u043f\u043e NER \u0432 2026 \u0433\u043e\u0434\u0443: \u044d\u043d\u043a\u043e\u0434\u0435\u0440\u044b, LLM \u0438 3-\u0443\u0440\u043e\u0432\u043d\u0435\u0432\u0430\u044f production-\u0430\u0440\u0445\u0438\u0442\u0435\u043a\u0442\u0443\u0440\u0430",
+    "description": "\u041c\u043e\u0434\u0435\u043b\u044c GLiNER \u0441 300 \u043c\u043b\u043d \u043f\u0430\u0440\u0430\u043c\u0435\u0442\u0440\u043e\u0432 \u0442\u0435\u043f\u0435\u0440\u044c \u0434\u043e\u0441\u0442\u0438\u0433\u0430\u0435\u0442 zero-shot \u0442\u043e\u0447\u043d\u043e\u0441\u0442\u0438 NER \u043d\u0430 \u0443\u0440\u043e\u0432\u043d\u0435 UniNER \u0441 13 \u043c\u043b\u0440\u0434 \u043f\u0430\u0440\u0430\u043c\u0435\u0442\u0440\u043e\u0432, \u0440\u0430\u0431\u043e\u0442\u0430\u044f \u043f\u0440\u0438 \u044d\u0442\u043e\u043c \u0432 100 \u0440\u0430\u0437 \u0431\u044b\u0441\u0442\u0440\u0435\u0435. \u0412\u0430\u0440\u0438\u0430\u043d\u0442 bi-encoder \u0434\u0430\u0435\u0442 \u0443\u043b\u0443\u0447\u0448\u0435\u043d\u0438\u0435 throughput \u0432 130 \u0440\u0430\u0437 \u043f\u0440\u0438 \u043c\u0430\u0441\u0448\u0442\u0430\u0431\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0438.",
+    "url": "https://slavadubrov.github.io/ru/blog/2026/04/02/ner-guide/",
+    "image": "https://slavadubrov.github.io/assets/logo-eoc.svg",
+    "inLanguage": "ru",
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": "https://slavadubrov.github.io/ru/blog/2026/04/02/ner-guide/"
+    },
+    "datePublished": "2026-04-02",
+    "dateModified": "2026-04-02",
+    "author": {
+      "@type": "Person",
+      "@id": "https://slavadubrov.github.io/#person",
+      "name": "Viacheslav Dubrov",
+      "alternateName": "Slava Dubrov",
+      "url": "https://slavadubrov.github.io/about/",
+      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/"]
+    },
+    "publisher": {
+      "@type": "Person",
+      "@id": "https://slavadubrov.github.io/#person",
+      "name": "Viacheslav Dubrov",
+      "alternateName": "Slava Dubrov",
+      "url": "https://slavadubrov.github.io/about/",
+      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/"]
+    },
+    "isPartOf": {
+      "@type": "Blog",
+      "@id": "https://slavadubrov.github.io/#blog",
+      "name": "Edge of Context: Practical AI Engineering",
+      "url": "https://slavadubrov.github.io/"
+    },
+    "keywords": "AI Engineering"
+  }
+</script>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#ner-2026-llm-3-production-" class="md-skip">
+          Перейти к содержанию
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+     
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Верхний колонтитул">
+    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Edge of Context: Practical AI Engineering
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Полное руководство по NER в 2026 году: энкодеры, LLM и 3-уровневая production-архитектура
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Выберите язык">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../../../../../blog/2026/04/02/ner-guide/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../../../de/blog/2026/04/02/ner-guide/" hreflang="de" class="md-select__link">
+              Deutsch
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="ru" class="md-select__link">
+              Русский
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../../../es/blog/2026/04/02/ner-guide/" hreflang="es" class="md-select__link">
+              Español
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../../../pt/blog/2026/04/02/ner-guide/" hreflang="pt" class="md-select__link">
+              Português
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../../../fr/blog/2026/04/02/ner-guide/" hreflang="fr" class="md-select__link">
+              Français
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../../../nl/blog/2026/04/02/ner-guide/" hreflang="nl" class="md-select__link">
+              Nederlands
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Поиск" placeholder="Поиск" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Поиск">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Очистить" aria-label="Очистить" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Инициализация поиска
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Вкладки" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Главная
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Блог
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../../fast-answers/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Быстрые ответы
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../../../about/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Об авторе
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+<script>
+  // Inject social icons into header after DOM loads
+  document.addEventListener("DOMContentLoaded", function () {
+    const header = document.querySelector(".md-header__inner");
+    if (header) {
+      const social = document.createElement("div");
+      social.className = "md-header__social";
+      social.innerHTML = `
+      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
+      </a>
+      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
+      </a>
+      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+      </a>
+    `;
+      header.appendChild(social);
+    }
+  });
+</script>
+
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Навигация" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    Edge of Context: Practical AI Engineering
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Главная
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Блог
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../../fast-answers/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Быстрые ответы
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Быстрые ответы
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../fast-answers/ai-agent-frameworks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Frameworks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../fast-answers/rag-evaluation-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG Evaluation Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../fast-answers/local-llm-tools-macos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local LLM Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../fast-answers/ocr-models-document-ai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OCR Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../fast-answers/ner-models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NER Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../fast-answers/agent-security-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Security Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../fast-answers/search-ranking-stack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Search Ranking Stack
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Об авторе
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Содержание">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Содержание
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#ner-rag-document-intelligence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Почему NER сейчас важнее, чем раньше: агенты, RAG и document intelligence
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Почему NER сейчас важнее, чем раньше: агенты, RAG и document intelligence">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rag-retrieval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RAG: более точный retrieval через извлечение сущностей
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ai-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AI-агенты: превращение текста в структурированные факты
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#document-intelligence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Document intelligence: от изображений к структурированным данным
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pii-guardrails-llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Детекция PII и guardrails для LLM
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gliner-ner-300" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GLiNER меняет экономику NER с помощью модели на 300 млн параметров
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="GLiNER меняет экономику NER с помощью модели на 300 млн параметров">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Результаты бенчмарков
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gliner-spacy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Как GLiNER соотносится со spaCy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#uniner-nuner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UniNER и NuNER: насколько маленькой может быть модель?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="UniNER и NuNER: насколько маленькой может быть модель?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#uniner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UniNER: путь максималиста
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nuner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NuNER: путь минималиста
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gliner-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GLiNER 2: одна модель, четыре задачи
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bi-encoder-ner-labels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bi-encoder: масштабирование NER до миллиона labels
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm-teacher-pipeline-70-8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM как teacher: pipeline за \\(70, который обходит модель за \\\)8/час
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="LLM как teacher: pipeline за \\(70, который обходит модель за \\\)8/час">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cfm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Кейс CFM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#refuel-ai" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Исследование Refuel AI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ner-tonicai" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Клинический NER от Tonic.ai
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Стандартный pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gliner-llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Где GLiNER не справляется, и почему LLM остаются необходимыми
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Где GLiNER не справляется, и почему LLM остаются необходимыми">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Вложенные и пересекающиеся сущности
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Оценка NER: метрики, ловушки и построение тестовых наборов
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Оценка NER: метрики, ловушки и построение тестовых наборов">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Основные метрики
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Частые ошибки в оценке
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#domain-test-set" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Как собрать domain test set
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#production-ner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Production NER в четырех индустриях
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Production NER в четырех индустриях">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#healthcare" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Healthcare
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#financial-ner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Financial NER
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e-commerce" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        E-commerce
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cybersecurity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cybersecurity
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deployment-python-inference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Оптимизация deployment: от Python к inference быстрее миллисекунды
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Оптимизация deployment: от Python к inference быстрее миллисекунды">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#onnx" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Экспорт в ONNX
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#int8-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        INT8-квантизация
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gline-rs-rust" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        gline-rs: реализация на Rust
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Сводка по стеку оптимизаций
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#instructor-vs-outlines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Структурированное извлечение: Instructor vs Outlines
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-production-" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3-уровневая production-архитектура
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Компромиссы и ограничения
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ключевые выводы
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="References">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#papers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Papers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#industry-papers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Industry Papers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#case-studies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Case Studies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tools-and-frameworks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tools and Frameworks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+             
+<div class="md-content md-content--post" data-md-component="content">
+  <div
+    class="md-sidebar md-sidebar--post"
+    data-md-component="sidebar"
+    data-md-type="navigation"
+  >
+    <div class="md-sidebar__scrollwrap">
+      <div class="md-sidebar__inner md-post">
+        <nav class="md-nav md-nav--primary">
+          <div class="md-post__back">
+            <div class="md-nav__title md-nav__container">
+              <a href="../../../../../.." class="md-nav__link">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+                <span class="md-ellipsis"> На главную </span>
+              </a>
+            </div>
+          </div>
+
+          
+          <ul class="md-post__meta md-nav__list">
+            <li class="md-nav__item md-nav__item--section">
+              <div class="md-post__title">
+                <span class="md-ellipsis"
+                  >Темы</span
+                >
+              </div>
+              <nav class="md-nav">
+                          
+                <div
+                  class="blog-category-section blog-category-section--active"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🤖</span
+                    >
+                    <span class="blog-category-name"
+                      >AI-инженерия</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../05/10/rag-evaluation-metrics/">Оценка RAG: метрики для каждого этапа production-системы RAG</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post blog-category-post--active"
+                    >
+                      <a href="./">Полное руководство по NER в 2026 году: энкодеры, LLM и 3-уровневая production-архитектура</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../03/13/llm-engineering-guide/">Руководство по LLM Engineering: 45 концепций для inference, обучения, архитектуры и эксплуатации</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../03/04/ocr-guide/">Полное руководство по OCR в 2026 году: от пайплайнов к VLM</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/04/llm-fine-tuning-guide/">Руководство по fine-tuning LLM: LoRA, QLoRA, DoRA, Unsloth, Axolotl и deployment</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Руководство по развертыванию LoRAX: тысячи LoRA-адаптеров в Kubernetes</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/11/open-source-llm-formats/">Варианты open-source LLM и форматы файлов: Instruct, GGUF, GPTQ, AWQ и MoE</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/10/local-llms-on-macos/">Локальные LLM на macOS: Ollama, LM Studio, llama.cpp, MLX и Apple Silicon</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/04/scaling-llms-multi-gpu-multi-node/">Масштабирование больших языковых моделей: стратегии multi-GPU и multi-node, которые реально работают на практике</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >📚</span
+                    >
+                    <span class="blog-category-name"
+                      >Агенты 101</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../05/26/ai-agent-runtime/">Runtime для долгоживущих AI-агентов в 2026 году: сессии, sandbox, checkpoints и harness</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../20/ai-agent-security/">Безопасность AI-агентов в 2026: guardrails, права доступа, песочницы и угрозы MCP</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../03/24/ai-agent-tool-use/">Использование инструментов AI-агентами в 2026 году: MCP, CLI, Skills и выполнение кода</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../02/14/ai-agent-memory-architecture/">Архитектура памяти AI-агента в 2026 году: чекпойнты, vector stores и файловая память</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/31/ai-agent-reasoning-loops/">Циклы рассуждений AI-агентов в 2026 году: ReAct vs ReWOO vs Plan-and-Execute</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🦾</span
+                    >
+                    <span class="blog-category-name"
+                      >Агентный ИИ</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/11/enterprise-rag-challenge-agent-architectures/">Enterprise RAG Challenge 3 (ECR3): Побеждающие архитектуры AI-агентов</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/12/28/schema-guided-reasoning-vllm/">Schema-Guided Reasoning в vLLM: структурированные ответы с xgrammar и Pydantic</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/20/domain-driven-design-ai-agents/">Предметно-ориентированное проектирование для AI-агентов: ограниченные контексты, инструменты и бизнес-правила</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/10/05/context-engineering-ai-agents/">Контекстная инженерия для AI-агентов: окна контекста, память, инструменты и guardrails</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🔧</span
+                    >
+                    <span class="blog-category-name"
+                      >Инфраструктура</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../02/21/modern-data-processing-engines/">Сравнение современных движков обработки данных: Polars, DataFusion, Daft, Ray Data, Pandas и Spark</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/06/mlops-vs-llmops/">MLOps vs LLMOps: инфраструктура для foundation models и LLM-систем</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      ></span
+                    >
+                    <span class="blog-category-name"
+                      >Разбор статей</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../01/21/manifold-constrained-hyper-connections/">Manifold-Constrained Hyper-Connections (mHC): масштабирование residual-потока в DeepSeek</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🐍</span
+                    >
+                    <span class="blog-category-name"
+                      >Python</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/08/pyproject-toml-guide/">Руководство по `pyproject.toml`: упаковка Python, зависимости и конфигурация инструментов</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/04/17/uv-python-on-macos/">uv на macOS: управление версиями Python, проектами и инструментами</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🔍</span
+                    >
+                    <span class="blog-category-name"
+                      >Поиск и рекомендации</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../02/08/search-ranking-stack/">Стек ранжирования поиска в 2026: BM25, эмбеддинги, cross-encoder'ы и LLM-реранжирование</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                 
+                <div
+                  class="blog-category-section"
+                >
+                  <div class="blog-category-header">
+                    <span class="blog-category-icon"
+                      >🛠️</span
+                    >
+                    <span class="blog-category-name"
+                      >Инструменты</span
+                    >
+                  </div>
+                  <ul class="blog-category-posts">
+                      
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/06/10/mcp-server-tutorial-uv-fastmcp/">Руководство по MCP Server с uv и FastMCP: создаем сервер FeatureStoreLite</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/10/stable-diffusion-macos-tools/">Stable Diffusion на macOS: Draw Things, DiffusionBee, ComfyUI, A1111 и Fooocus</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/05/07/zprofile-vs-zshrc/">Файлы запуска Zsh: `~/.zprofile` и `~/.zshrc` в macOS и Linux</a>
+                    </li>
+                    
+                    <li
+                      class="blog-category-post"
+                    >
+                      <a href="../../../../2025/04/19/macbook-ai-engineering-setup/">Настройка MacBook для AI-инженерии: инструменты macOS, Python, Docker и workflow в терминале</a>
+                    </li>
+                     
+                  </ul>
+                </div>
+                
+              </nav>
+            </li>
+          </ul>
+
+          
+        </nav>
+        
+      </div>
+    </div>
+  </div>
+  <article class="md-content__inner md-typeset">
+     
+  
+
+
+
+
+<!-- automated-translation-notice:start -->
+
+<div class="admonition info">
+<p class="admonition-title">Автоматический перевод</p>
+</div>
+<p>Эта статья была автоматически переведена с оригинальной английской версии.</p>
+<!-- automated-translation-notice:end -->
+
+<h1 id="ner-2026-llm-3-production-">Полное руководство по NER в 2026 году: энкодеры, LLM и 3-уровневая production-архитектура</h1>
+<p>Еще два года назад выбор подхода к NER означал компромисс между скоростью (модели-энкодеры) и точностью (LLM). Теперь этого компромисса больше нет. Модель GLiNER с 300 млн параметров достигает zero-shot точности UniNER с 13 млрд параметров, работая при этом в 100 раз быстрее. Более новый вариант bi-encoder масштабируется до миллионов типов сущностей с <strong>преимуществом по throughput в 130 раз</strong> по сравнению с исходным cross-encoder. Production-паттерн, который в итоге сформировался: использовать LLM для разметки данных, дообучать компактные энкодеры, деплоить через ONNX или Rust.</p>
+<p>Я собрал companion-репозиторий и прогнал бенчмарки по всем основным подходам. Энкодеры выиграли рынок production NER. LLM по-прежнему критически важны, но уже не как inference-движки, а как генераторы обучающих данных. В этом гайде разобраны статьи, бенчмарки и deployment-паттерны, стоящие за этим сдвигом.</p>
+<blockquote>
+<p><strong>Companion repo:</strong> <a href="https://github.com/slavadubrov/ner-field-guide"><strong>ner-field-guide</strong></a> — runnable-демо для GLiNER, экспорта в ONNX, pipeline LLM-as-teacher и структурированного извлечения с Instructor.</p>
+</blockquote>
+<!-- more -->
+
+<p><strong>Кратко</strong>: больше не нужно строить NER-модели с нуля. Для zero-shot извлечения <strong>GLiNER</strong> на CPU через ONNX обходит даже новейшие LLM почти при нулевой стоимости. Для domain-specific задач <strong>pipeline LLM-as-teacher</strong> (LLM размечает → ревью → fine-tuning) дает энкодеры с F1 на уровне 90-93%+. Для кейсов, где нужно рассуждение, используйте <strong>Instructor или Outlines</strong> с LLM API — но закладывайте в бюджет \$2+/1K документов. 3-уровневая архитектура объединяет все три варианта.</p>
+<hr />
+<h2 id="ner-rag-document-intelligence">Почему NER сейчас важнее, чем раньше: агенты, RAG и document intelligence</h2>
+<p>NER по-прежнему означает одно и то же: найти именованные спаны в тексте и классифицировать их. Изменилось то, где именно он применяется. Раньше это был последний шаг в NLP-pipeline, тихий вспомогательный компонент, о котором никто не писал посты в блогах. Теперь это строительный блок внутри RAG-систем, agent loop и платформ обработки документов. <!-- 🌶️ --> Именно поэтому волна исследований по NER в 2024-2026 годах важна не только в контексте академических бенчмарков.</p>
+<h3 id="rag-retrieval">RAG: более точный retrieval через извлечение сущностей</h3>
+<p>Стандартный RAG — разбить текст на чанки, построить embeddings, извлечь по similarity и надеяться на лучшее — разваливается, когда пользователь спрашивает о конкретных сущностях. <!-- 🌶️ --> Если кто-то спрашивает: «что Anthropic говорила о model safety в Q4 2024?», система должна распознать «Anthropic» и «Q4 2024» как фильтры, а не полагаться только на embedding similarity.</p>
+<p><strong>На этапе индексации</strong> вы извлекаете сущности из каждого чанка и сохраняете их как metadata: <code>{"organizations": ["Anthropic"], "dates": ["Q4 2024"], ...}</code>. Это позволяет фильтровать по сущностям до запуска vector search. Knowledge graph RAG (GraphRAG, LlamaIndex property graphs) идет дальше: NER плюс relation extraction строят граф, который умеет отвечать на multi-hop вопросы, с которыми плоские embeddings не справляются.</p>
+<p><strong>Во время выполнения запроса</strong> сущности, извлеченные из вопроса пользователя, управляют routing. Вопрос с названием компании идет в финансовый индекс; вопрос с названиями препаратов — в клиническую knowledge base. GLiNER здесь особенно хорош, потому что сущности в запросах непредсказуемы — нельзя переобучать модель под каждый новый тип сущности, о котором пользователь может спросить.</p>
+<h3 id="ai-">AI-агенты: превращение текста в структурированные факты</h3>
+<p>Агенты получают неструктурированный текст — веб-страницы, API-ответы, сообщения пользователя — и должны действовать на его основе. NER преобразует этот текст в структурированные факты, с которыми агент может рассуждать, сохранять их или передавать в инструменты.</p>
+<p>Есть два места, где это особенно важно.</p>
+<p>Первое — routing к инструментам. Когда пользователь говорит: «запланируй встречу с Sarah Chen из Accenture в четверг в 14:00», агенту нужно извлечь <code>PERSON: Sarah Chen</code>, <code>ORGANIZATION: Accenture</code> и <code>DATETIME: Thursday 2pm</code> до вызова calendar API. Энкодерная NER-модель делает это менее чем за 10 мс. LLM добавляет 1-2 секунды на вызов, и это накапливается по мере прохождения многошагового workflow, пока ваш «мгновенный» агент не начинает ощущаться так, будто у него диплом по философии. <!-- 🌶️ --></p>
+<p>Второе — трекинг сущностей между сообщениями в диалоге. Системам agent memory нужно понимать, что «Sarah» на 3-м ходе и «Ms. Chen» на 12-м — один и тот же человек. NER находит спаны, entity linking сопоставляет их одному ID.</p>
+<p>Ограничение в обоих случаях — latency. Вызов NER на 200 мс внутри agent chain из 10 шагов добавляет 2 секунды воспринимаемой задержки. Именно поэтому для работы с сущностями внутри agent loop подходят энкодерные модели, а не LLM-based extraction.</p>
+<h3 id="document-intelligence">Document intelligence: от изображений к структурированным данным</h3>
+<p>OCR превращает изображения в текст. NER превращает текст в структурированные поля. Вместе они обеспечивают цифровизацию документов в промышленном масштабе.</p>
+<p>Стандартный pipeline: запустить OCR (Tesseract, Azure Document Intelligence, AWS Textract), получить текст и bounding boxes, затем запустить NER для извлечения структурированных полей — <code>invoice_number</code>, <code>vendor_name</code>, <code>line_items</code>, <code>total</code>, <code>due_date</code> — из того, что еще недавно было JPEG-файлом бумажного счета. Тот же подход работает для контрактов, медицинских записей и регуляторной отчетности.</p>
+<p>Современные платформы объединяют три шага: понимание layout (это заголовок или ячейка таблицы?), извлечение сущностей (какой тип у этого текста?) и relation extraction (какие значения связаны между собой). GLiNER 2 умеет делать все три за один forward pass; один вызов модели может вернуть <code>{vendor: "Acme Corp", amount: "\$4,200", due_date: "2026-04-15"}</code> из счета.</p>
+<p>Именно здесь становится критична стоимость. Бухгалтерская фирма среднего размера обрабатывает десятки тысяч счетов в месяц. Если отправлять каждый из них в LLM, даже в экономичную модель вроде GPT-5.4 Nano, это обойдется в сотни долларов в день. Fine-tuned GLiNER на CPU стоит центы. Ваш CFO заметит разницу. <!-- 🌶️ --> Путь такой: разметить 500 примеров счетов с помощью LLM, дообучить GLiNER на результатах, задеплоить на CPU за \$0.10/час.</p>
+<h3 id="pii-guardrails-llm">Детекция PII и guardrails для LLM</h3>
+<p>Регулирование приватности (GDPR, HIPAA, CCPA) требует находить персональные данные до того, как они попадут в downstream-системы. Для LLM-деплойментов это значит сканировать входы до отправки в модель и выходы до передачи пользователю.</p>
+<p>NER решает эту задачу напрямую. Модели деидентификации находят спаны <code>PERSON</code>, <code>SSN</code>, <code>PHONE</code>, <code>EMAIL</code>, <code>ADDRESS</code> и либо редактируют их, либо заменяют на синтетические эквиваленты. <a href="https://www.johnsnowlabs.com/comparing-medical-text-de-identification-performance-john-snow-labs-openai-azure-health-data-services-and-amazon-comprehend-medical/">Клинические модели John Snow Labs</a> достигают <strong>96% F1</strong> на детекции PHI (против Azure 91%, AWS 83%, GPT-4o 79%) при обработке 100K+ клинических заметок в день.</p>
+<p>Для LLM guardrails NER работает как <strong>слой предварительного скрининга</strong>: сканировать пользовательский ввод на PII до отправки во внешний API, затем блокировать или анонимизировать. Это быстрее и проще, чем просить LLM модерировать саму себя. GLiNER здесь особенно полезен, потому что категории PII отличаются по юрисдикциям. Вы можете добавить новые типы сущностей вроде «генетическая информация» под новое регулирование без переобучения.</p>
+<hr />
+<h2 id="gliner-ner-300">GLiNER меняет экономику NER с помощью модели на 300 млн параметров</h2>
+<p>GLiNER (NAACL 2024, Zaratiana et al.) сделал encoder-based NER конкурентоспособным по отношению к LLM при гораздо меньшей стоимости. Вместо того чтобы рассматривать NER как sequence labeling или генерацию текста, GLiNER трактует его как <strong>задачу matching</strong>: оценивает каждую кандидатную текстовую последовательность (каждый непрерывный спан слов вроде «Bill Gates» или «Microsoft») против каждого типа сущности, а затем оставляет пары с высоким score.</p>
+<p>Модель принимает метки типов сущностей и входной текст как единую последовательность: <code>[ENT] person [ENT] organization [ENT] date [SEP] Bill Gates founded Microsoft...</code>. Двунаправленный transformer (DeBERTa-v3) кодирует все вместе.</p>
+<p>На выходе модель строит два набора представлений: один для типов сущностей (из позиций токенов <code>[ENT]</code>), второй для текстовых спанов (путем объединения векторов начального и конечного токенов через небольшой FFN). Dot product между представлением спана и представлением типа сущности дает score.</p>
+<p>После применения sigmoid получаем вероятность того, что спан от токена <span class="arithmatex">\(i\)</span> до токена <span class="arithmatex">\(j\)</span> принадлежит типу сущности <span class="arithmatex">\(t\)</span>: <span class="arithmatex">\(\\phi(i, j, t) = \\sigma(S_{ij}^T \\cdot q_t)\)</span>, где <span class="arithmatex">\(S_{ij}\)</span> — вектор спана, созданный FFN, а <span class="arithmatex">\(q_t\)</span> — embedding типа сущности из соответствующего токена <code>[ENT]</code> (<a href="https://arxiv.org/abs/2311.08526">Zaratiana et al., 2024</a>, Eq. 1). Чтобы сохранять высокую скорость, длина спанов ограничена <strong>12 токенами</strong>.</p>
+<p><img alt="Архитектура GLiNER: токены типов сущностей и текстовые токены совместно кодируются DeBERTa, после чего представления спанов сравниваются с embedding-представлениями типов сущностей через dot product" src="../../../../assets/2026-04-02-definitive-guide-ner-2026/gliner-architecture.svg" /></p>
+<p>На практике это означает, что в качестве label на этапе inference подходит любое описание на естественном языке. Переобучение не требуется. Вы просто передаете нужные типы сущностей («person», «adverse drug reaction», «financial instrument»), и модель оценивает спаны относительно них. Доступны три размера: GLiNER-S (<strong>50M</strong> параметров), GLiNER-M (<strong>90M</strong>), и GLiNER-L (<strong>300M</strong>). Обучающие данные взяты из датасета Pile-NER: <strong>44,889 фрагментов</strong> с <strong>240K спанов сущностей</strong> по <strong>13K типам сущностей</strong>, все размечены с помощью ChatGPT. Обучение GLiNER-L занимает около 4 часов на одном A100 (<a href="https://arxiv.org/abs/2311.08526">Zaratiana et al., 2024</a>).</p>
+<h3 id="_1">Результаты бенчмарков</h3>
+<p>Zero-shot результаты из <a href="https://arxiv.org/abs/2311.08526">Zaratiana et al. (2024)</a>, Таблицы 1 и 2:</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Params</th>
+<th>CrossNER F1</th>
+<th>Avg (20 datasets)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GLiNER-L</td>
+<td>300M</td>
+<td><strong>60.9%</strong></td>
+<td><strong>47.8%</strong></td>
+</tr>
+<tr>
+<td>GoLLIE</td>
+<td>7B</td>
+<td>58.0%</td>
+<td>--</td>
+</tr>
+<tr>
+<td>UniNER-13B</td>
+<td>13B</td>
+<td>55.6%</td>
+<td>--</td>
+</tr>
+<tr>
+<td>GLiNER-M</td>
+<td>90M</td>
+<td>55.4%</td>
+<td>--</td>
+</tr>
+<tr>
+<td>UniNER-7B</td>
+<td>7B</td>
+<td>53.7%</td>
+<td>45.7%</td>
+</tr>
+<tr>
+<td>GLiNER-S</td>
+<td>50M</td>
+<td>52.7%</td>
+<td>--</td>
+</tr>
+<tr>
+<td>ChatGPT (GPT-3.5)</td>
+<td>--</td>
+<td>47.5%</td>
+<td>36.5%</td>
+</tr>
+</tbody>
+</table>
+<p>GLiNER-M с 90 млн параметров <strong>почти совпадает с UniNER-13B</strong> (55.4% против 55.6% F1), будучи при этом <strong>в 140 раз меньше</strong>. Даже крошечный GLiNER-S на 50M обходит ChatGPT (GPT-3.5) на 5 пунктов F1. Мультиязычная версия — обученная только на английских данных — обходит ChatGPT в 8 из 10 неанглоязычных языков (<a href="https://arxiv.org/abs/2311.08526">Zaratiana et al., 2024</a>). Замечание: более новые LLM (GPT-5.4, Claude 4.6), вероятно, покажут лучший результат на этих бенчмарках, но разрыв в стоимости только вырос — эти модели по-прежнему на порядки дороже, чем энкодер на 90M на CPU.</p>
+<p>Экосистема большая: <strong>280+ совместимых с GLiNER моделей</strong> на HuggingFace, около <strong>350,000 загрузок с PyPI в месяц</strong>, около 2,800 звезд на GitHub. Есть варианты для биомедицины, детекции PII, новостей и мультиязычной поддержки.</p>
+<p>Из <a href="https://github.com/slavadubrov/ner-field-guide"><code>quickstart.py</code></a>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">gliner</span><span class="w"> </span><span class="kn">import</span> <span class="n">GLiNER</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">GLiNER</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="s2">&quot;urchade/gliner_medium-v2.1&quot;</span><span class="p">)</span>
+<span class="n">text</span> <span class="o">=</span> <span class="s2">&quot;Bill Gates founded Microsoft on April 4, 1975.&quot;</span>
+<span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;person&quot;</span><span class="p">,</span> <span class="s2">&quot;organization&quot;</span><span class="p">,</span> <span class="s2">&quot;date&quot;</span><span class="p">]</span>
+<span class="n">entities</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict_entities</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">entity</span> <span class="ow">in</span> <span class="n">entities</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">entity</span><span class="p">[</span><span class="s1">&#39;text&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> =&gt; </span><span class="si">{</span><span class="n">entity</span><span class="p">[</span><span class="s1">&#39;label&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">entity</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+<span class="c1"># Bill Gates =&gt; person (0.987)</span>
+<span class="c1"># Microsoft =&gt; organization (0.991)</span>
+<span class="c1"># April 4, 1975 =&gt; date (0.974)</span>
+</code></pre></div>
+<hr />
+<h2 id="gliner-spacy">Как GLiNER соотносится со spaCy</h2>
+<p>Любой гайд по NER будет неполным без <strong>spaCy</strong> — <a href="https://pypistats.org/packages/spacy">~21 млн загрузок в месяц</a>, неубиваемого таракана мира NLP-библиотек (в хорошем смысле — он переживает все). <!-- 🌶️ --> Но он решает другую задачу, чем GLiNER.</p>
+<p>Пайплайны spaCy (<code>en_core_web_sm</code>, <code>en_core_web_trf</code>) выполняют <strong>closed-vocabulary NER</strong>: фиксированный набор типов сущностей (PERSON, ORG, GPE, DATE и т. д.), определенный на этапе обучения. Нужен новый тип сущности? Собирайте размеченные данные и переобучайте. Transformer-backed <code>en_core_web_trf</code> достигает <a href="https://spacy.io/usage/facts-figures">89.8% F1 на OntoNotes 5.0</a>, но только для своих 18 предопределенных типов.</p>
+<p>GLiNER выполняет <strong>open-vocabulary NER</strong>: на этапе inference работает любой label, переобучение не нужно. Это делает его лучшим выбором, когда типы сущностей заранее неизвестны, часто меняются или специфичны для домена («adverse drug reaction», «financial instrument», «threat indicator»).</p>
+<p>Моя рекомендация: используйте <strong>spaCy для стандартных типов сущностей</strong>, где pretrained-пайплайны хорошо валидированы. Используйте <strong>GLiNER, когда нужны гибкие zero-shot типы</strong> или когда pipeline должен адаптироваться без переобучения. Они хорошо сочетаются — spaCy берет на себя tokenization и sentence splitting, GLiNER — извлечение сущностей.</p>
+<hr />
+<h2 id="uniner-nuner">UniNER и NuNER: насколько маленькой может быть модель?</h2>
+<p><strong>UniNER</strong> (ICLR 2024, Zhou et al.) и <strong>NuNER</strong> (EMNLP 2024, Bogdanov et al.) оба дистиллируют аннотации LLM в более компактные NER-модели — но расходятся во мнении, насколько маленькой может быть такая модель.</p>
+<h3 id="uniner">UniNER: путь максималиста</h3>
+<p>UniNER дообучает LLaMA-7B/13B на <strong>44,889 NER-парах</strong> (240K сущностей, 13K типов), сгенерированных ChatGPT. Для каждого типа сущности модель отвечает на вопрос «What describes [type] in the text?» и выдает JSON-списки. Ключевой прием обучения: <strong>frequency-based negative sampling</strong> поднимает F1 с 31.5% до <strong>53.4%</strong> (<a href="https://arxiv.org/abs/2308.03279">Zhou et al., 2024</a>).</p>
+<p>UniNER-7B достигает <strong>41.7% zero-shot F1</strong> на 43 датасетах — это на 7 пунктов выше, чем у ChatGPT с 34.9%. Вариант на 13B доходит до 43.4%, то есть выигрывает только 1.7 пункта при почти двукратном росте compute (<a href="https://arxiv.org/abs/2308.03279">Zhou et al., 2024</a>).</p>
+<p>Проблема для production: как autoregressive-модель на 7B, UniNER требует N forward pass для N типов сущностей, нуждается в <strong>14GB+ VRAM</strong> (то есть ваш GPU-бюджет закончился еще до обеда) и имеет ограничительную лицензию CC BY-NC 4.0. <!-- 🌶️ --></p>
+<h3 id="nuner">NuNER: путь минималиста</h3>
+<p>NuNER стартует с <strong>RoBERTa-base (125M параметров)</strong> и использует contrastive training на <strong>4.38 млн аннотаций GPT-3.5</strong> по <strong>200K концептам</strong> — суммарная стоимость аннотации менее <strong>\$500</strong>. После обучения concept encoder выбрасывается; text encoder встраивается в любой стандартный NER-pipeline как замена RoBERTa (<a href="https://arxiv.org/abs/2402.15343">Bogdanov et al., 2024</a>).</p>
+<p>Результаты: NuNER обходит обычную RoBERTa на <strong>6-15 пунктов F1</strong> во всех few-shot режимах. Имея всего около дюжины примеров на тип сущности, <strong>NuNER сопоставим с UniNER-7B, будучи в 56 раз меньше</strong> (<a href="https://arxiv.org/abs/2402.15343">Bogdanov et al., 2024</a>).</p>
+<p>Обе статьи показывают одно и то же: дистилляция аннотаций LLM в более компактные модели дает NER, который превосходит teacher-модель. И 7B параметров не нужны — <strong>125M достаточно, когда есть данные для fine-tuning</strong>, плюс MIT-лицензия и удобный inference на CPU.</p>
+<hr />
+<h2 id="gliner-2">GLiNER 2: одна модель, четыре задачи</h2>
+<p>У исходной экосистемы GLiNER появилась растущая проблема: отдельные модели для NER (GLiNER), relation extraction (GLiREL), classification (GLiClass) и document-level RE (GLiDRE) — и каждая требует собственного деплоя, собственного Docker-контейнера и собственной строки в таблице «сервисы, чтобы они только не сломались». <!-- 🌶️ --> GLiNER 2 (EMNLP 2025, Zaratiana et al.) объединяет все четыре в одну модель на <strong>205 млн параметров</strong> с schema-driven интерфейсом.</p>
+<p>Архитектура сохраняет дизайн cross-encoder, но увеличивает контекст до <strong>2,048 токенов</strong> (в 4 раза больше исходного) и добавляет декларативные схемы для определения задач извлечения. Обучение использует <strong>135,698 реальных документов</strong>, размеченных GPT-4o, плюс <strong>118,636 синтетических примеров</strong> (<a href="https://arxiv.org/abs/2507.18546">Zaratiana et al., 2025</a>).</p>
+<p>В zero-shot CrossNER GLiNER 2 получает <strong>0.590 F1</strong> — близко к <strong>0.599</strong> у GPT-4o по измерениям из статьи (середина 2025 года). Более новые модели вроде GPT-5.4, вероятно, набирают больше, но при этом работают за долю скорости GLiNER 2 и при гораздо более высокой стоимости. Для classification модель показывает <strong>0.72 в среднем</strong> по 7 бенчмаркам, обгоняя DeBERTa-v3-large (0.69). На CPU GLiNER 2 выполняет classification за <strong>130-208 мс</strong> независимо от числа labels. DeBERTa масштабируется линейно: 1,714 мс для 5 labels, <strong>16,897 мс</strong> для 50 (<a href="https://arxiv.org/abs/2507.18546">Zaratiana et al., 2025</a>).</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">gliner2</span><span class="w"> </span><span class="kn">import</span> <span class="n">GLiNER2</span>
+<span class="n">extractor</span> <span class="o">=</span> <span class="n">GLiNER2</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="s2">&quot;fastino/gliner2-base-v1&quot;</span><span class="p">)</span>
+
+<span class="c1"># Multi-task composition in ONE forward pass</span>
+<span class="n">schema</span> <span class="o">=</span> <span class="p">(</span><span class="n">extractor</span><span class="o">.</span><span class="n">create_schema</span><span class="p">()</span>
+    <span class="o">.</span><span class="n">entities</span><span class="p">({</span><span class="s2">&quot;person&quot;</span><span class="p">:</span> <span class="s2">&quot;Names of people&quot;</span><span class="p">,</span> <span class="s2">&quot;company&quot;</span><span class="p">:</span> <span class="s2">&quot;Organization names&quot;</span><span class="p">})</span>
+    <span class="o">.</span><span class="n">classification</span><span class="p">(</span><span class="s2">&quot;sentiment&quot;</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;positive&quot;</span><span class="p">,</span> <span class="s2">&quot;negative&quot;</span><span class="p">,</span> <span class="s2">&quot;neutral&quot;</span><span class="p">])</span>
+    <span class="o">.</span><span class="n">relations</span><span class="p">([</span><span class="s2">&quot;works_for&quot;</span><span class="p">,</span> <span class="s2">&quot;founded&quot;</span><span class="p">,</span> <span class="s2">&quot;located_in&quot;</span><span class="p">])</span>
+    <span class="o">.</span><span class="n">structure</span><span class="p">(</span><span class="s2">&quot;product_info&quot;</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;str&quot;</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="s2">&quot;price&quot;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;str&quot;</span><span class="p">))</span>
+<span class="n">results</span> <span class="o">=</span> <span class="n">extractor</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">schema</span><span class="p">)</span>
+</code></pre></div>
+<p>Один deployment модели заменяет четыре. Инфраструктура проще, точность конкурентоспособна.</p>
+<hr />
+<h2 id="bi-encoder-ner-labels">Bi-encoder: масштабирование NER до миллиона labels</h2>
+<p>Исходный GLiNER кодирует labels и текст совместно — и это создает bottleneck. Чем больше типов сущностей, тем длиннее входная последовательность, и производительность быстро падает после примерно 30 типов. <strong>GLiNER bi-encoder</strong> (февраль 2026, Stepanov et al.; arXiv 2602.18487) решает это, разделяя кодирование текста и labels на <strong>два отдельных transformer-а</strong>.</p>
+<p><img alt="Cross-encoder против bi-encoder: cross-encoder совместно кодирует labels и текст, тогда как bi-encoder использует отдельные энкодеры с предвычисленными embedding-представлениями labels" src="../../../../assets/2026-04-02-definitive-guide-ner-2026/cross-vs-bi-encoder.svg" /></p>
+<p>Text encoder использует <strong>ModernBERT</strong> (семейство Ettin), label encoder — sentence transformers (<strong>BGE</strong> или <strong>MiniLM</strong>). Спаны и labels оцениваются через dot product. Ключевой прием: <strong>embedding-представления типов сущностей можно один раз предвычислить и закэшировать</strong>. На этапе inference кодировать нужно только текст — lookup по labels выполняется мгновенно.</p>
+<p>Доступны четыре размера модели, все протестированы на CrossNER (<a href="https://arxiv.org/abs/2602.18487">Stepanov et al., 2026</a>, Table 1):</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Parameters</th>
+<th>CrossNER F1</th>
+<th>Throughput (H100)</th>
+<th>With Pre-computed Labels</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>bi-edge-v2.0</td>
+<td>60M</td>
+<td>54.0%</td>
+<td>13.64 ex/s</td>
+<td>24.62 ex/s</td>
+</tr>
+<tr>
+<td>bi-small-v2.0</td>
+<td>108M</td>
+<td>57.2%</td>
+<td>7.99 ex/s</td>
+<td>15.22 ex/s</td>
+</tr>
+<tr>
+<td>bi-base-v2.0</td>
+<td>194M</td>
+<td>60.3%</td>
+<td>5.91 ex/s</td>
+<td>9.51 ex/s</td>
+</tr>
+<tr>
+<td>bi-large-v2.0</td>
+<td>530M</td>
+<td><strong>61.5%</strong></td>
+<td>2.68 ex/s</td>
+<td>3.60 ex/s</td>
+</tr>
+</tbody>
+</table>
+<p>При <strong>1,024 типах сущностей</strong> bi-encoder (edge, pre-computed) теряет всего <strong>5.2% throughput</strong> по сравнению с одним label. Cross-encoder теряет <strong>98.7%</strong> (10.7 → 0.14 ex/s). Это дает <strong>преимущество по throughput в 130 раз</strong> при масштабировании. При 100 типах сущностей на одном H100 bi-encoder обрабатывает <strong>1.96 млн предсказаний в день</strong> против 368K у cross-encoder (<a href="https://arxiv.org/abs/2602.18487">Stepanov et al., 2026</a>).</p>
+<p>И с точностью тоже все в порядке. Bi-encoder-large достигает <strong>61.5% CrossNER F1</strong>, немного обходя cross-encoder с 60.9%. Авторы рекомендуют <strong>bi-base-v2.0 (194M)</strong> как оптимальную точку, дающую 98% точности большой модели при скорости в 2.6 раза выше (<a href="https://arxiv.org/abs/2602.18487">Stepanov et al., 2026</a>).</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">gliner</span><span class="w"> </span><span class="kn">import</span> <span class="n">GLiNER</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">GLiNER</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="s2">&quot;knowledgator/gliner-bi-base-v2.0&quot;</span><span class="p">)</span>
+
+<span class="c1"># Pre-compute embeddings for massive label sets — encode once, use forever</span>
+<span class="n">entity_types</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;person&quot;</span><span class="p">,</span> <span class="s2">&quot;organization&quot;</span><span class="p">,</span> <span class="s2">&quot;date&quot;</span><span class="p">]</span>  <span class="c1"># Can be thousands or millions</span>
+<span class="n">entity_embeddings</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">encode_labels</span><span class="p">(</span><span class="n">entity_types</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+
+<span class="c1"># Inference only encodes text — labels are a cached lookup</span>
+<span class="n">outputs</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">batch_predict_with_embeds</span><span class="p">(</span><span class="n">texts</span><span class="p">,</span> <span class="n">entity_embeddings</span><span class="p">,</span> <span class="n">entity_types</span><span class="p">)</span>
+</code></pre></div>
+<p>Среди применений — biomedical NER по онтологии UMLS (4M+ концептов), корпоративные таксономии, которые развиваются без переобучения модели, и entity linking через companion-фреймворк <a href="https://github.com/Knowledgator/GLinker"><strong>GLiNKER</strong></a>.</p>
+<hr />
+<h2 id="llm-teacher-pipeline-70-8">LLM как teacher: pipeline за \<span class="arithmatex">\(70, который обходит модель за \\\)</span>8/час</h2>
+<p>Паттерн LLM-as-teacher стал стандартным production-pipeline. Три исследования показывают, сколько это стоит и что дает.</p>
+<p><img alt="Pipeline LLM-as-teacher: LLM размечает сырые данные, люди проверяют подмножество, энкодер дообучается и деплоится при стоимости в 80 раз ниже" src="../../../../assets/2026-04-02-definitive-guide-ner-2026/llm-as-teacher-pipeline.svg" /></p>
+<h3 id="cfm">Кейс CFM</h3>
+<p>Capital Fund Management извлекали названия компаний из ~900K заголовков финансовых новостей. Zero-shot GLiNER показал <strong>87.0% F1</strong>. Они использовали Llama 3.1-70b (самую сильную открытую модель на тот момент) для аннотирования всего датасета примерно за 8 часов при стоимости <strong>~\$70</strong>, а затем человек проверил 2,714 примеров через Argilla еще за 8 часов.</p>
+<p>Fine-tuning GLiNER на этих данных поднял качество до <strong>93.4% F1</strong> — выше даже, чем у teacher-модели Llama 70b с 92.7%. Fine-tuned модель работает по цене <strong>\<span class="arithmatex">\(0.10/час на CPU** против \\\)</span>8/час у teacher — </strong>в 80 раз дешевле** и при этом точнее (<a href="https://huggingface.co/blog/cfm-case-study">CFM Case Study</a>). Сегодня вы получили бы еще более качественную teacher-разметку с Llama 4 Maverick или GPT-5.4 Mini при сопоставимой или меньшей стоимости.</p>
+<h3 id="refuel-ai">Исследование Refuel AI</h3>
+<p>Refuel AI сравнили LLM-разметку на 8 NLP-датасетах, включая CoNLL-2003. GPT-4 (март 2023) показал <strong>88.4% согласия с ground truth</strong> — выше, чем <strong>86.2% у опытных human-annotators</strong>. LLM были в 20 раз быстрее и в 7 раз дешевле. Их подход с ансамблированием — дешевые модели для простых примеров, GPT-4 для сложных — дал <strong>95%+ согласия</strong>, сохраняя умеренную стоимость (<a href="https://refuel.ai/blog-posts/llm-labeling-technical-report">Refuel AI Technical Report</a>). С появлением GPT-5.4 и Claude 4.6 качество teacher-моделей стало только выше.</p>
+<h3 id="ner-tonicai">Клинический NER от Tonic.ai</h3>
+<p>Tonic.ai показали, что паттерн работает и для clinical NER. Только на основе LLM-аннотаций они обучили модель RoBERTa LoRA до <strong>0.70 F1</strong> на NCBI Disease Corpus (против 0.81 при полной human-разметке). На задаче извлечения healthcare ID модель достигла <strong>0.947 F1</strong> — выше production-порога в 0.914 — без единого примера с human-разметкой.</p>
+<h3 id="pipeline">Стандартный pipeline</h3>
+<p>Production-рецепт стабилизировался в шесть шагов:</p>
+<ol>
+<li>Написать annotation guidelines на естественном языке</li>
+<li>Создать небольшой <strong>validation set</strong> с human-разметкой (50-200 документов)</li>
+<li>Использовать LLM (GPT-5.4 Mini, Llama 4 Maverick или Qwen3.5) для разметки основного обучающего массива</li>
+<li>Проверить часть выборки через <a href="https://github.com/argilla-io/argilla">Argilla</a> или <a href="https://github.com/HumanSignal/label-studio">Label Studio</a></li>
+<li>Дообучить компактный энкодер (GLiNER, <a href="https://github.com/tomaarsen/SpanMarkerNER">SpanMarker</a>, RoBERTa)</li>
+<li>Задеплоить с inference-стоимостью в 16-80 раз ниже</li>
+</ol>
+<p>Стоимость NER теперь больше не выглядит как «разметить все обучающие данные, наняв армию студентов». Теперь это «собрать хороший validation set, написать понятные инструкции и дать LLM сделать остальное». <!-- 🌶️ --></p>
+<hr />
+<h2 id="gliner-llm">Где GLiNER не справляется, и почему LLM остаются необходимыми</h2>
+<p><a href="https://sease.io/2025/10/gliner-as-an-alternative-to-llms-for-query-parsing-evaluation.html">Бенчмарк Sease</a> (октябрь 2025) сравнил GLiNER и GPT-4.1-mini на 30 задачах query parsing. GPT-4.1-mini дал <strong>100% полностью корректных</strong> ответов. GLiNER — <strong>53%</strong> (16 из 30). Но GLiNER отвечал за <strong>0.08 секунды</strong> против <strong>1.21 секунды</strong> у LLM — в 15 раз быстрее.</p>
+<p>GLiNER проваливается по трем конкретным паттернам:</p>
+<ol>
+<li><strong>Неявные сущности</strong>: извлечение «event» из «Elton John performed at Madison Square Garden» — в тексте буквально не написано «event», но LLM выводит «concert»</li>
+<li><strong>Чувствительность к формулировке label</strong>: «2022» получает score 0.388 для «date», но 0.958 для «year» — небольшие изменения label приводят к большим скачкам score</li>
+<li><strong>Value mapping</strong>: GLiNER возвращает точный surface text («family houses») вместо канонического значения («Single family house») — LLM делают это естественно</li>
+</ol>
+<h3 id="_2">Вложенные и пересекающиеся сущности</h3>
+<p>GLiNER также испытывает трудности с <strong>вложенными сущностями</strong>. В «New York University» человек может разметить и «New York» (LOCATION), и «New York University» (ORGANIZATION). GLiNER выбирает только спан с наивысшим score. Это важно в биомедицинских текстах («acute myeloid leukemia» содержит и заболевание, и модификатор) и юридических текстах (вложенные организационные иерархии). Специализированные модели умеют работать с вложенностью, но плоский дизайн спанов в GLiNER — нет.</p>
+<p>На практике: GLiNER закрывает <strong>явное извлечение сущностей</strong> — ядро production NER. LLM подключаются, когда извлечение требует <strong>инференса, рассуждения или сопоставления с предопределенными онтологиями</strong>. Используйте оба подхода.</p>
+<hr />
+<h2 id="ner">Оценка NER: метрики, ловушки и построение тестовых наборов</h2>
+<p>Я видел, как команды выпускали модели с 95% F1 на тестовом наборе, которые проваливались в production — потому что test set не отражал реальное распределение документов. Ваш test set — это не ваши production-данные. Звучит очевидно. Я все равно видел, как на этом ломались. <!-- 🌶️ --></p>
+<h3 id="_3">Основные метрики</h3>
+<ul>
+<li><strong>Entity-level F1</strong>: стандартная метрика. Предсказание считается корректным только если и границы спана, и тип точно совпадают с ground truth. Именно ее приводит большинство статей.</li>
+<li><strong>Token-level F1</strong>: оценивает каждый токен независимо. Завышает результаты, потому что частично правильное извлечение длинной сущности дает частичный credit. Лучше использовать entity-level F1.</li>
+<li><strong>Precision vs Recall</strong>: стоимость ошибок часто асимметрична. Для деидентификации важнее recall — пропустить имя хуже, чем избыточно что-то замазать. Для извлечения в базу данных важнее precision — ложные записи портят downstream-анализ.</li>
+</ul>
+<h3 id="_4">Частые ошибки в оценке</h3>
+<ol>
+<li><strong>Завышение из-за partial match</strong>: извлечено «Bill», тогда как gold label — «Bill Gates» — некоторые скрипты засчитывают это как частичное совпадение. Используйте exact span matching, если нет веской причины поступать иначе.</li>
+<li><strong>Путаница типов</strong>: если «Microsoft» правильно найден как спан, но размечен как PERSON вместо ORG, это должно давать ноль. Проверьте, что ваш evaluation code обрабатывает это корректно.</li>
+<li><strong>Утечка в test set</strong>: если сущности в тесте пересекаются с обучающими, score завышается. Zero-shot бенчмарки (CrossNER, Few-NERD) нужны именно для проверки generalization.</li>
+</ol>
+<h3 id="domain-test-set">Как собрать domain test set</h3>
+<p>Для production-оценки я рекомендую:</p>
+<ol>
+<li><strong>Брать выборку из production-данных</strong>, а не из отобранных вручную красивых примеров. Включайте те грязные документы, которые модель реально увидит.</li>
+<li><strong>200-500 размеченных документов</strong> дают стабильные оценки F1. Ниже 100 доверительные интервалы слишком широкие.</li>
+<li><strong>Минимум два annotator-а</strong>, с оценкой inter-annotator agreement (Cohen's kappa &gt; 0.8). Если люди не согласны, модель лучше не сделает.</li>
+<li><strong>Стратификация по сложности</strong> — простые кейсы (чистый текст, стандартные типы) и сложные кейсы (неоднозначные сущности, жаргон, шумный текст).</li>
+</ol>
+<hr />
+<h2 id="production-ner">Production NER в четырех индустриях</h2>
+<p>Вот самые зрелые NER-деплойменты, которые я нашел, с конкретными цифрами.</p>
+<h3 id="healthcare">Healthcare</h3>
+<p>В healthcare наиболее зрелый инструментарий для NER. У <strong>John Snow Labs</strong> более 2,500 pretrained-моделей, из них 1,200+ для healthcare, покрывающих 400+ клинических типов сущностей, сопоставленных с ICD-10, SNOMED CT, LOINC и RxNorm. Их <a href="https://www.johnsnowlabs.com/comparing-medical-text-de-identification-performance-john-snow-labs-openai-azure-health-data-services-and-amazon-comprehend-medical/">модели деидентификации</a> достигают <strong>96% F1</strong> (против Azure 91%, AWS 83%, GPT-4o 79%), а <a href="https://www.nlpsummit.org/lessons-learned-de-identifying-700-million-patient-notes-with-spark-nlp/">Providence St. Joseph Health обрабатывает 100K-500K клинических заметок в день</a>.</p>
+<p>Open-source-проект <a href="https://huggingface.co/blog/MaziyarPanahi/openmed-year-in-review-2025"><strong>OpenMed project</strong></a> предлагает 380+ biomedical NER-моделей с 29.7 млн загрузок на HuggingFace и ставит новый state-of-the-art на 10 из 12 публичных биомедицинских бенчмарков.</p>
+<h3 id="financial-ner">Financial NER</h3>
+<p>Основной use case — извлечение данных из SEC filing. Finance NLP от John Snow Labs извлекает 11+ типов сущностей из отчетов 10-K/10-Q (адреса, тикеры, финансовые годы, фондовые биржи). Варианты <a href="https://arxiv.org/abs/2205.15485"><strong>FinBERT-MRC</strong></a> достигают 0.87-0.93 F1 на задачах финансового NER. Ключевая сложность: длинные документы и вложенные сущности в сложных финансовых инструментах.</p>
+<h3 id="e-commerce">E-commerce</h3>
+<p>NER в очень большом масштабе. Система Walmart <a href="https://dl.acm.org/doi/10.1145/3580305.3599816"><strong>EAMT system</strong></a> (KDD 2023) обучается на <strong>965 млн запросов</strong> с ~60 labels сущностей и дает <strong>0.51% роста GMV</strong> в A/B-тестах — это миллионы дополнительной выручки. Фреймворк Home Depot <a href="https://ojs.aaai.org/index.php/AAAI/article/view/17773"><strong>TripleLearn</strong></a> (AAAI 2021) поднял NER F1 с 69.5 до 93.3 через итеративное обучение.</p>
+<h3 id="cybersecurity">Cybersecurity</h3>
+<p>Система <a href="https://dl.acm.org/doi/10.1145/2976749.2978315"><strong>iACE system</strong></a> (CCS 2016) обработала <strong>71,000 статей</strong> из 45 security-блогов, извлекая <strong>900K IOC-объектов</strong> с <strong>98% precision и 93% recall</strong>. Современные системы, такие как <a href="https://github.com/aiforsec/CyNER"><strong>CyNER</strong></a>, объединяют DeBERTa (F1 &gt;91%) с regex-эвристиками для IOC. Унифицированный датасет <a href="https://arxiv.org/abs/2510.26499"><strong>CyberNER</strong></a> (2025) гармонизирует четыре датасета в 21 тип сущности, выровненный с STIX 2.1; RoBERTa на нем достигает 0.736 F1.</p>
+<hr />
+<h2 id="deployment-python-inference">Оптимизация deployment: от Python к inference быстрее миллисекунды</h2>
+<p>В companion-репозитории я протестировал три способа ускорить GLiNER для production.</p>
+<h3 id="onnx">Экспорт в ONNX</h3>
+<p>У GLiNER есть нативная конвертация в ONNX, а на HuggingFace уже доступны предконвертированные модели (<code>onnx-community/gliner_small-v2.1</code>). ONNX Runtime дает <strong>ускорение в 1.5-3 раза</strong> на CPU по сравнению с PyTorch, с четырьмя уровнями оптимизации — от базового до mixed-precision.</p>
+<p>Из <a href="https://github.com/slavadubrov/ner-field-guide"><code>onnx_export.py</code></a>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Export with quantization</span>
+<span class="c1"># python convert_to_onnx.py --model_path model/ --save_path onnx/ --quantize True</span>
+
+<span class="c1"># Load ONNX model — same API, faster inference</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">gliner</span><span class="w"> </span><span class="kn">import</span> <span class="n">GLiNER</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">GLiNER</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="s2">&quot;path/to/model&quot;</span><span class="p">,</span> <span class="n">load_onnx_model</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="c1"># Same predict_entities call, 1.5-3x faster on CPU</span>
+<span class="n">entities</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict_entities</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="int8-">INT8-квантизация</h3>
+<p>Dynamic quantization уменьшает размер моделей в <strong>2.4 раза</strong> (438MB → 181MB) при потере менее <strong>0.6% F1</strong>. Скорость на CPU возрастает в <strong>1.8 раза</strong>. На Intel VNNI CPU с ONNX Runtime INT8 дает до <strong>6x ускорения</strong> относительно PyTorch FP32.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">onnxruntime.quantization</span><span class="w"> </span><span class="kn">import</span> <span class="n">quantize_dynamic</span><span class="p">,</span> <span class="n">QuantType</span>
+
+<span class="c1"># One-line quantization — 2.4x smaller, &lt;1% F1 loss</span>
+<span class="n">quantize_dynamic</span><span class="p">(</span><span class="s2">&quot;gliner.onnx&quot;</span><span class="p">,</span> <span class="s2">&quot;gliner_int8.onnx&quot;</span><span class="p">,</span> <span class="n">weight_type</span><span class="o">=</span><span class="n">QuantType</span><span class="o">.</span><span class="n">QInt8</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="gline-rs-rust">gline-rs: реализация на Rust</h3>
+<p><a href="https://github.com/fbilhaut/gline-rs"><strong>gline-rs</strong></a> (Apache 2.0) убирает overhead Python. На CPU: <strong>6.67 seq/s</strong> против 1.61 у Python — <strong>ускорение в 4.1 раза</strong>. На RTX 4080: <strong>248.75 seq/s</strong> (<a href="https://github.com/fbilhaut/gline-rs">бенчмарки gline-rs</a>). Поддерживаются span- и token-модели, GPU/NPU через ONNX Runtime, и есть crate на crates.io.</p>
+<div class="highlight"><pre><span></span><code><span class="k">use</span><span class="w"> </span><span class="n">gliner</span><span class="p">::{</span><span class="n">GLiNER</span><span class="p">,</span><span class="w"> </span><span class="n">TokenMode</span><span class="p">,</span><span class="w"> </span><span class="n">Parameters</span><span class="p">,</span><span class="w"> </span><span class="n">RuntimeParameters</span><span class="p">,</span><span class="w"> </span><span class="n">TextInput</span><span class="p">};</span>
+
+<span class="kd">let</span><span class="w"> </span><span class="n">model</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">GLiNER</span><span class="p">::</span><span class="o">&lt;</span><span class="n">TokenMode</span><span class="o">&gt;</span><span class="p">::</span><span class="n">new</span><span class="p">(</span>
+<span class="w">    </span><span class="n">Parameters</span><span class="p">::</span><span class="n">default</span><span class="p">(),</span><span class="w"> </span><span class="n">RuntimeParameters</span><span class="p">::</span><span class="n">default</span><span class="p">(),</span>
+<span class="w">    </span><span class="s">&quot;tokenizer.json&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;model.onnx&quot;</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+
+<span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">TextInput</span><span class="p">::</span><span class="n">from_str</span><span class="p">(</span>
+<span class="w">    </span><span class="o">&amp;</span><span class="p">[</span><span class="s">&quot;My name is James Bond.&quot;</span><span class="p">],</span><span class="w"> </span><span class="o">&amp;</span><span class="p">[</span><span class="s">&quot;person&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;vehicle&quot;</span><span class="p">])</span><span class="o">?</span><span class="p">;</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">output</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">model</span><span class="p">.</span><span class="n">inference</span><span class="p">(</span><span class="n">input</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="c1">// =&gt; &quot;James Bond&quot; : &quot;person&quot; (99.7%)</span>
+</code></pre></div>
+<p>Пакет <a href="https://github.com/talmago/fast_gliner"><strong>fast-gliner</strong></a> предоставляет Python bindings через PyO3 — скорость Rust с эргономикой Python.</p>
+<h3 id="_5">Сводка по стеку оптимизаций</h3>
+<table>
+<thead>
+<tr>
+<th>Optimization</th>
+<th>Speedup vs PyTorch</th>
+<th>Model Size</th>
+<th>F1 Impact</th>
+<th>Best For</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ONNX Runtime</td>
+<td>1.5-3x</td>
+<td>Same</td>
+<td>None</td>
+<td>Quick win, any hardware</td>
+</tr>
+<tr>
+<td>INT8 Quantization</td>
+<td>3-6x</td>
+<td>2.4x smaller</td>
+<td>&lt;0.6% loss</td>
+<td>CPU deployment, memory-constrained</td>
+</tr>
+<tr>
+<td>gline-rs (Rust)</td>
+<td>4.1x (CPU)</td>
+<td>ONNX format</td>
+<td>None</td>
+<td>High-throughput, latency-critical</td>
+</tr>
+<tr>
+<td>gline-rs + INT8</td>
+<td>4-8x</td>
+<td>2.4x smaller</td>
+<td>&lt;1% loss</td>
+<td>Production at scale</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="instructor-vs-outlines">Структурированное извлечение: Instructor vs Outlines</h2>
+<p>Когда нужна большая гибкость, чем дают энкодерные модели — неявные сущности, рассуждение, ontology mapping — две библиотеки решают задачу структурированного извлечения через LLM.</p>
+<p><a href="https://github.com/instructor-ai/instructor"><strong>Instructor</strong></a> (~12,600 звезд на GitHub, ~8.8 млн загрузок в месяц по состоянию на март 2026) от Jason Liu патчит LLM SDK так, чтобы они принимали Pydantic response models, с <strong>автоматическим retry при ошибке валидации</strong>. Он поддерживает 15+ провайдеров и вдохновил native structured output feature в OpenAI.</p>
+<p>Из <a href="https://github.com/slavadubrov/ner-field-guide"><code>structured_extraction.py</code></a>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">instructor</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Literal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">openai</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenAI</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Entity</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">label</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;PERSON&quot;</span><span class="p">,</span> <span class="s2">&quot;ORGANIZATION&quot;</span><span class="p">,</span> <span class="s2">&quot;LOCATION&quot;</span><span class="p">]</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ExtractEntities</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">entities</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Entity</span><span class="p">]</span>
+
+<span class="n">client</span> <span class="o">=</span> <span class="n">instructor</span><span class="o">.</span><span class="n">from_openai</span><span class="p">(</span><span class="n">OpenAI</span><span class="p">())</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="s2">&quot;gpt-5.4-mini&quot;</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">response_model</span><span class="o">=</span><span class="n">ExtractEntities</span><span class="p">,</span>
+    <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;BioNTech SE acquired InstaDeep in the U.K.&quot;</span><span class="p">}])</span>
+<span class="c1"># entities=[Entity(name=&#39;BioNTech SE&#39;, label=&#39;ORGANIZATION&#39;), ...]</span>
+</code></pre></div>
+<p><a href="https://github.com/dottxt-ai/outlines"><strong>Outlines</strong></a> (~13,600 звезд на GitHub) от dottxt использует другой подход: <strong>constrained token generation</strong> через Finite State Machines. Вместо генерации результата с последующим retry при провале валидации, Outlines просто не позволяет сгенерировать недопустимые токены — <strong>100% соответствие схеме</strong>, без повторных попыток. <a href="https://aws.amazon.com/blogs/machine-learning/generate-structured-output-from-llms-with-dottxt-outlines-in-aws/">Бенчмарки AWS</a> показывают <strong>98% соответствия схеме</strong> против 76% у post-generation validation, а также <strong>5x более быструю генерацию</strong> по сравнению с unconstrained generation с post-validation retry.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">outlines</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">outlines</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">transformers</span><span class="p">(</span><span class="s2">&quot;microsoft/Phi-3-mini-128k-instruct&quot;</span><span class="p">)</span>
+<span class="n">generator</span> <span class="o">=</span> <span class="n">outlines</span><span class="o">.</span><span class="n">generate</span><span class="o">.</span><span class="n">json</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">ExtractEntities</span><span class="p">)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">generator</span><span class="p">(</span><span class="s2">&quot;Extract entities from: BioNTech SE acquired InstaDeep in the U.K.&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Выбор зависит от того, где выполняются ваши модели. <strong>Instructor</strong> лучше для облачных LLM API — быстрое прототипирование, multi-provider support, привычные паттерны Pydantic. <strong>Outlines</strong> выигрывает для локальных моделей, где нужны гарантии формата без внешних зависимостей. Оба инструмента подходят для NER-подобного извлечения, но ни один не приближается к throughput энкодеров: Instructor добавляет <strong>200 мс-2 с API latency</strong> на вызов, а Outlines зависит от скорости локальной модели. Для high-throughput NER энкодеры все еще в 10-100 раз быстрее.</p>
+<hr />
+<h2 id="3-production-">3-уровневая production-архитектура</h2>
+<p>Вот как я бы собрал все это вместе для production NER.</p>
+<p><img alt="3-уровневая архитектура: энкодерные модели обрабатывают 90%+ объема при низкой стоимости, GLiNER 2 берет на себя multi-task extraction, а LLM закрывают самые сложные 10% и одновременно обучают модели Tier 1" src="../../../../assets/2026-04-02-definitive-guide-ner-2026/three-tier-architecture.svg" /></p>
+<p><strong>Tier 1 — энкодерные модели для известных типов сущностей.</strong> GLiNER (cross-encoder для &lt;30 типов, bi-encoder для 30+), дообученный через pipeline LLM-as-teacher. Деплой через ONNX + INT8 или gline-rs. Обрабатывает <strong>&gt;90% объема</strong> с latency менее 50 мс и почти нулевой стоимостью. Bi-encoder масштабируется до миллионов типов сущностей с помощью pre-computed embeddings.</p>
+<p><strong>Tier 2 — GLiNER 2 для multi-task extraction.</strong> Когда в одном запросе нужны NER + classification + relation extraction + structured data, модель GLiNER 2 на <strong>205M параметров</strong> заменяет четыре отдельных deployment-а. Работает на CPU за 130-208 мс независимо от числа labels — хороший вариант для document-pipeline, где в одном проходе нужны несколько задач извлечения.</p>
+<p><strong>Tier 3 — LLM для extraction с интенсивным reasoning.</strong> Когда сущности неявны, требуют контекстного вывода или ontology mapping, направляйте запрос в LLM (GPT-5.4 Mini, Claude Sonnet 4.6, Llama 4 Maverick) через Instructor (облако) или Outlines (локально). Это закрывает <strong>~10% запросов</strong>, которые пропускают энкодеры. Те же LLM одновременно генерируют обучающие данные для Tier 1.</p>
+<p>Во сколько это обходится? Fine-tuned GLiNER дает <strong>93.4% F1</strong> при <strong>\<span class="arithmatex">\(0.10/час на CPU**, что соответствует **92.7% F1** у его teacher-модели Llama-70b при **\\\)</span>8/час</strong> — в 80 раз дешевле.</p>
+<hr />
+<h2 id="_6">Компромиссы и ограничения</h2>
+<p>Ничто из этого не дается бесплатно. В ML всегда есть подвох — вопрос только в том, когда именно вы его обнаружите. <!-- 🌶️ --></p>
+<p><strong>Ошибки LLM-as-teacher распространяются дальше.</strong> Если LLM систематически ошибается на конкретном типе сущностей (например, путает названия дочерних компаний с материнскими), fine-tuned энкодер унаследует этот bias. Решение — таргетированное human review: сосредоточьте усилия на типах сущностей, где уверенность LLM низкая или нестабильная, а не на случайной выборке.</p>
+<p><strong>Потери от квантизации неравномерны.</strong> Средняя потеря около 0.6% F1 от INT8 может быть выше на редких типах сущностей со сложными граничными паттернами (химические соединения, многословные аббревиатуры). Всегда бенчмаркайте quantized-модели на своих конкретных типах сущностей, а не только по aggregate F1.</p>
+<p><strong>Когда 3-уровневая архитектура — избыточна.</strong> Один домен, хорошо определенные типы сущностей, 500+ размеченных примеров? Fine-tuned RoBERTa или spaCy pipeline проще и достаточны. 3-tier-паттерн окупается, когда есть (a) несколько доменов, (b) эволюционирующие типы сущностей, или (c) смесь простых и сложных задач извлечения. Если вы просто извлекаете имена и даты из счетов, достаточно одного Tier 1.</p>
+<p><strong>Предел качества bi-encoder.</strong> Bi-encoder обменивает joint attention на throughput. Когда семантика label взаимодействует с текстовым контекстом («date» vs «year» vs «period» для одного и того же спана), cross-encoder все еще выигрывает. Используйте cross-encoder для критичных задач с малым числом labels; bi-encoder — для широты покрытия.</p>
+<hr />
+<h2 id="_7">Ключевые выводы</h2>
+<ol>
+<li><strong>Энкодеры победили.</strong> GLiNER и варианты bi-encoder обходят LLM на стандартных NER-бенчмарках при стоимости в 80-130 раз ниже. Даже при снижении цен за счет GPT-5.4 Nano и Llama 4 использование LLM для каждого NER-запроса больше не оправдано.</li>
+<li><strong>LLM необходимы — но как teacher-модели.</strong> Они размечают обучающие данные за \$70, которые стоили бы тысячи долларов при human-аннотации, а fine-tuned энкодер обычно в итоге обходит LLM, которая его обучала.</li>
+<li><strong>Bi-encoder открывает масштаб до миллиона labels.</strong> Pre-computed embeddings решают проблему квадратичной сложности, с потерей throughput всего 5.2% при 1,024 labels.</li>
+<li><strong>GLiNER 2 консолидирует multi-task extraction.</strong> Одна модель на 205M для NER + classification + RE + structured extraction.</li>
+<li><strong>Оценивайте на своих данных.</strong> Используйте entity-level F1, собирайте test set из production-документов и бенчмаркайте quantized-модели на своих конкретных типах сущностей.</li>
+<li><strong>Используйте гибридный паттерн.</strong> Tier 1/2 — для быстрого извлечения, Tier 3 — для reasoning. Те же LLM, что обрабатывают самые сложные 10%, генерируют обучающие данные для остальных 90%.</li>
+</ol>
+<hr />
+<h2 id="references">References</h2>
+<h3 id="papers">Papers</h3>
+<ul>
+<li><a href="https://arxiv.org/abs/2311.08526">GLiNER: Generalist Model for Named Entity Recognition using Bidirectional Transformer</a> - Zaratiana et al., NAACL 2024. Базовая архитектура matching между span и entity.</li>
+<li><a href="https://arxiv.org/abs/2507.18546">GLiNER 2: Open Problems for Automatic Information Extraction</a> - Zaratiana et al., EMNLP 2025 System Demonstrations. Объединяет NER, classification, RE и structured extraction.</li>
+<li><a href="https://arxiv.org/abs/2602.18487">GLiNER Bi-Encoder: Scalable Named Entity Recognition with Bi-Encoder Architecture</a> - Stepanov et al., February 2026. Разделенное кодирование для масштаба в миллион labels.</li>
+<li><a href="https://arxiv.org/abs/2308.03279">UniNER: Universal NER using Large Language Models</a> - Zhou et al., ICLR 2024. Универсальный NER на базе LLM через дистилляцию из ChatGPT.</li>
+<li><a href="https://arxiv.org/abs/2402.15343">NuNER: Entity Recognition Encoder Pre-training via LLM-Annotated Data</a> - Bogdanov et al., EMNLP 2024. Показывает, что 125M параметров достаточно при наличии обучающих данных, сгенерированных LLM.</li>
+</ul>
+<h3 id="industry-papers">Industry Papers</h3>
+<ul>
+<li><a href="https://dl.acm.org/doi/10.1145/3580305.3599816">EAMT: Entity-Aware Multi-Task Learning for Query Understanding</a> - Walmart, KDD 2023. 965M запросов, рост GMV на 0.51%.</li>
+<li><a href="https://ojs.aaai.org/index.php/AAAI/article/view/17773">TripleLearn: End-to-End NER for E-Commerce Search</a> - Home Depot, AAAI 2021. F1 вырос с 69.5 до 93.3.</li>
+<li><a href="https://dl.acm.org/doi/10.1145/2976749.2978315">iACE: Automatic Collection of Cyber Threat Intelligence</a> - CCS 2016. 71K статей, 900K IOC.</li>
+<li><a href="https://arxiv.org/abs/2510.26499">CyberNER: A Harmonized STIX Corpus for Cybersecurity NER</a> - 21 типов сущностей, выровненных с STIX 2.1.</li>
+<li><a href="https://arxiv.org/abs/2205.15485">FinBERT-MRC: Financial NER via Machine Reading Comprehension</a> - 0.87-0.93 F1 на задачах финансового NER.</li>
+</ul>
+<h3 id="case-studies">Case Studies</h3>
+<ul>
+<li><a href="https://huggingface.co/blog/cfm-case-study">CFM Case Study: Fine-tuning GLiNER for Financial NER</a> - pipeline LLM-разметки от Capital Fund Management за \$70, достигший 93.4% F1.</li>
+<li><a href="https://refuel.ai/blog-posts/llm-labeling-technical-report">Refuel AI: LLM Labeling Technical Report</a> - GPT-4 с 88.4% согласия по аннотации, выше human-annotators.</li>
+<li><a href="https://sease.io/2025/10/gliner-as-an-alternative-to-llms-for-query-parsing-evaluation.html">Sease: GLiNER as an Alternative to LLMs for Query Parsing</a> - где GLiNER проваливается и почему LLM все еще нужны.</li>
+<li><a href="https://www.johnsnowlabs.com/comparing-medical-text-de-identification-performance-john-snow-labs-openai-azure-health-data-services-and-amazon-comprehend-medical/">John Snow Labs: Medical Text De-Identification Benchmark</a> - сравнение PHI detection с 96% F1 между разными провайдерами.</li>
+<li><a href="https://huggingface.co/blog/MaziyarPanahi/openmed-year-in-review-2025">OpenMed: Year in Review 2025</a> - 380+ biomedical NER-моделей, 29.7M загрузок на HuggingFace.</li>
+</ul>
+<h3 id="tools-and-frameworks">Tools and Frameworks</h3>
+<ul>
+<li><a href="https://github.com/slavadubrov/ner-field-guide">ner-field-guide demo repo</a> - companion-демо к этой статье: быстрый старт с GLiNER, экспорт в ONNX, LLM-as-teacher и structured extraction.</li>
+<li><a href="https://github.com/fbilhaut/gline-rs">gline-rs: Rust reimplementation of GLiNER</a> - ускорение на CPU в 4.1 раза по сравнению с Python, лицензия Apache 2.0.</li>
+<li><a href="https://github.com/567-labs/instructor">Instructor</a> - структурированное извлечение из LLM через Pydantic-модели, ~8.8M загрузок в месяц.</li>
+<li><a href="https://github.com/dottxt-ai/outlines">Outlines</a> - constrained token generation через FSM, гарантирует соответствие схеме.</li>
+<li><a href="https://aws.amazon.com/blogs/machine-learning/generate-structured-output-from-llms-with-dottxt-outlines-in-aws/">AWS: Structured Output with Outlines</a> - бенчмарк с 98% соответствия схеме.</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+  
+
+
+  
+
+
+ 
+  </article>
+</div>
+
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u0421\u043a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u043d\u043e \u0432 \u0431\u0443\u0444\u0435\u0440", "clipboard.copy": "\u041a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0432 \u0431\u0443\u0444\u0435\u0440", "search.result.more.one": "\u0415\u0449\u0451 1 \u043d\u0430 \u044d\u0442\u043e\u0439 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0435", "search.result.more.other": "\u0415\u0449\u0451 # \u043d\u0430 \u044d\u0442\u043e\u0439 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0435", "search.result.none": "\u0421\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0439 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u043e", "search.result.one": "\u041d\u0430\u0439\u0434\u0435\u043d\u043e 1 \u0441\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0435", "search.result.other": "\u041d\u0430\u0439\u0434\u0435\u043d\u043e \u0441\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0439: #", "search.result.placeholder": "\u041d\u0430\u0447\u043d\u0438\u0442\u0435 \u043f\u0435\u0447\u0430\u0442\u0430\u0442\u044c \u0434\u043b\u044f \u043f\u043e\u0438\u0441\u043a\u0430", "search.result.term.missing": "\u041e\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442", "select.version": "\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0432\u0435\u0440\u0441\u0438\u044e"}, "version": null}</script>
+    
+    
+      <script src="../../../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../../../../../javascripts/mermaid-init.js"></script>
+      
+        <script src="../../../../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
