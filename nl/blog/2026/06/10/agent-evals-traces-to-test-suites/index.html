@@ -992,15 +992,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#kies-metrics-op-basis-van-failure-mode" class="md-nav__link">
+  <a href="#kies-metrics-op-failure-mode" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Kies metrics op basis van failure mode
+        Kies metrics op failure mode
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Kies metrics op basis van failure mode">
+    <nav class="md-nav" aria-label="Kies metrics op failure mode">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1015,10 +1015,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#argument-correctheid" class="md-nav__link">
+  <a href="#argumentcorrectheid" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Argument-correctheid
+        Argumentcorrectheid
       
     </span>
   </a>
@@ -1065,10 +1065,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#mijn-fouten-met-error-analysis" class="md-nav__link">
+  <a href="#delv-fouten-met-error-analysis-op" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Mijn fouten met error analysis
+        Delv fouten met error analysis op
       
     </span>
   </a>
@@ -1076,10 +1076,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#dedupliqueer-voordat-je-promote" class="md-nav__link">
+  <a href="#dedupliceren-voor-promotie" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Dedupliqueer voordat je promote
+        Dedupliceren vóór promotie
       
     </span>
   </a>
@@ -1567,56 +1567,57 @@
 
 
 <!-- automated-translation-notice:start -->
+
 <div class="admonition info">
 <p class="admonition-title">Automatische vertaling</p>
-<p>Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p>
 </div>
+<p>Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p>
 <!-- automated-translation-notice:end -->
 
 <h1 id="ai-agents-in-productie-evalueren-van-traces-naar-testsuites">AI-agents in productie evalueren: van traces naar testsuites</h1>
-<p>Een chatbotantwoord is één rij. Een agent-run is een boom.</p>
-<p>Dat verschil breekt veel evaluatiegewoonten. Het uiteindelijke antwoord kan er goed uitzien terwijl de agent een vereiste tool oversloeg, dezelfde call 17 keer opnieuw probeerde, een toolresultaat verkeerd las, of een pad volgde dat in productie niet toegestaan zou zijn. Als je alleen het antwoord beoordeelt, mis je het deel waar het systeem daadwerkelijk faalde.</p>
+<p>Een chatbotantwoord is een rij. Een agent-run is een boom.</p>
+<p>Dat verschil breekt veel evaluatiegewoonten. Het eindantwoord kan er goed uitzien terwijl de agent een vereiste tool oversloeg, dezelfde call 17 keer opnieuw probeerde, een toolresultaat verkeerd las, of een pad volgde dat in productie illegaal zou zijn. Als je alleen het antwoord beoordeelt, mis je het deel waar het systeem daadwerkelijk faalde.</p>
 <!-- more -->
 
-<p><strong>TL;DR</strong>: Agent-evals hebben drie lagen nodig: uitkomstmetrics, trajectmetrics en componentmetrics. Bouw rond deze lus: trace -&gt; label -&gt; cluster -&gt; dedupe -&gt; geversioneerde dataset -&gt; CI-gate -&gt; online monitoring. Gebruik deterministische checks voor toolvolgorde, argumenten, loops en invarianten. Gebruik LLM-judges alleen waar de check afhangt van interpretatie, structureer die judges met Schema-Guided Reasoning (SGR), en kalibreer ze tegen menselijke labels voordat je ze vertrouwt.</p>
+<p><strong>TL;DR</strong>: Agent-evals hebben drie lagen nodig: uitkomstmetrics, trajectmetrics en componentmetrics. Bouw rond deze lus: trace -&gt; label -&gt; cluster -&gt; dedupe -&gt; geversioneerde dataset -&gt; CI-gate -&gt; online monitoring. Gebruik deterministische checks voor toolvolgorde, argumenten, loops en invarianten. Gebruik LLM-judges alleen waar de check afhankelijk is van interpretatie, vorm die judges met Schema-Guided Reasoning (SGR), en kalibreer ze tegen menselijke labels voordat je ze vertrouwt.</p>
 <hr />
 <h2 id="waarom-agent-evals-anders-zijn">Waarom agent-evals anders zijn</h2>
-<p>Traditionele LLM-evals scoren meestal één input-outputpaar: relevantie, faithfulness, correctheid, veiligheid, misschien stijl. Agents voegen planning, tool-calls, retries en termination checks toe, en elke stap is een nieuwe plek waar het mis kan gaan.</p>
+<p>Traditionele LLM-evals scoren meestal één input-outputpaar: relevantie, factualiteit, correctheid, veiligheid, misschien stijl. Agents voegen planning, tool-calls, retries en termination-checks toe, en elke stap is een nieuwe plek waar het mis kan gaan.</p>
 <p>Neem een refund-agent. Het transcript kan goed eindigen terwijl de trace fout is:</p>
 <div class="highlight"><pre><span></span><code>lookup_order -&gt; issue_refund -&gt; final_answer
 </code></pre></div>
-<p>De output-eval slaagt. Een trajectory-eval zou moeten falen omdat <code>verify_identity</code> nooit draaide vóór <code>issue_refund</code>. Voor agents die tools gebruiken zijn answer-only evals smoke tests: ze vangen totale uitval en missen verder alles.</p>
-<p>Er is een tweede probleem: fouten stapelen zich op. Als een workflow van 20 stappen per stap 95% betrouwbaar is, dan komt de end-to-end succeskans nog steeds uit op ongeveer 36%:</p>
+<p>De output-eval slaagt. Een trajectory-eval zou moeten falen omdat <code>verify_identity</code> nooit draaide vóór <code>issue_refund</code>. Voor agents die tools gebruiken zijn answer-only evals rooktests: ze vangen totale uitval en missen al het andere.</p>
+<p>Er is een tweede probleem: fouten stapelen zich op. Als een workflow van 20 stappen per stap 95% betrouwbaar is, komt de end-to-end succesrate nog steeds uit rond 36%:</p>
 <div class="arithmatex">\[
 0.95^{20} \\approx 0.36
 \]</div>
-<p>Dus de agent kan er solide uitzien in geïsoleerde checks en toch de meeste volledige runs laten mislukken. De breuk zit meestal ergens in het midden, en die vinden vereist zichtbaarheid op componentniveau, niet nog een blik op het antwoord.</p>
+<p>Dus de agent kan er in geïsoleerde checks solide uitzien en toch de meeste volledige runs laten mislukken. De breuk zit meestal ergens in het midden, en die vinden vereist zichtbaarheid op componentniveau, niet nog een blik op het antwoord.</p>
 <p><img alt="Een rij versus een boom: waar agentfouten zich verbergen" src="../../../../assets/2026-06-10-agent-evals-traces-to-test-suites/trace-tree-vs-row.svg" /></p>
-<p>Twee onderzoeksteams hebben dit gekwantificeerd.</p>
-<p><a href="https://arxiv.org/abs/2406.12045">tau-bench</a> is een benchmark waarin een agent airline- en retail-klantenservicetaken afhandelt: hij praat met een gesimuleerde gebruiker, roept API's aan en moet onderweg domeinbeleid volgen. De beoordeling negeert het transcript. Nadat het gesprek eindigt, controleert de benchmark of de database de geannoteerde doelstatus heeft bereikt, dus een beleefde, plausibel klinkende run die de verkeerde rijen achterlaat, faalt alsnog. Onder die beoordeling slaagde zelfs GPT-4o voor minder dan de helft van de taken. Het paper introduceerde ook <code>pass^k</code>: voer dezelfde taak <code>k</code> keer uit en tel alleen een pass als de agent in alle <code>k</code> runs slaagt. Retailscores die voor één poging nog acceptabel leken, zakten onder 25% bij <code>k = 8</code>. Dezelfde agent, dezelfde taak, acht runs, meestal verschillende uitkomsten. Die inconsistentie is onzichtbaar als je elke evalcase maar één keer draait.</p>
-<p><a href="https://arxiv.org/abs/2503.13657">MAST</a> stelt een andere vraag: niet hoe vaak agents falen, maar waarom. De auteurs annoteerden meer dan 1.600 execution traces uit 7 populaire multi-agentframeworks en verdeelden de fouten in 14 terugkerende modi. Bijna geen daarvan is "het model gaf een fout antwoord." Het gaat om zaken als vage roldefinities (system design), één agent die negeert wat een andere agent hem vertelde (inter-agent misalignment), en succes verklaren zonder het resultaat te controleren (no verification). De meeste fouten zitten in de harness: de prompts, de orchestration logic, de ontbrekende checks. Een sterker basismodel verkleint deze aantallen, maar kan geen verificatiestap repareren die nooit is gebouwd. Daarom moet je de harness evalueren, niet alleen het model erin.</p>
+<p>Twee onderzoeksteams hebben hier cijfers op gezet.</p>
+<p><a href="https://arxiv.org/abs/2406.12045">tau-bench</a> is een benchmark waarin een agent airline- en retail-klantenservicetaken afhandelt: hij praat met een gesimuleerde gebruiker, roept API's aan en moet onderweg domeinbeleid volgen. De beoordeling negeert het transcript. Nadat het gesprek eindigt, controleert de benchmark of de database de geannoteerde doelstatus heeft bereikt, dus een beleefde, plausibel klinkende run die de verkeerde rijen achterlaat, faalt alsnog. Onder die beoordeling slaagde zelfs GPT-4o op minder dan de helft van de taken. De paper introduceerde ook <code>pass^k</code>: voer dezelfde taak <code>k</code> keer uit en tel alleen een pass als de agent in alle <code>k</code> runs slaagt. Retailscores die voor één poging nog acceptabel leken, zakten onder 25% bij <code>k = 8</code>. Dezelfde agent, dezelfde taak, acht runs, meestal andere uitkomsten. Die inconsistentie is onzichtbaar als je elke eval-case maar één keer draait.</p>
+<p><a href="https://arxiv.org/abs/2503.13657">MAST</a> stelt een andere vraag: niet hoe vaak agents falen, maar waarom. De auteurs annoteerden meer dan 1.600 execution traces van 7 populaire multi-agent-frameworks en deelden de fouten in in 14 terugkerende modes. Bijna geen daarvan is "het model gaf een fout antwoord". Het gaat om zaken als vage roldefinities (systeemontwerp), een agent die negeert wat een andere agent hem vertelde (inter-agent misalignment), en succes claimen zonder het resultaat te controleren (geen verificatie). De meeste fouten zitten in de harness: de prompts, de orchestration-logica, de ontbrekende checks. Een sterker basismodel verkleint deze aantallen, maar kan geen verificatiestap repareren die nooit is gebouwd. Daarom moet je de harness evalueren, niet alleen het model erin.</p>
 <hr />
 <h2 id="de-adoptiekloof">De adoptiekloof</h2>
 <p>De meeste teams hebben het ruwe materiaal voor betere evals al. Ze hebben traces. Ze hebben ze alleen nog niet omgezet in tests.</p>
-<p>De survey <a href="https://www.langchain.com/state-of-agent-engineering">State of Agent Engineering</a> van LangChain is het duidelijkste publieke beeld van deze kloof. Daarin staat dat 57,3% van de respondenten al agents in productie heeft, 89% enige observability heeft, 52,4% offline evals draait en 37,3% online evals draait. En op de vraag wat productie blokkeert, noemde 32% van de respondenten kwaliteit, vóór latency op 20%. Datgene wat evals meten is precies waar teams vastlopen.</p>
-<p>Dat laat teams in een ongemakkelijke tussenstaat: ze kunnen een slechte run achteraf inspecteren, en daarna toch dezelfde fout twee keer shippen.</p>
+<p>De survey van LangChain, <a href="https://www.langchain.com/state-of-agent-engineering">State of Agent Engineering</a>, is het duidelijkste publieke snapshot van deze kloof. Die meldt dat 57,3% van de respondenten al agents in productie heeft, 89% enige observability heeft, 52,4% offline evals draait en 37,3% online evals draait. En op de vraag wat productie blokkeert, noemde 32% van de respondenten kwaliteit, vóór latency op 20%. Het ding dat evals meten is het ding waar teams op vastlopen.</p>
+<p>Dat laat teams achter in een ongemakkelijke tussenstaat: ze kunnen een slechte run achteraf inspecteren en vervolgens toch dezelfde fout twee keer shippen.</p>
 <p>Eén regel lost dit op: elke gediagnosticeerde productiefout moet een trace, een label, een datasetrij en een scorer achterlaten. Als het opnieuw kan gebeuren, hoort het in de regressiesuite.</p>
 <hr />
-<h2 id="kies-metrics-op-basis-van-failure-mode">Kies metrics op basis van failure mode</h2>
-<p>De juiste metric hangt af van de failure mode, niet van het framework. De nuttige opsplitsing heeft drie scopes:</p>
+<h2 id="kies-metrics-op-failure-mode">Kies metrics op failure mode</h2>
+<p>De juiste metric hangt af van de failure mode, niet van het framework. De nuttige indeling heeft drie scopes:</p>
 <ol>
-<li><strong>Outcome-evals</strong> beantwoorden of de taak slaagde.</li>
-<li><strong>Trajectory-evals</strong> beantwoorden of het pad valide, efficiënt en policy-compliant was.</li>
+<li><strong>Outcome-evals</strong> beantwoorden of de taak is geslaagd.</li>
+<li><strong>Trajectory-evals</strong> beantwoorden of het pad geldig, efficiënt en policy-compliant was.</li>
 <li><strong>Component-evals</strong> beantwoorden welke tool, retriever, sub-agent of beslisstap brak.</li>
 </ol>
 <p><img alt="Drie niveaus van agent-evaluatie met hun metrics" src="../../../../assets/2026-06-10-agent-evals-traces-to-test-suites/eval-levels.svg" /></p>
-<p>Elke scope kan <strong>offline</strong> draaien (vaste, replaybare cases vóór release) of <strong>online</strong> (gesamplede productietraces na de response); de guardrails-sectie hieronder behandelt die splitsing in detail. De korte versie: offline evals kunnen goldens vereisen, terwijl online evals beter invarianten, distributies en async checks gebruiken die buiten het request-pad blijven.</p>
+<p>Elke scope kan <strong>offline</strong> draaien (vaste, reproduceerbare cases vóór release) of <strong>online</strong> (gesamplede productietraces na de response); de sectie over guardrails hieronder behandelt die split in detail. De korte versie: offline evals kunnen goldens vereisen, terwijl online evals beter invarianten, distributies en async checks gebruiken die buiten het request-pad blijven.</p>
 <table>
 <thead>
 <tr>
 <th>Vraag</th>
-<th>Metricfamilie</th>
-<th>Offline-/online-contract</th>
+<th>Metric-familie</th>
+<th>Offline / online-contract</th>
 <th>Deterministisch of judge?</th>
 <th>Let op</th>
 </tr>
@@ -1624,60 +1625,60 @@
 <tbody>
 <tr>
 <td>Riep de agent de juiste tools aan?</td>
-<td>Tool correctness: exacte, in-order of any-order match</td>
+<td>Toolcorrectheid: exacte, in-order of any-order match</td>
 <td>Exacte goldens offline; required-tool-invarianten en anomalieën online</td>
 <td>Deterministisch</td>
-<td>Exact match bestraft valide alternatieve paden</td>
+<td>Exact match bestraft geldige alternatieve paden</td>
 </tr>
 <tr>
 <td>Riep hij ze aan met de juiste inputs?</td>
-<td>Argument correctness, schemavalidatie, parameter match</td>
-<td>Verwachte argumenten offline; schema-, bereik- en policychecks online</td>
+<td>Argumentcorrectheid, schema-validatie, parameter match</td>
+<td>Verwachte argumenten offline; schema-, bereik- en policy-checks online</td>
 <td>Beide</td>
-<td>Juiste tool plus verkeerde argumenten blijft kapot</td>
+<td>Juiste tool plus foute argumenten is nog steeds kapot</td>
 </tr>
 <tr>
 <td>Verspilde hij stappen?</td>
-<td>Step efficiency, retry count, loopdetectie, cost en latency</td>
-<td>Step- en loopbudgetten offline; cost- en latency-drift online</td>
+<td>Stepefficiëntie, retry count, loopdetectie, kosten en latency</td>
+<td>Stap- en loopbudgetten offline; drift in kosten en latency online</td>
 <td>Meestal deterministisch</td>
 <td>Hoge task completion kan duur rondzwerven verbergen</td>
 </tr>
 <tr>
-<td>Slaagde de taak daadwerkelijk?</td>
+<td>Is de taak echt geslaagd?</td>
 <td>Task completion, outcome grading, final state diff</td>
 <td>Simulator of golden state offline; final state, gebruikerssignaal of async judge online</td>
 <td>Judge of state check</td>
-<td>Beoordeel waar mogelijk de omgevingsstatus</td>
+<td>Grade de omgevingsstatus waar mogelijk</td>
 </tr>
 <tr>
-<td>Behield hij context over meerdere turns?</td>
-<td>Multi-turn fidelity, role adherence, conversation completeness</td>
+<td>Bleef context behouden over turns heen?</td>
+<td>Multi-turn fidelity, roltrouw, volledigheid van conversatie</td>
 <td>Gescripte long-horizon-cases offline; gesamplede lange sessies online</td>
 <td>Judge</td>
 <td>Single-turn-tests zeggen niets over beurt 14</td>
 </tr>
 <tr>
 <td>Stopte hij op het juiste moment?</td>
-<td>Termination correctness, premature success, endless work</td>
+<td>Termination-correctheid, voortijdig succes, eindeloos werk</td>
 <td>Scenariotests offline; loop-, timeout- en false-success-monitors online</td>
 <td>Beide</td>
 <td>"Done" kan een gehallucineerde status zijn</td>
 </tr>
 <tr>
 <td>Interpreteerde hij toolresultaten goed?</td>
-<td>Tool-result understanding, downstream state checks</td>
+<td>Begrip van toolresultaat, downstream state checks</td>
 <td>Adversarial tool outputs offline; downstream state checks en gesamplede review online</td>
 <td>Beide</td>
 <td>De tool kan correct zijn terwijl de agent hem verkeerd leest</td>
 </tr>
 </tbody>
 </table>
-<p>Begin met deterministische metrics. Ze zijn goedkoop, snel en driften niet.</p>
+<p>Begin met deterministische metrics. Die zijn goedkoop, snel en driften niet.</p>
 <h3 id="tool-call-correctheid">Tool-call-correctheid</h3>
-<p>Tool correctness vergelijkt de aangeroepen tools met de verwachte tools. Kies de strengheid bewust:</p>
+<p>Toolcorrectheid vergelijkt de aangeroepen tools met de verwachte tools. Kies de strictheid bewust:</p>
 <ul>
-<li><strong>Exact match</strong>: de sequentie moet exact overeenkomen. Gebruik dit wanneer volgorde policy is, bijvoorbeeld <code>lookup_order -&gt; verify_identity -&gt; issue_refund</code>.</li>
+<li><strong>Exact match</strong>: de sequentie moet exact overeenkomen. Gebruik dit wanneer volgorde beleid is, bijvoorbeeld <code>lookup_order -&gt; verify_identity -&gt; issue_refund</code>.</li>
 <li><strong>In-order match</strong>: vereiste tools moeten in de juiste relatieve volgorde voorkomen, maar extra onschuldige calls zijn toegestaan.</li>
 <li><strong>Any-order match</strong>: vereiste tools moeten voorkomen, maar de volgorde mag variëren.</li>
 </ul>
@@ -1707,9 +1708,9 @@
 <span class="nb">print</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">tool_correctness</span><span class="p">(</span><span class="n">called</span><span class="p">,</span> <span class="n">expected</span><span class="p">,</span> <span class="s2">&quot;in_order&quot;</span><span class="p">),</span> <span class="mi">3</span><span class="p">))</span>  <span class="c1"># 0.667</span>
 </code></pre></div>
 <p><a href="https://deepeval.com/docs/metrics-tool-correctness">DeepEval's Tool Correctness metric</a> biedt dezelfde knoppen via <code>should_consider_ordering</code> en <code>should_exact_match</code>.</p>
-<h3 id="argument-correctheid">Argument-correctheid</h3>
+<h3 id="argumentcorrectheid">Argumentcorrectheid</h3>
 <p>De juiste tool aanroepen met de verkeerde argumenten is vaak erger dan de verkeerde tool aanroepen, omdat de trace er normaal uitziet.</p>
-<p>Voor eenvoudige gevallen valideer je JSON-schema en exacte waarden. Voor semantische gevallen sla je verwachte argumenten op en beoordeel je de delta's:</p>
+<p>Voor simpele gevallen valideer je JSON-schema en exacte waarden. Voor semantische gevallen sla je verwachte argumenten op en beoordeel je de delta's:</p>
 <div class="highlight"><pre><span></span><code><span class="p">{</span>
 <span class="w">    </span><span class="nt">&quot;trace_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tr_2417&quot;</span><span class="p">,</span>
 <span class="w">    </span><span class="nt">&quot;input&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Reschedule order A-100 for next Friday.&quot;</span><span class="p">,</span>
@@ -1722,28 +1723,28 @@
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
-<p>Een tool-name-metric kan <code>2026-06-17</code> niet vangen waar beleid <code>2026-06-19</code> vereist. De dataset moet dus ook argumenten opslaan.</p>
+<p>Een tool-name-metric kan <code>2026-06-17</code> niet vangen wanneer beleid <code>2026-06-19</code> vereist. De dataset moet dus ook argumenten opslaan.</p>
 <h3 id="efficientie-loops-en-dead-ends">Efficiëntie, loops en dead ends</h3>
-<p>Het pad doet ertoe, zelfs wanneer de bestemming wordt bereikt. Een agent die de taak voltooit na vijf redundante tool-calls wijst nog steeds op een planningsprobleem en kost meer om te draaien.</p>
-<p>Goedkope signalen waarmee je moet beginnen:</p>
+<p>Een agent die de taak afrondt na vijf redundante tool-calls signaleert nog steeds een planningsprobleem en kost meer om te draaien.</p>
+<p>Goedkope signalen waar je mee moet starten:</p>
 <ul>
-<li><strong>Redundant-call rate</strong>: identieke tool-calls met identieke argumenten die meer dan twee keer worden herhaald.</li>
-<li><strong>Trace shape anomalies</strong>: plotselinge pieken in diepte, aantal tool-calls, tokenaantal, latency of cost.</li>
-<li><strong>Path convergence</strong>: hoe dicht de run bij het kortst bekende geldige pad voor de taak ligt.</li>
-<li><strong>Termination correctness</strong>: of de agent te vroeg stopte, bleef doorwerken na succes, of succes verklaarde zonder de vereiste statuswijziging.</li>
+<li><strong>Redundant-call-rate</strong>: identieke tool-calls met identieke argumenten die meer dan twee keer worden herhaald.</li>
+<li><strong>Trace-shape-anomalieën</strong>: plotselinge pieken in diepte, aantal tool-calls, tokenaantal, latency of kosten.</li>
+<li><strong>Path convergence</strong>: hoe dicht de run ligt bij het kortste bekende geldige pad voor de taak.</li>
+<li><strong>Termination-correctheid</strong>: of de agent te vroeg stopte, bleef werken na succes, of succes claimde zonder de vereiste statuswijziging.</li>
 </ul>
-<p>Draai deze waar mogelijk vóór een judge. Een loopdetector is een paar regels over de trace. Daar is geen model voor nodig.</p>
+<p>Draai deze waar mogelijk vóór een judge. Een loopdetector is een paar regels over de trace. Daar heb je geen model voor nodig.</p>
 <h3 id="task-completion-en-outcome-grading">Task completion en outcome grading</h3>
 <p>End-to-end is de vraag: "kreeg de gebruiker wat hij vroeg?"</p>
 <p>Twee patronen werken het best:</p>
 <ul>
-<li><strong>Referenceless task-completion judging</strong>: haal het doel uit de input en beoordeel of de trace plus het uiteindelijke antwoord dat doel bereikten. Dit werkt online omdat productieverkeer zelden golden outputs heeft.</li>
-<li><strong>Environment-state grading</strong>: vergelijk de uiteindelijke databaserijen, bestanden, tickets, boekingen of records met een geannoteerde doelstatus. Dit is robuuster dan transcriptmatching omdat agents geldige paden kunnen vinden die jij niet hebt uitgeschreven.</li>
+<li><strong>Referenceless task-completion judging</strong>: extraheer het doel uit de input en beoordeel of de trace plus het eindantwoord dat bereikt hebben. Dit werkt online omdat productieverkeer zelden golden outputs heeft.</li>
+<li><strong>Environment-state grading</strong>: vergelijk de uiteindelijke database-rijen, bestanden, tickets, boekingen of records met een geannoteerde doelstatus. Dit is robuuster dan transcriptmatching omdat agents geldige paden kunnen vinden die jij niet hebt uitgeschreven.</li>
 </ul>
 <p>De tweede optie is beter als je die kunt bouwen. De eindstatus is het contract. Het transcript is alleen bewijs.</p>
 <hr />
 <h2 id="het-trace-naar-eval-vliegwiel">Het trace-naar-eval-vliegwiel</h2>
-<p>Bedenk je evalset niet eerst. Mijn productiefouten.</p>
+<p>Brainstorm niet eerst je eval-set. Delv productiefouten op.</p>
 <p><img alt="Het trace-naar-eval-vliegwiel" src="../../../../assets/2026-06-10-agent-evals-traces-to-test-suites/trace-to-eval-flywheel.svg" /></p>
 <p>De lus:</p>
 <ol>
@@ -1752,25 +1753,25 @@
 <li>Groepeer vergelijkbare fouten.</li>
 <li>Houd één representatieve golden per cluster.</li>
 <li>Versioneer de dataset.</li>
-<li>Draai hem in CI.</li>
+<li>Draai die in CI.</li>
 <li>Blijf gesamplede productietraces online scoren.</li>
 </ol>
-<h3 id="mijn-fouten-met-error-analysis">Mijn fouten met error analysis</h3>
-<p>Hamel Husain en Shreya Shankar onderwijzen een error-analysis-workflow precies voor deze stap; Hamels <a href="https://hamel.dev/blog/posts/field-guide/">field guide</a> loopt erdoorheen. De eerste twee stappen lenen hun naam uit kwalitatief onderzoek, maar de methode is eenvoudig: lees traces, maak aantekeningen, benoem de patronen.</p>
+<h3 id="delv-fouten-met-error-analysis-op">Delv fouten met error analysis op</h3>
+<p>Hamel Husain en Shreya Shankar leren een error-analysis-workflow voor precies deze stap; Hamels <a href="https://hamel.dev/blog/posts/field-guide/">field guide</a> loopt erdoorheen. De eerste twee stappen lenen hun namen uit kwalitatief onderzoek, maar de methode is eenvoudig: lees traces, maak notities, benoem de patronen.</p>
 <ol>
 <li><strong>Open coding</strong>: lees 30 tot 50 echte traces en schrijf vrije notities over wat er misging.</li>
 <li><strong>Axial coding</strong>: cluster die notities in 5 of 6 benoemde foutcategorieën.</li>
 <li><strong>Label alles</strong> tegen de taxonomie.</li>
 <li><strong>Bouw metrics</strong> voor de grootste buckets.</li>
 </ol>
-<p>Begin niet met labels als <code>reasoning_issue</code> of <code>tool_problem</code>. Die zijn te vaag om te testen. Gebruik labels als <code>missing_identity_verification</code>, <code>date_argument_mismatch</code>, <code>retried_same_tool_after_429</code> of <code>stopped_before_database_update</code>. Een label dat zo specifiek is, vertelt je exact wat de regressietest moet asserten.</p>
-<h3 id="dedupliqueer-voordat-je-promote">Dedupliqueer voordat je promote</h3>
-<p>De trace-mining-lus heeft een valkuil: elke slechte trace voor altijd blijven toevoegen. Dat creëert een dataset die groot, duur en smal is. Hij slaagt op bijna-duplicaten uit maart terwijl hij de nieuwe vorm van dezelfde bug in juni mist.</p>
-<p>Groepeer eerst. Promote één representatieve golden per cluster. Sla de gerelateerde trace-ID's op in metadata zodat een reviewer later het productie-evidence kan inspecteren.</p>
-<p>Als een failure cluster terugkeert na een fix, generaliseerde de regressiecase niet. Cluster opnieuw en verbreed de golden in plaats van 15 puntsvoorbeelden toe te voegen.</p>
+<p>Begin niet met labels als <code>reasoning_issue</code> of <code>tool_problem</code>. Die zijn te vaag om te testen. Gebruik labels als <code>missing_identity_verification</code>, <code>date_argument_mismatch</code>, <code>retried_same_tool_after_429</code> of <code>stopped_before_database_update</code>. Een label dat zo specifiek is vertelt je exact wat de regressietest moet asserten.</p>
+<h3 id="dedupliceren-voor-promotie">Dedupliceren vóór promotie</h3>
+<p>De trace-mining-lus heeft een valkuil: elke slechte trace voor altijd toevoegen. Dat creëert een dataset die groot, duur en smal is. Hij slaagt op bijna-duplicaten uit maart terwijl hij de nieuwe vorm van dezelfde bug in juni mist.</p>
+<p>Groepeer eerst. Promoveer één representatieve golden per cluster. Sla de gerelateerde trace-ID's op in metadata zodat een reviewer later het productie-bewijs kan inspecteren.</p>
+<p>Als een failure cluster terugkomt na een fix, generaliseerde de regressiecase niet. Cluster opnieuw en verbreed de golden in plaats van 15 puntvoorbeelden toe te voegen.</p>
 <h3 id="versioneer-de-dataset">Versioneer de dataset</h3>
-<p>Versioneer datasets zoals je prompts en code versioneert. Wanneer er iets betekenisvol verandert (model, prompt, toolschema, judge-prompt of appgedrag), wil je dezelfde datasetversie vóór en na draaien.</p>
-<p>De CI-gate moet het volgende pinnen:</p>
+<p>Versioneer datasets op dezelfde manier als prompts en code. Wanneer iets betekenisvol verandert (model, prompt, toolschema, judge-prompt of appgedrag), wil je dezelfde datasetversie vóór en na draaien.</p>
+<p>De CI-gate moet pinnen op:</p>
 <ul>
 <li>datasetversie</li>
 <li>appversie</li>
@@ -1781,8 +1782,8 @@
 </ul>
 <p>Als een van die dingen verschuift, wordt je before/after-vergelijking troebel. Een <code>goldens-v3.json</code>-bestand in git is prima op kleine schaal. Tool-native snapshots in Langfuse, Phoenix, Braintrust of LangSmith helpen zodra de dataset collaboratief wordt.</p>
 <h3 id="gate-ci">Gate CI</h3>
-<p>Een falende metric moet een falende build worden, anders is de evalsuite alleen een dashboard dat niemand leest.</p>
-<p>De test moet de huidige agent opnieuw draaien tegen de golden input. Hij moet niet alleen de oude mislukte trace replayen:</p>
+<p>Een falende metric moet een falende build worden, anders is de eval-suite alleen een dashboard dat niemand leest.</p>
+<p>De test moet de huidige agent opnieuw draaien tegen de golden input. Hij moet niet alleen de oude gefaalde trace afspelen:</p>
 <div class="highlight"><pre><span></span><code><span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">&quot;golden&quot;</span><span class="p">,</span> <span class="n">GOLDENS</span><span class="p">,</span> <span class="n">ids</span><span class="o">=</span><span class="p">[</span><span class="n">item</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">GOLDENS</span><span class="p">])</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">test_agent_regression</span><span class="p">(</span><span class="n">golden</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="n">answer</span><span class="p">,</span> <span class="n">fresh_trace</span> <span class="o">=</span> <span class="n">run_agent_and_capture_trace</span><span class="p">(</span><span class="n">golden</span><span class="p">[</span><span class="s2">&quot;input&quot;</span><span class="p">])</span>
@@ -1796,79 +1797,44 @@
         <span class="n">mode</span><span class="o">=</span><span class="n">golden</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tool_match&quot;</span><span class="p">,</span> <span class="s2">&quot;in_order&quot;</span><span class="p">),</span>
     <span class="p">)</span> <span class="o">&gt;=</span> <span class="n">golden</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tool_threshold&quot;</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
 </code></pre></div>
-<p>Dit onderscheid is makkelijk om fout te doen. Het is de taak van de dataset om te vangen dat de volgende versie van de agent een oude fout herhaalt, niet om de fout zelf te archiveren.</p>
+<p>Dit onderscheid is makkelijk fout te doen. Het werk van de dataset is om te vangen dat de volgende versie van de agent een oude fout herhaalt, niet om de fout zelf te archiveren.</p>
 <hr />
 <h2 id="kalibreer-de-judge-voordat-je-hem-vertrouwt">Kalibreer de judge voordat je hem vertrouwt</h2>
 <p>LLM-as-judge helpt. Het is ook makkelijk om jezelf ermee voor de gek te houden.</p>
-<p>Het idee heeft een trackrecord. <a href="https://arxiv.org/abs/2303.16634">G-Eval</a> liet zien dat een judge die stap voor stap door een expliciete rubric loopt, menselijke ratings beter volgt dan de oudere automatische metrics die hij verving. <a href="https://arxiv.org/abs/2306.05685">MT-Bench</a> liet zien dat GPT-4 ongeveer net zo vaak met menselijke voorkeuren overeenkomt als mensen onderling, en dat maakte LLM-judging mainstream. Daarna kwamen de kanttekeningen: judges geven de voorkeur aan welk antwoord ook maar als eerste in een pairwise prompt verschijnt, geven langere antwoorden hogere scores, prefereren outputs uit hun eigen modelfamilie, en verschuiven wanneer de prompt- of modelversie verandert. <a href="https://arxiv.org/abs/2410.12784">JudgeBench</a> testte judges op response-paren waarbij één antwoord objectief fout is en vond dat zelfs sterke judges op de moeilijke gevallen rond coin-flip-accuratesse blijven hangen.</p>
-<p>Behandel de judge als een meetinstrument.</p>
-<p>Wanneer een judge nodig is, maak het verdict gestructureerd. <a href="/nl/blog/2025/12/28/schema-guided-reasoning-vllm/">Schema-Guided Reasoning (SGR)</a> is hier het standaardpatroon: definieer het reasoning-pad van de judge als een Pydantic-schema, draai het via Structured Outputs of constrained decoding, en dwing het model om velden uit te geven zoals <code>evidence</code>, <code>passed_criteria</code>, <code>failed_criteria</code>, <code>failure_mode</code> en <code>score</code>.</p>
-<p>Dat maakt de judge niet magisch correct. Het maakt de meting wel reproduceerbaarder. De judge moet bij elke run en op elk compatibel model door dezelfde vooraf gedefinieerde rubricstappen lopen, in dezelfde veldvolgorde. Een reviewer kan benoemde velden inspecteren in plaats van een alinea te moeten parsen. CI kan een stabiel JSON-object diffen. Kalibratie wordt eenvoudiger omdat de rubric niet langer verstopt zit in vrije tekst.</p>
-<p>Het verandert ook de cost curve. Als de reasoning-topology expliciet is en de output constrained is, zijn goedkopere modellen vaak al goed genoeg voor routinematig judgen. Bewaar de zwaardere judge voor meningsverschillen, high-risk-cases of kalibratieruns in plaats van ervoor te betalen op elke trace.</p>
+<p>Het idee heeft een trackrecord. <a href="https://arxiv.org/abs/2303.16634">G-Eval</a> liet zien dat een judge die stap voor stap door een expliciete rubric loopt menselijke beoordelingen beter volgt dan de oudere automatische metrics die het verving. <a href="https://arxiv.org/abs/2306.05685">MT-Bench</a> liet zien dat GPT-4 ongeveer net zo vaak met menselijke voorkeuren overeenkomt als mensen onderling met elkaar overeenkomen, wat LLM-judging mainstream maakte. Daarna kwamen de kanttekeningen: judges geven de voorkeur aan welk antwoord ook maar als eerste in een pairwise prompt verschijnt, scoren langere antwoorden hoger, verkiezen outputs uit hun eigen modelfamilie, geven krediet aan zelfverzekerde claims die ze nooit verifieerden, en verschuiven wanneer de prompt of modelversie verandert. <a href="https://arxiv.org/abs/2410.12784">JudgeBench</a> testte judges op response-paren waarbij één antwoord objectief fout is en vond dat zelfs sterke judges bij de moeilijke gevallen rond coin-flip-accuratesse blijven hangen.</p>
+<p>Behandel de judge als een meetinstrument: kalibreer hem tegen menselijke labels voordat hij iets beoordeelt, en controleer opnieuw wanneer het judge-model of de prompt verandert.</p>
 <p><img alt="Judge-kalibratielus" src="../../../../assets/2026-06-10-agent-evals-traces-to-test-suites/judge-calibration-loop.svg" /></p>
-<table>
-<thead>
-<tr>
-<th>Bias</th>
-<th>Wat gebeurt er</th>
-<th>Mitigatie</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Positie</td>
-<td>Pairwise prompts geven één slot de voorkeur</td>
-<td>Wissel de volgorde en neem het gemiddelde van beide permutaties</td>
-</tr>
-<tr>
-<td>Verbositeit</td>
-<td>Langere antwoorden scoren hoger, zelfs als kwaliteit gelijk blijft</td>
-<td>Penaliseer unsupported verbosity in de rubric</td>
-</tr>
-<tr>
-<td>Zelfvoorkeur</td>
-<td>Een judge geeft de voorkeur aan zijn eigen modelfamilie</td>
-<td>Gebruik een andere modelfamilie of een jury</td>
-</tr>
-<tr>
-<td>Sycophancy</td>
-<td>De judge crediteert niet-geverifieerde claims</td>
-<td>Vereis bewijs uit de trace in het verdict</td>
-</tr>
-<tr>
-<td>Calibration drift</td>
-<td>Een model- of promptupdate verschuift scores</td>
-<td>Pin judge-model en prompt; kalibreer opnieuw bij verandering</td>
-</tr>
-</tbody>
-</table>
+<p>Wanneer een judge nodig is, maak het verdict gestructureerd. <a href="/nl/blog/2025/12/28/schema-guided-reasoning-vllm/">Schema-Guided Reasoning (SGR)</a> is hier het standaardpatroon: definieer het redeneerpad van de judge als een Pydantic-schema, draai het via Structured Outputs of constrained decoding, en forceer het model om velden uit te geven zoals <code>evidence</code>, <code>passed_criteria</code>, <code>failed_criteria</code>, <code>failure_mode</code> en <code>score</code>.</p>
+<p>Veldvolgorde doet hier echt werk. Bewijs uitsturen vóór de score is chain-of-thought in parseerbare vorm, en reasoning-first judges komen vaker overeen met menselijke labels dan judges die alleen een kale score uitsturen. Wat het schema garandeert is reproduceerbaarheid. De judge moet op elke run en over elk compatibel model heen dezelfde vooraf gedefinieerde rubric-stappen doorlopen, in dezelfde veldvolgorde. Een reviewer kan benoemde velden inspecteren in plaats van een alinea te parseren. CI kan een stabiel JSON-object diffen. Kalibratie wordt makkelijker omdat de rubric niet langer verstopt zit in vrije tekst.</p>
+<p>Het verandert ook de kostencurve. Als de reasoning-topologie expliciet is en de output constrained, worden goedkopere modellen vaak goed genoeg voor routinematige judging. Bewaar de grotere judge voor meningsverschillen, high-risk-cases of kalibratieruns in plaats van ervoor te betalen op elke trace.</p>
 <p>Standaard checklist voor judge-hygiëne:</p>
 <ol>
-<li>Geef waar mogelijk de voorkeur aan binaire pass/fail. Schalen van vijf punten nodigen uit tot nep-precisie.</li>
-<li>Label 30 tot 50 trajectories handmatig voordat je de definitieve rubric schrijft.</li>
-<li>Meet judge-mens-overeenstemming met Cohen's kappa of gewone TPR/TNR.</li>
-<li>Splits grove criteria op. "Verifieerde de agent identiteit vóór de refund-tool-call?" is beter dan "Was het traject goed?"</li>
-<li>Laat het verdict via een SGR-schema emitten met evidence, failed criteria, failure mode en score.</li>
+<li>Geef waar mogelijk de voorkeur aan binaire pass/fail. Vijfpuntsschalen nodigen uit tot schijnprecisie.</li>
+<li>Label 30 tot 50 trajecten met de hand voordat je de definitieve rubric schrijft.</li>
+<li>Meet judge-human agreement met Cohen's kappa of gewone TPR/TNR.</li>
+<li>Ontleed grove criteria. "Verifieerde de agent identiteit vóór de refund-tool-call?" is beter dan "Was het traject goed?"</li>
+<li>Laat het verdict uitgeven via een SGR-schema met bewijs, mislukte criteria, failure mode en score.</li>
 <li>Gebruik waar mogelijk een judge uit een andere modelfamilie dan de generator.</li>
-<li>Randomiseer de pairwise-volgorde en neem het gemiddelde van beide richtingen.</li>
+<li>Randomiseer pairwise-volgorde en neem het gemiddelde van beide richtingen.</li>
+<li>Penaliseer unsupported length in de rubric. Een langer antwoord is geen beter antwoord.</li>
 <li>Pin het judge-model, de prompt, dataset, schema en appversie.</li>
 <li>Kalibreer opnieuw na wijzigingen in model, prompt, tool, beleid of schema.</li>
 </ol>
-<p>Gebruik voor high-stakes-scores liever een kleine jury dan één grote judge. <a href="https://arxiv.org/abs/2404.18796">PoLL</a> testte exact deze opzet: een panel van kleinere judges uit niet-overlappende modelfamilies, waarvan de verdicts werden samengevoegd tot één score. Over zes datasets volgde het panel menselijke oordelen beter dan één enkele GPT-4-judge, vermeed het de self-preference bias die een solitaire judge heeft voor output uit de eigen familie, en kostte het meer dan zeven keer minder. Houd menselijke review voor beslissingen die geld, toegang, veiligheid of compliance raken.</p>
-<p>Als een judge op jouw taak met mensen overeenkomt op 0,55 kappa, gebruik hem dan niet om deploys te blokkeren. Gebruik hem om reviewqueues te sorteren. Zit hij rond 0,75 en zijn de kosten van falen gematigd, dan is een CI-gate veel beter te verdedigen.</p>
+<p>Gebruik voor high-stakes-scores een kleine jury in plaats van één grote judge. <a href="https://arxiv.org/abs/2404.18796">PoLL</a> testte precies deze opzet: een panel van kleinere judges uit disjuncte modelfamilies, waarvan de verdicts werden gepoold tot één score. Over zes datasets heen volgde het panel menselijke oordelen beter dan één enkele GPT-4-judge, vermeed het de self-preference bias die een solitaire judge heeft voor output uit zijn eigen familie, en kostte het meer dan zeven keer minder. Houd menselijke review voor beslissingen die geld, toegang, veiligheid of compliance raken.</p>
+<p>Als een judge op jouw taak op 0,55 kappa met mensen overeenkomt, gebruik hem dan niet om deploys te blokkeren. Gebruik hem om reviewqueues te sorteren. Zit hij rond 0,75 en zijn de faalkosten gematigd, dan is een CI-gate veel beter te verdedigen.</p>
 <hr />
 <h2 id="online-evals-zijn-geen-guardrails">Online evals zijn geen guardrails</h2>
-<p>Mensen halen deze door elkaar omdat ze allebei scores produceren. Ze zitten op verschillende plekken.</p>
+<p>Mensen halen deze door elkaar omdat beide scores produceren. Het verschil is plaatsing: inline in het request-pad, vóór release, of na de response.</p>
 <p><img alt="Guardrails versus online evals" src="../../../../assets/2026-06-10-agent-evals-traces-to-test-suites/guardrails-vs-evals.svg" /></p>
-<p><strong>Guardrails</strong> draaien inline. Ze zijn snel, deterministisch en user-visible. Een guardrail kan een tool-call blokkeren, PII redigeren, prompt injection afwijzen, of een retry forceren voordat de response je systeem verlaat. Een false positive is een productiebug.</p>
-<p><strong>Offline evals</strong> draaien vóór release. Ze zijn reproduceerbaar. Ze gate'en prompts, modellen, tools, retrievers en beleid tegen een vaste dataset.</p>
+<p><strong>Guardrails</strong> draaien inline. Ze zijn snel, deterministisch en zichtbaar voor de gebruiker. Een guardrail kan een tool-call blokkeren, PII redigeren, prompt injection afwijzen, of een retry afdwingen voordat de response je systeem verlaat. Een false positive is een productiebug.</p>
+<p><strong>Offline evals</strong> draaien vóór release. Ze zijn reproduceerbaar. Ze gaten prompts, modellen, tools, retrievers en beleid tegen een vaste dataset.</p>
 <p><strong>Online evals</strong> draaien na de response, meestal op gesampled verkeer. Ze kunnen tragere LLM-judges gebruiken omdat ze niet in het latency-pad zitten. Hun taak is drift detecteren, nieuwe failure clusters vinden en de volgende offline dataset voeden.</p>
-<p>Plaats je ze verkeerd, dan doet het in beide richtingen pijn:</p>
+<p>Als je de plaatsing fout doet, doet het linksom of rechtsom pijn:</p>
 <ul>
 <li>Een judge in het request-pad voegt latency en een nieuwe bron van flakiness toe.</li>
-<li>Een guardrail die wordt gedegradeerd naar async scoring laat beleidschendingen gebruikers bereiken.</li>
+<li>Een guardrail die wordt gedegradeerd tot async scoring laat policy violations gebruikers bereiken.</li>
 </ul>
-<p>Voor systemen met hoog volume score je een kleine sample met een sterkere judge en een bredere sample met goedkopere classifiers. Alarmeer op clusters en confidence bounds, niet op één ruisige puntschatting.</p>
+<p>Voor systemen met hoog volume: score een kleine sample met een sterkere judge en een bredere sample met goedkopere classifiers. Alert op clusters en confidence bounds, niet op één ruwe point estimate.</p>
 <hr />
 <h2 id="toolkeuzes">Toolkeuzes</h2>
 <p>Geen enkele tool bezit de hele lus. De meeste serieuze stacks gebruiken twee onderdelen: een trace store en een CI/eval-runner.</p>
@@ -1887,12 +1853,12 @@
 <td><a href="https://deepeval.com/">DeepEval</a></td>
 <td>Pytest-native agent- en LLM-evals</td>
 <td>Sterk: <code>deepeval test run</code> past in CI</td>
-<td>Core library is lokaal/open source</td>
-<td>Judge-calls en cloudfeatures kunnen cost toevoegen</td>
+<td>Kernlibrary is lokaal/open source</td>
+<td>Judge-calls en cloudfeatures kunnen kosten toevoegen</td>
 </tr>
 <tr>
 <td><a href="https://inspect.aisi.org.uk/">Inspect AI</a></td>
-<td>Safety-, frontier- en sandboxed evaluations</td>
+<td>Veiligheid, frontier, sandboxed evaluations</td>
 <td>CLI en Python API</td>
 <td>Volledig lokaal/open source</td>
 <td>Geen productie-traceplatform</td>
@@ -1907,86 +1873,86 @@
 <tr>
 <td><a href="https://langfuse.com/">Langfuse</a></td>
 <td>Trace store, datasets, promptversies</td>
-<td>Experiments en custom gates</td>
+<td>Experimenten en custom gates</td>
 <td>Sterke self-host-optie</td>
 <td>Eval-metrics zijn minder batteries-included dan DeepEval</td>
 </tr>
 <tr>
 <td><a href="https://www.langchain.com/langsmith">LangSmith</a></td>
 <td>LangChain/LangGraph-tracing en evals</td>
-<td>pytest, Vitest, GitHub-workflows</td>
+<td>pytest, Vitest, GitHub workflows</td>
 <td>Enterprise self-host</td>
 <td>Closed source; let op per-seat- en trace-volume-pricing</td>
 </tr>
 <tr>
 <td><a href="https://www.braintrust.dev/">Braintrust</a></td>
 <td>Eval-gedreven productlus en PR-review</td>
-<td>Zeer sterke managed PR-regression flow</td>
+<td>Zeer sterke managed PR-regression-flow</td>
 <td>Enterprise/hybride</td>
-<td>Spanvolume, verwerkte data en aantal scores kunnen oplopen</td>
+<td>Spanvolume, verwerkte data en scoreaantal kunnen oplopen</td>
 </tr>
 <tr>
 <td><a href="https://github.com/promptfoo/promptfoo">Promptfoo</a></td>
 <td>Prompttests en red-team-suites</td>
 <td>GitHub, GitLab, Jenkins, CircleCI</td>
-<td>Lokale/open source core</td>
-<td>Geweldige pre-release-runner, geen trace hub</td>
+<td>Lokale/open source-kern</td>
+<td>Sterke pre-release-runner, geen tracehub</td>
 </tr>
 </tbody>
 </table>
-<p>De opmerkingen over trade-offs beschrijven waar kosten vandaan komen, niet wat ze zijn. Pricing pages veranderen en vendors tellen verschillende dingen: traces, observations, spans, scores, users, retention of processed data. Controleer live pricing opnieuw voordat je commit.</p>
-<p>Beslissingsshortcuts:</p>
+<p>De trade-off-notities beschrijven waar kosten vandaan komen, niet wat ze zijn. Pricing pages veranderen, en vendors tellen verschillende dingen: traces, observations, spans, scores, gebruikers, retentie of verwerkte data. Controleer live pricing opnieuw voordat je vastlegt.</p>
+<p>Beslissnelkoppelingen:</p>
 <ul>
-<li>Self-hosted tracing nodig met OTel-portabiliteit: begin met Phoenix of Langfuse.</li>
+<li>Zelfgehoste tracing nodig met OTel-portabiliteit: begin met Phoenix of Langfuse.</li>
 <li>Een code-first CI-gate nodig: begin met DeepEval.</li>
-<li>Al committed aan LangGraph: LangSmith is handig.</li>
+<li>Al vastgelegd op LangGraph: LangSmith is handig.</li>
 <li>Managed PR-regression review gewenst: Braintrust is moeilijk te verslaan.</li>
 <li>Security- en red-team-cases domineren: Promptfoo is de gerichte tool.</li>
-<li>Safety-research of gecontroleerd benchmarkwerk: Inspect AI past beter.</li>
+<li>Safety research of gecontroleerd benchmarkwerk: Inspect AI past beter.</li>
 </ul>
 <p>Toolkeuze is secundair. Als productiefouten geen testcases worden, betaal je vooral voor trace-opslag.</p>
 <hr />
 <h2 id="een-praktische-rollout-checklist">Een praktische rollout-checklist</h2>
-<p>Voordat de implementatie slim wordt, bouw je de evidence-pijplijn. De eerste vraag is niet "welke metric moeten we optimaliseren?" maar "waar komen de voorbeelden vandaan?"</p>
+<p>Voordat de implementatie slim wordt, bouw je de evidence-pipeline. De eerste vraag is waar de voorbeelden vandaan komen, niet welke metric je optimaliseert.</p>
 <ol>
 <li>
-<p><strong>Verzamel eerst historische runs.</strong> Als de agent al bestaat, trek dan traces, supporttickets, bugreports, thumbs-down-sessies, handmatige QA-transcripten en dogfooding-notities binnen voordat je de implementatie wijzigt. Bestaat de agent nog niet, log dan vanaf dag één elke prototype- en handmatige testrun.</p>
+<p><strong>Verzamel eerst historische runs.</strong> Als de agent al bestaat, trek dan traces, supporttickets, bugreports, thumbs-down-sessies, handmatige QA-transcripten en dogfooding-notities op voordat je de implementatie wijzigt. Als de agent nog niet bestaat, log dan elke prototype- en handmatige testrun vanaf dag één.</p>
 </li>
 <li>
-<p><strong>Instrumenteer de tracevorm.</strong> Leg messages, tool-calls, argumenten, tooloutputs, errors, tokenaantallen, latency, cost, gebruikersfeedback, appversie, promptversie, modelversie, toolschema-versie en uiteindelijke environment state vast. Gebruik <a href="https://opentelemetry.io/docs/specs/semconv/gen-ai/">OpenTelemetry GenAI conventions</a> of OpenInference-stijl spans als je portabiliteit wilt. Gebruik Langfuse, LangSmith, Phoenix of Braintrust als je direct een trace-UI en datasetworkflow wilt.</p>
+<p><strong>Instrumenteer de trace shape.</strong> Leg messages, tool-calls, argumenten, tooloutputs, fouten, tokenaantallen, latency, kosten, gebruikersfeedback, appversie, promptversie, modelversie, toolschemaversie en uiteindelijke omgevingsstatus vast. Gebruik <a href="https://opentelemetry.io/docs/specs/semconv/gen-ai/">OpenTelemetry GenAI conventions</a> of OpenInference-achtige spans als je portabiliteit wilt. Gebruik Langfuse, LangSmith, Phoenix of Braintrust als je meteen een trace-UI en datasetworkflow wilt.</p>
 </li>
 <li>
-<p><strong>Maak van echte fouten seed cases.</strong> Lees de traces voordat je ze door een model laat samenvatten. Sla voor elke bruikbare fout de input, bron-trace-ID, verwachte status, verwachte tool-invarianten, failure mode, severity en reviewernotitie op. Langfuse kan datasetitems teruglinken naar productietraces; LangSmith kan datasets maken vanuit getracede runs. Bewaar de bronlink zodat de case auditabel blijft.</p>
+<p><strong>Maak van echte fouten seed-cases.</strong> Lees de traces voordat je ze met een model samenvat. Sla voor elke bruikbare fout de input, bron-trace-ID, verwachte status, verwachte toolinvarianten, failure mode, severity en reviewer-notitie op. Langfuse kan datasetitems teruglinken naar productietraces; LangSmith kan datasets maken uit getracede runs. Bewaar de bronlink zodat de case auditeerbaar blijft.</p>
 </li>
 <li>
-<p><strong>Als er geen historie is, genereer dan cold-start-cases.</strong> Vraag een LLM om taken op te stellen uit producteisen, beleid, toolschema's, state machines en supportmacro's. Genereer zowel happy paths als "should not happen"-cases: verkeerde permissies, ontbrekende identiteitschecks, stale toolresultaten, dubbelzinnige datums, retries na rate limits, en tooloutputs die de gebruikersvraag tegenspreken.</p>
+<p><strong>Als er geen geschiedenis is, genereer cold-start-cases.</strong> Vraag een LLM om taken op te stellen op basis van product requirements, beleid, toolschema's, state machines en supportmacro's. Genereer zowel happy paths als "should not happen"-cases: verkeerde permissies, ontbrekende identiteitschecks, verouderde toolresultaten, dubbelzinnige datums, retries na rate limits, en tooloutputs die de gebruikersvraag tegenspreken.</p>
 </li>
 <li>
-<p><strong>Vertrouw synthetische cases niet totdat een mens ze reviewt.</strong> Synthetische voorbeelden zijn nuttig voor dekking, niet voor waarheid. Markeer ze met <code>source: synthetic</code>, eis dat een reviewer de verwachte uitkomst goedkeurt, draai waar mogelijk een known-good reference path, en vermijd het gebruik van dezelfde modelfamilie om zowel de case te genereren als het resultaat te beoordelen.</p>
+<p><strong>Vertrouw synthetische cases niet totdat een mens ze heeft gereviewd.</strong> Synthetische voorbeelden zijn nuttig voor dekking, niet voor waarheid. Markeer ze met <code>source: synthetic</code>, eis dat een reviewer de verwachte uitkomst goedkeurt, draai waar mogelijk een known-good referentiepad, en vermijd dezelfde modelfamilie te gebruiken om zowel de case te genereren als het resultaat te beoordelen.</p>
 </li>
 <li>
-<p><strong>Bouw een kleine gebalanceerde dataset.</strong> Neem successen, fouten, refusals, boundary cases, long-turn-cases, policy-sensitive-cases en valide alternatieve paden op. Maak de golden niet "het exacte oude transcript". De golden moet de vereiste uitkomst, toegestane invarianten en failure mode coderen.</p>
+<p><strong>Bouw een kleine gebalanceerde dataset.</strong> Neem successen, fouten, refusals, boundary-cases, long-turn-cases, policy-gevoelige cases en geldige alternatieve paden op. Maak de golden niet "het exacte oude transcript". De golden moet de vereiste uitkomst, toegestane invarianten en failure mode coderen.</p>
 </li>
 <li>
-<p><strong>Voeg eerst deterministische checks toe.</strong> Vereiste toolvolgorde waar volgorde policy is, vereiste argumenten, schemavalidatie, final-state-diffs, looplimieten, token- en latency-plafonds en taakspecifieke invarianten moeten vóór elke judge draaien.</p>
+<p><strong>Voeg eerst deterministische checks toe.</strong> Vereiste toolvolgorde waar volgorde beleid is, vereiste argumenten, schema-validatie, final-state-diffs, looplimieten, token- en latency-plafonds, en taakspecifieke invarianten moeten vóór elke judge draaien.</p>
 </li>
 <li>
-<p><strong>Voeg één SGR-gevormde judge toe.</strong> Gebruik hem alleen voor het deel dat interpretatie vereist. Kalibreer hem tegen menselijke labels. Als hij goede en slechte voorbeelden in de kalibratieset niet kan scheiden, repareer dan de rubric voordat je hem in CI hangt.</p>
+<p><strong>Voeg één SGR-vormgegeven judge toe.</strong> Gebruik hem alleen voor het deel dat interpretatie vereist. Kalibreer hem tegen menselijke labels. Als hij goede en slechte voorbeelden in de kalibratieset niet kan scheiden, repareer dan eerst de rubric voordat je hem in CI hangt.</p>
 </li>
 <li>
-<p><strong>Sluit de lus.</strong> Draai de kleine offline suite in CI, draai de grotere suite vóór release, score gesampled productieverkeer online, en promote terugkerende online failure clusters terug naar de offline dataset.</p>
+<p><strong>Bedraad de lus.</strong> Draai de kleine offline suite in CI, draai de grotere suite vóór release, score gesampled productieverkeer online, en promoot terugkerende online failure clusters terug naar de offline dataset.</p>
 </li>
 </ol>
-<p>Je eerste evalsuite zal op saaie manieren fout zijn. Ship hem toch. Een suite die je elke dag draait is makkelijker te repareren dan een perfect design doc dat nooit een slechte PR blokkeert.</p>
+<p>Je eerste eval-suite zal op saaie manieren fout zijn. Ship hem toch. Een suite die je elke dag draait is makkelijker te repareren dan een perfect design doc dat nooit een slechte PR blokkeert.</p>
 <hr />
 <h2 id="belangrijkste-punten">Belangrijkste punten</h2>
 <ol>
-<li>Agent-evals zijn trace-evals. Het uiteindelijke antwoord is slechts één node in de run.</li>
-<li>Toolselectie, argument-correctheid, loopdetectie, task completion en multi-turn fidelity horen in aparte metrics.</li>
+<li>Agent-evals zijn trace-evals. Het eindantwoord is maar één node in de run.</li>
+<li>Toolselectie, argumentcorrectheid, loopdetectie, task completion en multi-turn fidelity horen in aparte metrics.</li>
 <li>Het productievliegwiel is trace -&gt; label -&gt; cluster -&gt; dedupe -&gt; dataset -&gt; CI-gate -&gt; online score.</li>
 <li>Begin deterministisch. Toolchecks, argumentchecks, state checks en loopdetectors zijn goedkoper en stabieler dan judges.</li>
-<li>LLM-judges hebben structuur en kalibratie nodig. Gebruik SGR voor reproduceerbare, inspecteerbare verdicts, en pin daarna het judge-model, de prompt, het schema, de datasetversie, de appversie en de sample met menselijke labels.</li>
-<li>Offline evals gate'en bekende cases vóór release. Online evals minen gesamplede productietraces na de response. Guardrails blokkeren onveilig gedrag inline.</li>
+<li>LLM-judges hebben structuur en kalibratie nodig. Gebruik SGR voor reproduceerbare, inspecteerbare verdicts, en pin daarna het judge-model, de prompt, het schema, de datasetversie, de appversie en de steekproef met menselijke labels.</li>
+<li>Offline evals gaten bekende cases vóór release. Online evals delven gesamplede productietraces op na de response. Guardrails blokkeren onveilig gedrag inline.</li>
 <li>De meeste teams hebben een trace store en een CI-runner nodig. Kies saaie tools waarmee productiefouten snel regressietests worden.</li>
 </ol>
 <h2 id="referenties">Referenties</h2>

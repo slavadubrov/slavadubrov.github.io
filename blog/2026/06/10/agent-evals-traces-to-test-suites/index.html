@@ -1717,7 +1717,7 @@
 </code></pre></div>
 <p>A tool-name metric can't catch <code>2026-06-17</code> where the policy requires <code>2026-06-19</code>. The dataset has to store arguments too.</p>
 <h3 id="efficiency-loops-and-dead-ends">Efficiency, loops, and dead ends</h3>
-<p>The path matters even when the destination is reached. An agent that completes the task after five redundant tool calls still signals a planning problem and costs more to run.</p>
+<p>An agent that completes the task after five redundant tool calls still signals a planning problem and costs more to run.</p>
 <p>Cheap signals you should start with:</p>
 <ul>
 <li><strong>Redundant-call rate</strong>: identical tool calls with identical arguments repeated more than twice.</li>
@@ -1793,48 +1793,12 @@
 <hr />
 <h2 id="calibrate-the-judge-before-trusting-it">Calibrate the judge before trusting it</h2>
 <p>LLM-as-judge helps. It's also easy to fool yourself with.</p>
-<p>The idea has a track record. <a href="https://arxiv.org/abs/2303.16634">G-Eval</a> showed that a judge walking through an explicit rubric step by step tracks human ratings better than the older automatic metrics it replaced. <a href="https://arxiv.org/abs/2306.05685">MT-Bench</a> showed GPT-4 agreeing with human preferences about as often as humans agree with each other, which is what made LLM judging mainstream. Then the caveats arrived: judges favor whichever answer appears first in a pairwise prompt, score longer answers higher, prefer outputs from their own model family, and shift when the prompt or model version changes. <a href="https://arxiv.org/abs/2410.12784">JudgeBench</a> tested judges on response pairs where one answer is objectively wrong and found that even strong judges hover near coin-flip accuracy on the hard cases.</p>
-<p>Treat the judge as a measurement instrument.</p>
-<p>When a judge is required, make the verdict structured. <a href="/blog/2025/12/28/schema-guided-reasoning-vllm/">Schema-Guided Reasoning (SGR)</a> is the default pattern here: define the judge's reasoning path as a Pydantic schema, run it through Structured Outputs or constrained decoding, and force the model to emit fields like <code>evidence</code>, <code>passed_criteria</code>, <code>failed_criteria</code>, <code>failure_mode</code>, and <code>score</code>.</p>
-<p>That does not make the judge magically correct. It does make the measurement more reproducible. The judge has to walk through the same predefined rubric steps, in the same field order, on every run and across every compatible model. A reviewer can inspect named fields instead of parsing a paragraph. CI can diff a stable JSON object. Calibration becomes easier because the rubric is no longer buried inside free-form prose.</p>
-<p>It also changes the cost curve. When the reasoning topology is explicit and the output is constrained, cheaper models often become good enough for routine judging. Save the bigger judge for disagreements, high-risk cases, or calibration runs instead of paying for it on every trace.</p>
+<p>The idea has a track record. <a href="https://arxiv.org/abs/2303.16634">G-Eval</a> showed that a judge walking through an explicit rubric step by step tracks human ratings better than the older automatic metrics it replaced. <a href="https://arxiv.org/abs/2306.05685">MT-Bench</a> showed GPT-4 agreeing with human preferences about as often as humans agree with each other, which is what made LLM judging mainstream. Then the caveats arrived: judges favor whichever answer appears first in a pairwise prompt, score longer answers higher, prefer outputs from their own model family, credit confident claims they never verified, and shift when the prompt or model version changes. <a href="https://arxiv.org/abs/2410.12784">JudgeBench</a> tested judges on response pairs where one answer is objectively wrong and found that even strong judges hover near coin-flip accuracy on the hard cases.</p>
+<p>Treat the judge as a measurement instrument: calibrate it against human labels before it grades anything, and recheck it whenever the judge model or prompt moves.</p>
 <p><img alt="Judge calibration loop" src="../../../../assets/2026-06-10-agent-evals-traces-to-test-suites/judge-calibration-loop.svg" /></p>
-<table>
-<thead>
-<tr>
-<th>Bias</th>
-<th>What happens</th>
-<th>Mitigation</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Position</td>
-<td>Pairwise prompts favor one slot</td>
-<td>Swap order and average both permutations</td>
-</tr>
-<tr>
-<td>Verbosity</td>
-<td>Longer answers score higher even when quality is unchanged</td>
-<td>Penalize unsupported verbosity in the rubric</td>
-</tr>
-<tr>
-<td>Self-preference</td>
-<td>A judge favors its own model family</td>
-<td>Use a different model family or a jury</td>
-</tr>
-<tr>
-<td>Sycophancy</td>
-<td>The judge credits unverified claims</td>
-<td>Require evidence from the trace in the verdict</td>
-</tr>
-<tr>
-<td>Calibration drift</td>
-<td>A model or prompt update shifts scores</td>
-<td>Pin judge model and prompt; recalibrate on change</td>
-</tr>
-</tbody>
-</table>
+<p>When a judge is required, make the verdict structured. <a href="/blog/2025/12/28/schema-guided-reasoning-vllm/">Schema-Guided Reasoning (SGR)</a> is the default pattern here: define the judge's reasoning path as a Pydantic schema, run it through Structured Outputs or constrained decoding, and force the model to emit fields like <code>evidence</code>, <code>passed_criteria</code>, <code>failed_criteria</code>, <code>failure_mode</code>, and <code>score</code>.</p>
+<p>Field order does real work here. Emitting evidence before the score is chain-of-thought in a parseable shape, and reasoning-first judges agree with human labels more often than judges that emit a bare score. What the schema guarantees is reproducibility. The judge has to walk through the same predefined rubric steps, in the same field order, on every run and across every compatible model. A reviewer can inspect named fields instead of parsing a paragraph. CI can diff a stable JSON object. Calibration becomes easier because the rubric is no longer buried inside free-form prose.</p>
+<p>It also changes the cost curve. When the reasoning topology is explicit and the output is constrained, cheaper models often become good enough for routine judging. Save the bigger judge for disagreements, high-risk cases, or calibration runs instead of paying for it on every trace.</p>
 <p>Default judge hygiene checklist:</p>
 <ol>
 <li>Prefer binary pass/fail where possible. Five-point scales invite fake precision.</li>
@@ -1844,6 +1808,7 @@
 <li>Emit the verdict through an SGR schema with evidence, failed criteria, failure mode, and score.</li>
 <li>Use a judge from a different model family than the generator when possible.</li>
 <li>Randomize pairwise order and average both directions.</li>
+<li>Penalize unsupported length in the rubric. A longer answer is not a better one.</li>
 <li>Pin the judge model, prompt, dataset, schema, and app version.</li>
 <li>Recalibrate after model, prompt, tool, policy, or schema changes.</li>
 </ol>
@@ -1851,7 +1816,7 @@
 <p>If a judge agrees with humans at 0.55 kappa on your task, don't use it to block deploys. Use it to sort review queues. If it sits near 0.75 and the failure cost is moderate, a CI gate is much easier to defend.</p>
 <hr />
 <h2 id="online-evals-are-not-guardrails">Online evals are not guardrails</h2>
-<p>People mix these up because both produce scores. They sit in different places.</p>
+<p>People mix these up because both produce scores. The difference is placement: inline in the request path, before release, or after the response.</p>
 <p><img alt="Guardrails versus online evals" src="../../../../assets/2026-06-10-agent-evals-traces-to-test-suites/guardrails-vs-evals.svg" /></p>
 <p><strong>Guardrails</strong> run inline. They are fast, deterministic, and user-visible. A guardrail can block a tool call, redact PII, reject prompt injection, or force a retry before the response leaves your system. A false positive is a production bug.</p>
 <p><strong>Offline evals</strong> run before release. They are reproducible. They gate prompts, models, tools, retrievers, and policies against a fixed dataset.</p>
@@ -1940,7 +1905,7 @@
 <p>Tool choice is secondary. If production failures don't become test cases, you're mostly paying for trace storage.</p>
 <hr />
 <h2 id="a-practical-rollout-checklist">A practical rollout checklist</h2>
-<p>Before the implementation gets clever, build the evidence pipeline. The first question is not "which metric should we optimize?" It is "where will the examples come from?"</p>
+<p>Before the implementation gets clever, build the evidence pipeline. The first question is where the examples will come from, not which metric to optimize.</p>
 <ol>
 <li>
 <p><strong>Collect historical runs first.</strong> If the agent already exists, pull traces, support tickets, bug reports, thumbs-down sessions, manual QA transcripts, and dogfooding notes before changing the implementation. If the agent does not exist yet, log every prototype and manual test run from day one.</p>
