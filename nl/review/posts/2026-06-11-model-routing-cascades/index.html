@@ -1,0 +1,1543 @@
+
+<!doctype html>
+<html lang="nl" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="How to route AI agent steps across frontier, worker, and small models without letting cheap errors compound through the trajectory.">
+      
+      
+        <meta name="author" content="Viacheslav Dubrov">
+      
+      
+        <link rel="canonical" href="https://slavadubrov.github.io/nl/review/posts/2026-06-11-model-routing-cascades/">
+      
+      
+      
+      
+        
+          <link rel="alternate" href="../../../../review/posts/2026-06-11-model-routing-cascades/" hreflang="en">
+        
+          <link rel="alternate" href="../../../../de/review/posts/2026-06-11-model-routing-cascades/" hreflang="de">
+        
+          <link rel="alternate" href="../../../../ru/review/posts/2026-06-11-model-routing-cascades/" hreflang="ru">
+        
+          <link rel="alternate" href="../../../../es/review/posts/2026-06-11-model-routing-cascades/" hreflang="es">
+        
+          <link rel="alternate" href="../../../../pt/review/posts/2026-06-11-model-routing-cascades/" hreflang="pt">
+        
+          <link rel="alternate" href="../../../../fr/review/posts/2026-06-11-model-routing-cascades/" hreflang="fr">
+        
+          <link rel="alternate" href="./" hreflang="nl">
+        
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="RSS feed" href="../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="RSS feed met geüpdatet inhoud" href="../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../assets/favicon-eoc.svg">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Model Routing for AI Agent Fleets: Cascades, Caches, and Cheap Worker Models - Edge of Context: Practical AI Engineering</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/brand.css">
+    
+      <link rel="stylesheet" href="../../../../assets/blog-sidebar.css">
+    
+      <link rel="stylesheet" href="../../../../assets/blog-index.css">
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-T51K83ENZ5"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-T51K83ENZ5",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+       
+
+   
+    
+
+<meta name="robots" content="noindex, nofollow" />
+
+<!-- Open Graph -->
+<meta property="og:title" content="Model Routing for AI Agent Fleets: Cascades, Caches, and Cheap Worker Models" />
+<meta property="og:description" content="How to route AI agent steps across frontier, worker, and small models without letting cheap errors compound through the trajectory." />
+<meta property="og:url" content="https://slavadubrov.github.io/nl/review/posts/2026-06-11-model-routing-cascades/" />
+<meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
+<meta
+  property="og:type"
+  content="website"
+/>
+<meta property="og:image" content="https://slavadubrov.github.io/review/assets/2026-06-11-model-routing-cascades/router-stack.svg" />
+<!-- Twitter Card -->
+<meta
+  name="twitter:card"
+  content="summary_large_image"
+/>
+<meta name="twitter:title" content="Model Routing for AI Agent Fleets: Cascades, Caches, and Cheap Worker Models" />
+<meta name="twitter:description" content="How to route AI agent steps across frontier, worker, and small models without letting cheap errors compound through the trajectory." />
+<meta name="twitter:image" content="https://slavadubrov.github.io/review/assets/2026-06-11-model-routing-cascades/router-stack.svg" />
+<!-- Site identity schema -->
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Person",
+        "@id": "https://slavadubrov.github.io/#person",
+        "name": "Viacheslav Dubrov",
+        "alternateName": "Slava Dubrov",
+        "url": "https://slavadubrov.github.io/about/",
+        "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/"]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://slavadubrov.github.io/#website",
+        "name": "Edge of Context: Practical AI Engineering",
+        "alternateName": "Edge of Context",
+        "url": "https://slavadubrov.github.io/",
+        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
+        "inLanguage": "nl",
+        "publisher": {
+          "@id": "https://slavadubrov.github.io/#person"
+        }
+      },
+      {
+        "@type": "Blog",
+        "@id": "https://slavadubrov.github.io/#blog",
+        "name": "Edge of Context: Practical AI Engineering",
+        "url": "https://slavadubrov.github.io/blog/",
+        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
+        "inLanguage": "nl",
+        "author": {
+          "@id": "https://slavadubrov.github.io/#person"
+        },
+        "publisher": {
+          "@id": "https://slavadubrov.github.io/#person"
+        },
+        "isPartOf": {
+          "@id": "https://slavadubrov.github.io/#website"
+        }
+      }
+    ]
+  }
+</script>
+
+<style>
+  /* Header social icons */
+  .md-header__social {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 0.5rem;
+  }
+  .md-header__social a {
+    color: var(--md-primary-bg-color);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+  .md-header__social a:hover {
+    opacity: 1;
+  }
+  .md-header__social svg {
+    width: 1.2rem;
+    height: 1.2rem;
+    fill: currentColor;
+  }
+  /* Adjust search to make room for social icons */
+  .md-search {
+    margin-right: 0;
+  }
+</style>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#model-routing-for-ai-agent-fleets-cascades-caches-and-cheap-worker-models" class="md-skip">
+          Ga naar inhoud
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+     
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../" title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Edge of Context: Practical AI Engineering
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Model Routing for AI Agent Fleets: Cascades, Caches, and Cheap Worker Models
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Selecteer taal">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../../../review/posts/2026-06-11-model-routing-cascades/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../de/review/posts/2026-06-11-model-routing-cascades/" hreflang="de" class="md-select__link">
+              Deutsch
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../ru/review/posts/2026-06-11-model-routing-cascades/" hreflang="ru" class="md-select__link">
+              Русский
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../es/review/posts/2026-06-11-model-routing-cascades/" hreflang="es" class="md-select__link">
+              Español
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../pt/review/posts/2026-06-11-model-routing-cascades/" hreflang="pt" class="md-select__link">
+              Português
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../fr/review/posts/2026-06-11-model-routing-cascades/" hreflang="fr" class="md-select__link">
+              Français
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="nl" class="md-select__link">
+              Nederlands
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Zoeken" placeholder="Zoeken" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Zoeken">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Leegmaken" aria-label="Leegmaken" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Zoeken initialiseren
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Start
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../blog/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Blog
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../blog/fast-answers/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Snelle antwoorden
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../about/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Over
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+<script>
+  // Inject social icons into header after DOM loads
+  document.addEventListener("DOMContentLoaded", function () {
+    const header = document.querySelector(".md-header__inner");
+    if (header) {
+      const social = document.createElement("div");
+      social.className = "md-header__social";
+      social.innerHTML = `
+      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
+      </a>
+      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
+      </a>
+      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+      </a>
+    `;
+      header.appendChild(social);
+    }
+  });
+</script>
+
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigatie" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../" title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    Edge of Context: Practical AI Engineering
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Blog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../blog/fast-answers/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snelle antwoorden
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Snelle antwoorden
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/fast-answers/ai-agent-frameworks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Frameworks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/fast-answers/rag-evaluation-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG Evaluation Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/fast-answers/local-llm-tools-macos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local LLM Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/fast-answers/ocr-models-document-ai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OCR Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/fast-answers/ner-models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NER Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/fast-answers/agent-security-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Security Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/fast-answers/search-ranking-stack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Search Ranking Stack
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Over
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Inhoudsopgave">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Inhoudsopgave
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-routing-question-changes-for-agents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The routing question changes for agents
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#four-routing-patterns-that-are-actually-useful" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Four routing patterns that are actually useful
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Four routing patterns that are actually useful">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-static-role-routing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Static role routing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-capability-routing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Capability routing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-confidence-cascades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Confidence cascades
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-learned-routers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Learned routers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#caching-and-batching-are-separate-levers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Caching and batching are separate levers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-small-benchmark-all-frontier-vs-split-vs-cascade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A small benchmark: all-frontier vs split vs cascade
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-90-savings-are-plausible" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where 90% savings are plausible
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#failure-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Failure modes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Failure modes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cheap-errors-compound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cheap errors compound
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#routing-flaps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Routing flaps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fallbacks-hide-quality-bugs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fallbacks hide quality bugs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#semantic-caches-can-return-confident-wrongness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Semantic caches can return confident wrongness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#learned-routers-can-be-attacked-or-drift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Learned routers can be attacked or drift
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+  
+
+
+
+  
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+
+
+
+
+<h1 id="model-routing-for-ai-agent-fleets-cascades-caches-and-cheap-worker-models">Model Routing for AI Agent Fleets: Cascades, Caches, and Cheap Worker Models</h1>
+<p>Most teams start routing models after the bill hurts. That is late, but understandable. A single chat endpoint can hide model cost for a while; an agent fleet cannot. Every task becomes a chain of planner calls, tool calls, retrieval calls, verifier calls, retries, and sometimes subagents. Model choice stops being a parameter and becomes architecture.</p>
+<p>The trap is routing every "easy" step to the cheapest model and calling the savings done. Agents punish that shortcut. One cheap planner mistake can poison ten later steps. One malformed tool argument can look inexpensive right up to the point where the agent spends the next five minutes repairing its own mess.</p>
+<!-- more -->
+
+<p><strong>TL;DR</strong>: Use the smallest model that clears the quality bar for that step, but measure the full trajectory. Start with a static planner/worker/verifier split, add validation-triggered cascades, then learn a router only after you have trace data. Caching and batching stack with routing, but they do not replace evals.</p>
+<div class="admonition tip">
+<p class="admonition-title">Runnable demo</p>
+<p>I included an offline demo in this repo: <code>work/demo/2026-06-11-model-routing-cascades/</code>. From that directory, run:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>demo.py
+</code></pre></div>
+<p>It compares an all-frontier baseline, a static planner/executor split, and a confidence cascade on 30 synthetic tool-using tasks. No API keys, paid services, Docker, or model downloads required.</p>
+</div>
+<hr />
+<h2 id="the-routing-question-changes-for-agents">The routing question changes for agents</h2>
+<p>A normal LLM application asks one main question: "Which model should answer this request?"</p>
+<p>An agent asks a messier question: "Which model should handle this step, given what happened earlier, what can fail next, and how expensive recovery will be?"</p>
+<p>That distinction matters because agent runs are <strong>trajectories</strong>, not rows. A retrieval step can be cheap because it is bounded and easy to verify. A planner step is different. If the plan is wrong, every downstream model call is now optimizing against the wrong target. A verifier step is different again: it may be short, but it decides whether the agent exits, retries, escalates, or asks a human.</p>
+<p>The useful mental model is a three-plane architecture:</p>
+<table>
+<thead>
+<tr>
+<th>Plane</th>
+<th>Job</th>
+<th>Default model choice</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Planner</td>
+<td>Break the task into steps and update the plan</td>
+<td>Frontier or strong reasoning model</td>
+<td>Planner errors compound through the whole run</td>
+</tr>
+<tr>
+<td>Worker</td>
+<td>Execute bounded retrieval, extraction, classification, and tool steps</td>
+<td>Small or mid-tier model</td>
+<td>The output is constrained and easy to validate</td>
+</tr>
+<tr>
+<td>Verifier</td>
+<td>Check final answer, schema, tool result, or task completion</td>
+<td>Frontier, judge, or specialized verifier</td>
+<td>False passes are more expensive than false retries</td>
+</tr>
+</tbody>
+</table>
+<p>This is why plan-and-execute agents are a natural fit for heterogeneous models. LangChain's original <a href="https://www.langchain.com/blog/plan-and-execute-agents">plan-and-execute write-up</a> framed the pattern as a planner plus one or more executors. It also named the downside: more model calls. Model routing is how you stop that extra call count from turning into an extra bill.</p>
+<p><img alt="Model routing stack for agent fleets" src="../../../../review/assets/2026-06-11-model-routing-cascades/router-stack.svg" /></p>
+<hr />
+<h2 id="four-routing-patterns-that-are-actually-useful">Four routing patterns that are actually useful</h2>
+<h3 id="1-static-role-routing">1. Static role routing</h3>
+<p>This is the first version I would ship.</p>
+<p>Write down the agent step types, assign a model tier to each one, and make that table explicit in code. Planner and verifier go to the stronger model. Extraction and classification go to a smaller model. Tool calls go to the cheapest model that can reliably emit valid arguments.</p>
+<p>Static routing is boring, which is exactly why it is useful. You can explain it in a PR. You can audit it from traces. You can compare it against an all-frontier baseline without arguing about router training data.</p>
+<p>The failure mode is also clear: static routing cannot see task difficulty. A simple planner step and a brutal planner step hit the same model. That is fine for version one. It becomes expensive or brittle once traffic diversifies.</p>
+<h3 id="2-capability-routing">2. Capability routing</h3>
+<p>Capability routing adds a classifier before the model call. The classifier might use task type, required tools, context length, language, latency budget, customer tier, data sensitivity, or output schema.</p>
+<p>This works best when the routing features are objective. "Needs vision" is objective. "Needs 200k context" is objective. "Looks hard" is not, unless you can calibrate it against outcomes.</p>
+<p>Commercial gateways help with the infrastructure side. <a href="https://openrouter.ai/docs/guides/routing/provider-selection">OpenRouter provider routing</a> exposes provider-selection controls and <a href="https://openrouter.ai/docs/guides/routing/model-fallbacks">model fallbacks</a>. <a href="https://docs.litellm.ai/docs/routing">LiteLLM Router</a> supports weighted, latency-based, rate-limit-aware, least-busy, and cost-based routing, with separate <a href="https://docs.litellm.ai/docs/proxy/reliability">fallback behavior</a>. Those tools are useful, but most of them route availability, latency, provider, or model group. They do not know whether your agent's planner step is about to ruin a customer workflow.</p>
+<h3 id="3-confidence-cascades">3. Confidence cascades</h3>
+<p>A cascade starts cheap, checks the result, and escalates only when the result looks risky.</p>
+<p>The check can be:</p>
+<ul>
+<li>schema validation failed;</li>
+<li>tool-call arguments failed a dry run;</li>
+<li>verifier score below threshold;</li>
+<li>low logprob on a classification label where logprobs are available;</li>
+<li>disagreement across self-consistency samples;</li>
+<li>task-specific rule failed, such as "the SQL query must be read-only."</li>
+</ul>
+<p>The important part is that the escalation signal has to be about the step's job. A generic "the model says it is confident" flag is weak. A failed JSON schema, invalid SQL parse, missing citation, or violated permission rule is much stronger.</p>
+<p>OpenAI's logprobs cookbook shows the classic classification use: set confidence thresholds and route uncertain outputs for review or fallback. The <a href="https://arxiv.org/abs/2203.11171">self-consistency paper</a> gives another family of signals: sample multiple reasoning paths and look for agreement. For agents, I prefer deterministic validators first. They are cheaper and less suggestible.</p>
+<h3 id="4-learned-routers">4. Learned routers</h3>
+<p>Learned routers make sense once you have enough labeled traffic.</p>
+<p><a href="https://openreview.net/forum?id=8sSqNntaMr">RouteLLM</a> trains routers from preference data to choose between a stronger and weaker model at inference time. The paper reports roughly 2x cost savings on its benchmarks with minimal quality loss. <a href="https://arxiv.org/abs/2305.05176">FrugalGPT</a> goes further into cascades and reports up to 98% cost reduction under its experimental conditions while matching the best individual model.</p>
+<p>Those numbers are real, but they are not promises for your agent. They come from benchmark conditions, model pairs, and task distributions. In production, the router has to answer a harder question: "Will the whole trajectory still succeed if this step goes cheap?"</p>
+<p>That is why I would not start with a learned router. Start with traces. Label failures. Build a baseline. Then train or buy a router with a target that matches your product metric.</p>
+<hr />
+<h2 id="caching-and-batching-are-separate-levers">Caching and batching are separate levers</h2>
+<p>Routing chooses the model. Caching avoids recomputing repeated work. Batching buys cheaper asynchronous throughput. They stack, but they solve different problems.</p>
+<table>
+<thead>
+<tr>
+<th>Lever</th>
+<th>Best for</th>
+<th>Practical catch</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Exact cache</td>
+<td>repeated prompts, tool schemas, deterministic extraction</td>
+<td>cache invalidation and tenant boundaries</td>
+</tr>
+<tr>
+<td>Semantic cache</td>
+<td>repeated intents with different wording</td>
+<td>false hits are quality bugs, not just cache bugs</td>
+</tr>
+<tr>
+<td>Prompt caching</td>
+<td>long stable prefixes, tool definitions, policy text</td>
+<td>provider-specific rules and cache lifetimes</td>
+</tr>
+<tr>
+<td>Prefix/KV caching</td>
+<td>self-hosted models with shared prefixes</td>
+<td>needs serving-layer support and stable prefix layout</td>
+</tr>
+<tr>
+<td>Batch API</td>
+<td>offline evals, labeling, report generation</td>
+<td>not for interactive agent steps</td>
+</tr>
+</tbody>
+</table>
+<p>Provider docs are worth reading here because the details change. OpenAI's <a href="https://developers.openai.com/api/docs/guides/prompt-caching">prompt caching guide</a> says caching is automatic and can reduce latency and input-token cost for repeated prefixes. Anthropic's <a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching">prompt caching docs</a> expose explicit cache write/read economics: cache reads are priced at 0.1x base input tokens, while writes cost more than a normal input. OpenAI's <a href="https://developers.openai.com/api/docs/guides/batch">Batch API</a> gives a 50% discount for asynchronous work that can complete within 24 hours. For self-hosted models, vLLM's <a href="https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/">automatic prefix caching</a> reuses KV cache blocks when requests share the same prefix.</p>
+<p>The agent-specific move is to make prompts cacheable on purpose. Keep policy text, tool schemas, and stable instructions at the front. Put volatile task data later. If every step starts with a different giant preamble, you defeated the cache before the provider saw the request.</p>
+<hr />
+<h2 id="a-small-benchmark-all-frontier-vs-split-vs-cascade">A small benchmark: all-frontier vs split vs cascade</h2>
+<p>The companion demo is intentionally synthetic. It is not trying to prove that one vendor model beats another. It proves the accounting shape.</p>
+<p>The benchmark creates 30 tasks. Each task has four steps:</p>
+<ol>
+<li>planner;</li>
+<li>retrieval;</li>
+<li>tool call;</li>
+<li>verifier.</li>
+</ol>
+<p>Each strategy sees the same tasks. The all-frontier baseline sends every step to the strongest model. The planner/executor split sends planner and verifier steps to the frontier model, while retrieval and tool steps use a worker model. The confidence cascade starts cheaper, checks confidence and validation risk, then escalates uncertain planner, tool, and verifier steps.</p>
+<p>The relevant code is in <code>work/demo/2026-06-11-model-routing-cascades/demo.py</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">confidence_cascade</span><span class="p">(</span><span class="n">step</span><span class="p">:</span> <span class="n">AgentStep</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">StepResult</span><span class="p">:</span>
+    <span class="n">first</span> <span class="o">=</span> <span class="n">WORKER</span> <span class="k">if</span> <span class="n">step</span><span class="o">.</span><span class="n">kind</span> <span class="ow">in</span> <span class="p">{</span><span class="n">StepKind</span><span class="o">.</span><span class="n">PLAN</span><span class="p">,</span> <span class="n">StepKind</span><span class="o">.</span><span class="n">TOOL</span><span class="p">}</span> <span class="k">else</span> <span class="n">SMALL</span>
+    <span class="n">first_success</span><span class="p">,</span> <span class="n">first_cost</span><span class="p">,</span> <span class="n">first_latency</span> <span class="o">=</span> <span class="n">run_model</span><span class="p">(</span><span class="n">first</span><span class="p">,</span> <span class="n">step</span><span class="p">,</span> <span class="n">cache_hit</span><span class="o">=</span><span class="n">step</span><span class="o">.</span><span class="n">task_id</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">should_escalate</span> <span class="o">=</span> <span class="p">(</span><span class="ow">not</span> <span class="n">first_success</span><span class="p">)</span> <span class="ow">or</span> <span class="n">confidence</span><span class="p">(</span><span class="n">first</span><span class="p">,</span> <span class="n">step</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.62</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">should_escalate</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">StepResult</span><span class="p">(</span><span class="s2">&quot;confidence_cascade&quot;</span><span class="p">,</span> <span class="n">step</span><span class="p">,</span> <span class="n">first</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="n">first_cost</span><span class="p">,</span> <span class="n">first_latency</span><span class="p">)</span>
+
+    <span class="n">fallback</span> <span class="o">=</span> <span class="n">FRONTIER</span> <span class="k">if</span> <span class="n">step</span><span class="o">.</span><span class="n">kind</span> <span class="ow">in</span> <span class="p">{</span><span class="n">StepKind</span><span class="o">.</span><span class="n">PLAN</span><span class="p">,</span> <span class="n">StepKind</span><span class="o">.</span><span class="n">TOOL</span><span class="p">,</span> <span class="n">StepKind</span><span class="o">.</span><span class="n">VERIFY</span><span class="p">}</span> <span class="k">else</span> <span class="n">WORKER</span>
+    <span class="n">final_success</span><span class="p">,</span> <span class="n">fallback_cost</span><span class="p">,</span> <span class="n">fallback_latency</span> <span class="o">=</span> <span class="n">run_model</span><span class="p">(</span><span class="n">fallback</span><span class="p">,</span> <span class="n">step</span><span class="p">,</span> <span class="n">cache_hit</span><span class="o">=</span><span class="n">step</span><span class="o">.</span><span class="n">task_id</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">StepResult</span><span class="p">(</span>
+        <span class="s2">&quot;confidence_cascade&quot;</span><span class="p">,</span>
+        <span class="n">step</span><span class="p">,</span>
+        <span class="n">fallback</span><span class="p">,</span>
+        <span class="n">final_success</span><span class="p">,</span>
+        <span class="kc">True</span><span class="p">,</span>
+        <span class="n">first_cost</span> <span class="o">+</span> <span class="n">fallback_cost</span><span class="p">,</span>
+        <span class="n">first_latency</span> <span class="o">+</span> <span class="n">fallback_latency</span><span class="p">,</span>
+    <span class="p">)</span>
+</code></pre></div>
+<p>On my run:</p>
+<table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th style="text-align: right;">Task success</th>
+<th style="text-align: right;">Step success</th>
+<th style="text-align: right;">Total cost</th>
+<th style="text-align: right;">Savings vs all-frontier</th>
+<th style="text-align: right;">Mean latency</th>
+<th style="text-align: right;">Escalation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>All frontier</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">$0.4297</td>
+<td style="text-align: right;">0.0%</td>
+<td style="text-align: right;">1061 ms</td>
+<td style="text-align: right;">0%</td>
+</tr>
+<tr>
+<td>Planner/executor</td>
+<td style="text-align: right;">70%</td>
+<td style="text-align: right;">92%</td>
+<td style="text-align: right;">$0.2846</td>
+<td style="text-align: right;">33.8%</td>
+<td style="text-align: right;">729 ms</td>
+<td style="text-align: right;">0%</td>
+</tr>
+<tr>
+<td>Confidence cascade</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">100%</td>
+<td style="text-align: right;">$0.1849</td>
+<td style="text-align: right;">57.0%</td>
+<td style="text-align: right;">634 ms</td>
+<td style="text-align: right;">35%</td>
+</tr>
+</tbody>
+</table>
+<p>The static split saved money but lost task success. That is the part people miss. A 92% step success rate sounds fine until you remember that task success is multiplicative. Four-step tasks make that visible. Longer agent runs make it brutal.</p>
+<p>The cascade spent extra money on failed cheap attempts, but it recovered risky steps before they broke the task. That is the routing shape I want in production: cheap by default where validation is strong, expensive when uncertainty is high, and measured at the trajectory level.</p>
+<hr />
+<h2 id="where-90-savings-are-plausible">Where 90% savings are plausible</h2>
+<p>Ninety percent savings is plausible in some workloads. It is not a universal target.</p>
+<p>It is plausible when:</p>
+<ul>
+<li>most steps are short, bounded, and easy to validate;</li>
+<li>the expensive prompt prefix is stable enough for caching;</li>
+<li>many calls can move to batch processing;</li>
+<li>the frontier model is reserved for planner, verifier, and escalation steps;</li>
+<li>the eval harness catches regressions at task level.</li>
+</ul>
+<p>It is not plausible when:</p>
+<ul>
+<li>every step needs frontier reasoning;</li>
+<li>output tokens dominate cost and cannot be shortened;</li>
+<li>tasks are interactive and cannot use batch discounts;</li>
+<li>context changes on every call, defeating prompt caching;</li>
+<li>there is no verifier strong enough to detect cheap-model failures.</li>
+</ul>
+<p>This is also why live provider pricing pages matter more than blog-post arithmetic. OpenAI, Anthropic, Google, and DeepSeek all expose different input/output/cache/batch economics on their current pricing pages. The spread is large enough to justify routing work. The details are volatile enough that hardcoding a strategy from today's table is lazy engineering.</p>
+<hr />
+<h2 id="failure-modes">Failure modes</h2>
+<h3 id="cheap-errors-compound">Cheap errors compound</h3>
+<p>If the worker model extracts the wrong entity, the planner may build the wrong next step. If the tool model emits the wrong argument, the verifier may evaluate the wrong artifact. You cannot look only at per-call accuracy. Agent evals need task-level success, step-level diagnosis, and cost per successful task.</p>
+<h3 id="routing-flaps">Routing flaps</h3>
+<p>A router that changes its mind around a threshold can create noisy traces and unstable quality. Add hysteresis: once a session escalates a step type for a task, keep that tier for related steps unless a stronger signal says otherwise.</p>
+<h3 id="fallbacks-hide-quality-bugs">Fallbacks hide quality bugs</h3>
+<p>Provider fallbacks are good for outages and rate limits. They are not the same thing as quality cascades. If a fallback fires after a provider error, you know the first call failed technically. If a cheap model returns a plausible but wrong tool call, the provider layer may see success. Your harness has to catch that.</p>
+<h3 id="semantic-caches-can-return-confident-wrongness">Semantic caches can return confident wrongness</h3>
+<p>Semantic caches are tempting for support bots and repetitive analysis tasks. They are also dangerous for agents because small input differences can change which tool is safe to call. Use semantic caches for low-risk reads first. Avoid them for permissioned actions unless the cache key includes the relevant policy and tenant context.</p>
+<h3 id="learned-routers-can-be-attacked-or-drift">Learned routers can be attacked or drift</h3>
+<p>Routers are control planes. The <a href="https://arxiv.org/html/2501.01818v1">Rerouting LLM Routers</a> paper is a useful warning: router behavior itself can become a robustness problem. If your router learns that certain phrasing is "easy," users or upstream systems can accidentally or deliberately push hard tasks into cheap paths.</p>
+<hr />
+<h2 id="implementation-checklist">Implementation checklist</h2>
+<p>Start simple:</p>
+<ol>
+<li>Define agent step types: planner, retriever, extractor, tool caller, verifier, summarizer, reporter.</li>
+<li>Add model tier, prompt tokens, output tokens, latency, cache hit, validation result, and final task outcome to every trace.</li>
+<li>Build an all-frontier baseline for a fixed eval set.</li>
+<li>Add a static routing table and compare cost per successful task.</li>
+<li>Add deterministic validators before LLM judges: schema checks, parser checks, permission checks, unit tests, SQL dry runs.</li>
+<li>Add cascades where validators are strong.</li>
+<li>Add prompt caching and batch jobs where the workload actually fits.</li>
+<li>Train or buy a learned router only after you have enough labeled traces to evaluate it.</li>
+</ol>
+<p>The metric I care about is not "average cost per call." It is <strong>cost per successful task at a fixed quality bar</strong>. A router that cuts cost by 70% and drops task success by 20 points is not an optimization. It is a cheaper way to fail.</p>
+<hr />
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ol>
+<li>Model routing for agents is a trajectory problem. Optimize per-step cost only after you can measure task-level success.</li>
+<li>Planner, worker, and verifier roles are the simplest useful split. Start there before training a router.</li>
+<li>Cascades work when escalation signals are concrete: schema failures, tool validation errors, verifier scores, logprob thresholds, or self-consistency disagreement.</li>
+<li>Caching and batching stack with routing, but they do not decide whether a cheap model is safe for a step.</li>
+<li>The right dashboard is cost per successful task, not cost per model call.</li>
+</ol>
+<h2 id="references">References</h2>
+<ul>
+<li><a href="https://openreview.net/forum?id=8sSqNntaMr">RouteLLM: Learning to Route LLMs from Preference Data</a></li>
+<li><a href="https://github.com/lm-sys/RouteLLM">RouteLLM GitHub repository</a></li>
+<li><a href="https://arxiv.org/abs/2305.05176">FrugalGPT: How to Use Large Language Models While Reducing Cost and Improving Performance</a></li>
+<li><a href="https://www.langchain.com/blog/plan-and-execute-agents">LangChain: Plan-and-Execute Agents</a></li>
+<li><a href="https://developers.openai.com/cookbook/examples/using_logprobs">OpenAI: Using logprobs</a></li>
+<li><a href="https://arxiv.org/abs/2203.11171">Self-Consistency Improves Chain of Thought Reasoning in Language Models</a></li>
+<li><a href="https://developers.openai.com/api/docs/guides/prompt-caching">OpenAI: Prompt caching</a></li>
+<li><a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching">Anthropic: Prompt caching</a></li>
+<li><a href="https://developers.openai.com/api/docs/guides/batch">OpenAI: Batch API</a></li>
+<li><a href="https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/">vLLM: Automatic Prefix Caching</a></li>
+<li><a href="https://openrouter.ai/docs/guides/routing/provider-selection">OpenRouter: Provider selection</a></li>
+<li><a href="https://openrouter.ai/docs/guides/routing/model-fallbacks">OpenRouter: Model fallbacks</a></li>
+<li><a href="https://docs.litellm.ai/docs/routing">LiteLLM: Router</a></li>
+<li><a href="https://docs.litellm.ai/docs/proxy/reliability">LiteLLM: Fallbacks</a></li>
+<li><a href="https://withmartian.com/post/introducing-routerbench">Martian: Introducing RouterBench</a></li>
+<li><a href="https://arxiv.org/html/2501.01818v1">Rerouting LLM Routers</a></li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+  
+
+
+  
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Gekopieerd naar klembord", "clipboard.copy": "Kopi\u00ebren naar klembord", "search.result.more.one": "1 extra overeenkomst op deze pagina", "search.result.more.other": "# extra overeenkomsten op deze pagina", "search.result.none": "Geen overeenkomende documenten", "search.result.one": "1 overeenkomende document", "search.result.other": "# overeenkomende documenten", "search.result.placeholder": "Typ om te beginnen met zoeken", "search.result.term.missing": "Ontbreekt", "select.version": "Selecteer versie"}, "version": null}</script>
+    
+    
+      <script src="../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../../../javascripts/mermaid-init.js"></script>
+      
+        <script src="../../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

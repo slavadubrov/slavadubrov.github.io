@@ -1,0 +1,1348 @@
+
+<!doctype html>
+<html lang="pt" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="How to design, test, and ablate the orchestration loop around an AI agent: prompts, tools, context handoffs, evaluators, retries, and acceptance checks.">
+      
+      
+        <meta name="author" content="Viacheslav Dubrov">
+      
+      
+        <link rel="canonical" href="https://slavadubrov.github.io/pt/review/posts/2026-06-10-harness-engineering/">
+      
+      
+      
+      
+        
+          <link rel="alternate" href="../../../../review/posts/2026-06-10-harness-engineering/" hreflang="en">
+        
+          <link rel="alternate" href="../../../../de/review/posts/2026-06-10-harness-engineering/" hreflang="de">
+        
+          <link rel="alternate" href="../../../../ru/review/posts/2026-06-10-harness-engineering/" hreflang="ru">
+        
+          <link rel="alternate" href="../../../../es/review/posts/2026-06-10-harness-engineering/" hreflang="es">
+        
+          <link rel="alternate" href="./" hreflang="pt">
+        
+          <link rel="alternate" href="../../../../fr/review/posts/2026-06-10-harness-engineering/" hreflang="fr">
+        
+          <link rel="alternate" href="../../../../nl/review/posts/2026-06-10-harness-engineering/" hreflang="nl">
+        
+      
+      
+        <link rel="alternate" type="application/rss+xml" title="canal RSS" href="../../../../feed_rss_created.xml">
+        <link rel="alternate" type="application/rss+xml" title="canal RSS com conteúdo atualizado" href="../../../../feed_rss_updated.xml">
+      
+      <link rel="icon" href="../../../../assets/favicon-eoc.svg">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Harness Engineering for AI Agents: Designing the Loop Around the Model - Edge of Context: Practical AI Engineering</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/brand.css">
+    
+      <link rel="stylesheet" href="../../../../assets/blog-sidebar.css">
+    
+      <link rel="stylesheet" href="../../../../assets/blog-index.css">
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-T51K83ENZ5"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-T51K83ENZ5",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+       
+
+   
+    
+
+<meta name="robots" content="noindex, nofollow" />
+
+<!-- Open Graph -->
+<meta property="og:title" content="Harness Engineering for AI Agents: Designing the Loop Around the Model" />
+<meta property="og:description" content="How to design, test, and ablate the orchestration loop around an AI agent: prompts, tools, context handoffs, evaluators, retries, and acceptance checks." />
+<meta property="og:url" content="https://slavadubrov.github.io/pt/review/posts/2026-06-10-harness-engineering/" />
+<meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
+<meta
+  property="og:type"
+  content="website"
+/>
+<meta property="og:image" content="https://slavadubrov.github.io/assets/logo-eoc.svg" />
+<!-- Twitter Card -->
+<meta
+  name="twitter:card"
+  content="summary"
+/>
+<meta name="twitter:title" content="Harness Engineering for AI Agents: Designing the Loop Around the Model" />
+<meta name="twitter:description" content="How to design, test, and ablate the orchestration loop around an AI agent: prompts, tools, context handoffs, evaluators, retries, and acceptance checks." />
+<meta name="twitter:image" content="https://slavadubrov.github.io/assets/logo-eoc.svg" />
+<!-- Site identity schema -->
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Person",
+        "@id": "https://slavadubrov.github.io/#person",
+        "name": "Viacheslav Dubrov",
+        "alternateName": "Slava Dubrov",
+        "url": "https://slavadubrov.github.io/about/",
+        "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/"]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://slavadubrov.github.io/#website",
+        "name": "Edge of Context: Practical AI Engineering",
+        "alternateName": "Edge of Context",
+        "url": "https://slavadubrov.github.io/",
+        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
+        "inLanguage": "pt",
+        "publisher": {
+          "@id": "https://slavadubrov.github.io/#person"
+        }
+      },
+      {
+        "@type": "Blog",
+        "@id": "https://slavadubrov.github.io/#blog",
+        "name": "Edge of Context: Practical AI Engineering",
+        "url": "https://slavadubrov.github.io/blog/",
+        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
+        "inLanguage": "pt",
+        "author": {
+          "@id": "https://slavadubrov.github.io/#person"
+        },
+        "publisher": {
+          "@id": "https://slavadubrov.github.io/#person"
+        },
+        "isPartOf": {
+          "@id": "https://slavadubrov.github.io/#website"
+        }
+      }
+    ]
+  }
+</script>
+
+<style>
+  /* Header social icons */
+  .md-header__social {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 0.5rem;
+  }
+  .md-header__social a {
+    color: var(--md-primary-bg-color);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+  .md-header__social a:hover {
+    opacity: 1;
+  }
+  .md-header__social svg {
+    width: 1.2rem;
+    height: 1.2rem;
+    fill: currentColor;
+  }
+  /* Adjust search to make room for social icons */
+  .md-search {
+    margin-right: 0;
+  }
+</style>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#harness-engineering-for-ai-agents-designing-the-loop-around-the-model" class="md-skip">
+          Ir para o conteúdo
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+     
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Cabeçalho">
+    <a href="../../../" title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Edge of Context: Practical AI Engineering
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Harness Engineering for AI Agents: Designing the Loop Around the Model
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Selecione o idioma">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../../../review/posts/2026-06-10-harness-engineering/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../de/review/posts/2026-06-10-harness-engineering/" hreflang="de" class="md-select__link">
+              Deutsch
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../ru/review/posts/2026-06-10-harness-engineering/" hreflang="ru" class="md-select__link">
+              Русский
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../es/review/posts/2026-06-10-harness-engineering/" hreflang="es" class="md-select__link">
+              Español
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="pt" class="md-select__link">
+              Português
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../fr/review/posts/2026-06-10-harness-engineering/" hreflang="fr" class="md-select__link">
+              Français
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../../../nl/review/posts/2026-06-10-harness-engineering/" hreflang="nl" class="md-select__link">
+              Nederlands
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Buscar" placeholder="Buscar" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Pesquisar">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Limpar" aria-label="Limpar" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Inicializando a pesquisa
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Abas" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Início
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../blog/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Blog
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../blog/fast-answers/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Respostas rápidas
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../about/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Sobre
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+<script>
+  // Inject social icons into header after DOM loads
+  document.addEventListener("DOMContentLoaded", function () {
+    const header = document.querySelector(".md-header__inner");
+    if (header) {
+      const social = document.createElement("div");
+      social.className = "md-header__social";
+      social.innerHTML = `
+      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
+      </a>
+      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
+      </a>
+      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+      </a>
+    `;
+      header.appendChild(social);
+    }
+  });
+</script>
+
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navegação" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../" title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
+      
+  <img src="../../../../assets/logo-eoc.svg" alt="logo">
+
+    </a>
+    Edge of Context: Practical AI Engineering
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Início
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Blog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../blog/fast-answers/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Respostas rápidas
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Respostas rápidas
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/fast-answers/ai-agent-frameworks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Frameworks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/fast-answers/rag-evaluation-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RAG Evaluation Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/fast-answers/local-llm-tools-macos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local LLM Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/fast-answers/ocr-models-document-ai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OCR Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/fast-answers/ner-models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NER Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/fast-answers/agent-security-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Security Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/fast-answers/search-ranking-stack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Search Ranking Stack
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sobre
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Índice">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Índice
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-harness-engineering-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What harness engineering is
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#four-places-to-put-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Four places to put behavior
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Four places to put behavior">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#system-prompt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System prompt
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scaffolding-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scaffolding code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#subagent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subagent
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#context-management-is-a-harness-decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context management is a harness decision
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#measure-the-harness-not-the-vibes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measure the harness, not the vibes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-tiny-ablation-demo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A tiny ablation demo
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-to-study-in-open-harnesses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What to study in open harnesses
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-ablation-habit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The ablation habit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+  
+
+
+
+  
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+
+
+
+
+<h1 id="harness-engineering-for-ai-agents-designing-the-loop-around-the-model">Harness Engineering for AI Agents: Designing the Loop Around the Model</h1>
+<p><a href="/blog/"><strong>Part 6 of the Engineering the Agentic Stack series</strong></a></p>
+<p><a href="/blog/2026/05/26/ai-agent-runtime/">Part 5</a> covered the runtime around long-running agents: sessions, sandboxes, checkpoints, traces, and deployment shapes. This post goes one layer inward. The runtime keeps the run alive. The <strong>harness</strong> decides how each step happens.</p>
+<p>A harness is the loop around the model: the system prompt, tool surface, state files, retry policy, subagents, evaluator, acceptance checks, and trace hooks. The model still matters. But once the model is good enough to use tools for hours, the harness often decides whether the run converges or just produces confident motion.</p>
+<!-- more -->
+
+<p><strong>TL;DR</strong>: Harness engineering is assumption engineering. Every component you add says something specific about what the model cannot do reliably on its own. Progress files assume the model loses state across sessions. Fresh evaluators assume self-review is biased. Retry policies assume tool failures are not reasoning failures. Fail-closed checks assume ambiguous "done" will otherwise become done. Treat those assumptions as hypotheses, benchmark them, and remove the ones that stop paying rent.</p>
+<p><img alt="Harness ablation loop" src="../../../../review/assets/2026-06-10-harness-engineering/harness-ablation-loop.svg" /></p>
+<p>The supporting demo lives in <code>work/demo/2026-06-10-harness-engineering/</code>. Run it with:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>demo.py
+</code></pre></div>
+<p>It is deliberately offline. No model key, no Docker, no GPU. The point is to make the ablation method inspectable.</p>
+<hr />
+<h2 id="what-harness-engineering-is">What harness engineering is</h2>
+<p>OpenAI's Codex team used the phrase in their field report, <a href="https://openai.com/index/harness-engineering/">Harness engineering: leveraging Codex in an agent-first world</a>. The interesting part was not "we prompted harder." It was that the team changed the environment until Codex could inspect the application, query local logs and traces, drive browser flows, read repo-local instructions, open pull requests, request agent reviews, and keep looping until checks passed.</p>
+<p>That is harness work. It is software around the model that makes the task legible and the feedback enforceable.</p>
+<p>Anthropic's <a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">Effective harnesses for long-running agents</a> makes the same point from the long-context side. Agents can work for many hours, but long work happens across discrete sessions. A new session starts without the previous session's in-memory state. Compaction helps, but it is not the same as giving the next worker a clean, structured handoff.</p>
+<p>The practical definition I use:</p>
+<blockquote>
+<p>A harness is the executable contract between the model and the work.</p>
+</blockquote>
+<p>That contract has two jobs.</p>
+<p>First, it feeds the model the right shape of context before it acts: repo maps, skills, task lists, policies, examples, and tool affordances.</p>
+<p>Second, it turns the model's actions into observable, testable steps after it acts: tool results, traces, checks, diffs, screenshots, reviews, retries, and acceptance decisions.</p>
+<p>If you only do the first half, you have a prompt pack. If you only do the second half, you have a test runner that arrives too late. A useful harness does both.</p>
+<hr />
+<h2 id="four-places-to-put-behavior">Four places to put behavior</h2>
+<p>Most harness design arguments reduce to one question: where should this behavior live?</p>
+<h3 id="system-prompt">System prompt</h3>
+<p>Use the prompt for policies the model must consider while deciding what to do. Examples: decomposition style, coding conventions, when to ask for help, what "done" means, and where to look first.</p>
+<p>Prompts are cheap to change but weak to enforce. Do not put a hard security boundary, cost cap, or data-loss prevention rule only in the prompt. If violation has a real consequence, the harness needs code.</p>
+<h3 id="tool">Tool</h3>
+<p>Use tools when the model needs a stable operation with a narrow interface. A good tool reduces search and ambiguity. It also gives the harness a place to validate arguments, attach approval gates, log structured events, and return errors that are useful to the model.</p>
+<p>This is the tool-design argument from <a href="/blog/2026/03/24/ai-agent-tool-use/">Part 3</a> in harness form. The tool boundary is an ergonomics choice and a control surface.</p>
+<h3 id="scaffolding-code">Scaffolding code</h3>
+<p>Use scaffolding code for deterministic work: retries, idempotency, checkpoint writes, file watching, lint commands, test selection, trace collection, cost limits, and acceptance gates.</p>
+<p>The model can decide to run tests. The harness can make sure tests run before a PR opens. That distinction matters.</p>
+<h3 id="subagent">Subagent</h3>
+<p>Use a subagent when the task needs a different context, role, or permission set. Anthropic's <a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">Harness design for long-running application development</a> is the cleanest current example: planner, generator, and evaluator agents, with the evaluator catching functionality gaps the generator missed.</p>
+<p>Subagents are not free. They add latency, cost, orchestration complexity, and more traces to read. Use them when isolation helps: fresh-context review, read-only audits, parallel research, or adversarial checks. If the subagent is just a slower function call, make it a tool.</p>
+<hr />
+<h2 id="context-management-is-a-harness-decision">Context management is a harness decision</h2>
+<p>Long-running agents fail in boring ways. They forget what was already done. They overfit to stale assumptions. They spend half the run rebuilding a mental map that should have been written down. They decide a task is done because the context window feels full.</p>
+<p>There are three common responses.</p>
+<p><strong>Compaction</strong> summarizes older context so the same session can keep going. It is useful when the thread still has coherent direction and the agent needs continuity.</p>
+<p><strong>Progress handoff</strong> writes external artifacts that the next session can read: <code>PROGRESS.md</code>, a feature list, a failing-test log, a plan with checked boxes, or a small state file. It is useful when the run may outlast a context window or worker.</p>
+<p><strong>Context reset</strong> starts a fresh agent with a structured handoff. It is useful when the current thread has accumulated bad assumptions or when the model starts wrapping up too early.</p>
+<p>The mistake is treating these as model-independent best practices. They are harness hypotheses. On one model, compaction may be enough. On another, reset plus handoff may be load-bearing. On a new model, the reset may become dead weight.</p>
+<p>That is why harnesses need ablation.</p>
+<hr />
+<h2 id="measure-the-harness-not-the-vibes">Measure the harness, not the vibes</h2>
+<p>The strongest evidence for harness engineering is fixed-model measurement.</p>
+<p>OpenAI's <a href="https://openai.com/index/introducing-swe-bench-verified/">SWE-bench Verified report</a> warns that benchmark scores can reflect model plus scaffold, not model alone. Their GPT-4 example on SWE-bench Lite varied from 2.7% with an early RAG-based scaffold to 28.3% with CodeR.</p>
+<p>LangChain published a more direct harness-only example in <a href="https://www.langchain.com/blog/improving-deep-agents-with-harness-engineering">Improving Deep Agents with harness engineering</a>: they kept <code>gpt-5.2-codex</code> fixed and changed the harness around <code>deepagents-cli</code>, moving Terminal-Bench 2.0 from 52.8% to 66.5%.</p>
+<p>Those numbers are not a universal conversion table. They are a warning. If you change the prompt, tools, filesystem, retries, evaluator, and trace loop at the same time, you do not know which part helped.</p>
+<p>The minimum useful ablation loop is:</p>
+<ol>
+<li>Pick a task suite that represents real work.</li>
+<li>Keep the model fixed.</li>
+<li>Keep the scoring rule fixed.</li>
+<li>Switch one harness component at a time.</li>
+<li>Track success, cost, wall time, retries, escaped defects, and human review minutes.</li>
+<li>Remove components that no longer improve the metric you care about.</li>
+</ol>
+<p>This is unglamorous. It is also how you keep a harness from fossilizing around last quarter's model failures.</p>
+<hr />
+<h2 id="a-tiny-ablation-demo">A tiny ablation demo</h2>
+<p>The demo in <code>work/demo/2026-06-10-harness-engineering/</code> uses a deterministic fake agent. Each task has one or more failure modes: flaky tools, lost state, stale context, self-review optimism, or ambiguous acceptance.</p>
+<p>The core of the runner is intentionally small:</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">run_task</span><span class="p">(</span><span class="n">task</span><span class="p">:</span> <span class="n">Task</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">HarnessConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunResult</span><span class="p">:</span>
+    <span class="n">attempts</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">tokens</span> <span class="o">=</span> <span class="mi">850</span> <span class="o">+</span> <span class="n">task</span><span class="o">.</span><span class="n">difficulty</span> <span class="o">*</span> <span class="mi">260</span>
+    <span class="n">failures</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">if</span> <span class="n">task</span><span class="o">.</span><span class="n">flaky_tool</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">config</span><span class="o">.</span><span class="n">retry_policy</span><span class="p">:</span>
+        <span class="n">failures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;flaky tool call was not retried&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">task</span><span class="o">.</span><span class="n">needs_progress_file</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">config</span><span class="o">.</span><span class="n">progress_handoff</span><span class="p">:</span>
+        <span class="n">failures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;next session lost task state&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">task</span><span class="o">.</span><span class="n">needs_fresh_evaluator</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">config</span><span class="o">.</span><span class="n">evaluator</span><span class="p">:</span>
+        <span class="n">failures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;self-review missed an implementation gap&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">task</span><span class="o">.</span><span class="n">ambiguous_done</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">config</span><span class="o">.</span><span class="n">fail_closed_acceptance</span><span class="p">:</span>
+        <span class="n">failures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;ambiguous acceptance defaulted to pass&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Run it from the demo directory:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>demo.py
+</code></pre></div>
+<p>Expected shape:</p>
+<div class="highlight"><pre><span></span><code>Harness ablation matrix
+config             passed  success  avg_attempts  avg_tokens
+bare-loop            1/12        8%          1.00        1738
+retry-only           2/12       17%          1.33        1798
+handoff-and-retry    5/12       42%          1.33        1890
+full-harness        12/12      100%          1.33        2151
+</code></pre></div>
+<p>The full harness costs more simulated tokens. That is the point. Some harness components are worth their overhead because they prevent escaped failures. Some are not. A real harness needs the same measurement against real traces.</p>
+<hr />
+<h2 id="what-to-study-in-open-harnesses">What to study in open harnesses</h2>
+<p>You do not need to copy a whole agent framework to learn from it. Read harnesses for the assumptions they encode.</p>
+<p><strong>Codex CLI</strong> is a local coding agent from OpenAI. The repository is useful because it shows a terminal-first harness with sandboxing, local execution, approvals, MCP support, and repo-level instructions in a production tool surface: <a href="https://github.com/openai/codex">openai/codex</a>.</p>
+<p><strong>Deep Agents</strong> is LangChain's opinionated harness on top of LangGraph. The docs call out planning, context compression, a virtual filesystem, MCP tools, shell execution, subagents, streaming, memory, permissions, and human-in-the-loop controls: <a href="https://docs.langchain.com/oss/python/deepagents/overview">Deep Agents overview</a>.</p>
+<p><strong>OpenHands</strong> is worth reading as a larger software-agent system. It exposes an SDK, CLI, local GUI, and cloud version, which makes the same harness ideas visible at different product boundaries: <a href="https://github.com/OpenHands/openhands">OpenHands/OpenHands</a>.</p>
+<p><strong>mini-SWE-agent</strong> is the opposite end of the spectrum: a small Python harness that still performs surprisingly well on SWE-bench Verified. It is useful because it strips away enough machinery that the remaining loop is easy to reason about: <a href="https://github.com/SWE-agent/mini-swe-agent">SWE-agent/mini-swe-agent</a>.</p>
+<p><strong>Terminal-Bench and Harbor</strong> are useful because they make the evaluation harness explicit. Terminal-Bench tasks include instructions, containers, tests, and oracle solutions; the harness connects agents to a sandboxed terminal and runs verification. That is close to the shape production teams need for their own regression suites: <a href="https://github.com/harbor-framework/terminal-bench">Terminal-Bench</a>.</p>
+<p>Read each project with one question in mind: what does this harness believe the model cannot safely or reliably do by itself?</p>
+<hr />
+<h2 id="the-ablation-habit">The ablation habit</h2>
+<p>A harness has to shrink too.</p>
+<p>It is tempting to add a progress file after one bad run, add a critic after one overconfident answer, add a retry after one flaky tool call, add a policy prompt after one bad shell command, and never remove any of it. Six months later the model is better, the task mix has changed, and half the harness is ritual.</p>
+<p>Anthropic makes this point directly in the March 2026 harness-design post: when a new model lands, re-examine the harness and strip away pieces that are no longer load-bearing.</p>
+<p>That is the discipline. The harness is not a shrine to model weaknesses. It is a working control system. When the model changes, measure again.</p>
+<hr />
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ol>
+<li>Harness engineering is the design of the loop around the model: prompts, tools, state, subagents, evaluators, retries, checks, traces, and approvals.</li>
+<li>Put behavior in the weakest place that can enforce it. Guidance can live in prompts. Hard boundaries belong in tools, scaffolding code, sandboxes, or policy gates.</li>
+<li>Treat every harness component as a hypothesis about model limitations.</li>
+<li>Compaction, progress handoff, and context reset solve different long-running-agent problems. Do not assume one is always best.</li>
+<li>Benchmark harness changes with the model and task suite held fixed.</li>
+<li>Remove components that stop improving success, cost, review time, or escaped-defect rate.</li>
+<li>Study open harnesses for their assumptions before copying their APIs.</li>
+</ol>
+<h2 id="references">References</h2>
+<ul>
+<li>OpenAI, <em><a href="https://openai.com/index/harness-engineering/">Harness engineering: leveraging Codex in an agent-first world</a></em>.</li>
+<li>OpenAI, <em><a href="https://openai.com/index/introducing-swe-bench-verified/">Introducing SWE-bench Verified</a></em>.</li>
+<li>Anthropic Engineering, <em><a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">Effective harnesses for long-running agents</a></em>.</li>
+<li>Anthropic Engineering, <em><a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">Harness design for long-running application development</a></em>.</li>
+<li>LangChain, <em><a href="https://www.langchain.com/blog/improving-deep-agents-with-harness-engineering">Improving Deep Agents with harness engineering</a></em>.</li>
+<li>LangChain docs, <em><a href="https://docs.langchain.com/oss/python/deepagents/overview">Deep Agents overview</a></em>.</li>
+<li>LangChain, <em><a href="https://github.com/langchain-ai/deepagents">deepagents</a></em>.</li>
+<li>OpenAI, <em><a href="https://github.com/openai/codex">Codex CLI</a></em>.</li>
+<li>OpenHands, <em><a href="https://github.com/OpenHands/openhands">OpenHands</a></em>.</li>
+<li>SWE-agent, <em><a href="https://github.com/SWE-agent/mini-swe-agent">mini-SWE-agent</a></em>.</li>
+<li>Yang et al., <em><a href="https://arxiv.org/abs/2405.15793">SWE-agent: Agent-Computer Interfaces Enable Automated Software Engineering</a></em>.</li>
+<li>Terminal-Bench, <em><a href="https://www.tbench.ai/">official site</a></em> and <em><a href="https://github.com/harbor-framework/terminal-bench">GitHub repository</a></em>.</li>
+<li>Merrill et al., <em><a href="https://arxiv.org/html/2601.11868v1">Terminal-Bench: Benchmarking Agents on Hard, Realistic Tasks in Command Line Interfaces</a></em>.</li>
+<li>Martin Fowler, <em><a href="https://martinfowler.com/articles/harness-engineering.html">Harness engineering for coding agent users</a></em>.</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+  
+
+
+  
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copiado para \u00e1rea de transfer\u00eancia", "clipboard.copy": "Copiar para \u00e1rea de transfer\u00eancia", "search.result.more.one": "Mais 1 nesta p\u00e1gina", "search.result.more.other": "Mais # nesta p\u00e1gina", "search.result.none": "Nenhum resultado encontrado", "search.result.one": "1 resultado encontrado", "search.result.other": "# resultados encontrados", "search.result.placeholder": "Digite para iniciar a busca", "search.result.term.missing": "Ausente", "select.version": "Selecione a vers\u00e3o"}, "version": null}</script>
+    
+    
+      <script src="../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../../../javascripts/mermaid-init.js"></script>
+      
+        <script src="../../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
