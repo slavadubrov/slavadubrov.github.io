@@ -1323,12 +1323,12 @@
 <p>Quantization maps a continuous set of float values <span class="arithmatex">\(x \in [\beta, \alpha]\)</span> to a discrete grid of integer or low-precision float values. The conversion utilizes two main strategies:</p>
 <ul>
 <li><strong>Symmetric Quantization</strong>: Centers the scale symmetrically around zero, setting the zero point to <span class="arithmatex">\(0\)</span>. This simplifies matrix multiplication kernels but can cause excessive clipping if the distribution is skewed:
-    $<span class="arithmatex">\(s = \frac{\max(|x|)}{q_{\max}}\)</span>$
-    $<span class="arithmatex">\(x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right), q_{\min}, q_{\max}\right)\)</span>$</li>
+  $<span class="arithmatex">\(s = \frac{\max(|x|)}{q_{\max}}\)</span>$
+  $<span class="arithmatex">\(x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right), q_{\min}, q_{\max}\right)\)</span>$</li>
 <li><strong>Asymmetric Quantization</strong>: Calculates a shifting zero-point (<span class="arithmatex">\(z\)</span>) to utilize the full bit range more effectively, at the cost of minor computational overhead:
-    $<span class="arithmatex">\(s = \frac{\alpha - \beta}{q_{\max} - q_{\min}}\)</span>$
-    $<span class="arithmatex">\(z = \text{round}\left(\frac{-\beta}{s}\right) + q_{\min}\)</span>$
-    $<span class="arithmatex">\(x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\max}\right)\)</span>$</li>
+  $<span class="arithmatex">\(s = \frac{\alpha - \beta}{q_{\max} - q_{\min}}\)</span>$
+  $<span class="arithmatex">\(z = \text{round}\left(\frac{-\beta}{s}\right) + q_{\min}\)</span>$
+  $<span class="arithmatex">\(x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\max}\right)\)</span>$</li>
 </ul>
 <h3 id="the-2026-precision-landscape">The 2026 Precision Landscape</h3>
 <p>The industry has settled on a multi-tiered precision matrix, varying by bit-width and execution hardware:</p>
@@ -1351,7 +1351,7 @@
 <p>The notation <strong>WxAy</strong> (where <span class="arithmatex">\(x\)</span> represents weight bit-width and <span class="arithmatex">\(y\)</span> represents activation bit-width) defines the execution profile of a quantized model. Choosing between weight-only and weight-activation quantization determines whether you are optimizing for memory capacity or compute throughput.</p>
 <p><img alt="Quantization Mechanics" src="../../../../review/assets/2026-06-19-model-quantization-guide-2026/quantization_mechanics.svg" /></p>
 <h3 id="weight-only-quantization-w8a16-w4a16">Weight-Only Quantization (W8A16 / W4A16)</h3>
-<p>In weight-only configurations, weights are stored in low precision (4-bit or 8-bit), but activations are kept in 16-bit (BF16/FP16). During inference, weights are transferred from high-bandwidth memory (HBM) to SRAM and dynamically dequantized back to 16-bit within the kernel before computation. </p>
+<p>In weight-only configurations, weights are stored in low precision (4-bit or 8-bit), but activations are kept in 16-bit (BF16/FP16). During inference, weights are transferred from high-bandwidth memory (HBM) to SRAM and dynamically dequantized back to 16-bit within the kernel before computation.</p>
 <ul>
 <li><strong>Best fit</strong>: Memory-bandwidth-bound workloads. This includes the autoregressive <strong>decode phase</strong>, low batch sizes, single-stream local inference, or long contexts where memory transfer is the primary bottleneck.</li>
 <li><strong>Limitation</strong>: The actual matrix multiplication still runs in 16-bit. You do not gain compute speedups on Tensor Cores; you only save memory transfer time.</li>
@@ -1376,7 +1376,7 @@
 <p>At serve time, the entire model must reside permanently in GPU VRAM to maintain low-latency token generation.</p>
 <ul>
 <li><strong>Total GPU Serving VRAM</strong>:
-    $<span class="arithmatex">\(\text{VRAM}_{\text{serve}} \approx \text{Quantized Weights} + \text{KV Cache} + \text{Runtime Activations} + \text{Engine Overhead}\)</span>$</li>
+  $<span class="arithmatex">\(\text{VRAM}_{\text{serve}} \approx \text{Quantized Weights} + \text{KV Cache} + \text{Runtime Activations} + \text{Engine Overhead}\)</span>$</li>
 <li><strong>Practical consequence</strong>: The serving footprint can easily exceed the offline quantization peak. A 70B model quantized to W4A16 needs ~35 GB for weights, but serving it under heavy concurrent load with a long context can push VRAM usage past 80 GB due to KV cache growth.</li>
 </ul>
 <hr />
@@ -1450,13 +1450,15 @@
 <h2 id="5-servicing-bottlenecks-the-kv-cache">5. Servicing Bottlenecks: The KV Cache</h2>
 <p>For long-context models (e.g., 32K to 128K tokens), VRAM consumption is dominated by the <strong>Key-Value (KV) cache</strong> during autoregressive decoding. The formula for the KV cache footprint in bytes is:</p>
 <div class="arithmatex">\[\text{KV Cache Memory} = 2 \times L \times H_{\text{kv}} \times D \times S_{\text{ctx}} \times B_{\text{batch}} \times \text{BytesPerParam}\]</div>
-<p>Where:
-*   <span class="arithmatex">\(L\)</span> = Number of layers
-*   <span class="arithmatex">\(H_{\text{kv}}\)</span> = Number of KV heads (Grouped-Query Attention reduces this by <span class="arithmatex">\(8\times\)</span>)
-*   <span class="arithmatex">\(D\)</span> = Head dimension
-*   <span class="arithmatex">\(S_{\text{ctx}}\)</span> = Context window size in tokens
-*   <span class="arithmatex">\(B_{\text{batch}}\)</span> = Serving batch size
-*   <span class="arithmatex">\(\text{BytesPerParam}\)</span> = <span class="arithmatex">\(2.0\)</span> for BF16, <span class="arithmatex">\(1.0\)</span> for FP8, and <span class="arithmatex">\(0.5\)</span> for FP4</p>
+<p>Where:</p>
+<ul>
+<li><span class="arithmatex">\(L\)</span> = Number of layers</li>
+<li><span class="arithmatex">\(H_{\text{kv}}\)</span> = Number of KV heads (Grouped-Query Attention reduces this by <span class="arithmatex">\(8\times\)</span>)</li>
+<li><span class="arithmatex">\(D\)</span> = Head dimension</li>
+<li><span class="arithmatex">\(S_{\text{ctx}}\)</span> = Context window size in tokens</li>
+<li><span class="arithmatex">\(B_{\text{batch}}\)</span> = Serving batch size</li>
+<li><span class="arithmatex">\(\text{BytesPerParam}\)</span> = <span class="arithmatex">\(2.0\)</span> for BF16, <span class="arithmatex">\(1.0\)</span> for FP8, and <span class="arithmatex">\(0.5\)</span> for FP4</li>
+</ul>
 <p>For example, a single request to Llama 3.3 70B at a 128K context window consumes roughly <strong>32.7 GB</strong> of VRAM for the KV cache in BF16. Concurrent serving of just 4 requests requires <strong>130.8 GB</strong> for the cache alone—far exceeding the weight footprint of the model.</p>
 <h3 id="mitigation-strategies">Mitigation Strategies</h3>
 <ol>
@@ -1465,32 +1467,38 @@
 </ol>
 <hr />
 <h2 id="6-sparsification-and-structured-pruning">6. Sparsification and Structured Pruning</h2>
-<p>Quantization reduces bit-width; sparsification removes weights entirely. </p>
+<p>Quantization reduces bit-width; sparsification removes weights entirely.</p>
 <h3 id="24-structured-sparsity">2:4 Structured Sparsity</h3>
 <p>Unstructured pruning (zeroing out arbitrary weights) fails to yield hardware speedups because memory controllers must still load the zero elements. NVIDIA's <strong>2:4 structured sparsity</strong> requires exactly two out of every four consecutive weights in a row to be zero. Sparse Tensor Cores bypass these zero values at the hardware level, doubling matrix multiplication throughput and compressing weight storage by <span class="arithmatex">\(2\times\)</span>.</p>
 <div class="highlight"><pre><span></span><code>Dense Weights:      [ 0.4,  0.0, -0.8,  0.2 ] -&gt; (Requires 4 operations)
 2:4 Sparse Weights: [ 0.4,  0.0, -0.8,  0.0 ] -&gt; (Executes in 2 hardware cycles)
 </code></pre></div>
-<p>To enforce 2:4 patterns post-training, two algorithms are commonly deployed:
-*   <strong>SparseGPT</strong>: Minimizes reconstruction error using inverse Hessian information. It is accurate but computationally expensive (demanding ~80GB VRAM for a 70B run).
-*   <strong>Wanda (Weights and Activations)</strong>: Prunes weights based on a simple score: the product of the weight magnitude and the <span class="arithmatex">\(L_2\)</span> norm of the input activations. Wanda requires no Hessian calculations, running <span class="arithmatex">\(5\times\)</span> to <span class="arithmatex">\(10\times\)</span> faster than SparseGPT with half the peak memory usage.</p>
+<p>To enforce 2:4 patterns post-training, two algorithms are commonly deployed:</p>
+<ul>
+<li><strong>SparseGPT</strong>: Minimizes reconstruction error using inverse Hessian information. It is accurate but computationally expensive (demanding ~80GB VRAM for a 70B run).</li>
+<li><strong>Wanda (Weights and Activations)</strong>: Prunes weights based on a simple score: the product of the weight magnitude and the <span class="arithmatex">\(L_2\)</span> norm of the input activations. Wanda requires no Hessian calculations, running <span class="arithmatex">\(5\times\)</span> to <span class="arithmatex">\(10\times\)</span> faster than SparseGPT with half the peak memory usage.</li>
+</ul>
 <h3 id="slidesparse">SlideSparse</h3>
 <p>Enforcing a strict 2:4 sparsity pattern on newer models can degrade reasoning performance (e.g., dropping average math accuracy on Qwen3 models from 78% to 45%). <strong>SlideSparse</strong> addresses this by using <strong>Sliding Window Decomposition</strong> to map arbitrary structured patterns (like 6:8 or 4:6) onto native 2:4 hardware. By decomposing the weight matrix offline and duplicating ("lifting") activations online during token quantization, SlideSparse retains accuracy while achieving up to 1.7x hardware speedups.</p>
 <hr />
 <h2 id="7-quantization-in-generative-image-models">7. Quantization in Generative Image Models</h2>
-<p>Quantizing diffusion and Diffusion Transformer (DiT) models presents different architectural challenges than autoregressive LLMs. </p>
+<p>Quantizing diffusion and Diffusion Transformer (DiT) models presents different architectural challenges than autoregressive LLMs.</p>
 <h3 id="timestep-dependent-activation-drift">Timestep-Dependent Activation Drift</h3>
-<p>Unlike LLMs, diffusion models run recursively over <span class="arithmatex">\(N\)</span> denoising steps. Quantization errors accumulate across these steps. More importantly, activation distributions shift dramatically over the denoising trajectory (often exhibiting bimodal shapes during early steps and uniform shapes later). </p>
+<p>Unlike LLMs, diffusion models run recursively over <span class="arithmatex">\(N\)</span> denoising steps. Quantization errors accumulate across these steps. More importantly, activation distributions shift dramatically over the denoising trajectory (often exhibiting bimodal shapes during early steps and uniform shapes later).</p>
 <p>Naive PTQ causes immediate visual artifacts or total image collapse. Algorithms like <strong>Q-Diffusion</strong> address this with timestep-aware calibration sampling and split shortcut quantization.</p>
 <h3 id="component-level-selective-quantization">Component-Level Selective Quantization</h3>
-<p>In production pipelines (like FLUX.1 or Stable Diffusion 3.5), uniform quantization is avoided. Instead, selective quantization is applied based on component sensitivity:
-*   <strong>Transformer / DiT Blocks</strong>: Quantize well (e.g., to FP8 or INT4) and yield the highest compute and memory savings.
-*   <strong>VAE (Variational Autoencoder)</strong>: Retained in high precision (BF16/FP32). The VAE decoder is highly sensitive; quantizing it causes immediate color banding and texture warping.
-*   <strong>Text Encoders (T5-XXL / CLIP-L)</strong>: Quantized selectively. Keeping them in FP8 or GGUF Q8 maintains prompt alignment while saving VRAM.</p>
+<p>In production pipelines (like FLUX.1 or Stable Diffusion 3.5), uniform quantization is avoided. Instead, selective quantization is applied based on component sensitivity:</p>
+<ul>
+<li><strong>Transformer / DiT Blocks</strong>: Quantize well (e.g., to FP8 or INT4) and yield the highest compute and memory savings.</li>
+<li><strong>VAE (Variational Autoencoder)</strong>: Retained in high precision (BF16/FP32). The VAE decoder is highly sensitive; quantizing it causes immediate color banding and texture warping.</li>
+<li><strong>Text Encoders (T5-XXL / CLIP-L)</strong>: Quantized selectively. Keeping them in FP8 or GGUF Q8 maintains prompt alignment while saving VRAM.</li>
+</ul>
 <h3 id="svdquant-and-nunchaku">SVDQuant and Nunchaku</h3>
-<p>For local workstations, <strong>SVDQuant</strong> (implemented in the <strong>Nunchaku</strong> engine) is the state-of-the-art W4A4 execution format. It addresses the activation outlier problem by splitting the computation:
-1.  A high-precision <strong>low-rank branch (SVD)</strong> processes outlier dimensions.
-2.  A 4-bit branch processes the residuals.</p>
+<p>For local workstations, <strong>SVDQuant</strong> (implemented in the <strong>Nunchaku</strong> engine) is the state-of-the-art W4A4 execution format. It addresses the activation outlier problem by splitting the computation:</p>
+<ol>
+<li>A high-precision <strong>low-rank branch (SVD)</strong> processes outlier dimensions.</li>
+<li>A 4-bit branch processes the residuals.</li>
+</ol>
 <p>Nunchaku fuses the SVD branch directly into the 4-bit kernels, adding minimal latency. For the 12B parameter FLUX.1-dev model, SVDQuant reduces the transformer footprint from 23.8 GB (BF16) to 6.1 GB (INT4). This allows the entire pipeline (including T5 text encoders) to run un-offloaded on a single 16GB laptop GPU, delivering an <span class="arithmatex">\(8.7\times\)</span> speedup by eliminating slow CPU offloading.</p>
 <hr />
 <h2 id="8-sizing-and-selection-guide">8. Sizing and Selection Guide</h2>
