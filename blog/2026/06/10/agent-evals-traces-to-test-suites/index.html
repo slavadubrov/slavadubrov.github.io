@@ -1699,6 +1699,7 @@
 <span class="nb">print</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">tool_correctness</span><span class="p">(</span><span class="n">called</span><span class="p">,</span> <span class="n">expected</span><span class="p">,</span> <span class="s2">&quot;exact&quot;</span><span class="p">),</span> <span class="mi">3</span><span class="p">))</span>     <span class="c1"># 0.0</span>
 <span class="nb">print</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">tool_correctness</span><span class="p">(</span><span class="n">called</span><span class="p">,</span> <span class="n">expected</span><span class="p">,</span> <span class="s2">&quot;in_order&quot;</span><span class="p">),</span> <span class="mi">3</span><span class="p">))</span>  <span class="c1"># 0.667</span>
 </code></pre></div>
+<p>The <code>in_order</code> score is longest-common-subsequence recall: what fraction of the required sequence survived, in the right order. Notice what it ignores. Junk calls don't lower it, so an agent can score 1.0 here while making twice the calls it needed. When extra calls cost money or mutate state, track precision alongside it (matched required calls over total calls) and read the two together. Recall catches the missing step; precision catches the wandering.</p>
 <p><a href="https://deepeval.com/docs/metrics-tool-correctness">DeepEval's Tool Correctness metric</a> exposes the same knobs through <code>should_consider_ordering</code> and <code>should_exact_match</code>.</p>
 <h3 id="argument-correctness">Argument correctness</h3>
 <p>Calling the right tool with the wrong arguments is often worse than calling the wrong tool because the trace looks normal.</p>
@@ -1716,6 +1717,17 @@
 <span class="p">}</span>
 </code></pre></div>
 <p>A tool-name metric can't catch <code>2026-06-17</code> where the policy requires <code>2026-06-19</code>. The dataset has to store arguments too.</p>
+<p>The score that goes with that dataset is parameter-match: the fraction of expected <code>(tool, key, value)</code> triples the agent got right.</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">argument_correctness</span><span class="p">(</span><span class="n">called_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">expected_args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="n">matched</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">tool</span><span class="p">,</span> <span class="n">params</span> <span class="ow">in</span> <span class="n">expected_args</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">want</span> <span class="ow">in</span> <span class="n">params</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">called_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tool</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="o">==</span> <span class="n">want</span><span class="p">:</span>
+                <span class="n">matched</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">matched</span> <span class="o">/</span> <span class="n">total</span> <span class="k">if</span> <span class="n">total</span> <span class="k">else</span> <span class="mf">1.0</span>
+</code></pre></div>
+<p>Exact equality is right for IDs, enums, and dates. It's wrong for free text and floats, where <code>==</code> flags a correct answer as wrong. Grade those fields on their own terms: a normalized string match, a date parse, a numeric tolerance. The metric stays the same; the per-field comparator changes.</p>
 <h3 id="efficiency-loops-and-dead-ends">Efficiency, loops, and dead ends</h3>
 <p>An agent that completes the task after five redundant tool calls still signals a planning problem and costs more to run.</p>
 <p>Cheap signals you should start with:</p>
@@ -1724,6 +1736,7 @@
 <li><strong>Trace shape anomalies</strong>: sudden spikes in depth, tool-call count, token count, latency, or cost.</li>
 <li><strong>Path convergence</strong>: how close the run is to the shortest known valid path for the task.</li>
 <li><strong>Termination correctness</strong>: whether the agent stopped early, kept working after success, or declared success without the required state change.</li>
+<li><strong>Plan adherence</strong>: if the agent writes a plan before acting, check whether the trace followed it. A good plan ignored and a bad plan followed perfectly both fail, for opposite reasons, and the diff between plan and trace tells you which.</li>
 </ul>
 <p>Run these before a judge whenever you can. A loop detector is a few lines over the trace. It doesn't need a model.</p>
 <h3 id="task-completion-and-outcome-grading">Task completion and outcome grading</h3>
@@ -1734,6 +1747,7 @@
 <li><strong>Environment-state grading</strong>: compare the final database rows, files, tickets, bookings, or records to an annotated goal state. This is more robust than transcript matching because agents can find valid paths you didn't write down.</li>
 </ul>
 <p>The second option is better when you can build it. The final state is the contract. The transcript is only evidence.</p>
+<p>Two caveats keep this honest, both from the benchmark that popularized state grading. tau-bench can hand a passing score to an agent that does nothing on certain no-op tasks, because the starting state already satisfied the goal. And Anthropic reported an Opus 4.5 run that "failed" a tau2-bench booking task by finding a policy loophole that was actually the better outcome for the user. State grading beats transcript matching, but the goal state is still an annotation, and annotations have bugs. Audit the cases that pass too easily, not only the ones that fail.</p>
 <hr />
 <h2 id="the-trace-to-eval-flywheel">The trace-to-eval flywheel</h2>
 <p>Don't brainstorm your eval set first. Mine production failures.</p>
@@ -1794,7 +1808,7 @@
 <hr />
 <h2 id="calibrate-the-judge-before-trusting-it">Calibrate the judge before trusting it</h2>
 <p>LLM-as-judge helps. It's also easy to fool yourself with.</p>
-<p>The idea has a track record. <a href="https://arxiv.org/abs/2303.16634">G-Eval</a> showed that a judge walking through an explicit rubric step by step tracks human ratings better than the older automatic metrics it replaced. <a href="https://arxiv.org/abs/2306.05685">MT-Bench</a> showed GPT-4 agreeing with human preferences about as often as humans agree with each other, which is what made LLM judging mainstream. Then the caveats arrived: judges favor whichever answer appears first in a pairwise prompt, score longer answers higher, prefer outputs from their own model family, credit confident claims they never verified, and shift when the prompt or model version changes. <a href="https://arxiv.org/abs/2410.12784">JudgeBench</a> tested judges on response pairs where one answer is objectively wrong and found that even strong judges hover near coin-flip accuracy on the hard cases.</p>
+<p>The idea has a track record. <a href="https://arxiv.org/abs/2303.16634">G-Eval</a> showed that a judge that first writes out explicit rubric steps, then scores by summing each rating level weighted by its token probability (<span class="arithmatex">\(\text{score} = \sum_i p(s_i)\,s_i\)</span>), tracks human ratings better than the older automatic metrics it replaced. That probability-weighted step needs logprobs from the judge, which not every hosted model exposes, but the durable lesson holds without it: a judge that reasons through the rubric beats one that emits a bare number. <a href="https://arxiv.org/abs/2306.05685">MT-Bench</a> showed GPT-4 agreeing with human preferences about as often as humans agree with each other, which is what made LLM judging mainstream. Then the caveats arrived: judges favor whichever answer appears first in a pairwise prompt, score longer answers higher, prefer outputs from their own model family, credit confident claims they never verified, and shift when the prompt or model version changes. <a href="https://arxiv.org/abs/2410.12784">JudgeBench</a> built response pairs where one answer is objectively wrong (verifiable knowledge, reasoning, math, and code) and found GPT-4o scored 50.9% there, basically a coin flip, with the strongest judge tested topping out near 64%. Those are exactly the cases where a confident wrong answer is easiest to wave through.</p>
 <p>Treat the judge as a measurement instrument: calibrate it against human labels before it grades anything, and recheck it whenever the judge model or prompt moves.</p>
 <p><img alt="Judge calibration loop" src="../../../../assets/2026-06-10-agent-evals-traces-to-test-suites/judge-calibration-loop.svg" /></p>
 <p>When a judge is required, make the verdict structured. <a href="/blog/2025/12/28/schema-guided-reasoning-vllm/">Schema-Guided Reasoning (SGR)</a> is the default pattern here: define the judge's reasoning path as a Pydantic schema, run it through Structured Outputs or constrained decoding, and force the model to emit fields like <code>evidence</code>, <code>passed_criteria</code>, <code>failed_criteria</code>, <code>failure_mode</code>, and <code>score</code>.</p>
