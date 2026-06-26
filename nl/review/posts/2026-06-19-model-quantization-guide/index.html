@@ -1007,10 +1007,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#ptq-and-qat-answer-a-different-question" class="md-nav__link">
+  <a href="#ptq-and-qat-happen-at-different-stages" class="md-nav__link">
     <span class="md-ellipsis">
       
-        PTQ and QAT answer a different question
+        PTQ and QAT happen at different stages
       
     </span>
   </a>
@@ -1023,10 +1023,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#3-precision-formats-set-the-ceiling" class="md-nav__link">
+  <a href="#3-number-formats-dictate-hardware-requirements" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Precision formats set the ceiling
+        3. Number formats dictate hardware requirements
       
     </span>
   </a>
@@ -1034,10 +1034,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#4-weight-only-and-w8a8-solve-different-problems" class="md-nav__link">
+  <a href="#4-weight-only-vs-weight-activation-quantization" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. Weight-only and W8A8 solve different problems
+        4. Weight-only vs. Weight-Activation Quantization
       
     </span>
   </a>
@@ -1045,15 +1045,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#5-algorithms-are-not-kernels" class="md-nav__link">
+  <a href="#5-algorithms-vs-runtime-kernels" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. Algorithms are not kernels
+        5. Algorithms vs. Runtime Kernels
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="5. Algorithms are not kernels">
+    <nav class="md-nav" aria-label="5. Algorithms vs. Runtime Kernels">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1128,10 +1128,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#11-defaults-i-would-ship" class="md-nav__link">
+  <a href="#11-production-defaults" class="md-nav__link">
     <span class="md-ellipsis">
       
-        11. Defaults I would ship
+        11. Production Defaults
       
     </span>
   </a>
@@ -1190,8 +1190,8 @@
 
 
 <h1 id="model-quantization-in-2026-from-foundations-to-production-serving">Model Quantization in 2026: From Foundations to Production Serving</h1>
-<p>Quantization sounds like one trick: use fewer bits, save memory, go faster. That version is too neat.</p>
-<p>In real serving systems, quantization is a trade-off between weight memory, activation math, KV cache size, runtime kernels, hardware support, calibration data, and quality regression. A 4-bit model can fit in VRAM and still run slowly. FP8 can be excellent on Hopper and useless on hardware without native FP8 tensor cores. KV cache quantization can matter more than weight quantization once long context and concurrency take over the memory budget.</p>
+<p>Quantization is rarely a single button you press to use fewer bits and save memory.</p>
+<p>In production serving systems, quantization requires balancing weight memory, activation compute, KV cache size, runtime kernels, hardware support, calibration data, and quality. A 4-bit model might fit in VRAM but run slowly if the kernel is poorly optimized. FP8 is excellent on NVIDIA Hopper GPUs but useless on hardware without native FP8 tensor cores. KV cache quantization often matters more than weight quantization when handling long context and high concurrency.</p>
 <!-- more -->
 
 <p><strong>TL;DR</strong>: Pick the bottleneck before you pick the bit-width. Use <strong>AWQ</strong> or <strong>GPTQ</strong> when weights don't fit in VRAM. Use <strong>FP8 W8A8</strong> when you serve high-throughput workloads on GPUs with FP8 support. Quantize the <strong>KV cache</strong> when long context or high concurrency eats memory. Use <strong>GGUF</strong> for local CPU, Apple Silicon, and desktop inference. Keep <strong>NF4</strong> mostly for QLoRA-style fine-tuning, not as the default production serving format.</p>
@@ -1199,7 +1199,7 @@
 <hr />
 <h2 id="1-start-with-the-bottleneck">1. Start with the bottleneck</h2>
 <p>The useful question is not "How many bits can I remove?" It's "What is limiting this workload right now?"</p>
-<p>That answer usually falls into one of six buckets:</p>
+<p>Common bottlenecks and their starting points:</p>
 <table>
 <thead>
 <tr>
@@ -1248,7 +1248,7 @@
 </tr>
 </tbody>
 </table>
-<p>The rest of the article explains why this table works. First we need the mechanics. Then we can talk about algorithms, kernels, memory sizing, hardware, and the evaluation gate.</p>
+<p>The rest of this guide explains the mechanics behind these choices, including algorithms, kernels, memory sizing, hardware constraints, and evaluation methods.</p>
 <h3 id="a-few-terms-before-the-math">A few terms before the math</h3>
 <ul>
 <li><strong>W{x}A{y}</strong> tells you the precision for weights and activations. <strong>W4A16</strong> stores weights in 4-bit form and keeps activations in 16-bit precision. <strong>W8A8</strong> stores and computes with 8-bit weights and activations.</li>
@@ -1261,7 +1261,7 @@
 <hr />
 <h2 id="2-quantization-is-controlled-rounding">2. Quantization is controlled rounding</h2>
 <p>Quantization maps high-precision values into a smaller set of representable values. You save memory and bandwidth. You also introduce rounding error.</p>
-<p>Think of rounding prices to the nearest dollar. That's fine for a rough budget and wrong for payroll. Neural networks have the same shape of problem. BF16 can represent subtle variation. INT4 gives you 16 buckets. If those buckets preserve the model's useful behavior, you gain capacity. If they crush a sensitive layer or an outlier channel, the model starts losing reasoning, instruction following, code quality, or visual fidelity.</p>
+<p>Quantizing from BF16 to INT4 reduces the available values to just 16 discrete buckets. If these buckets accurately capture the model's weight distribution, you save memory without losing capabilities. If the quantization grid crushes an important outlier channel, the model loses reasoning, instruction following, or visual fidelity.</p>
 <h3 id="symmetric-and-asymmetric-mapping">Symmetric and asymmetric mapping</h3>
 <p>Quantization maps a continuous float value <span class="arithmatex">\(x \in [\beta, \alpha]\)</span> to a discrete grid.</p>
 <ul>
@@ -1292,18 +1292,18 @@ x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\m
 <p>That shifted grid can preserve positive-only activations better, but the offset adds work unless the kernel handles it well.</p>
 <p><img alt="How quantization maps high precision values into low precision buckets" src="../../../../review/assets/2026-06-19-model-quantization-guide/quantization-basic-loop.svg" /></p>
 <h3 id="scale-granularity-matters">Scale granularity matters</h3>
-<p>The scale can cover a whole tensor, one channel, or a small group of values. Smaller groups usually preserve quality better. They also store more metadata.</p>
+<p>The scale factor can cover a whole weight tensor, one channel, or a small group of values. Smaller groups usually preserve quality better, but they require storing more scale metadata.</p>
 <ul>
-<li><strong>Per-tensor scaling</strong> uses one scale for a whole weight matrix. It's simple, but one outlier can stretch the range and waste most of the buckets.</li>
-<li><strong>Per-channel scaling</strong> gives each output channel its own scale. This is a common default for 8-bit weight quantization.</li>
-<li><strong>Per-group scaling</strong> splits rows into blocks, often 64 or 128 values per group. This is the usual sweet spot for 4-bit weight-only formats.</li>
+<li><strong>Per-tensor scaling</strong>: Uses one scale factor for an entire weight matrix. It's computationally simple, but a single outlier weight anywhere in the matrix will stretch the integer grid, destroying precision for every other weight in that layer.</li>
+<li><strong>Per-channel scaling</strong>: Assigns a separate scale factor to each row (output channel) of the weight matrix. Because different output neurons have different numerical ranges, giving each channel its own scale prevents narrow ranges from losing precision to accommodate wider channels. This is the standard default for 8-bit weight quantization.</li>
+<li><strong>Per-group (block-wise) scaling</strong>: Splits each row of the weight matrix into smaller sequential blocks—typically 64 or 128 elements—and assigns a scale factor to each block. This is the sweet spot for 4-bit weight formats because it isolates extreme outlier weights to a tiny local group (e.g., <code>group_size=128</code>), preserving accuracy across the rest of the layer's weights.</li>
 </ul>
-<p>Weights are static, so their scales can be computed offline. Activations change with every token. That creates two serving choices:</p>
+<p>Weights are static, so their scales can be computed offline before you ever load the model. Activations change with every token, which means their ranges are unpredictable. That creates two serving choices for handling activations:</p>
 <ul>
-<li><strong>Static activation scaling</strong> computes scales before serving from calibration data. It's fast at runtime, but only works if calibration data resembles production traffic.</li>
-<li><strong>Dynamic activation scaling</strong> computes scales while serving. It handles prompt variation better, but adds runtime work and needs kernel support.</li>
+<li><strong>Static activation scaling</strong> computes activation scales offline using a calibration dataset, then hardcodes those scales into the model. At runtime, the model uses these fixed scales without doing extra math. It's fast, but it only works if your calibration data perfectly matches the input lengths and distributions you see in production. If a production prompt creates an activation spike outside the calibrated range, the model truncates it, breaking the output.</li>
+<li><strong>Dynamic activation scaling</strong> calculates the scale for the activations on the fly during the forward pass, looking at the actual token values in that exact moment. It handles prompt variation perfectly and captures unexpected activation spikes, but calculating the min and max of the activation tensor at every layer adds runtime overhead and requires specialized, optimized kernels to be fast.</li>
 </ul>
-<h3 id="ptq-and-qat-answer-a-different-question">PTQ and QAT answer a different question</h3>
+<h3 id="ptq-and-qat-happen-at-different-stages">PTQ and QAT happen at different stages</h3>
 <p>Post-training quantization, or <strong>PTQ</strong>, compresses a trained model after the fact. Quantization-aware training, or <strong>QAT</strong>, exposes the model to quantization noise during training so it can adapt.</p>
 <table>
 <thead>
@@ -1341,10 +1341,10 @@ x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\m
 </tr>
 </tbody>
 </table>
-<p>Calibration is not ceremony. If production prompts are long RAG traces, calibrating on short Wikipedia paragraphs can produce clean benchmark numbers and bad production behavior.</p>
+<p>Calibration must reflect reality. If production prompts are long RAG traces, calibrating on short Wikipedia paragraphs will produce clean benchmark numbers but broken production behavior. The model will overfit its activation scales to short text and fail when it encounters the different activation patterns of long context.</p>
 <hr />
-<h2 id="3-precision-formats-set-the-ceiling">3. Precision formats set the ceiling</h2>
-<p>The number format decides what values can be stored. The runtime decides whether those values run fast.</p>
+<h2 id="3-number-formats-dictate-hardware-requirements">3. Number formats dictate hardware requirements</h2>
+<p>The number format defines what values the model can represent in memory. But storing a format doesn't mean your GPU can compute with it efficiently. Fast execution requires the hardware to have native tensor cores for that specific bit-width and format.</p>
 <table>
 <thead>
 <tr>
@@ -1399,21 +1399,21 @@ x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\m
 </tr>
 </tbody>
 </table>
-<p>BF16 and FP16 both use 16 bits, but they fail differently. <strong>BF16</strong> keeps the 8-bit exponent range of FP32 and is harder to overflow. <strong>FP16</strong> has more mantissa bits but a narrower exponent range, so activation spikes need more care.</p>
+<p>BF16 and FP16 both use 16 bits, but they distribute precision differently, leading to different failure modes. <strong>BF16</strong> keeps the 8-bit exponent range of FP32 and is harder to overflow. <strong>FP16</strong> has more mantissa bits but a narrower exponent range, so activation spikes need more care.</p>
 <p>FP8 has two common OCP variants. <strong>E4M3</strong> gives more precision and is usually used for forward weights and activations. <strong>E5M2</strong> gives more dynamic range and is more useful for gradients or volatile activation paths. In Kurtic et al.'s ACL 2025 study, "Give Me BF16 or Give Me Death," FP8 W8A8 was effectively lossless on the Llama-3.1 family over more than 500,000 evaluations. That doesn't mean every FP8 deployment is automatic. It means the format is strong when the serving stack uses it correctly.</p>
-<p>Blackwell adds microscaling formats such as <strong>MXFP8</strong> and <strong>NVFP4</strong>. Instead of one scale for a whole tensor or row, microscaling uses tiny blocks. NVIDIA's NVFP4 stores 4-bit floating-point values in blocks of 16, with FP8 scale factors and a higher-level FP32 scale. The promise is obvious: near-INT4 footprint with floating-point behavior. The catch is also obvious. You need the matching hardware, compiler, and runtime path.</p>
+<p>Blackwell adds microscaling formats such as <strong>MXFP8</strong> and <strong>NVFP4</strong>. Instead of one scale for a whole tensor or row, microscaling uses tiny blocks. NVIDIA's NVFP4 stores 4-bit floating-point values in blocks of 16, with FP8 scale factors and a higher-level FP32 scale. This approach aims to provide a near-INT4 footprint with floating-point behavior. However, it requires a matching hardware architecture, compiler, and runtime support.</p>
 <hr />
-<h2 id="4-weight-only-and-w8a8-solve-different-problems">4. Weight-only and W8A8 solve different problems</h2>
-<p>The notation <strong>WxAy</strong> matters because weights and activations stress the GPU in different ways.</p>
+<h2 id="4-weight-only-vs-weight-activation-quantization">4. Weight-only vs. Weight-Activation Quantization</h2>
+<p>The notation <strong>WxAy</strong> describes the precision of weights and activations, which stress the GPU in different ways during inference.</p>
 <p><img alt="Quantization Mechanics: Weight-Only vs. Weight-Activation" src="../../../../review/assets/2026-06-19-model-quantization-guide/quantization_mechanics.svg" /></p>
 <p>During <strong>prefill</strong>, the model processes the input prompt. This phase is usually compute-bound because the GPU is doing large matrix multiplications.</p>
 <p>During <strong>decode</strong>, the model generates one token at a time. This phase is often memory-bandwidth-bound because the GPU keeps loading weights from VRAM to produce the next token.</p>
 <p><strong>W4A16</strong> compresses weights and keeps activations in BF16 or FP16. The GPU loads fewer weight bytes, then dequantizes the weights back into a higher-precision form for the multiply. This helps decode and fit-to-memory problems. It doesn't magically speed up compute-bound prefill, because the actual matrix math still runs in 16-bit.</p>
 <p><strong>W8A8</strong> compresses weights and activations. If the hardware has native low-precision tensor cores, the serving engine can run matrix math directly in FP8 or INT8. That's why FP8 can help high-throughput serving: it reduces memory traffic and uses faster arithmetic.</p>
-<p>So which one should you choose? If the model barely fits, start with weight-only quantization. If the model already fits but throughput is poor under batch load, look at FP8 or INT8 W8A8. If the memory problem appears only with long conversations, inspect the KV cache before squeezing the weights again.</p>
+<p>If the model barely fits in VRAM, start with weight-only quantization to reduce the memory footprint. If the model fits but struggles with throughput under high batch loads, evaluate FP8 or INT8 W8A8 to accelerate the compute phase. If memory issues only appear during long conversations, quantize the KV cache rather than compressing the weights further.</p>
 <hr />
-<h2 id="5-algorithms-are-not-kernels">5. Algorithms are not kernels</h2>
-<p>GPTQ, AWQ, SmoothQuant, and similar methods decide how the model is quantized. Kernels decide whether that quantized model actually runs fast.</p>
+<h2 id="5-algorithms-vs-runtime-kernels">5. Algorithms vs. Runtime Kernels</h2>
+<p>Quantization algorithms (like GPTQ or AWQ) define how the model's weights are mapped to lower precision. Runtime kernels (like Marlin or vLLM's custom kernels) are the low-level GPU code that executes the matrix multiplication. A highly compressed model will only run fast if there is an optimized kernel for its specific quantization format.</p>
 <p><img alt="Quantization algorithm and runtime kernel both shape serving results" src="../../../../review/assets/2026-06-19-model-quantization-guide/kernel-vs-algorithm-benchmark-map.svg" /></p>
 <p>JarvisLabs' vLLM benchmark on Qwen2.5-32B-Instruct with an NVIDIA H200 shows the trap:</p>
 <table>
@@ -1478,8 +1478,8 @@ x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\m
 </tr>
 </tbody>
 </table>
-<p>Don't paste those numbers into a capacity plan. They belong to one model, one GPU class, one benchmark setup, and one software stack. The lesson travels better than the numbers: a quantization algorithm is not a serving engine.</p>
-<p>The AWQ to Marlin-AWQ jump is the clearest example. Both use 4-bit weights. The Marlin path is faster because its CUDA kernel fuses dequantization and matrix multiplication into a tighter GPU pipeline. Same quantized checkpoint idea. Very different runtime behavior.</p>
+<p>These specific numbers only apply to one model, one GPU class, and one software stack. The key takeaway is that the chosen algorithm does not guarantee performance; the serving engine's kernel implementation dictates the actual throughput.</p>
+<p>For example, AWQ and Marlin-AWQ both use the same 4-bit weights. The Marlin implementation is much faster because its CUDA kernel fuses dequantization and matrix multiplication into a single, highly optimized GPU operation.</p>
 <p>Benchmark the baseline and the compressed variants under the same prompt mix:</p>
 <div class="highlight"><pre><span></span><code>vllm<span class="w"> </span>bench<span class="w"> </span>serve<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--model<span class="w"> </span>./outputs/Qwen2.5-32B-Instruct-AWQ-W4A16<span class="w"> </span><span class="se">\</span>
@@ -1545,11 +1545,11 @@ x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\m
 </tr>
 </tbody>
 </table>
-<p>The toolchain has also moved. <strong>AutoGPTQ</strong> was archived in April 2025, and <strong>AutoAWQ</strong> was deprecated in late 2025. For new work, start with <strong>llm-compressor</strong> for <code>compressed-tensors</code> checkpoints consumed by vLLM, or <strong>GPTQModel</strong> when you need the active GPTQ path with Marlin, Machete, MoE memory options, and disk offload.</p>
-<p>Sparsity and distillation sit next to quantization, but those are separate projects. <strong>2:4 structured sparsity</strong> can use NVIDIA sparse tensor cores when the pattern is enforced correctly. <strong>Distillation</strong> can beat quantization for narrow tasks, but it requires a training loop and enough data to teach the student model.</p>
+<p>The toolchain is actively evolving. <strong>AutoGPTQ</strong> was archived in April 2025, and <strong>AutoAWQ</strong> was deprecated in late 2025. For new work, start with <strong>llm-compressor</strong> for <code>compressed-tensors</code> checkpoints consumed by vLLM, or <strong>GPTQModel</strong> when you need the active GPTQ path with Marlin, Machete, MoE memory options, and disk offload.</p>
+<p>Sparsity and distillation are complementary compression techniques, but they require different toolchains. <strong>2:4 structured sparsity</strong> can use NVIDIA sparse tensor cores when the pattern is enforced correctly. <strong>Distillation</strong> can beat quantization for narrow tasks, but it requires a training loop and enough data to teach the student model.</p>
 <hr />
 <h2 id="6-serving-memory-is-more-than-weights">6. Serving memory is more than weights</h2>
-<p>A common planning mistake is to size only the compressed checkpoint. Serving memory has more pieces:</p>
+<p>When planning hardware requirements, remember that the compressed checkpoint is only part of the memory footprint. Serving memory requires:</p>
 <div class="arithmatex">\[
 \text{VRAM}_{\text{serve}} \approx \text{Quantized Weights} + \text{KV Cache} + \text{Runtime Activations} + \text{Engine Overhead}
 \]</div>
@@ -1574,7 +1574,7 @@ x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\m
 <li><span class="arithmatex">\(B_{\text{batch}}\)</span> is the active serving batch.</li>
 <li><span class="arithmatex">\(\text{BytesPerValue}\)</span> is 2 for BF16 or FP16 and 1 for FP8 or INT8.</li>
 </ul>
-<p>For a 70B model serving 32k context, the KV cache can be larger than the weight savings you get from another round of weight compression. That's the moment to test FP8 KV cache, not another random 4-bit checkpoint.</p>
+<p>For a 70B model serving 32k context, the KV cache can be larger than the weight savings you get from another round of weight compression. In this scenario, quantizing the KV cache to FP8 or INT8 is more effective than aggressively compressing the model weights.</p>
 <hr />
 <h2 id="7-hardware-narrows-the-menu">7. Hardware narrows the menu</h2>
 <p>Weight footprint is easy to estimate:</p>
@@ -1624,7 +1624,7 @@ x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\m
 </tbody>
 </table>
 <p>Mixture-of-experts models may activate fewer parameters per token, but the full set of weights still needs to live somewhere unless the runtime supports offload.</p>
-<p>Hardware then cuts down the realistic choices:</p>
+<p>Your deployment hardware restricts which quantization formats are viable:</p>
 <ul>
 <li><strong>CPU</strong> serving depends on vector instructions such as AVX-512 or AMX. GGUF plus <code>llama.cpp</code> is the practical path.</li>
 <li><strong>Apple Silicon</strong> uses unified memory, so local models can use a large shared RAM pool instead of dedicated VRAM.</li>
@@ -1634,7 +1634,7 @@ x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\m
 </ul>
 <hr />
 <h2 id="8-calibration-and-evaluation-are-the-promotion-gate">8. Calibration and evaluation are the promotion gate</h2>
-<p>A quantized model is not done when it loads. It's done when it passes the quality and serving gate for the workload you care about.</p>
+<p>A quantized model is only production-ready once it passes quality and performance evaluations for your specific workload.</p>
 <p><img alt="Calibration and evaluation gate for quantized models" src="../../../../review/assets/2026-06-19-model-quantization-guide/calibration-eval-gate.svg" /></p>
 <p>For calibration, use prompts that look like production:</p>
 <ul>
@@ -1652,7 +1652,7 @@ x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\m
 <li>Long-context tests catch KV-cache damage. Needle-in-a-haystack is crude, but it finds failures quickly.</li>
 <li>Load tests should report throughput, TTFT, inter-token latency, max batch capacity, and peak memory.</li>
 </ul>
-<p>Reasoning-heavy models deserve extra suspicion. Some evaluations show that sub-4-bit or unrotated W4A4 quantization can drop reasoning accuracy by 7% or more. I would not promote that kind of model from perplexity alone.</p>
+<p>Evaluate reasoning-heavy models rigorously. Sub-4-bit or unrotated W4A4 quantization can degrade reasoning accuracy significantly, even if baseline perplexity remains stable.</p>
 <hr />
 <h2 id="9-companion-repository-workflow">9. Companion repository workflow</h2>
 <p>The companion repository, <a href="https://github.com/slavadubrov/model-compression-demo">slavadubrov/model-compression-demo</a>, is meant to make the decision process reproducible. It uses <code>uv</code> and focuses on planning, recipes, dry runs, and benchmark configs.</p>
@@ -1711,11 +1711,11 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 <span class="w">  </span>--max-task-regression<span class="w"> </span><span class="m">0</span>.02<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--output-json<span class="w"> </span>reports/qwen3-0.6b-w4a16-quality.json
 </code></pre></div>
-<p>This is intentionally boring. Plan, estimate, dry-run, benchmark, evaluate, then promote. That loop catches more real failures than a prettier chart of bit-widths.</p>
+<p>Follow a structured process: plan, estimate, dry-run, benchmark, evaluate, and then promote to production. This workflow prevents unexpected failures and ensures the compressed model meets production requirements.</p>
 <hr />
 <h2 id="10-diffusion-models-need-a-separate-path">10. Diffusion models need a separate path</h2>
 <p>LLM quantization rules don't transfer cleanly to diffusion and diffusion-transformer pipelines.</p>
-<p>Autoregressive LLMs generate one token at a time. Diffusion models run repeated denoising steps, and their activation distributions shift during the process. A naive 4-bit pass can save memory and produce obvious visual artifacts.</p>
+<p>Autoregressive LLMs generate one token at a time. Diffusion models run repeated denoising steps, and their activation distributions shift during the process. Applying a standard 4-bit LLM quantization pass to a diffusion model often saves memory but introduces severe visual artifacts.</p>
 <p>Use a component-level plan:</p>
 <ol>
 <li>Keep the <strong>VAE</strong> in 16-bit. Small errors there can become color banding, noise, or broken image structure.</li>
@@ -1724,9 +1724,9 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 <li>Use diffusion-aware methods such as <strong>SVDQuant</strong> when activation outliers are the main issue.</li>
 <li>Evaluate with images, not text metrics. Check prompt adherence, text rendering, skin tones, color balance, fine detail, latency, and VRAM.</li>
 </ol>
-<p>If the evaluation set contains only pretty prompts, you will miss the failures. Include hard cases: small text, hands, repeated objects, structured layouts, and prompts with negative constraints.</p>
+<p>If the evaluation set only contains simple or highly common prompts, you will miss edge-case failures. Include hard cases: small text, hands, repeated objects, structured layouts, and prompts with negative constraints.</p>
 <hr />
-<h2 id="11-defaults-i-would-ship">11. Defaults I would ship</h2>
+<h2 id="11-production-defaults">11. Production Defaults</h2>
 <p>For <strong>enterprise LLM serving</strong>, start with a BF16 baseline in the exact serving engine you plan to use. If throughput is the goal and the hardware supports it, test FP8 W8A8. If the model doesn't fit, test AWQ or GPTQ W4A16 with Marlin-class kernels. If long context or concurrency is the problem, test FP8 KV cache. Promote only when quality and serving benchmarks both pass.</p>
 <p>For <strong>local and edge inference</strong>, start with GGUF Q4_K_M or Q5_K_M. Move to Q8_0 when memory allows and quality matters more than footprint. Going below 4-bit is a last resort, not a default.</p>
 <p>For <strong>fine-tuning</strong>, use NF4 with QLoRA to train adapters cheaply. Evaluate the adapter in the application before merging. After merging, export to the serving format you actually need: GGUF, AWQ, GPTQ, FP8, or BF16.</p>
@@ -1734,9 +1734,9 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 <hr />
 <h2 id="key-takeaways">Key Takeaways</h2>
 <ol>
-<li>Quantization is controlled rounding plus runtime execution. Bit-width alone doesn't decide speed or quality.</li>
+<li>Quantization combines controlled rounding with runtime execution. Bit-width alone determines neither speed nor quality.</li>
 <li>Pick the bottleneck first: weight memory, activation compute, KV cache, local runtime, fine-tuning memory, or image-pipeline memory.</li>
-<li>W4A16 is mostly a memory and decode tool. It helps fit weights and reduce bandwidth pressure, but it doesn't turn every workload into a faster one.</li>
+<li>W4A16 is primarily a memory and decode optimization. It reduces VRAM usage and memory bandwidth pressure but does not accelerate compute-bound prefill operations.</li>
 <li>FP8 is a serving tool when hardware and kernels support native low-precision math.</li>
 <li>Kernels can dominate benchmark results. Marlin, Machete, BitBLAS, vLLM, and TensorRT-LLM paths can matter as much as the quantization algorithm.</li>
 <li>KV cache is a first-class memory term. Long context and concurrency can make it larger than the compressed weights.</li>
