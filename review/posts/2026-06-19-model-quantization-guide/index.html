@@ -1499,7 +1499,7 @@
 </tr>
 </tbody>
 </table>
-<p>This framing also explains why benchmark posts can disagree. One guide may measure an H200 vLLM path with Marlin kernels. Another may explain quantization math without serving kernels. A third may focus on static INT8 calibration. All can be correct inside their own deployment context.</p>
+<p>Understanding whether your system is bottlenecked by memory bandwidth (decode phase) or compute limits (prefill and high concurrency) explains why different benchmarks and guides can appear to contradict each other. A research paper measuring pure mathematical quantization error (such as perplexity) will show different trade-offs than a hosting benchmark measuring end-to-end token throughput on specific GPU hardware. In the sections below, we will explore how precision formats, mathematical algorithms, runtime engines, and hardware constraints interact to shape real-world performance.</p>
 <hr />
 <h2 id="2-the-core-concept-from-float-to-buckets">2. The Core Concept: From Float to Buckets</h2>
 <p>Quantization maps high-precision values into a smaller set of representable values. You save memory and bandwidth, but you introduce rounding error.</p>
@@ -1518,28 +1518,42 @@
 <p>Two primary mapping approaches are used:</p>
 <ul>
 <li>
-<p><strong>Symmetric quantization</strong> centers the grid around zero and sets the zero point <span class="arithmatex">\(z\)</span> to <code>0</code>:
-  $<span class="arithmatex">\(s = \frac{\max(|x|)}{q_{\max}}\)</span>$
-  $<span class="arithmatex">\(x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right), q_{\min}, q_{\max}\right)\)</span>$
-  <em>Trade-off</em>: Because the zero point is always zero, the hardware doesn't need to subtract an offset during runtime calculation, making symmetric math much faster on the GPU.</p>
+<p><strong>Symmetric quantization</strong> centers the grid around zero and sets the zero point <em>z</em> to <code>0</code>:</p>
+<div class="arithmatex">\[
+s = \frac{\max(|x|)}{q_{\max}}
+\]</div>
+<div class="arithmatex">\[
+x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right), q_{\min}, q_{\max}\right)
+\]</div>
+<p><em>Trade-off</em>: Because the zero point is always zero, the hardware doesn't need to subtract an offset during runtime calculation, making symmetric math much faster on the GPU.</p>
 </li>
 <li>
-<p><strong>Asymmetric quantization</strong> uses a shifted zero point to cover skewed ranges more efficiently:
-  $<span class="arithmatex">\(s = \frac{\alpha - \beta}{q_{\max} - q_{\min}}\)</span>$
-  $<span class="arithmatex">\(z = \text{round}\left(\frac{-\beta}{s}\right) + q_{\min}\)</span>$
-  $<span class="arithmatex">\(x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\max}\right)\)</span>$
-  <em>Trade-off</em>: By shifting the grid, asymmetric quantization covers asymmetric distributions (such as activations that are strictly positive after a GELU or ReLU layer) without wasting representable integer buckets on non-existent negative numbers.</p>
+<p><strong>Asymmetric quantization</strong> uses a shifted zero point <em>z</em> to cover skewed ranges more efficiently:</p>
+<div class="arithmatex">\[
+s = \frac{\alpha - \beta}{q_{\max} - q_{\min}}
+\]</div>
+<div class="arithmatex">\[
+z = \text{round}\left(\frac{-\beta}{s}\right) + q_{\min}
+\]</div>
+<div class="arithmatex">\[
+x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\max}\right)
+\]</div>
+<p><em>Trade-off</em>: By shifting the grid, asymmetric quantization covers asymmetric distributions (such as activations that are strictly positive after a GELU or ReLU layer) without wasting representable integer buckets on non-existent negative numbers.</p>
 </li>
 </ul>
 <p>The scale (<span class="arithmatex">\(s\)</span>) and zero point (<span class="arithmatex">\(z\)</span>) are only the beginning. Quality also depends on scaling granularity, protected tensors, calibration data, and the execution kernel.</p>
 <p><img alt="How quantization maps high precision values into low precision buckets" src="../../assets/2026-06-19-model-quantization-guide/quantization-basic-loop.svg" /></p>
 <h3 id="scaling-granularity">Scaling Granularity</h3>
 <ul>
-<li><strong>Per-tensor</strong>: one scale for the whole tensor. It is simple, but one outlier can waste most of the grid.</li>
-<li><strong>Per-channel</strong>: one scale per output channel or matrix row. This is a common default for LLM weights.</li>
-<li><strong>Per-group or block</strong>: one scale per small block, such as 128 weights. This is the practical sweet spot for many 4-bit weight-only formats.</li>
+<li><strong>Per-tensor</strong>: One scale factor for the entire weight matrix. While computationally simple, a single outlier value anywhere in the model layer will stretch the quantization grid, wasting precision for all other weights in the tensor.</li>
+<li><strong>Per-channel (per-row)</strong>: A separate scale factor for each row or output channel of the weight matrix. Since different output features (neurons) have different numerical ranges, giving each output channel its own scale prevents narrow ranges from losing precision to accommodate wider channels. This is the standard default for 8-bit weight quantization.</li>
+<li><strong>Per-group (block-wise)</strong>: Splitting each row of the matrix into even smaller sequential blocks (typically 64 or 128 elements) and assigning a scale factor to each block. This is the standard sweet spot for 4-bit weight-only formats because it isolates extreme outlier weights to a tiny local group (e.g., <code>group_size=128</code>), preserving accuracy across the rest of the layer.</li>
 </ul>
-<p>For weights, group-wise symmetric or asymmetric quantization is common. For activations, dynamic scales are often safer because activation distributions change with the prompt, token position, batch, and layer.</p>
+<p>For weights, which are static parameters, the scale factors are computed once offline (using group-wise symmetric or asymmetric quantization). Activations, however, change dynamically with every token the model generates. We can scale them in two ways:</p>
+<ul>
+<li><strong>Static scaling</strong>: Calculating a fixed scale factor offline before serving using representative calibration data. This has zero runtime overhead, but can cause quality loss if real-world input values differ from calibration data.</li>
+<li><strong>Dynamic scaling</strong>: Scanning and computing the scale factor on-the-fly at runtime for each batch of activations. This is highly robust to unpredictable activation spikes, prompt lengths, and token positions, but adds a minor computational calculation overhead on the GPU.</li>
+</ul>
 <hr />
 <h2 id="3-when-to-compute-ranges-ptq-vs-qat">3. When to compute ranges: PTQ vs. QAT</h2>
 <p>The performance and quality of a quantized model depend heavily on <em>when</em> the scaling ranges are calculated. Quantization approaches fall into two main families:</p>
@@ -1629,10 +1643,10 @@
 <td style="text-align: left;">Hardware-specific, version-sensitive compiler and runtime support.</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>GGUF</strong></td>
-<td style="text-align: left;">Variable (mixed bit)</td>
+<td style="text-align: left;"><strong>GGUF (K-quants / IQ-quants)</strong></td>
+<td style="text-align: left;">Variable (mixed block-wise low-bit)</td>
 <td style="text-align: left;">Local consumer CPU, Apple Silicon, desktop, and edge environments.</td>
-<td style="text-align: left;">Not optimized for concurrent, high-throughput cloud server deployments.</td>
+<td style="text-align: left;">GGUF is a file container; the weights are stored in mixed-precision block-wise integer formats. Not optimized for concurrent, high-throughput cloud serving.</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>NF4</strong></td>
