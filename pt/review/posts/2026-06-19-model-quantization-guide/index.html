@@ -1146,6 +1146,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#modern-toolchain-and-tool-deprecations-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modern Toolchain and Tool Deprecations (2026)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#adjacent-compression-techniques" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1415,10 +1426,10 @@
 <p>To navigate the options, it helps to understand the terminology:</p>
 <ul>
 <li><strong>W{x}A{y} (Weight/Activation Precision)</strong>: Tells you how many bits are used for weights (<span class="arithmatex">\(W\)</span>) and activations (<span class="arithmatex">\(A\)</span>). For example, <strong>W4A16</strong> uses 4-bit weights to save memory, while activations remain in 16-bit precision for high-quality calculations.</li>
-<li><strong>GPTQ &amp; AWQ</strong>: Post-training quantization algorithms designed to compress weights to 4-bit (<code>W4A16</code>) with minimal quality loss.</li>
-<li><strong>FP8 (8-bit Float)</strong>: A newer 8-bit standard natively supported by modern GPUs (NVIDIA Ada Lovelace, Hopper, Blackwell) that speeds up both weight loading and activation math (<code>W8A8</code>).</li>
+<li><strong>Precision Formats (e.g., FP8, INT8, INT4, NF4)</strong>: The numerical representations defining how numbers are represented and stored. For instance, FP8 uses 8 bits to represent floating-point numbers, while INT4 uses 4-bit integers.</li>
+<li><strong>Quantization Algorithms (e.g., GPTQ, AWQ, SmoothQuant)</strong>: The mathematical methods used to scale, round, and fit model parameters into a target precision format with minimal accuracy loss.</li>
 <li><strong>GGUF</strong>: A file format and runtime optimized for running models on consumer CPUs, Apple Silicon (Macs), and edge devices using the <code>llama.cpp</code> ecosystem.</li>
-<li><strong>NF4 (NormalFloat 4-bit)</strong>: A specialized data type optimized for weights with a normal distribution, primarily used to reduce memory during adapter training (QLoRA).</li>
+<li><strong>NF4 (NormalFloat 4-bit)</strong>: A specialized 4-bit data format optimized for weights with a normal distribution, primarily used to reduce memory during parameter-efficient fine-tuning (QLoRA).</li>
 <li><strong>KV Cache</strong>: The Key-Value cache, which serves as the model's short-term memory during a chat session so the model doesn't have to recompute previous tokens.</li>
 <li><strong>GEMM (General Matrix Multiply)</strong>: The standard mathematical operation for multiplying matrices (e.g., multiplying input activations by model weights), which makes up almost all LLM computation.</li>
 </ul>
@@ -1428,52 +1439,63 @@
 <li><strong>Prefill (Compute-Bound)</strong>: The model processes the initial prompt. The bottleneck is raw computation (FLOPs) as the GPU performs massive matrix multiplication.</li>
 <li><strong>Decode (Memory-Bandwidth-Bound)</strong>: The model generates text one token at a time. The bottleneck is memory transfer speed, because the GPU must load every single weight from VRAM into its compute cores just to generate a single token.</li>
 </ol>
-<p>Quantization targets these phases differently. A 4-bit weight-only format reduces memory transfer size (speeding up the decode phase for single users), but it does not speed up the math. An 8-bit format (like FP8) uses faster low-precision execution units on the GPU, speeding up both prefill and high-concurrency decoding.</p>
+<p>Quantization targets these phases differently:</p>
+<ul>
+<li><strong>4-bit weight-only formats (like W4A16)</strong> speed up memory transfer by reducing model weight sizes. This speeds up the decode phase for single users (which is bottlenecked by VRAM bandwidth). However, <strong>it does not speed up the math</strong>: the GPU must dequantize the 4-bit weights back to 16-bit float inside its registers before performing calculations, so the actual multiplications still run on standard 16-bit Tensor Cores.</li>
+<li><strong>8-bit weight-activation formats (like FP8 W8A8)</strong> speed up both memory transfer and arithmetic calculations. The GPU does not need to dequantize the weights; it performs matrix multiplications directly in 8-bit using native low-precision Tensor Cores. This speeds up both the compute-bound prefill phase and high-concurrency decoding.</li>
+</ul>
 <table>
 <thead>
 <tr>
 <th style="text-align: left;">Target Bottleneck</th>
-<th style="text-align: left;">Recommended Move</th>
+<th style="text-align: left;">Target Format &amp; Precision</th>
+<th style="text-align: left;">Quantization Algorithm / Tool</th>
 <th style="text-align: left;">Why It Works</th>
 <th style="text-align: left;">What to Validate</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;"><strong>Model is too large for GPU VRAM</strong> (Memory-bound decode)</td>
-<td style="text-align: left;"><strong>W4A16</strong> (using <strong>AWQ</strong> or <strong>GPTQ</strong>)</td>
-<td style="text-align: left;">Cuts weight storage in VRAM by 75%, allowing larger models to fit and reducing VRAM transfer time.</td>
-<td style="text-align: left;">Model perplexity, task accuracy (e.g. MMLU), generation quality.</td>
+<td style="text-align: left;"><strong>Model too large for VRAM</strong> (Memory-bound decode)</td>
+<td style="text-align: left;"><strong>W4A16 (INT4)</strong></td>
+<td style="text-align: left;"><strong>AWQ</strong> or <strong>GPTQ</strong> (via <code>llm-compressor</code> or <code>GPTQModel</code>)</td>
+<td style="text-align: left;">Cuts weight VRAM footprint by 75% to reduce weight loading time.</td>
+<td style="text-align: left;">Perplexity, reasoning tasks (MMLU/GPQA), coding (HumanEval).</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>High concurrency / high throughput</strong> (Compute-bound serving)</td>
-<td style="text-align: left;"><strong>W8A8</strong> (using <strong>FP8</strong>)</td>
-<td style="text-align: left;">Uses low-precision Tensor Cores natively for faster matrix math.</td>
-<td style="text-align: left;">Tokens per second (throughput), Time to First Token (TTFT), task accuracy.</td>
+<td style="text-align: left;"><strong>High throughput / serving</strong> (Compute-bound prefill/batch)</td>
+<td style="text-align: left;"><strong>W8A8 (FP8 or INT8)</strong></td>
+<td style="text-align: left;"><strong>FP8 PTQ</strong> (via <code>llm-compressor</code> / <code>ModelOpt</code>) or <strong>SmoothQuant</strong></td>
+<td style="text-align: left;">Runs matrix math natively on low-precision Tensor Cores.</td>
+<td style="text-align: left;">Throughput (tokens/s), Time to First Token (TTFT), accuracy.</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>Long context / high chat concurrency</strong> (KV cache bound)</td>
+<td style="text-align: left;"><strong>Long context / high concurrency</strong> (KV cache bound)</td>
 <td style="text-align: left;"><strong>FP8 KV cache</strong></td>
-<td style="text-align: left;">Halves Key-Value cache memory, freeing up VRAM for longer context or larger batches.</td>
-<td style="text-align: left;">Long-context retrieval (needle-in-a-haystack), instruction following.</td>
+<td style="text-align: left;">Dynamic or calibrated scaling (via <code>vLLM</code> / <code>TensorRT-LLM</code>)</td>
+<td style="text-align: left;">Halves KV cache footprint to fit larger batches or longer history.</td>
+<td style="text-align: left;">Long-context retrieval (needle-in-a-haystack), degradation.</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>Local CPU, Apple Silicon, or Edge</strong> (Consumer RAM limits)</td>
-<td style="text-align: left;"><strong>GGUF</strong> (via <code>llama.cpp</code> / Ollama)</td>
-<td style="text-align: left;">Tailored to CPU/Metal runtimes instead of forcing high-end CUDA server assumptions.</td>
-<td style="text-align: left;">Latency, local RAM consumption, general generation quality.</td>
+<td style="text-align: left;"><strong>Local CPU, Apple Silicon, Edge</strong> (Consumer RAM limits)</td>
+<td style="text-align: left;"><strong>GGUF</strong> (mixed low-bit)</td>
+<td style="text-align: left;"><code>llama.cpp</code> / <code>Ollama</code> K-quants or IQ-quants</td>
+<td style="text-align: left;">Uses custom runtime kernels optimized for CPU/Metal/unified memory.</td>
+<td style="text-align: left;">Prompt latency, memory footprint, general text quality.</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>Low-memory fine-tuning</strong> (Adapter training memory)</td>
-<td style="text-align: left;"><strong>NF4</strong> (using <strong>QLoRA</strong>)</td>
-<td style="text-align: left;">Minimizes base model footprint during training; merge to FP16 or W4 before serving.</td>
-<td style="text-align: left;">Fine-tuning loss, downstream validation, merged model accuracy.</td>
+<td style="text-align: left;"><strong>NF4</strong> (4-bit NormalFloat)</td>
+<td style="text-align: left;"><strong>QLoRA</strong> (via <code>bitsandbytes</code> / <code>peft</code>)</td>
+<td style="text-align: left;">Fits base model in a single GPU; merge back for serving.</td>
+<td style="text-align: left;">Fine-tuning loss, merged model accuracy, task performance.</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>Local image generation</strong> (Diffusion pipelines)</td>
-<td style="text-align: left;"><strong>SVDQuant / Nunchaku</strong></td>
-<td style="text-align: left;">Handles diffusion activation outliers differently than text LLMs to prevent image artifacts.</td>
-<td style="text-align: left;">Visual inspection, prompt adherence, generation latency.</td>
+<td style="text-align: left;"><strong>W4A4 (INT4) or FP8</strong></td>
+<td style="text-align: left;"><strong>SVDQuant</strong> (Nunchaku) or <code>torchao</code> / <code>ModelOpt</code></td>
+<td style="text-align: left;">Handles volatile activation outliers to prevent visual artifacts.</td>
+<td style="text-align: left;">Visual inspection (FID/LPIPS), prompt alignment, latency.</td>
 </tr>
 </tbody>
 </table>
@@ -1631,8 +1653,14 @@
 <li><strong>E4M3</strong> (1 sign bit, 4 exponent bits, 3 mantissa bits) favors numerical precision over dynamic range. It is the default format for forward-pass weights and activations because it preserves subtle weight variations.</li>
 <li><strong>E5M2</strong> (1 sign bit, 5 exponent bits, 2 mantissa bits) favors range over precision. It has the same exponent range as FP16, making it suitable for training gradients and highly volatile activation layers where values can spike.</li>
 </ul>
+<p>In a comprehensive empirical study, Kurtic et al. (ACL 2025, <em>"Give Me BF16 or Give Me Death"</em>) analyzed over 500,000 evaluations on the Llama-3.1 family. They found that <strong>FP8 (W8A8)</strong> is effectively lossless across all model scales. Unlike integer-only methods, the floating-point distribution matches the natural weight spreads of LLMs, preserving complex reasoning and coding capabilities.</p>
 <h3 id="microscaling-formats-mxfp8-nvfp4">Microscaling Formats (MXFP8 / NVFP4)</h3>
-<p>Next-generation hardware (such as NVIDIA Blackwell) introduces microscaling formats. Instead of scaling a whole tensor (per-tensor) or a whole row (per-channel), <strong>microscaling</strong> splits tensors into tiny blocks (e.g., 16 or 32 elements) that share a single scale factor. This isolates extreme outlier activations to a single small block, preventing them from skewing the scale of adjacent values and keeping representation quality high at sub-8-bit precisions. Use these formats once your compiler toolchain and target hardware support them end to end.</p>
+<p>Next-generation hardware (such as NVIDIA Blackwell) introduces microscaling formats. Instead of scaling a whole tensor (per-tensor) or a whole row (per-channel), <strong>microscaling</strong> splits tensors into tiny blocks that share a scale factor.</p>
+<ul>
+<li><strong>MXFP8</strong>: Splits tensors into blocks of 32 elements sharing an 8-bit scale factor.</li>
+<li><strong>NVFP4 (Blackwell-native)</strong>: Blackwell's native 4-bit floating-point format splits elements into tiny blocks of <strong>16 values</strong>. Each block shares an <strong>FP8 (E4M3)</strong> scale factor, alongside a second-level FP32 scaling factor per tensor. This microscaling overhead brings the actual storage to ~4.5 bits per value.</li>
+</ul>
+<p>According to NVIDIA, NVFP4 reduces the model VRAM footprint by approximately <strong>3.5x relative to FP16</strong> and <strong>1.8x relative to FP8</strong>, while keeping accuracy degradation to 1% or less on key reasoning and language tasks (e.g. DeepSeek-R1, Llama-3.3).</p>
 <hr />
 <h2 id="5-weight-only-vs-weight-activation-quantization">5. Weight-only vs. weight-activation quantization</h2>
 <p>The notation <strong>WxAy</strong> specifies the bit precision used for model weights (<span class="arithmatex">\(W\)</span>) and activations (<span class="arithmatex">\(A\)</span>).</p>
@@ -1641,7 +1669,7 @@
 <p>Weights are stored in low-precision (e.g., 4-bit or 8-bit), while activations remain in standard 16-bit (BF16/FP16) precision. During model execution, the GPU loads the compressed weights from VRAM, dequantizes them back to 16-bit in its fast cache (SRAM), and performs standard 16-bit matrix calculations.</p>
 <ul>
 <li><strong>Connection to Bottleneck</strong>: This is highly effective during the <strong>decode phase</strong> (generating text one token at a time). Because the GPU is memory-bandwidth-bound during decode, cutting weight sizes by 75% dramatically reduces VRAM transfer traffic, speeding up generation.</li>
-<li><strong>System Limitation</strong>: Do not expect compute-bound speedups. Because the mathematical multiply-accumulate operations are still performed in 16-bit, W4A16 does not speed up the processing of large prompt batches (the prefill phase) or high-concurrency workloads.</li>
+<li><strong>System Limitation</strong>: Do not expect compute-bound speedups. Because weights must be dequantized back to 16-bit on-the-fly and the mathematical multiply-accumulate operations are still performed in 16-bit, W4A16 does not speed up the processing of large prompt batches (the prefill phase) or high-concurrency workloads.</li>
 </ul>
 <h3 id="weight-activation-quantization-w8a8-w4a4">Weight-Activation Quantization (W8A8 / W4A4)</h3>
 <p>Both model weights and layer activations are compressed into low precision. This allows the serving engine to skip dequantization and run mathematical calculations directly in low precision (using native integer or FP8 Tensor Cores).</p>
@@ -1784,14 +1812,14 @@
 <td style="text-align: left;">Good for fast local quantization.</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>bitsandbytes NF4</strong></td>
-<td style="text-align: left;">W4A16-ish</td>
+<td style="text-align: left;"><strong>QLoRA (NF4)</strong></td>
+<td style="text-align: left;">NF4</td>
 <td style="text-align: left;">NormalFloat representation designed for normally distributed weights.</td>
 <td style="text-align: left;">Great for training adapters, but slow for production serving.</td>
-<td style="text-align: left;">QLoRA default.</td>
+<td style="text-align: left;">QLoRA default for parameter-efficient fine-tuning.</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>GGUF K-quants</strong></td>
+<td style="text-align: left;"><strong>llama.cpp K-quants / IQ-quants</strong></td>
 <td style="text-align: left;">Mixed low-bit</td>
 <td style="text-align: left;">Groups weights into blocks, using mixed bit-widths for sensitive layers.</td>
 <td style="text-align: left;">Not designed for high-concurrency CUDA cloud serving.</td>
@@ -1799,6 +1827,12 @@
 </tr>
 </tbody>
 </table>
+<h3 id="modern-toolchain-and-tool-deprecations-2026">Modern Toolchain and Tool Deprecations (2026)</h3>
+<p>The model compression software landscape has consolidated significantly. Legacy quantization packages such as <strong>AutoGPTQ</strong> (archived in April 2025) and <strong>AutoAWQ</strong> (deprecated in late 2025) are no longer actively maintained. In their place, two primary toolchains have become standard:</p>
+<ul>
+<li><strong>llm-compressor</strong> (developed by Neural Magic / Red Hat / vLLM): The primary engine used to produce <code>compressed-tensors</code> checkpoints (for W4A16, FP8 W8A8, and other configurations) that are natively consumed by serving backends like vLLM.</li>
+<li><strong>GPTQModel</strong>: The active successor to AutoGPTQ, providing updated Marlin/Machete kernels, MoE VRAM-saving strategies, and native disk-offload support.</li>
+</ul>
 <h3 id="adjacent-compression-techniques">Adjacent Compression Techniques</h3>
 <p>Sparsity and distillation are adjacent optimization techniques that can combine with quantization but require separate validation loops.</p>
 <ul>
@@ -1903,7 +1937,7 @@
 <h3 id="evaluation-checklist">Evaluation Checklist</h3>
 <ul>
 <li><strong>Perplexity</strong>: Measure on standard datasets (like WikiText) to check for general language degeneration.</li>
-<li><strong>Downstream tasks</strong>: Run standard benchmarks targeting your domain (e.g., HumanEval for coding, MMLU for knowledge, AIME for reasoning).</li>
+<li><strong>Downstream tasks &amp; reasoning degradation</strong>: Run standard benchmarks targeting your domain (e.g., HumanEval for coding, MMLU for knowledge, AIME/MATH-500 for reasoning). Watch out for reasoning-heavy architectures (like DeepSeek-R1 or QwQ); evaluations show they are highly sensitive to sub-4-bit or unrotated W4A4 quantization, which can cause reasoning accuracy to collapse by 7% or more.</li>
 <li><strong>Format compliance</strong>: Verify that the model still follows JSON schemas, markdown formats, and system instructions correctly.</li>
 <li><strong>Long-context checks</strong>: Run needle-in-a-haystack tasks to ensure KV cache quantization has not broken context retrieval.</li>
 <li><strong>Performance benchmarks</strong>: Measure throughput (tokens/sec), TTFT, and maximum concurrent batch capacity under simulated load.</li>
