@@ -1207,11 +1207,11 @@
 
 
 <h1 id="model-quantization-in-2026-from-foundations-to-production-serving">Model Quantization in 2026: From Foundations to Production Serving</h1>
-<p>Quantization is rarely a single button you press to use fewer bits and save memory.</p>
-<p>In production serving systems, quantization requires balancing weight memory, activation compute, KV cache size, runtime kernels, hardware support, calibration data, and quality. A 4-bit model might fit in VRAM but run slowly if the kernel is poorly optimized. FP8 is excellent on NVIDIA Hopper GPUs but useless on hardware without native FP8 tensor cores. KV-cache quantization can matter more than weight quantization when handling long context and high concurrency; it changes the numeric format used to store and read the cached key/value tensors.</p>
+<p>Quantization is rarely a single button you press to use fewer bits and save memory; even the basic definition depends on whether you are compressing <a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html">weights, activations, or both</a>.</p>
+<p>In production serving systems, quantization requires balancing <a href="https://docs.vllm.ai/en/latest/features/quantization/">weight memory, activation compute, KV cache size, runtime kernels, hardware support, calibration data, and quality</a>. A 4-bit model might fit in VRAM but run slowly if the kernel is poorly optimized, as the <a href="https://jarvislabs.ai/blog/vllm-quantization-complete-guide-benchmarks">JarvisLabs vLLM benchmark</a> shows when the algorithm and kernel differ. FP8 is excellent on NVIDIA Hopper GPUs when the runtime and hardware support it, but it is useless on hardware without native FP8 tensor-core paths; TensorRT-LLM's <a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html#hardware-support-matrix">hardware support matrix</a> makes that dependency explicit. <a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">KV-cache quantization</a> can matter more than weight quantization when handling long context and high concurrency; it changes the numeric format used to store and read the cached key/value tensors.</p>
 <!-- more -->
 
-<p><strong>TL;DR</strong>: Pick the bottleneck before you pick the bit-width. Use <strong>AWQ</strong> or <strong>GPTQ</strong> when weights don't fit in VRAM. Use <strong>FP8 W8A8</strong> when you serve high-throughput workloads on GPUs with FP8 support. Test <strong>KV-cache quantization</strong> when long context or high concurrency eats memory. Use <strong>GGUF files with llama.cpp tensor encodings</strong> such as Q4_K_M, Q5_K_M, or Q8_0 for local CPU, Apple Silicon, and desktop inference. Keep <strong>NF4</strong> mostly for QLoRA-style fine-tuning, not as the default production serving format.</p>
+<p><strong>TL;DR</strong>: Pick the bottleneck before you pick the bit-width. Use <strong><a href="https://arxiv.org/abs/2306.00978">AWQ</a></strong> or <strong><a href="https://arxiv.org/abs/2210.17323">GPTQ</a></strong> when weights don't fit in VRAM. Use <strong><a href="https://arxiv.org/abs/2411.02355">FP8 W8A8</a></strong> when you serve high-throughput workloads on GPUs with FP8 support. Test <strong><a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">KV-cache quantization</a></strong> when long context or high concurrency eats memory. Use <strong><a href="https://github.com/ggml-org/ggml/blob/master/docs/gguf.md">GGUF files with llama.cpp tensor encodings</a></strong> such as Q4_K_M, Q5_K_M, or Q8_0 for local CPU, Apple Silicon, and desktop inference. Keep <strong><a href="https://arxiv.org/abs/2305.14314">NF4</a></strong> mostly for QLoRA-style fine-tuning, not as the default production serving format.</p>
 <p><img alt="How to use this quantization guide" src="../../../../review/assets/2026-06-19-model-quantization-guide/quantization-reader-map.svg" /></p>
 <hr />
 <h2 id="1-start-with-the-bottleneck">1. Start with the bottleneck</h2>
@@ -1229,38 +1229,38 @@
 <tbody>
 <tr>
 <td style="text-align: left;">Model weights don't fit in VRAM</td>
-<td style="text-align: left;"><strong>W4A16 weight-only quantization</strong></td>
-<td style="text-align: left;">AWQ or GPTQ with <code>llm-compressor</code> or <code>GPTQModel</code></td>
+<td style="text-align: left;"><strong><a href="https://docs.vllm.ai/projects/llm-compressor/en/latest/">W4A16 weight-only quantization</a></strong></td>
+<td style="text-align: left;"><a href="https://arxiv.org/abs/2306.00978">AWQ</a> or <a href="https://arxiv.org/abs/2210.17323">GPTQ</a> with <a href="https://docs.vllm.ai/projects/llm-compressor/en/latest/"><code>llm-compressor</code></a> or <a href="https://github.com/ModelCloud/GPTQModel"><code>GPTQModel</code></a></td>
 <td style="text-align: left;">Perplexity, coding, reasoning, instruction following</td>
 </tr>
 <tr>
 <td style="text-align: left;">High-throughput serving is compute-bound</td>
-<td style="text-align: left;"><strong>FP8 or INT8 W8A8</strong></td>
-<td style="text-align: left;">FP8 PTQ, SmoothQuant, TensorRT-LLM, vLLM</td>
+<td style="text-align: left;"><strong><a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html">FP8 or INT8 W8A8</a></strong></td>
+<td style="text-align: left;">FP8 PTQ, <a href="https://arxiv.org/abs/2211.10438">SmoothQuant</a>, <a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html">TensorRT-LLM</a>, <a href="https://docs.vllm.ai/en/latest/features/quantization/">vLLM</a></td>
 <td style="text-align: left;">Throughput, TTFT, task accuracy</td>
 </tr>
 <tr>
 <td style="text-align: left;">Long context or high concurrency fills the GPU</td>
-<td style="text-align: left;"><strong>KV-cache quantization</strong></td>
-<td style="text-align: left;">vLLM, TensorRT-LLM, or Transformers QuantizedCache</td>
+<td style="text-align: left;"><strong><a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">KV-cache quantization</a></strong></td>
+<td style="text-align: left;"><a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">vLLM</a>, <a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html#fp8-kv-cache">TensorRT-LLM</a>, or <a href="https://huggingface.co/docs/transformers/en/kv_cache#quantized-cache">Transformers QuantizedCache</a></td>
 <td style="text-align: left;">Long-context retrieval, latency, safety, and quality</td>
 </tr>
 <tr>
 <td style="text-align: left;">Local inference on CPU, Apple Silicon, or desktop</td>
-<td style="text-align: left;"><strong>GGUF files with local tensor encodings</strong></td>
-<td style="text-align: left;"><code>llama.cpp</code>, Ollama, LM Studio</td>
+<td style="text-align: left;"><strong><a href="https://huggingface.co/docs/hub/gguf">GGUF files with local tensor encodings</a></strong></td>
+<td style="text-align: left;"><a href="https://github.com/ggml-org/llama.cpp"><code>llama.cpp</code></a>, <a href="https://ollama.com/">Ollama</a>, <a href="https://lmstudio.ai/">LM Studio</a></td>
 <td style="text-align: left;">Prompt latency, RAM use, selected tensor encoding, and subjective output quality</td>
 </tr>
 <tr>
 <td style="text-align: left;">Adapter fine-tuning must fit on one GPU</td>
-<td style="text-align: left;"><strong>NF4 / QLoRA</strong></td>
-<td style="text-align: left;"><code>bitsandbytes</code>, <code>peft</code></td>
+<td style="text-align: left;"><strong><a href="https://arxiv.org/abs/2305.14314">NF4 / QLoRA</a></strong></td>
+<td style="text-align: left;"><a href="https://huggingface.co/docs/bitsandbytes/main/en/index"><code>bitsandbytes</code></a>, <a href="https://huggingface.co/docs/peft/index"><code>peft</code></a></td>
 <td style="text-align: left;">Fine-tuning loss and merged-model quality</td>
 </tr>
 <tr>
 <td style="text-align: left;">Image generation pipeline is too large or slow</td>
-<td style="text-align: left;"><strong>Diffusion-specific INT4 or FP8</strong></td>
-<td style="text-align: left;">SVDQuant, Nunchaku, <code>torchao</code>, NVIDIA ModelOpt</td>
+<td style="text-align: left;"><strong><a href="https://arxiv.org/abs/2411.05007">Diffusion-specific INT4 or FP8</a></strong></td>
+<td style="text-align: left;"><a href="https://arxiv.org/abs/2411.05007">SVDQuant</a>, <a href="https://github.com/nunchaku-ai/nunchaku">Nunchaku</a>, <a href="https://docs.pytorch.org/ao/stable/quantization_overview.html"><code>torchao</code></a>, <a href="https://github.com/NVIDIA/Model-Optimizer">NVIDIA ModelOpt</a></td>
 <td style="text-align: left;">Visual artifacts, prompt alignment, latency, VRAM</td>
 </tr>
 </tbody>
@@ -1268,20 +1268,20 @@
 <p>Use this table as the map. The sections below explain why those starting points differ.</p>
 <h3 id="a-few-terms-before-the-math">A few terms before the math</h3>
 <ul>
-<li><strong>W{x}A{y}</strong> tells you the precision for supported weight and activation math, usually GEMM paths in serving engines. <strong>W4A16</strong> stores weights in 4-bit form and keeps activations in 16-bit precision. <strong>W8A8</strong> uses 8-bit weights and activations in supported compute paths, but it does not automatically define the persistent storage dtype of every runtime tensor.</li>
-<li><strong>FP8, INT8, INT4, NF4</strong> are number formats. They decide what values can be represented.</li>
-<li><strong>GPTQ, AWQ, SmoothQuant, QuaRot</strong> are algorithms. They decide how to map a trained model into a lower-precision format.</li>
-<li><strong>GGUF</strong> is a file format, not a quantization algorithm. It stores tensors plus metadata for GGML and <code>llama.cpp</code>-style runtimes. A GGUF file can contain unquantized tensor types such as <code>F16</code>, <code>BF16</code>, or <code>F32</code>, or quantized tensor encodings and presets such as <code>Q4_K_M</code>, <code>Q5_K_M</code>, <code>Q8_0</code>, <code>IQ*</code>, <code>TQ*</code>, or <code>MXFP4</code>. Do not read <code>GGUF</code> as a CUDA-style FP8 W8A8 serving recipe.</li>
-<li><strong>KV cache</strong> is the attention cache used during generation. It stores prior keys and values so the model doesn't recompute the whole conversation at every token.</li>
-<li><strong>KV-cache quantization</strong> stores cached key/value activation tensors in a lower-precision cache format such as FP8, INT8, INT4, or INT2, depending on runtime support. This is different from prefix caching, PagedAttention, or offload, which decide whether cache entries are reused, how they are allocated, or where they live.</li>
+<li><strong><a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html">W{x}A{y}</a></strong> tells you the precision for supported weight and activation math, usually GEMM paths in serving engines. <strong>W4A16</strong> stores weights in 4-bit form and keeps activations in 16-bit precision. <strong>W8A8</strong> uses 8-bit weights and activations in supported compute paths, but it does not automatically define the persistent storage dtype of every runtime tensor.</li>
+<li><strong><a href="https://docs.pytorch.org/ao/stable/quantization_overview.html">FP8, INT8, INT4</a>, <a href="https://arxiv.org/abs/2305.14314">NF4</a></strong> are number formats. They decide what values can be represented.</li>
+<li><strong><a href="https://arxiv.org/abs/2210.17323">GPTQ</a>, <a href="https://arxiv.org/abs/2306.00978">AWQ</a>, <a href="https://arxiv.org/abs/2211.10438">SmoothQuant</a>, <a href="https://arxiv.org/abs/2404.00456">QuaRot</a></strong> are algorithms. They decide how to map a trained model into a lower-precision format.</li>
+<li><strong><a href="https://github.com/ggml-org/ggml/blob/master/docs/gguf.md">GGUF</a></strong> is a file format, not a quantization algorithm. It stores tensors plus metadata for GGML and <code>llama.cpp</code>-style runtimes. A GGUF file can contain unquantized tensor types such as <code>F16</code>, <code>BF16</code>, or <code>F32</code>, or quantized tensor encodings and presets such as <code>Q4_K_M</code>, <code>Q5_K_M</code>, <code>Q8_0</code>, <code>IQ*</code>, <code>TQ*</code>, or <code>MXFP4</code>. Do not read <code>GGUF</code> as a CUDA-style FP8 W8A8 serving recipe.</li>
+<li><strong><a href="https://huggingface.co/docs/transformers/en/kv_cache">KV cache</a></strong> is the attention cache used during generation. It stores prior keys and values so the model doesn't recompute the whole conversation at every token.</li>
+<li><strong><a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">KV-cache quantization</a></strong> stores cached key/value activation tensors in a lower-precision cache format such as FP8, INT8, INT4, or INT2, depending on runtime support. This is different from <a href="https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/">prefix caching</a>, <a href="https://docs.vllm.ai/en/stable/design/paged_attention/">PagedAttention</a>, or offload, which decide whether cache entries are reused, how they are allocated, or where they live.</li>
 <li><strong>GEMM</strong> means general matrix multiply. Most transformer inference time is spent doing matrix multiplication.</li>
 </ul>
 <hr />
 <h2 id="2-quantization-is-controlled-rounding">2. Quantization is controlled rounding</h2>
-<p>Quantization maps high-precision values into a smaller set of representable values. You save memory and bandwidth. You also introduce rounding error.</p>
-<p>Quantizing from BF16 to INT4 reduces the available values to just 16 discrete buckets. If these buckets accurately capture the model's weight distribution, you save memory without losing capabilities. If the quantization grid crushes an important outlier channel, the model loses reasoning, instruction following, or visual fidelity.</p>
+<p>Quantization maps high-precision values into a smaller set of representable values, which is the core definition used by both <a href="https://huggingface.co/docs/optimum/en/concept_guides/quantization">Hugging Face Optimum</a> and <a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html">TensorRT-LLM</a>. You save memory and bandwidth. You also introduce rounding error.</p>
+<p>Quantizing from BF16 to INT4 reduces the available values to just 16 discrete buckets, which is why low-bit papers such as <a href="https://arxiv.org/abs/2210.17323">GPTQ</a>, <a href="https://arxiv.org/abs/2306.00978">AWQ</a>, and <a href="https://arxiv.org/abs/2411.05007">SVDQuant</a> spend so much effort on outliers and reconstruction error. If these buckets accurately capture the model's weight distribution, you save memory without losing capabilities. If the quantization grid crushes an important outlier channel, the model loses reasoning, instruction following, or visual fidelity.</p>
 <h3 id="symmetric-and-asymmetric-mapping">Symmetric and asymmetric mapping</h3>
-<p>Quantization maps a continuous float value <span class="arithmatex">\(x \in [\beta, \alpha]\)</span> to a discrete grid.</p>
+<p>Following the affine mapping used in common <a href="https://huggingface.co/docs/optimum/en/concept_guides/quantization">quantization guides</a>, quantization maps a continuous float value <span class="arithmatex">\(x \in [\beta, \alpha]\)</span> to a discrete grid.</p>
 <ul>
 <li><span class="arithmatex">\(x\)</span> is the original high-precision value.</li>
 <li><span class="arithmatex">\(x_q\)</span> is the quantized value.</li>
@@ -1296,7 +1296,7 @@ s = \frac{\max(|x|)}{q_{\max}}
 <div class="arithmatex">\[
 x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right), q_{\min}, q_{\max}\right)
 \]</div>
-<p>This is hardware-friendly because runtime math doesn't need to subtract a zero-point offset.</p>
+<p>This is hardware-friendly because runtime math doesn't need to subtract a zero-point offset; PyTorch's quantization stack exposes these affine scale and zero-point choices as primitive quantization parameters in <a href="https://docs.pytorch.org/ao/stable/quantization_overview.html">torchao</a>.</p>
 <p><strong>Asymmetric quantization</strong> shifts the grid to cover skewed ranges:</p>
 <div class="arithmatex">\[
 s = \frac{\alpha - \beta}{q_{\max} - q_{\min}}
@@ -1310,20 +1310,20 @@ x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\m
 <p>That shifted grid can preserve positive-only activations better, but the offset adds work unless the kernel handles it well.</p>
 <p><img alt="How quantization maps high precision values into low precision buckets" src="../../../../review/assets/2026-06-19-model-quantization-guide/quantization-basic-loop.svg" /></p>
 <h3 id="scale-granularity-matters">Scale granularity matters</h3>
-<p>The scale factor can cover a whole weight tensor, one channel, or a small group of values. Smaller groups usually preserve quality better, but they require storing more scale metadata.</p>
+<p>The scale factor can cover a whole weight tensor, one channel, or a small group of values; <a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">vLLM's FP8 KV-cache docs</a> use the same distinction between per-tensor and per-attention-head scale strategies. Smaller groups usually preserve quality better, but they require storing more scale metadata.</p>
 <ul>
 <li><strong>Per-tensor scaling</strong>: Uses one scale factor for an entire weight matrix. It's computationally simple, but a single outlier weight anywhere in the matrix will stretch the integer grid, destroying precision for every other weight in that layer.</li>
-<li><strong>Per-channel scaling</strong>: Assigns a separate scale factor to each row (output channel) of the weight matrix. Because different output neurons have different numerical ranges, giving each channel its own scale prevents narrow ranges from losing precision to accommodate wider channels. This is the standard default for 8-bit weight quantization.</li>
-<li><strong>Per-group (block-wise) scaling</strong>: Splits each row of the weight matrix into smaller sequential blocks—typically 64 or 128 elements—and assigns a scale factor to each block. This is the sweet spot for 4-bit weight formats because it isolates extreme outlier weights to a tiny local group (e.g., <code>group_size=128</code>), preserving accuracy across the rest of the layer's weights.</li>
+<li><strong>Per-channel scaling</strong>: Assigns a separate scale factor to each row (output channel) of the weight matrix. Because different output neurons have different numerical ranges, giving each channel its own scale prevents narrow ranges from losing precision to accommodate wider channels. This is the standard default for many <a href="https://huggingface.co/docs/optimum/en/concept_guides/quantization">8-bit weight quantization</a> paths.</li>
+<li><strong>Per-group (block-wise) scaling</strong>: Splits each row of the weight matrix into smaller sequential blocks—typically 64 or 128 elements—and assigns a scale factor to each block. This is the sweet spot for 4-bit weight formats because it isolates extreme outlier weights to a tiny local group (for example, AutoGPTQ documents <code>group_size=128</code> in its <a href="https://github.com/AutoGPTQ/AutoGPTQ">GPTQ examples</a>), preserving accuracy across the rest of the layer's weights.</li>
 </ul>
 <p>Weights are static, so their scales can be computed offline before you ever load the model. Activations change with every token, which means their ranges are unpredictable. That creates two serving choices for handling activations:</p>
 <ul>
-<li><strong>Static activation scaling</strong> computes activation scales offline using a calibration dataset, then hardcodes those scales into the model. At runtime, the model uses these fixed scales without doing extra math. It's fast, but it only works if your calibration data perfectly matches the input lengths and distributions you see in production. If a production prompt creates an activation spike outside the calibrated range, the model truncates it, breaking the output.</li>
-<li><strong>Dynamic activation scaling</strong> calculates the scale for the activations on the fly during the forward pass, looking at the actual token values in that exact moment. It handles prompt variation perfectly and captures unexpected activation spikes, but calculating the min and max of the activation tensor at every layer adds runtime overhead and requires specialized, optimized kernels to be fast.</li>
+<li><strong><a href="https://huggingface.co/docs/optimum/en/concept_guides/quantization">Static activation scaling</a></strong> computes activation scales offline using a calibration dataset, then hardcodes those scales into the model. At runtime, the model uses these fixed scales without doing extra math. It's fast, but it only works if your calibration data perfectly matches the input lengths and distributions you see in production. If a production prompt creates an activation spike outside the calibrated range, the model truncates it, breaking the output.</li>
+<li><strong><a href="https://huggingface.co/docs/optimum/en/concept_guides/quantization">Dynamic activation scaling</a></strong> calculates the scale for the activations on the fly during the forward pass, looking at the actual token values in that exact moment. It handles prompt variation perfectly and captures unexpected activation spikes, but calculating the min and max of the activation tensor at every layer adds runtime overhead and requires specialized, optimized kernels to be fast.</li>
 </ul>
-<p>The KV cache sits between those cases. Keys and values are runtime activation tensors: each layer computes them from hidden states during the forward pass. Once generated, though, they stop being transient matmul intermediates and become persistent serving state that attention reads for later tokens. A serving engine can store that state in lower precision and keep scale metadata alongside it. That cache-storage choice is separate from the activation precision used inside the linear kernels, which is why "KV-cache quantization" is a real term but should not be used as a synonym for every KV-cache optimization.</p>
+<p>The <a href="https://huggingface.co/docs/transformers/en/kv_cache">KV cache</a> sits between those cases. Keys and values are runtime activation tensors: each layer computes them from hidden states during the forward pass. Once generated, though, they stop being transient matmul intermediates and become persistent serving state that attention reads for later tokens. A serving engine can store that state in lower precision and keep scale metadata alongside it, as shown by <a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">vLLM's Quantized KV Cache</a>, <a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html#fp8-kv-cache">TensorRT-LLM's FP8 KV Cache</a>, and <a href="https://huggingface.co/docs/transformers/en/kv_cache#quantized-cache">Transformers QuantizedCache</a>. That cache-storage choice is separate from the activation precision used inside the linear kernels, which is why "KV-cache quantization" is a real term but should not be used as a synonym for every KV-cache optimization.</p>
 <h3 id="ptq-and-qat-happen-at-different-stages">PTQ and QAT happen at different stages</h3>
-<p>Post-training quantization, or <strong>PTQ</strong>, compresses a trained model after the fact. Quantization-aware training, or <strong>QAT</strong>, exposes the model to quantization noise during training so it can adapt.</p>
+<p>Post-training quantization, or <strong><a href="https://github.com/NVIDIA/Model-Optimizer">PTQ</a></strong>, compresses a trained model after the fact. Quantization-aware training, or <strong><a href="https://github.com/NVIDIA/Model-Optimizer">QAT</a></strong>, exposes the model to quantization noise during training so it can adapt.</p>
 <table>
 <thead>
 <tr>
@@ -1360,10 +1360,10 @@ x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\m
 </tr>
 </tbody>
 </table>
-<p>Calibration data has to look like the traffic you will serve. If production prompts are long RAG traces, short Wikipedia paragraphs will give you neat benchmark numbers and a broken deployment. The model will tune its activation scales around short text, then run into different activation patterns when real long-context prompts arrive.</p>
+<p>Calibration data has to look like the traffic you will serve; vLLM's KV-cache calibration path, for example, uses a curated dataset through <a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/"><code>llm-compressor</code></a>. If production prompts are long RAG traces, short Wikipedia paragraphs will give you neat benchmark numbers and a broken deployment. The model will tune its activation scales around short text, then run into different activation patterns when real long-context prompts arrive, a risk also visible in <a href="https://arxiv.org/abs/2505.20276">long-context quantization evaluations</a>.</p>
 <hr />
 <h2 id="3-number-formats-dictate-hardware-requirements">3. Number formats dictate hardware requirements</h2>
-<p>The number format defines what values the model can represent in memory. But storing a format doesn't mean your GPU can compute with it efficiently. Fast execution requires the hardware to have native tensor cores for that specific bit-width and format.</p>
+<p>The number format defines what values the model can represent in memory, but storing a format doesn't mean your GPU can compute with it efficiently. Fast execution requires runtime kernels and hardware support for that specific bit-width and format; TensorRT-LLM documents both the <a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html#quantization-in-tensorrt-llm">recipe list</a> and <a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html#hardware-support-matrix">hardware support matrix</a>.</p>
 <table>
 <thead>
 <tr>
@@ -1381,58 +1381,58 @@ x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\m
 <td style="text-align: left;">High VRAM use and high memory-bandwidth traffic</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>FP8 (OCP)</strong></td>
+<td style="text-align: left;"><strong><a href="https://arxiv.org/abs/2411.02355">FP8</a></strong></td>
 <td style="text-align: left;">1 byte</td>
 <td style="text-align: left;">High-throughput W8A8 serving on Ada, Hopper, Blackwell</td>
 <td style="text-align: left;">Needs native FP8 tensor cores and runtime support</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>INT8</strong></td>
+<td style="text-align: left;"><strong><a href="https://arxiv.org/abs/2211.10438">INT8</a></strong></td>
 <td style="text-align: left;">1 byte</td>
 <td style="text-align: left;">W8A8 serving on older or non-NVIDIA hardware</td>
 <td style="text-align: left;">Activation outliers and static calibration sensitivity</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>INT4</strong></td>
+<td style="text-align: left;"><strong><a href="https://arxiv.org/abs/2210.17323">INT4</a></strong></td>
 <td style="text-align: left;">0.5 bytes</td>
 <td style="text-align: left;">W4A16 when weight memory is the main limit</td>
 <td style="text-align: left;">Quality loss on smaller or reasoning-heavy models</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>FP4 / NVFP4</strong></td>
+<td style="text-align: left;"><strong><a href="https://developer.nvidia.com/blog/introducing-nvfp4-for-efficient-and-accurate-low-precision-inference/">FP4 / NVFP4</a></strong></td>
 <td style="text-align: left;">~0.5 bytes</td>
 <td style="text-align: left;">Blackwell-era experiments and early serving paths</td>
 <td style="text-align: left;">Hardware-specific compiler and runtime requirements</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>llama.cpp GGUF encodings / presets</strong></td>
+<td style="text-align: left;"><strong><a href="https://github.com/ggml-org/ggml/blob/master/docs/gguf.md">llama.cpp GGUF encodings / presets</a></strong></td>
 <td style="text-align: left;">Variable</td>
 <td style="text-align: left;">Local CPU, Apple Silicon, desktop, and edge inference</td>
 <td style="text-align: left;">GGUF is the container; the tensor encoding is the quantization choice</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>NF4</strong></td>
+<td style="text-align: left;"><strong><a href="https://arxiv.org/abs/2305.14314">NF4</a></strong></td>
 <td style="text-align: left;">0.5 bytes</td>
 <td style="text-align: left;">QLoRA adapter training</td>
 <td style="text-align: left;">Usually the wrong export format for production serving</td>
 </tr>
 </tbody>
 </table>
-<p>BF16 and FP16 both use 16 bits, but they distribute precision differently, leading to different failure modes. <strong>BF16</strong> keeps the 8-bit exponent range of FP32 and is harder to overflow. <strong>FP16</strong> has more mantissa bits but a narrower exponent range, so activation spikes need more care.</p>
-<p>FP8 has two common OCP variants. <strong>E4M3</strong> gives more precision and is usually used for forward weights and activations. <strong>E5M2</strong> gives more dynamic range and is more useful for gradients or volatile activation paths. In Kurtic et al.'s ACL 2025 study, "Give Me BF16 or Give Me Death," FP8 W8A8 was effectively lossless on the Llama-3.1 family over more than 500,000 evaluations. That doesn't mean every FP8 deployment is automatic. It means the format is strong when the serving stack uses it correctly.</p>
-<p>Blackwell adds microscaling formats such as <strong>MXFP8</strong> and <strong>NVFP4</strong>. Instead of one scale for a whole tensor or row, microscaling uses tiny blocks. NVIDIA's NVFP4 stores 4-bit floating-point values in blocks of 16, with FP8 scale factors and a higher-level FP32 scale. This approach aims to provide a near-INT4 footprint with floating-point behavior. However, it requires a matching hardware architecture, compiler, and runtime support.</p>
+<p>BF16 and FP16 both use 16 bits, but they distribute precision differently, leading to different failure modes. <strong>BF16</strong> keeps the 8-bit exponent range of FP32 and is harder to overflow. <strong>FP16</strong> has more mantissa bits but a narrower exponent range, so activation spikes need more care; the Kurtic et al. evaluation explicitly uses <a href="https://arxiv.org/abs/2411.02355">BF16 as the baseline</a> when comparing FP8, INT8, and INT4 serving formats.</p>
+<p>FP8 has two common variants. <strong>E4M3</strong> gives more precision and is usually used for forward weights and activations. <strong>E5M2</strong> gives more dynamic range and is more useful for gradients or volatile activation paths; vLLM exposes both <a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">FP8 E4M3 and E5M2 KV-cache dtypes</a>. In Kurtic et al.'s ACL 2025 study, "Give Me BF16 or Give Me Death," <a href="https://arxiv.org/abs/2411.02355">FP8 W8A8 was effectively lossless</a> on the Llama-3.1 family over more than 500,000 evaluations. That doesn't mean every FP8 deployment is automatic. It means the format is strong when the serving stack uses it correctly.</p>
+<p>Blackwell adds microscaling formats such as <strong>MXFP8</strong> and <strong>NVFP4</strong>. Instead of one scale for a whole tensor or row, microscaling uses tiny blocks. <a href="https://developer.nvidia.com/blog/introducing-nvfp4-for-efficient-and-accurate-low-precision-inference/">NVIDIA's NVFP4 explainer</a> describes 4-bit floating-point values in blocks of 16, with FP8 scale factors and a higher-level FP32 scale. This approach aims to provide a near-INT4 footprint with floating-point behavior. However, it requires a matching hardware architecture, compiler, and runtime support, which is why TensorRT-LLM lists <a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html#hardware-support-matrix">FP4 and FP8 support by GPU generation</a>.</p>
 <hr />
 <h2 id="4-weight-only-vs-weight-activation-quantization">4. Weight-only vs. weight-activation quantization</h2>
-<p>The notation <strong>WxAy</strong> describes the precision of weights and activations, which stress the GPU in different ways during inference.</p>
+<p>The notation <strong><a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html">WxAy</a></strong> describes the precision of weights and activations, which stress the GPU in different ways during inference.</p>
 <p><img alt="Quantization Mechanics: Weight-Only vs. Weight-Activation" src="../../../../review/assets/2026-06-19-model-quantization-guide/quantization_mechanics.svg" /></p>
-<p>During <strong>prefill</strong>, the model processes the input prompt. This phase is usually compute-bound because the GPU is doing large matrix multiplications.</p>
-<p>During <strong>decode</strong>, the model generates one token at a time. This phase is often memory-bandwidth-bound because the GPU keeps loading weights from VRAM to produce the next token.</p>
-<p><strong>W4A16</strong> compresses weights and keeps activations in BF16 or FP16. The GPU loads fewer weight bytes, then dequantizes the weights back into a higher-precision form for the multiply. This helps decode and fit-to-memory problems. It doesn't magically speed up compute-bound prefill, because the actual matrix math still runs in 16-bit.</p>
-<p><strong>W8A8</strong> compresses weights and the activation tensors used by supported matmul kernels. If the hardware has native low-precision tensor cores, the serving engine can run matrix math directly in FP8 or INT8. That's why FP8 can help high-throughput serving: it reduces memory traffic and uses faster arithmetic. It does not automatically mean the KV cache is stored in the same 8-bit format; check the runtime's cache dtype or cache implementation separately.</p>
-<p>If the model barely fits in VRAM, start with weight-only quantization to reduce the memory footprint. If the model fits but struggles with throughput under high batch loads, evaluate FP8 or INT8 W8A8 to accelerate the compute phase. If memory issues only appear during long conversations, first estimate the KV-cache term. If it dominates, test KV-cache quantization rather than compressing the weights further; if repeated prefixes dominate, enable prefix caching instead.</p>
+<p>During <strong>prefill</strong>, the model processes the input prompt. This phase is usually compute-bound because the GPU is doing large matrix multiplications, which is why <a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html">W8A8 FP8/INT8 recipes</a> matter for throughput-oriented serving.</p>
+<p>During <strong>decode</strong>, the model generates one token at a time. This phase is often memory-bandwidth-bound because the GPU keeps loading weights from VRAM to produce the next token; weight-only papers such as <a href="https://arxiv.org/abs/2210.17323">GPTQ</a> and <a href="https://arxiv.org/abs/2306.00978">AWQ</a> target that pressure by reducing weight bytes.</p>
+<p><strong><a href="https://docs.vllm.ai/projects/llm-compressor/en/latest/">W4A16</a></strong> compresses weights and keeps activations in BF16 or FP16. The GPU loads fewer weight bytes, then dequantizes the weights back into a higher-precision form for the multiply. This helps decode and fit-to-memory problems. It doesn't magically speed up compute-bound prefill, because the actual matrix math still runs in 16-bit.</p>
+<p><strong><a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html">W8A8</a></strong> compresses weights and the activation tensors used by supported matmul kernels. If the hardware has native low-precision tensor cores, the serving engine can run matrix math directly in FP8 or INT8. That's why FP8 can help high-throughput serving: it reduces memory traffic and uses faster arithmetic. It does not automatically mean the KV cache is stored in the same 8-bit format; check the runtime's <a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">cache dtype</a> or <a href="https://huggingface.co/docs/transformers/en/kv_cache#quantized-cache">cache implementation</a> separately.</p>
+<p>If the model barely fits in VRAM, start with <a href="https://arxiv.org/abs/2306.00978">weight-only quantization</a> to reduce the memory footprint. If the model fits but struggles with throughput under high batch loads, evaluate <a href="https://arxiv.org/abs/2411.02355">FP8 or INT8 W8A8</a> to accelerate the compute phase. If memory issues only appear during long conversations, first estimate the KV-cache term. If it dominates, test <a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">KV-cache quantization</a> rather than compressing the weights further; if repeated prefixes dominate, enable <a href="https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/">prefix caching</a> instead.</p>
 <hr />
 <h2 id="5-algorithms-vs-runtime-kernels">5. Algorithms vs. runtime kernels</h2>
-<p>Quantization algorithms (like GPTQ or AWQ) define how the model's weights are mapped to lower precision. Runtime kernels (like Marlin or vLLM's custom kernels) are the low-level GPU code that executes the matrix multiplication. A highly compressed model will only run fast if there is an optimized kernel for its specific quantization format.</p>
+<p>Quantization algorithms (like <a href="https://arxiv.org/abs/2210.17323">GPTQ</a> or <a href="https://arxiv.org/abs/2306.00978">AWQ</a>) define how the model's weights are mapped to lower precision. Runtime kernels (like <a href="https://arxiv.org/abs/2408.11743">Marlin</a> or <a href="https://docs.vllm.ai/en/latest/features/quantization/">vLLM's custom kernels</a>) are the low-level GPU code that executes the matrix multiplication. A highly compressed model will only run fast if there is an optimized kernel for its specific quantization format.</p>
 <p><img alt="Quantization algorithm and runtime kernel both shape serving results" src="../../../../review/assets/2026-06-19-model-quantization-guide/kernel-vs-algorithm-benchmark-map.svg" /></p>
 <p><a href="https://jarvislabs.ai/blog/vllm-quantization-complete-guide-benchmarks">JarvisLabs' vLLM benchmark</a> on Qwen2.5-32B-Instruct with an NVIDIA H200 makes the kernel effect visible:</p>
 <table>
@@ -1498,8 +1498,8 @@ x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\m
 </tbody>
 </table>
 <p>Don't copy these numbers to your own stack. They come from one model, one GPU class, and one software setup. They show a narrower point: the algorithm name on the checkpoint doesn't tell you how fast serving will be.</p>
-<p>For example, AWQ and Marlin-AWQ both use the same 4-bit weights. The Marlin implementation is much faster because its CUDA kernel fuses dequantization and matrix multiplication into a single, highly optimized GPU operation.</p>
-<p>Benchmark the baseline and the compressed variants under the same prompt mix:</p>
+<p>For example, <a href="https://arxiv.org/abs/2306.00978">AWQ</a> and Marlin-AWQ both use the same 4-bit weights. The <a href="https://arxiv.org/abs/2408.11743">Marlin</a> implementation is much faster because its CUDA kernel fuses dequantization and matrix multiplication into a single, highly optimized GPU operation.</p>
+<p>Benchmark the baseline and the compressed variants under the same prompt mix with the same tool, such as <a href="https://docs.vllm.ai/en/latest/cli/bench/serve/"><code>vllm bench serve</code></a>:</p>
 <div class="highlight"><pre><span></span><code>vllm<span class="w"> </span>bench<span class="w"> </span>serve<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--model<span class="w"> </span>./outputs/Qwen2.5-32B-Instruct-AWQ-W4A16<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--dataset-name<span class="w"> </span>sharegpt<span class="w"> </span><span class="se">\</span>
@@ -1521,85 +1521,85 @@ x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\m
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;"><strong>GPTQ</strong></td>
+<td style="text-align: left;"><strong><a href="https://arxiv.org/abs/2210.17323">GPTQ</a></strong></td>
 <td style="text-align: left;">W4A16</td>
 <td style="text-align: left;">Layer-wise reconstruction using Hessian estimates</td>
 <td style="text-align: left;">Slow calibration and more complex processing</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>AWQ</strong></td>
+<td style="text-align: left;"><strong><a href="https://arxiv.org/abs/2306.00978">AWQ</a></strong></td>
 <td style="text-align: left;">W4A16 / W4A8</td>
 <td style="text-align: left;">Important activation channels</td>
 <td style="text-align: left;">Needs calibration and fused serving kernels</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>SmoothQuant</strong></td>
+<td style="text-align: left;"><strong><a href="https://arxiv.org/abs/2211.10438">SmoothQuant</a></strong></td>
 <td style="text-align: left;">W8A8</td>
 <td style="text-align: left;">INT8 activation behavior by moving outlier scale into weights</td>
 <td style="text-align: left;">Per-model scale tuning</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>QuaRot / SpinQuant</strong></td>
+<td style="text-align: left;"><strong><a href="https://arxiv.org/abs/2404.00456">QuaRot</a> / <a href="https://arxiv.org/abs/2405.16406">SpinQuant</a></strong></td>
 <td style="text-align: left;">W4A4 / W4A8</td>
 <td style="text-align: left;">Lower activation outlier pressure through rotations</td>
 <td style="text-align: left;">Runtime rotation complexity</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>HQQ</strong></td>
+<td style="text-align: left;"><strong><a href="https://github.com/dropbox/hqq">HQQ</a></strong></td>
 <td style="text-align: left;">W4A16 / W2A16</td>
 <td style="text-align: left;">Fast weight-only compression without calibration</td>
-<td style="text-align: left;">Can trail AWQ or GPTQ at very low bit-widths</td>
+<td style="text-align: left;">Quality needs downstream checks at very low bit-widths</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>QLoRA (NF4)</strong></td>
+<td style="text-align: left;"><strong><a href="https://arxiv.org/abs/2305.14314">QLoRA (NF4)</a></strong></td>
 <td style="text-align: left;">NF4</td>
 <td style="text-align: left;">Adapter training memory</td>
 <td style="text-align: left;">Not a great default for serving</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>llama.cpp GGUF K-quants / IQ-quants</strong></td>
+<td style="text-align: left;"><strong><a href="https://github.com/ggml-org/llama.cpp">llama.cpp GGUF K-quants / IQ-quants</a></strong></td>
 <td style="text-align: left;">Mixed low-bit tensor encodings</td>
 <td style="text-align: left;">Local inference quality per byte</td>
 <td style="text-align: left;">Not designed for cloud batch serving</td>
 </tr>
 </tbody>
 </table>
-<p>The toolchain is actively evolving. <strong>AutoGPTQ</strong> was <a href="https://github.com/AutoGPTQ/AutoGPTQ">archived in April 2025</a>, and <strong>AutoAWQ</strong> was <a href="https://github.com/casper-hansen/AutoAWQ">archived and officially deprecated in May 2025</a>. For new work, start with <a href="https://github.com/vllm-project/llm-compressor"><strong>llm-compressor</strong></a> for <code>compressed-tensors</code> checkpoints consumed by vLLM, or <a href="https://github.com/ModelCloud/GPTQModel"><strong>GPTQModel</strong></a> when you need the active GPTQ path with Marlin, Machete, MoE memory options, and disk offload.</p>
-<p>One boundary is worth drawing before leaving the algorithm menu: pruning and distillation also reduce serving cost, but they're not quantization formats. <strong>2:4 structured sparsity</strong> removes weights in a pattern that NVIDIA sparse tensor cores can use. <strong>Distillation</strong> trains a smaller student model to copy a larger one, which can work well for narrow tasks. Both paths need their own training or pruning workflow, so don't mix them into the quantization shortlist unless you actually plan to run that extra work.</p>
+<p>The toolchain is actively evolving. <strong>AutoGPTQ</strong> was <a href="https://github.com/AutoGPTQ/AutoGPTQ">archived in April 2025</a>, and <strong>AutoAWQ</strong> was <a href="https://github.com/casper-hansen/AutoAWQ">archived and officially deprecated in May 2025</a>. For new work, start with <a href="https://github.com/vllm-project/llm-compressor"><strong>llm-compressor</strong></a> for <code>compressed-tensors</code> checkpoints consumed by <a href="https://docs.vllm.ai/en/latest/features/quantization/">vLLM</a>, or <a href="https://github.com/ModelCloud/GPTQModel"><strong>GPTQModel</strong></a> when you need the active GPTQ path with Marlin, <a href="https://github.com/ModelCloud/GPTQModel">Machete</a>, MoE memory options, and disk offload.</p>
+<p>One boundary is worth drawing before leaving the algorithm menu: pruning and distillation also reduce serving cost, but they're not quantization formats. <strong><a href="https://arxiv.org/abs/2603.05232">2:4 structured sparsity</a></strong> removes weights in a pattern that NVIDIA sparse tensor cores can use. <strong><a href="https://github.com/NVIDIA/Model-Optimizer">Distillation</a></strong> trains a smaller student model to copy a larger one, which can work well for narrow tasks. Both paths need their own training or pruning workflow, so don't mix them into the quantization shortlist unless you actually plan to run that extra work.</p>
 <hr />
 <h2 id="6-serving-memory-is-more-than-weights">6. Serving memory is more than weights</h2>
-<p>When planning hardware requirements, remember that the compressed checkpoint is only part of the memory footprint. Don't treat this as a second quantization choice. Treat it as the sizing check that tells you whether weight quantization is enough.</p>
+<p>When planning hardware requirements, remember that the compressed checkpoint is only part of the memory footprint. Don't treat this as a second quantization choice. Treat it as the sizing check that tells you whether weight quantization is enough; <a href="https://arxiv.org/abs/2309.06180">PagedAttention</a> framed the KV cache as a major serving-memory term, not a minor implementation detail.</p>
 <div class="arithmatex">\[
 \text{VRAM}_{\text{serve}} \approx \text{Quantized Weights} + \text{KV Cache} + \text{Runtime Activations} + \text{Engine Overhead}
 \]</div>
-<p>Offline quantization can be layer-bounded. Tools such as <code>llm-compressor</code> can load a transformer block, run calibration and quantization math, write the compressed block, and move on. That keeps peak GPU memory closer to the largest active layer plus calibration buffers. You still need CPU RAM and disk for the source checkpoint, but the GPU doesn't always hold the full BF16 model.</p>
+<p>Offline quantization can be layer-bounded. Tools such as <a href="https://docs.vllm.ai/projects/llm-compressor/en/latest/"><code>llm-compressor</code></a> can load a transformer block, run calibration and quantization math, write the compressed block, and move on. That keeps peak GPU memory closer to the largest active layer plus calibration buffers. You still need CPU RAM and disk for the source checkpoint, but the GPU doesn't always hold the full BF16 model.</p>
 <p>Peak GPU memory during offline quantization can look more like this:</p>
 <div class="arithmatex">\[
 \text{GPU Peak}_{\text{quantize}} \approx \text{Largest Layer (BF16)} + \text{Calibration Activations} + \text{Method Buffers}
 \]</div>
-<p>Serving is stricter. The whole compressed checkpoint must stay resident with the KV cache and runtime buffers. The KV cache grows with context length and active batch size:</p>
+<p>Serving is stricter. The whole compressed checkpoint must stay resident with the KV cache and runtime buffers. The <a href="https://arxiv.org/abs/2309.06180">KV cache grows with context length and active batch size</a>:</p>
 <div class="arithmatex">\[
 \text{KV Cache (Bytes)} = 2 \times L \times H_{\text{kv}} \times D \times S_{\text{ctx}} \times B_{\text{batch}} \times \text{BytesPerValue}
 \]</div>
 <p>Where:</p>
 <ul>
 <li><span class="arithmatex">\(L\)</span> is the layer count.</li>
-<li><span class="arithmatex">\(H_{\text{kv}}\)</span> is the number of key-value attention heads. Grouped-query attention reduces this by letting many query heads share fewer KV heads.</li>
+<li><span class="arithmatex">\(H_{\text{kv}}\)</span> is the number of key-value attention heads. <a href="https://arxiv.org/abs/2305.13245">Grouped-query attention</a> reduces this by letting many query heads share fewer KV heads.</li>
 <li><span class="arithmatex">\(D\)</span> is the dimension of each head, often 128 or 256.</li>
 <li><span class="arithmatex">\(S_{\text{ctx}}\)</span> is prompt tokens plus generated tokens.</li>
 <li><span class="arithmatex">\(B_{\text{batch}}\)</span> is the active serving batch.</li>
-<li><span class="arithmatex">\(\text{BytesPerValue}\)</span> is 2 for BF16 or FP16 and 1 for FP8 or INT8.</li>
+<li><span class="arithmatex">\(\text{BytesPerValue}\)</span> is 2 for BF16 or FP16 and 1 for FP8 or INT8; vLLM's <a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">FP8 KV-cache mode</a> is the serving-stack example this article uses.</li>
 </ul>
 <h3 id="kv-cache-quantization-is-real-but-separate-from-cache-reuse">KV-cache quantization is real, but separate from cache reuse</h3>
-<p>Yes, the KV cache can be quantized during inference. Each decode step produces K and V activation tensors for the new token. A W8A8 model may already use FP8 or INT8 for supported projection math, but the cache is a separate storage object: many serving stacks keep it in the model/cache dtype unless you enable a KV-cache dtype, use a checkpoint with cache scales, or choose a quantized cache implementation. When KV-cache quantization is enabled, the engine writes cache entries as a lower-precision representation plus scales. Later attention reads that lower-precision cache and either dequantizes inside the attention kernel or, for some backends, performs parts of attention in the quantized domain.</p>
-<p><a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">vLLM's stable Quantized KV Cache docs</a> expose this directly with <code>kv_cache_dtype="fp8"</code> or <code>--kv-cache-dtype fp8</code>. vLLM supports FP8 E4M3 and E5M2 cache formats, per-tensor and per-attention-head scale strategies, and three scale paths: default scales, warmup-time scale estimation, and dataset calibration through <code>llm-compressor</code>. With FlashAttention 3, vLLM can also run attention operations in the FP8 domain by quantizing queries in addition to keys and values.</p>
+<p>Yes, the KV cache can be quantized during inference. Each decode step produces K and V activation tensors for the new token. A W8A8 model may already use FP8 or INT8 for supported projection math, but the cache is a separate storage object: many serving stacks keep it in the model/cache dtype unless you enable a <a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">KV-cache dtype</a>, use a checkpoint with cache scales, or choose a <a href="https://huggingface.co/docs/transformers/en/kv_cache#quantized-cache">quantized cache implementation</a>. When KV-cache quantization is enabled, the engine writes cache entries as a lower-precision representation plus scales. Later attention reads that lower-precision cache and either dequantizes inside the attention kernel or, for some backends, performs parts of attention in the quantized domain.</p>
+<p><a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">vLLM's stable Quantized KV Cache docs</a> expose this directly with <code>kv_cache_dtype="fp8"</code> or <code>--kv-cache-dtype fp8</code>. vLLM supports FP8 E4M3 and E5M2 cache formats, per-tensor and per-attention-head scale strategies, and three scale paths: default scales, warmup-time scale estimation, and dataset calibration through <code>llm-compressor</code>. With <a href="https://blog.vllm.ai/2026/04/22/fp8-kvcache.html">FlashAttention 3</a>, vLLM can also run attention operations in the FP8 domain by quantizing queries in addition to keys and values.</p>
 <p><a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html">TensorRT-LLM</a> exposes FP8 KV cache through <code>KvCacheConfig(dtype='fp8')</code> and lists FP8 KV cache and NVFP4 KV cache as separate quantization recipes from weight/activation quantization. <a href="https://huggingface.co/docs/transformers/en/kv_cache#quantized-cache">Hugging Face Transformers</a> also has a <code>QuantizedCache</code> path via <code>cache_implementation="quantized"</code>, with <code>hqq</code> supporting int2, int4, and int8 cache formats and <code>quanto</code> supporting int2 and int4.</p>
 <p>That said, KV-cache quantization is not the same as ordinary <strong>KV caching</strong>. Ordinary KV caching stores prior keys and values to avoid recomputing them. <a href="https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/">Prefix caching</a> reuses cache blocks across requests with the same prefix. <a href="https://docs.vllm.ai/en/stable/design/paged_attention/">PagedAttention</a> reduces fragmentation and improves allocation. KV offload moves cache blocks between memory tiers. These are cache-management techniques; they can be combined with quantization, but they are not themselves quantization.</p>
-<p>The quality risk also differs from weight-only PTQ. KV-cache quantization injects error into the attention state read at every later decode step, so long-context retrieval, multi-turn behavior, safety/refusal behavior, tool-use formatting, and output latency need separate tests.</p>
+<p>The quality risk also differs from weight-only PTQ. KV-cache quantization injects error into the attention state read at every later decode step, so long-context retrieval, multi-turn behavior, safety/refusal behavior, tool-use formatting, and output latency need separate tests; <a href="https://arxiv.org/abs/2401.18079">KVQuant</a>, <a href="https://arxiv.org/abs/2402.02750">KIVI</a>, and the <a href="https://blog.vllm.ai/2026/04/22/fp8-kvcache.html">vLLM FP8 KV-cache study</a> all evaluate KV-cache quantization as its own problem.</p>
 <p>For a 70B model serving 32k context, the KV cache can be larger than the weight savings you get from another round of weight compression. In this scenario, testing <a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">FP8 KV-cache quantization</a> is more useful than forcing the weights into a smaller format.</p>
 <hr />
 <h2 id="7-hardware-narrows-the-menu">7. Hardware narrows the menu</h2>
-<p>Weight footprint is easy to estimate:</p>
+<p>Weight footprint is easy to estimate from parameter count and storage precision, the same sizing idea used in <a href="https://arxiv.org/abs/2309.06180">serving-memory discussions around KV cache</a>:</p>
 <div class="arithmatex">\[
 \text{Weight Size (GB)} \approx \frac{\text{Parameter Count (B)} \times \text{Bits}}{8}
 \]</div>
@@ -1645,39 +1645,39 @@ x_q = \text{clip}\left(\text{round}\left(\frac{x}{s}\right) + z, q_{\min}, q_{\m
 </tr>
 </tbody>
 </table>
-<p>Mixture-of-experts models may activate fewer parameters per token, but the full set of weights still needs to live somewhere unless the runtime supports offload.</p>
+<p>Mixture-of-experts models may activate fewer parameters per token, but the full set of weights still needs to live somewhere unless the runtime supports offload; TensorRT-LLM's quantization support matrix treats <a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html#model-support-matrix">MoE model families</a> as deployment targets with their own supported recipes.</p>
 <p>Your deployment hardware restricts which quantization formats are viable:</p>
 <ul>
-<li><strong>CPU</strong> serving depends on vector instructions such as AVX-512 or AMX. A GGUF file loaded through <code>llama.cpp</code> is the practical path.</li>
-<li><strong>Apple Silicon</strong> uses unified memory, so local models can use a large shared RAM pool instead of dedicated VRAM.</li>
-<li><strong>NVIDIA Ampere</strong> supports INT8 tensor cores but not native FP8. Common choices are W4A16 weight-only quantization or static INT8.</li>
-<li><strong>NVIDIA Ada and Hopper</strong> support FP8 tensor cores. FP8 W8A8 serving is worth testing on these GPUs.</li>
-<li><strong>NVIDIA Blackwell</strong> adds NVFP4 and microscaling support, but the software path still matters. Treat early low-bit floating-point stacks as version-sensitive.</li>
+<li><strong>CPU</strong> serving depends on vector instructions such as AVX-512 or AMX. A <a href="https://huggingface.co/docs/hub/gguf">GGUF</a> file loaded through <a href="https://github.com/ggml-org/llama.cpp"><code>llama.cpp</code></a> is the practical path.</li>
+<li><strong>Apple Silicon</strong> uses unified memory, so local models can use a large shared RAM pool instead of dedicated VRAM; GGUF and <code>llama.cpp</code> remain the common local-runtime path because <a href="https://github.com/ggml-org/ggml/blob/master/docs/gguf.md">GGUF is built for GGML executors</a>.</li>
+<li><strong>NVIDIA Ampere</strong> supports INT8 tensor-core serving paths but not native FP8 W8A8 tensor-core math. Common choices are W4A16 weight-only quantization or static INT8, matching the <a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html#hardware-support-matrix">TensorRT-LLM hardware support matrix</a>.</li>
+<li><strong>NVIDIA Ada and Hopper</strong> support FP8 serving paths in TensorRT-LLM. <a href="https://arxiv.org/abs/2411.02355">FP8 W8A8</a> serving is worth testing on these GPUs.</li>
+<li><strong>NVIDIA Blackwell</strong> adds <a href="https://developer.nvidia.com/blog/introducing-nvfp4-for-efficient-and-accurate-low-precision-inference/">NVFP4 and microscaling support</a>, but the software path still matters. Treat early low-bit floating-point stacks as version-sensitive.</li>
 </ul>
 <hr />
 <h2 id="8-calibration-and-evaluation-before-deploy">8. Calibration and evaluation before deploy</h2>
-<p>Don't ship the quantized model because it loads. Ship it after it passes the quality and serving checks for your workload.</p>
+<p>Don't ship the quantized model because it loads. Ship it after it passes the quality and serving checks for your workload; recent quantization evaluations show different outcomes for <a href="https://arxiv.org/abs/2411.02355">LLM serving</a>, <a href="https://arxiv.org/abs/2505.20276">long-context tasks</a>, and <a href="https://arxiv.org/abs/2504.04823">reasoning-heavy models</a>.</p>
 <p><img alt="Calibration and evaluation checks for quantized models" src="../../../../review/assets/2026-06-19-model-quantization-guide/calibration-eval-checks.svg" /></p>
 <p>For calibration, use prompts that look like production:</p>
 <ul>
-<li>Include RAG traces, SQL queries, agent histories, code tasks, tool-call payloads, and system prompts from the target workload.</li>
-<li>Match sequence lengths. Short single-turn prompts won't expose long-context activation behavior.</li>
-<li>Keep <code>embed_tokens</code> and <code>lm_head</code> in higher precision if the method or runtime allows it.</li>
-<li>Use enough samples to stabilize activation ranges. In practice, 128 to 512 representative prompts is a common starting point.</li>
+<li>Include RAG traces, SQL queries, agent histories, code tasks, tool-call payloads, and system prompts from the target workload; <a href="https://huggingface.co/docs/optimum/en/concept_guides/quantization">static PTQ</a> depends on calibration data matching the production distribution.</li>
+<li>Match sequence lengths. Short single-turn prompts won't expose <a href="https://arxiv.org/abs/2505.20276">long-context activation behavior</a>.</li>
+<li>Keep <code>embed_tokens</code> and <code>lm_head</code> in higher precision if the method or runtime allows it, a common exclusion pattern in <a href="https://docs.vllm.ai/projects/llm-compressor/en/latest/">LLM Compressor recipes</a>.</li>
+<li>Use enough samples to stabilize activation ranges. In practice, <a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">128 to 512 representative prompts</a> is a common starting point for calibration-style workflows.</li>
 <li>Redact secrets and private user data before using production logs.</li>
 </ul>
 <p>For evaluation, test both language quality and serving behavior:</p>
 <ul>
-<li>Perplexity on a standard corpus catches broad language degradation.</li>
-<li>Domain tasks catch failures that perplexity hides. Use HumanEval for coding, MMLU for broad knowledge, and AIME or MATH-500 for mathematical reasoning when those domains matter.</li>
-<li>Format checks matter for agentic systems. Test JSON schema compliance, markdown output, tool-call shape, and refusal behavior.</li>
-<li>Long-context tests catch KV-cache quantization damage. Needle-in-a-haystack is crude, but it finds failures quickly.</li>
-<li>Load tests should report throughput, TTFT, inter-token latency, max batch capacity, and peak memory.</li>
+<li>Perplexity on a standard corpus catches broad language degradation, but the <a href="https://jarvislabs.ai/blog/vllm-quantization-complete-guide-benchmarks">JarvisLabs benchmark</a> is a useful reminder that perplexity and throughput can move differently.</li>
+<li>Domain tasks catch failures that perplexity hides. Use <a href="https://github.com/openai/human-eval">HumanEval</a> for coding, <a href="https://arxiv.org/abs/2009.03300">MMLU</a> for broad knowledge, and <a href="https://arxiv.org/abs/2504.04823">AIME</a> or <a href="https://huggingface.co/datasets/HuggingFaceH4/MATH-500">MATH-500</a> for mathematical reasoning when those domains matter.</li>
+<li>Format checks matter for agentic systems. Test JSON schema compliance, markdown output, tool-call shape, and refusal behavior because quantized model evaluations can miss application-level failures even when <a href="https://arxiv.org/abs/2411.02355">aggregate benchmark accuracy looks stable</a>.</li>
+<li>Long-context tests catch KV-cache quantization damage. Needle-in-a-haystack is crude, but <a href="https://arxiv.org/abs/2505.20276">long-context quantization results</a> show why those checks belong in the deploy gate.</li>
+<li>Load tests should report throughput, TTFT, inter-token latency, max batch capacity, and peak memory; vLLM exposes this through <a href="https://docs.vllm.ai/en/latest/cli/bench/serve/"><code>vllm bench serve</code></a>.</li>
 </ul>
-<p>Evaluate reasoning-heavy models rigorously. Sub-4-bit or unrotated W4A4 quantization can hurt reasoning accuracy even when baseline perplexity looks stable.</p>
+<p>Evaluate reasoning-heavy models rigorously. Sub-4-bit or unrotated W4A4 quantization can hurt reasoning accuracy even when baseline perplexity looks stable, which is the core warning in the <a href="https://arxiv.org/abs/2504.04823">quantized reasoning-model study</a>.</p>
 <hr />
 <h2 id="9-companion-repository-workflow">9. Companion repository workflow</h2>
-<p>The companion repository, <a href="https://github.com/slavadubrov/model-compression-demo">slavadubrov/model-compression-demo</a>, is meant to make the decision process reproducible. It uses <code>uv</code> and focuses on planning, recipes, dry runs, and benchmark configs.</p>
+<p>The companion repository, <a href="https://github.com/slavadubrov/model-compression-demo">slavadubrov/model-compression-demo</a>, is meant to make the decision process reproducible. It uses <code>uv</code> and focuses on planning, recipes, dry runs, and benchmark configs grounded in the same sources used here: <a href="https://docs.vllm.ai/en/latest/features/quantization/">vLLM</a>, <a href="https://docs.vllm.ai/projects/llm-compressor/en/latest/">LLM Compressor</a>, <a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html">TensorRT-LLM</a>, and the algorithm papers.</p>
 <p>Clone it and inspect the supported algorithms:</p>
 <div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/slavadubrov/model-compression-demo.git
 <span class="nb">cd</span><span class="w"> </span>model-compression-demo
@@ -1733,39 +1733,39 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 <span class="w">  </span>--max-task-regression<span class="w"> </span><span class="m">0</span>.02<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--output-json<span class="w"> </span>reports/qwen3-0.6b-w4a16-quality.json
 </code></pre></div>
-<p>Run the work in order: plan the target, estimate memory, dry-run the recipe, benchmark serving, then compare quality against thresholds. The boring sequence catches failures before they reach production traffic.</p>
+<p>Run the work in order: plan the target, estimate memory, dry-run the recipe, benchmark serving, then compare quality against thresholds. That sequence mirrors the separation in this article between <a href="https://arxiv.org/abs/2309.06180">memory sizing</a>, <a href="https://docs.vllm.ai/en/latest/cli/bench/serve/">runtime benchmarking</a>, and <a href="https://arxiv.org/abs/2411.02355">quality evaluation</a>.</p>
 <hr />
 <h2 id="10-diffusion-models-need-a-separate-path">10. Diffusion models need a separate path</h2>
-<p>LLM quantization rules don't transfer cleanly to diffusion and diffusion-transformer pipelines.</p>
-<p>Autoregressive LLMs generate one token at a time. Diffusion models run repeated denoising steps, and their activation distributions shift during the process. Applying a standard 4-bit LLM quantization pass to a diffusion model often saves memory but introduces severe visual artifacts.</p>
+<p>LLM quantization rules don't transfer cleanly to diffusion and diffusion-transformer pipelines; <a href="https://arxiv.org/abs/2411.05007">SVDQuant</a> treats diffusion quantization as a separate activation-outlier problem rather than a direct copy of LLM weight-only PTQ.</p>
+<p>Autoregressive LLMs generate one token at a time. Diffusion models run repeated denoising steps, and their activation distributions shift during the process. Applying a standard 4-bit LLM quantization pass to a diffusion model often saves memory but introduces severe visual artifacts, which is why diffusion-focused methods such as <a href="https://arxiv.org/abs/2411.05007">SVDQuant / Nunchaku</a> and <a href="https://github.com/NVIDIA/Model-Optimizer">NVIDIA ModelOpt diffusion quantization</a> exist.</p>
 <p>Use a component-level plan:</p>
 <ol>
-<li>Keep the <strong>VAE</strong> in 16-bit. Small errors there can become color banding, noise, or broken image structure.</li>
-<li>Quantize the <strong>DiT or U-Net backbone</strong> first because it usually holds the largest parameter share.</li>
-<li>Treat text encoders separately. Quantizing T5-XXL or CLIP can damage prompt alignment and text rendering.</li>
-<li>Use diffusion-aware methods such as <strong>SVDQuant</strong> when activation outliers are the main issue.</li>
+<li>Keep the <strong>VAE</strong> in 16-bit. Small errors there can become color banding, noise, or broken image structure, so diffusion workflows should preserve sensitive components unless a method explicitly validates them.</li>
+<li>Quantize the <strong>DiT or U-Net backbone</strong> first because it usually holds the largest parameter share, matching the component-level approach used by <a href="https://arxiv.org/abs/2411.05007">diffusion quantization methods</a>.</li>
+<li>Treat text encoders separately. Quantizing T5-XXL or CLIP can damage prompt alignment and text rendering, so evaluate them as separate components rather than as generic transformer blocks.</li>
+<li>Use diffusion-aware methods such as <strong><a href="https://arxiv.org/abs/2411.05007">SVDQuant</a></strong> when activation outliers are the main issue.</li>
 <li>Evaluate with images, not text metrics. Check prompt adherence, text rendering, skin tones, color balance, fine detail, latency, and VRAM.</li>
 </ol>
-<p>If the evaluation set only contains simple or highly common prompts, you will miss edge-case failures. Include hard cases: small text, hands, repeated objects, structured layouts, and prompts with negative constraints.</p>
+<p>If the evaluation set only contains simple or highly common prompts, you will miss edge-case failures. Include hard cases: small text, hands, repeated objects, structured layouts, and prompts with negative constraints, because diffusion quantization failures show up visually rather than in <a href="https://arxiv.org/abs/2411.05007">language-model perplexity</a>.</p>
 <hr />
 <h2 id="11-production-defaults">11. Production defaults</h2>
-<p>For <strong>enterprise LLM serving</strong>, start with a BF16 baseline in the exact serving engine you plan to use. If throughput is the goal and the hardware supports it, test FP8 W8A8. If the model doesn't fit, test AWQ or GPTQ W4A16 with Marlin-class kernels. If long context or concurrency is the problem, test FP8 KV-cache quantization. If repeated prefixes are the problem, also enable prefix caching. Ship the compressed version only when quality and serving benchmarks both pass.</p>
-<p>For <strong>local and edge inference</strong>, start with a GGUF file using Q4_K_M or Q5_K_M. Move to a Q8_0 GGUF when memory allows and quality matters more than footprint. Going below 4-bit is a last resort, not a default.</p>
-<p>For <strong>fine-tuning</strong>, use NF4 with QLoRA to train adapters cheaply. Evaluate the adapter in the application before merging. After merging, export to the serving artifact you actually need: a <code>llama.cpp</code>-compatible GGUF file, an AWQ/GPTQ/compressed-tensors checkpoint, an FP8 serving checkpoint, or BF16.</p>
-<p>For <strong>diffusion</strong>, keep the VAE safe, quantize the backbone first, and judge the result visually. Text perplexity won't tell you whether an image pipeline broke.</p>
+<p>For <strong>enterprise LLM serving</strong>, start with a <a href="https://arxiv.org/abs/2411.02355">BF16 baseline</a> in the exact serving engine you plan to use. If throughput is the goal and the hardware supports it, test <a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html">FP8 W8A8</a>. If the model doesn't fit, test <a href="https://arxiv.org/abs/2306.00978">AWQ</a> or <a href="https://arxiv.org/abs/2210.17323">GPTQ</a> W4A16 with <a href="https://arxiv.org/abs/2408.11743">Marlin-class kernels</a>. If long context or concurrency is the problem, test <a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">FP8 KV-cache quantization</a>. If repeated prefixes are the problem, also enable <a href="https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/">prefix caching</a>. Ship the compressed version only when quality and serving benchmarks both pass.</p>
+<p>For <strong>local and edge inference</strong>, start with a <a href="https://huggingface.co/docs/hub/gguf">GGUF</a> file using Q4_K_M or Q5_K_M. Move to a Q8_0 GGUF when memory allows and quality matters more than footprint. Going below 4-bit is a last resort, not a default.</p>
+<p>For <strong>fine-tuning</strong>, use <a href="https://arxiv.org/abs/2305.14314">NF4 with QLoRA</a> to train adapters cheaply. Evaluate the adapter in the application before merging. After merging, export to the serving artifact you actually need: a <a href="https://github.com/ggml-org/ggml/blob/master/docs/gguf.md"><code>llama.cpp</code>-compatible GGUF file</a>, an AWQ/GPTQ/<code>compressed-tensors</code> checkpoint, an FP8 serving checkpoint, or BF16.</p>
+<p>For <strong>diffusion</strong>, keep the VAE safe, quantize the backbone first, and judge the result visually. Text perplexity won't tell you whether an image pipeline broke, so use diffusion-specific evidence such as <a href="https://arxiv.org/abs/2411.05007">SVDQuant</a> and visual evaluation.</p>
 <hr />
 <h2 id="key-takeaways">Key takeaways</h2>
 <ol>
-<li>Quantization combines controlled rounding with runtime execution. Bit-width alone determines neither speed nor quality.</li>
-<li>Pick the bottleneck first: weight memory, activation compute, KV cache, local runtime, fine-tuning memory, or image-pipeline memory.</li>
-<li>W4A16 is primarily a memory and decode optimization. It reduces VRAM usage and memory bandwidth pressure but does not accelerate compute-bound prefill operations.</li>
-<li>FP8 is a serving tool when hardware and kernels support native low-precision math.</li>
-<li>Kernels can dominate benchmark results. Marlin, Machete, BitBLAS, vLLM, and TensorRT-LLM paths can matter as much as the quantization algorithm.</li>
-<li>GGUF is a file format for GGML and <code>llama.cpp</code> runtimes. The quantization choice is the tensor encoding or preset inside the GGUF file.</li>
-<li>KV cache is a first-class memory term. Long context and concurrency can make it larger than the compressed weights.</li>
-<li>KV-cache quantization exists and is supported by serving stacks, but it is separate from prefix caching, PagedAttention, and offload.</li>
-<li>Calibration data must look like production traffic. Generic text is fine for smoke tests, not for the deploy decision.</li>
-<li>Diffusion quantization is its own workflow. Evaluate component sensitivity and visual quality, not only model size.</li>
+<li>Quantization combines <a href="https://huggingface.co/docs/optimum/en/concept_guides/quantization">controlled rounding</a> with <a href="https://docs.vllm.ai/en/latest/features/quantization/">runtime execution</a>. Bit-width alone determines neither speed nor quality.</li>
+<li>Pick the bottleneck first: weight memory, activation compute, <a href="https://arxiv.org/abs/2309.06180">KV cache</a>, local runtime, fine-tuning memory, or image-pipeline memory.</li>
+<li><a href="https://docs.vllm.ai/projects/llm-compressor/en/latest/">W4A16</a> is primarily a memory and decode optimization. It reduces VRAM usage and memory bandwidth pressure but does not accelerate compute-bound prefill operations.</li>
+<li><a href="https://arxiv.org/abs/2411.02355">FP8</a> is a serving tool when hardware and kernels support native low-precision math.</li>
+<li>Kernels can dominate benchmark results. <a href="https://arxiv.org/abs/2408.11743">Marlin</a>, <a href="https://github.com/ModelCloud/GPTQModel">Machete</a>, <a href="https://github.com/microsoft/BitBLAS">BitBLAS</a>, <a href="https://docs.vllm.ai/en/latest/features/quantization/">vLLM</a>, and <a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html">TensorRT-LLM</a> paths can matter as much as the quantization algorithm.</li>
+<li><a href="https://github.com/ggml-org/ggml/blob/master/docs/gguf.md">GGUF</a> is a file format for GGML and <code>llama.cpp</code> runtimes. The quantization choice is the tensor encoding or preset inside the GGUF file.</li>
+<li>KV cache is a first-class memory term. <a href="https://arxiv.org/abs/2309.06180">Long context and concurrency</a> can make it larger than the compressed weights.</li>
+<li><a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">KV-cache quantization</a> exists and is supported by serving stacks, but it is separate from <a href="https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/">prefix caching</a>, <a href="https://docs.vllm.ai/en/stable/design/paged_attention/">PagedAttention</a>, and offload.</li>
+<li><a href="https://huggingface.co/docs/optimum/en/concept_guides/quantization">Calibration data</a> must look like production traffic. Generic text is fine for smoke tests, not for the deploy decision.</li>
+<li><a href="https://arxiv.org/abs/2411.05007">Diffusion quantization</a> is its own workflow. Evaluate component sensitivity and visual quality, not only model size.</li>
 </ol>
 <hr />
 <h2 id="references">References</h2>
@@ -1779,10 +1779,15 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 <li><strong>LLM Compressor Docs</strong>: vLLM project, <em>LLM Compressor</em>. <a href="https://docs.vllm.ai/projects/llm-compressor/en/latest/">Docs</a>.</li>
 <li><strong>GPTQModel</strong>: ModelCloud, <em>GPTQModel</em>. <a href="https://github.com/ModelCloud/GPTQModel">GitHub</a>.</li>
 <li><strong>TensorRT-LLM Quantization</strong>: NVIDIA, <em>TensorRT-LLM Quantization</em>. <a href="https://nvidia.github.io/TensorRT-LLM/features/quantization.html">Docs</a>.</li>
+<li><strong>NVIDIA NVFP4</strong>: NVIDIA, <em>Introducing NVFP4 for Efficient and Accurate Low-Precision Inference</em>. <a href="https://developer.nvidia.com/blog/introducing-nvfp4-for-efficient-and-accurate-low-precision-inference/">Blog</a>.</li>
 <li><strong>Hugging Face QuantizedCache</strong>: Hugging Face, <em>Cache strategies: Quantized cache</em>. <a href="https://huggingface.co/docs/transformers/en/kv_cache#quantized-cache">Docs</a>.</li>
-<li><strong>NVIDIA Model Optimizer</strong>: NVIDIA, <em>TensorRT Model Optimizer</em>. <a href="https://github.com/NVIDIA/TensorRT-Model-Optimizer">GitHub</a>.</li>
+<li><strong>NVIDIA Model Optimizer</strong>: NVIDIA, <em>Model Optimizer</em>. <a href="https://github.com/NVIDIA/Model-Optimizer">GitHub</a>.</li>
 <li><strong>torchao Quantization</strong>: PyTorch, <em>torchao quantization overview</em>. <a href="https://docs.pytorch.org/ao/stable/quantization_overview.html">Docs</a>.</li>
 <li><strong>bitsandbytes Quantization</strong>: Hugging Face, <em>bitsandbytes</em>. <a href="https://huggingface.co/docs/bitsandbytes/main/en/index">Docs</a>.</li>
+<li><strong>HQQ</strong>: Dropbox, <em>Half-Quadratic Quantization</em>. <a href="https://github.com/dropbox/hqq">GitHub</a>.</li>
+<li><strong>PEFT</strong>: Hugging Face, <em>Parameter-Efficient Fine-Tuning</em>. <a href="https://huggingface.co/docs/peft/index">Docs</a>.</li>
+<li><strong>Ollama</strong>: Ollama local model runtime. <a href="https://ollama.com/">Website</a>.</li>
+<li><strong>LM Studio</strong>: LM Studio local AI runtime. <a href="https://lmstudio.ai/">Website</a>.</li>
 <li><strong>AutoGPTQ status</strong>: AutoGPTQ repository, archived April 2025. <a href="https://github.com/AutoGPTQ/AutoGPTQ">GitHub</a>.</li>
 <li><strong>AutoAWQ status</strong>: AutoAWQ repository, archived and deprecated May 2025. <a href="https://github.com/casper-hansen/AutoAWQ">GitHub</a>.</li>
 <li><strong>GPTQ</strong>: Frantar et al., <em>GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers</em>, NeurIPS 2023. <a href="https://arxiv.org/abs/2210.17323">arXiv:2210.17323</a>.</li>
@@ -1792,8 +1797,9 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 <li><strong>QuaRot</strong>: Ashkboos et al., <em>QuaRot: Outlier-Free 4-Bit Inference in Rotated LLMs</em>, NeurIPS 2024. <a href="https://arxiv.org/abs/2404.00456">arXiv:2404.00456</a>.</li>
 <li><strong>SpinQuant</strong>: Meta AI Research, <em>SpinQuant: LLM Quantization with Learned Rotations</em>, arXiv:2405.16406. <a href="https://arxiv.org/abs/2405.16406">arXiv:2405.16406</a>.</li>
 <li><strong>QLoRA / NF4</strong>: Dettmers et al., <em>QLoRA: Efficient Finetuning of Quantized LLMs</em>, NeurIPS 2023. <a href="https://arxiv.org/abs/2305.14314">arXiv:2305.14314</a>.</li>
-<li><strong>SVDQuant / Nunchaku</strong>: MIT HAN Lab, <em>SVDQuant: Absorbing Outliers by Low-Rank Components for 4-Bit Diffusion Models</em>, ICLR 2025. <a href="https://arxiv.org/abs/2411.05007">arXiv:2411.05007</a>.</li>
+<li><strong>SVDQuant / Nunchaku</strong>: MIT HAN Lab, <em>SVDQuant: Absorbing Outliers by Low-Rank Components for 4-Bit Diffusion Models</em>, ICLR 2025. <a href="https://arxiv.org/abs/2411.05007">arXiv:2411.05007</a>, <a href="https://github.com/nunchaku-ai/nunchaku">Nunchaku</a>.</li>
 <li><strong>vLLM PagedAttention</strong>: Kwon et al., <em>Efficient Memory Management for Large Language Model Serving with PagedAttention</em>, SOSP 2023. <a href="https://arxiv.org/abs/2309.06180">arXiv:2309.06180</a>.</li>
+<li><strong>Grouped-Query Attention</strong>: Ainslie et al., <em>GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints</em>, EMNLP 2023. <a href="https://arxiv.org/abs/2305.13245">arXiv:2305.13245</a>.</li>
 <li><strong>vLLM FP8 KV Cache</strong>: Kubler, Kurtic, Wilkinson et al., <em>The State of FP8 KV-Cache and Attention Quantization in vLLM</em>, vLLM Blog, April 2026. <a href="https://blog.vllm.ai/2026/04/22/fp8-kvcache.html">vLLM Blog</a>.</li>
 <li><strong>KIVI</strong>: Liu et al., <em>KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache</em>, ICML 2024. <a href="https://arxiv.org/abs/2402.02750">arXiv:2402.02750</a>.</li>
 <li><strong>KVQuant</strong>: Hooper et al., <em>KVQuant: Towards 10 Million Context Length LLM Inference with KV Cache Quantization</em>, NeurIPS 2024. <a href="https://arxiv.org/abs/2401.18079">arXiv:2401.18079</a>.</li>
@@ -1801,6 +1807,10 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 <li><strong>Long-context Quantization Evaluation</strong>: Mekala et al., <em>Does quantization affect models' performance on long-context tasks?</em>, arXiv:2505.20276. <a href="https://arxiv.org/abs/2505.20276">arXiv:2505.20276</a>.</li>
 <li><strong>Reasoning Evaluation</strong>: <em>Quantization Hurts Reasoning? An Empirical Study on Quantized Reasoning Models</em>, arXiv:2504.04823. <a href="https://arxiv.org/abs/2504.04823">arXiv:2504.04823</a>.</li>
 <li><strong>SlideSparse</strong>: <em>SlideSparse: Fast and Flexible (2N-2):2N Structured Sparsity</em>, arXiv:2603.05232v1. <a href="https://arxiv.org/abs/2603.05232v1">arXiv:2603.05232v1</a>.</li>
+<li><strong>BitBLAS</strong>: Microsoft, <em>BitBLAS</em>. <a href="https://github.com/microsoft/BitBLAS">GitHub</a>.</li>
+<li><strong>HumanEval</strong>: OpenAI, <em>HumanEval</em>. <a href="https://github.com/openai/human-eval">GitHub</a>.</li>
+<li><strong>MMLU</strong>: Hendrycks et al., <em>Measuring Massive Multitask Language Understanding</em>. <a href="https://arxiv.org/abs/2009.03300">arXiv:2009.03300</a>.</li>
+<li><strong>MATH-500</strong>: Hugging Face H4, <em>MATH-500</em>. <a href="https://huggingface.co/datasets/HuggingFaceH4/MATH-500">Dataset</a>.</li>
 <li><strong>GGUF and llama.cpp</strong>: ggml-org, <em>GGUF file format</em> and <em>llama.cpp</em>. <a href="https://github.com/ggml-org/ggml/blob/master/docs/gguf.md">GGUF</a>, <a href="https://github.com/ggml-org/llama.cpp">llama.cpp</a>.</li>
 <li><strong>Hugging Face GGUF Docs</strong>: Hugging Face, <em>GGUF</em>. <a href="https://huggingface.co/docs/hub/gguf">Docs</a>.</li>
 <li><strong>Reference Repository</strong>: <a href="https://github.com/slavadubrov/model-compression-demo">slavadubrov/model-compression-demo</a>.</li>
