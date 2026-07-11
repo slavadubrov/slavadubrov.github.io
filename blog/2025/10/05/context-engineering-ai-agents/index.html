@@ -1016,10 +1016,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-context-engineering-matters-for-ai-agents" class="md-nav__link">
+  <a href="#how-poor-context-breaks-an-agent" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why context engineering matters for AI agents
+        How poor context breaks an agent
       
     </span>
   </a>
@@ -2255,16 +2255,16 @@
 <h1 id="context-engineering-for-ai-agents-context-windows-memory-tools-and-guardrails">Context Engineering for AI Agents: Context Windows, Memory, Tools, and Guardrails</h1>
 <h2 id="tldr">TL;DR</h2>
 <blockquote>
-<p>Context engineering is the pipeline that decides what the model sees at the moment of decision: instructions, examples, knowledge, memory, skills, tools, guardrails. Most production agents either work or break at this layer. Below is the blueprint I keep coming back to, with the patterns I actually use.</p>
+<p>Context engineering is the pipeline that selects what a model sees before each decision: instructions, examples, knowledge, memory, skills, tools, and guardrails. Reliable agents make that selection deliberately and within a fixed token budget.</p>
 </blockquote>
 <p>The same agent that aces a 30-minute demo can collapse on day three in production. Almost always, the failure has nothing to do with the model and everything to do with what was in the context when it made the wrong call. A stale memory. A doc that's no longer relevant. A tool description that drifted. A vague instruction.</p>
 <p>Context engineering is what you do to stop that from happening: designing what the model sees before each decision, on purpose, with a budget. This article walks through the patterns I use.</p>
 <!-- more -->
 
 <hr />
-<h2 id="why-context-engineering-matters-for-ai-agents">Why context engineering matters for AI agents</h2>
+<h2 id="how-poor-context-breaks-an-agent">How poor context breaks an agent</h2>
 <p>A customer support agent runs for three weeks and handles 200 tickets. Then it starts hallucinating product details, mixing up customers, and calling the wrong APIs. The model did not get worse. The context did.</p>
-<p>Four things changed in 2025 that make this more painful than it used to be. Agents stopped being chatbots and started taking actions, which means a single bad context decision can cascade through a ten-step plan instead of producing one bad reply. Centralized memory and standards like MCP make it possible to load personal context safely, but only if you design the layer properly — without governance you leak PII or blow the window. Hybrid retrieval, reranking, and graph-aware retrieval all matured, which cuts hallucinations and tokens, provided you actually route queries to the right strategy. And most of the agentic pilots I see stalling are stalling on context design and governance, not on model quality. A deliberate context layer is what unblocks them.</p>
+<p>Agents now take actions instead of returning only text, so one bad context decision can affect every later step in a plan. Memory and standards such as MCP can load personal data and tools, but they also create privacy and permission risks. Retrieval has improved, yet it helps only when the system selects the right strategy for each query. These changes make context design and governance part of the agent architecture, not prompt cleanup after deployment.</p>
 <hr />
 <h2 id="key-concepts-for-beginners">Key concepts for beginners</h2>
 <p>A few terms that come up throughout the post:</p>
@@ -2284,11 +2284,11 @@
 </blockquote>
 <p>Think of it as the assembly line that prepares exactly what the model needs to make a good decision.</p>
 <p>Context is a finite resource. Models, like humans with limited working memory, have an attention budget that depletes as context grows. Every new token spends some of it. The engineering problem is finding the smallest set of high-signal tokens that gets you the answer you want.</p>
-<p>There is no single canonical decomposition — different teams ship different stacks. The one I use looks like this:</p>
+<p>Teams divide the context layer in different ways. I use the following components because each has a distinct job:</p>
 <p><img alt="Context Layer Architecture" src="../../../../assets/2025-10-05-context-engineering/context_layer_components.svg" /></p>
 <h3 id="1-instructions">1) Instructions</h3>
 <p>A durable contract for behavior: role, tone, constraints, output schema, evaluation goals. Modern models respect instruction hierarchies (system &gt; developer &gt; user), so use that hierarchy explicitly instead of cramming everything into one block.</p>
-<p>You reach for instructions when you need consistent output (reports, SQL, API calls, JSON) or when you have to enforce policy — redact PII, refuse requests for things you do not support, never include internal URLs. The patterns that work in practice are the obvious ones: keep policy blocks separate from the user task, drive deterministic downstream code with JSON Schemas, and split system, developer, and user messages so the model knows which voice each instruction comes from.</p>
+<p>Use instructions for consistent outputs such as reports, SQL, API calls, or JSON. They also state policy: redact personal data, reject unsupported requests, and omit internal URLs. Keep those policies separate from the user task. Use JSON Schema when downstream code needs a predictable shape, and keep system, developer, and user messages in their proper roles.</p>
 <p>A plain example of a policy block:</p>
 <p><img alt="Instruction Hierarchy" src="../../../../assets/2025-10-05-context-engineering/instruction_hierarchy.svg" /></p>
 <div class="highlight"><pre><span></span><code>SYSTEM RULES
@@ -2323,7 +2323,7 @@
 <hr />
 <h3 id="4-memory">4) Memory</h3>
 <p>Durable context across turns and sessions. Short-term memory holds conversation state. Long-term memory holds user and app facts. Episodic memory holds events. Semantic memory holds entities. Use memory when you want personalization and continuity, or when multiple agents coordinate over days or weeks.</p>
-<p>The patterns that survive contact with production: entity memories (names, IDs, preferences) with explicit expiry policies; scoped retrieval from a long-term store backed by vectors, key-value pairs, or a graph; and tying memory to compression so that when short-term memory grows large it gets summarized rather than truncated. The summarization piece is covered in <a href="#context-compression-strategies">Context Compression Strategies</a> <a href="#references">[7]</a>.</p>
+<p>Three patterns make memory easier to control. Store entity facts such as names, IDs, and preferences with explicit expiry rules. Scope every retrieval from the long-term store. Finally, summarize short-term memory as it grows instead of truncating it without context. <a href="#context-compression-strategies">Context Compression Strategies</a> covers that last step <a href="#references">[7]</a>.</p>
 <p><img alt="Memory Scoping" src="../../../../assets/2025-10-05-context-engineering/memory_scoping.svg" /></p>
 <p>The expiry policy I default to:</p>
 <ul>

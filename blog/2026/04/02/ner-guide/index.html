@@ -1005,15 +1005,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#why-ner-matters-more-now-agents-rag-and-document-intelligence" class="md-nav__link">
+  <a href="#where-modern-systems-use-ner" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why NER Matters More Now: Agents, RAG, and Document Intelligence
+        Where modern systems use NER
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Why NER Matters More Now: Agents, RAG, and Document Intelligence">
+    <nav class="md-nav" aria-label="Where modern systems use NER">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1943,7 +1943,7 @@
 
 
 <h1 id="the-definitive-guide-to-ner-in-2026-encoders-llms-and-the-3-tier-production-architecture">The Definitive Guide to NER in 2026: Encoders, LLMs, and the 3-Tier Production Architecture</h1>
-<p>Two years ago, picking an NER approach meant choosing between speed (encoder models) and accuracy (LLMs). That trade-off is gone. A 300M-parameter GLiNER model matches the zero-shot accuracy of a 13B UniNER while running 100x faster. A newer bi-encoder variant scales to millions of entity types with a <strong>130x throughput advantage</strong> over the original cross-encoder. The production pattern that emerged: use LLMs to label data, fine-tune compact encoders, deploy with ONNX or Rust.</p>
+<p>Named entity recognition (NER) no longer requires a simple choice between fast encoders and accurate LLMs. A 300M-parameter GLiNER model matches the zero-shot accuracy of 13B UniNER while running 100 times faster. A newer bi-encoder variant supports millions of entity types with <strong>130 times the throughput</strong> of the original cross-encoder. These results support a practical pattern: use an LLM to label data, fine-tune a compact encoder, and deploy it with ONNX or Rust.</p>
 <p>I built the companion repo and benchmarked every major approach. Encoders won the production NER market. LLMs are still essential, but as training data generators rather than inference engines. This guide covers the papers, benchmarks, and deployment patterns behind that shift.</p>
 <blockquote>
 <p><strong>Companion repo:</strong> <a href="https://github.com/slavadubrov/ner-field-guide"><strong>ner-field-guide</strong></a> — runnable demos for GLiNER, ONNX export, LLM-as-teacher pipeline, and structured extraction with Instructor.</p>
@@ -1952,10 +1952,10 @@
 
 <p><strong>TL;DR</strong>: You don't need to build NER models from scratch anymore. For zero-shot extraction, <strong>GLiNER</strong> on CPU via ONNX beats even the latest LLMs at near-zero cost. For domain-specific tasks, the <strong>LLM-as-teacher pipeline</strong> (LLM labels → review → fine-tune) produces encoders hitting 90-93%+ F1. For cases that need reasoning, use <strong>Instructor or Outlines</strong> with an LLM API — but budget $2+/1K docs. The 3-tier architecture combines all three.</p>
 <hr />
-<h2 id="why-ner-matters-more-now-agents-rag-and-document-intelligence">Why NER Matters More Now: Agents, RAG, and Document Intelligence</h2>
-<p>NER still means the same thing: find named spans in text and classify them. What changed is where it shows up. It used to be the last step in an NLP pipeline, the quiet utility player nobody wrote blog posts about. Now it's a building block inside RAG systems, agent loops, and document processing platforms. <!-- 🌶️ --> That's why the 2024-2026 wave of NER research matters beyond academic benchmarks.</p>
+<h2 id="where-modern-systems-use-ner">Where modern systems use NER</h2>
+<p>NER still finds spans of text and assigns labels to them. What changed is its position in the system. It now supplies filters for RAG, structured arguments for agent tools, and fields for document-processing pipelines. Those uses make latency, cost, and schema flexibility as important as benchmark accuracy.</p>
 <h3 id="rag-better-retrieval-through-entity-extraction">RAG: Better Retrieval Through Entity Extraction</h3>
-<p>Standard RAG — chunk text, embed, retrieve by similarity, hope for the best — falls apart when users ask about specific entities. <!-- 🌶️ --> If someone asks "what did Anthropic say about model safety in Q4 2024?", the system needs to recognize "Anthropic" and "Q4 2024" as filters, not just rely on embedding similarity.</p>
+<p>Similarity search alone struggles when a question contains exact entities. For "what did Anthropic say about model safety in Q4 2024?", the system should extract "Anthropic" and "Q4 2024" as metadata filters instead of relying only on embeddings.</p>
 <p><strong>During indexing</strong>, you extract entities from each chunk and store them as metadata: <code>{"organizations": ["Anthropic"], "dates": ["Q4 2024"], ...}</code>. This lets you filter by entity before running vector search. Knowledge graph RAG (GraphRAG, LlamaIndex property graphs) goes further: NER plus relation extraction builds a graph that can answer multi-hop questions that flat embeddings cannot.</p>
 <p><strong>During query time</strong>, entities extracted from the user's question drive routing. A question mentioning a company name goes to a finance index; one mentioning drug names goes to a clinical knowledge base. GLiNER works well here because query entities are unpredictable — you can't retrain for every new entity type users might ask about.</p>
 <h3 id="ai-agents-turning-text-into-structured-facts">AI Agents: Turning Text into Structured Facts</h3>
@@ -1966,7 +1966,7 @@
 <p>The constraint in both cases is latency. A 200ms NER call inside a 10-step agent chain adds 2 seconds of perceived delay. That's why encoder models, not LLM-based extraction, are the right choice for entity work inside agent loops.</p>
 <h3 id="document-intelligence-from-images-to-structured-data">Document Intelligence: From Images to Structured Data</h3>
 <p>OCR turns images into text. NER turns text into structured fields. Together, they power document digitization at scale.</p>
-<p>The standard pipeline: run OCR (Tesseract, Azure Document Intelligence, AWS Textract) to get text and bounding boxes, then run NER to extract structured fields — <code>invoice_number</code>, <code>vendor_name</code>, <code>line_items</code>, <code>total</code>, <code>due_date</code> — from what was a JPEG of a paper invoice. The same approach works for contracts, medical records, and regulatory filings.</p>
+<p>A standard pipeline first uses OCR, such as Tesseract, Azure Document Intelligence, or AWS Textract, to produce text and bounding boxes. NER then extracts fields such as <code>invoice_number</code>, <code>vendor_name</code>, <code>line_items</code>, <code>total</code>, and <code>due_date</code>. The same sequence applies to contracts, medical records, and regulatory filings.</p>
 <p>Modern platforms combine three steps: layout understanding (is this a header or a table cell?), entity extraction (what type is this text?), and relation extraction (which values belong together). GLiNER 2 handles all three in one forward pass; a single model call can return <code>{vendor: "Acme Corp", amount: "\$4,200", due_date: "2026-04-15"}</code> from an invoice.</p>
 <p>This is where cost matters. A mid-sized accounting firm processes tens of thousands of invoices monthly. Routing each one through an LLM, even a cost-efficient model like GPT-5.4 Nano, costs hundreds of dollars per day. A fine-tuned GLiNER on CPU costs cents. Your CFO will notice the difference. <!-- 🌶️ --> The path: annotate 500 sample invoices with an LLM, fine-tune GLiNER on the results, deploy on CPU at $0.10/hour.</p>
 <h3 id="pii-detection-and-llm-guardrails">PII Detection and LLM Guardrails</h3>

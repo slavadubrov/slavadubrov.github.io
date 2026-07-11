@@ -1744,16 +1744,16 @@
 
 <h1 id="ai-agent-tool-use-in-2026-mcp-cli-skills-and-code-execution">AI Agent Tool Use in 2026: MCP, CLI, Skills, and Code Execution</h1>
 <p><a href="/blog/#agents-101"><strong>Part 3 of the Engineering the Agentic Stack series</strong></a></p>
-<p><a href="/blog/2026/01/31/ai-agent-reasoning-loops/">Part 1</a> covered reasoning loops, <a href="/blog/2026/02/14/ai-agent-memory-architecture/">Part 2</a> covered memory. This post is about <strong>AI agent tool use</strong>: how agents interact with the world, and why tool design matters more than most teams realize.</p>
+<p><a href="/blog/2026/01/31/ai-agent-reasoning-loops/">Part 1</a> covered reasoning loops, and <a href="/blog/2026/02/14/ai-agent-memory-architecture/">Part 2</a> covered memory. This article adds the action layer: how an agent exposes, selects, and runs tools.</p>
 <p>The tooling story changed in 2025–2026. <strong>MCP</strong> became the de facto standard for external services, but production teams keep running into its security gaps and token overhead. The other approach picking up adoption is agents that write and execute code instead of calling JSON-defined tools. Anthropic measured a <strong>98.7% token reduction</strong> on a representative workflow, and the CodeAct paper reports <strong>20% higher task success rates</strong>.</p>
-<p>This post compares JSON tool calling, MCP, Skills, CLI tools, and code execution, then maps them to Agent-Computer Interface (ACI) design principles I apply in the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>.</p>
+<p>I compare JSON tool calling, MCP, Skills, CLI tools, and code execution in that order. The final section applies Agent-Computer Interface (ACI) design principles to the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>.</p>
 <!-- more -->
 
 <p><strong>TL;DR</strong>: Five AI agent tool modalities exist, each with a sweet spot. The practical 2026 stack: Skills for expertise, CLI as default, MCP for external services, code execution for multi-step orchestration. ACI design principles from SWE-agent govern all of them.</p>
 <hr />
 <h2 id="five-ways-ai-agents-use-tools">Five ways AI agents use tools</h2>
 <p>In <a href="/blog/2026/01/31/ai-agent-reasoning-loops/">Part 1</a>, I showed how AI agent reasoning loops decide <em>how</em> to think. Tool modalities decide <em>how to act</em>. Five distinct approaches now exist, each with different trade-offs in token cost, flexibility, and security.</p>
-<p><img alt="Tool Modalities Landscape" src="../../../../assets/2026-03-24-the-hands/tool-modalities-landscape.svg" /></p>
+<p><img alt="Five AI agent tool modalities and their trade-offs" src="../../../../assets/2026-03-24-the-hands/tool-modalities-landscape.svg" /></p>
 <h3 id="1-json-tool-calling-the-baseline">1. JSON Tool Calling — The Baseline</h3>
 <p>The original pattern: you define tool schemas as JSON, the LLM emits structured function calls, your code executes them. It is well-understood and works fine for small toolsets.</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Traditional tool definition — each tool consumes ~550-1,400 tokens (Apideck benchmark)</span>
@@ -1797,8 +1797,8 @@
 <span class="l l-Scalar l-Scalar-Plain">3. Deploy using the deploy script</span>
 <span class="l l-Scalar l-Scalar-Plain">4. Verify the deployment health check</span>
 </code></pre></div>
-<p>Skills use <strong>progressive disclosure</strong>: only the metadata (~100 tokens for the YAML frontmatter) loads at startup, and the full instructions load when the skill is activated. Compare that to MCP, where ~40 tools across typical services consume <a href="https://www.apideck.com/blog/mcp-server-eating-context-window-cli-alternative">~55,000 tokens</a> before any reasoning begins. Cross-platform adoption as of March 2026 includes Claude Code, OpenAI Codex CLI, Cursor, GitHub Copilot, Gemini CLI, Goose, Windsurf, and Roo Code, a trend <a href="https://newsletter.victordibia.com/p/the-arc-of-agent-action-from-code">Victor Dibia explored</a> in his analysis of the shift from tools back to code-driven agent actions.</p>
-<p>When skills win: domain expertise transfer, complex multi-step procedures, recurring workflows like database migrations or payment integrations, and any task where the agent needs to know <em>how</em> rather than just <em>what</em>.</p>
+<p>Skills use <strong>progressive disclosure</strong>. About 100 tokens of metadata load at startup; full instructions load only when the skill is active. By contrast, around 40 MCP tools can consume <a href="https://www.apideck.com/blog/mcp-server-eating-context-window-cli-alternative">roughly 55,000 tokens</a> before reasoning begins. By March 2026, Claude Code, OpenAI Codex CLI, Cursor, GitHub Copilot, Gemini CLI, Goose, Windsurf, and Roo Code had adopted the format. <a href="https://newsletter.victordibia.com/p/the-arc-of-agent-action-from-code">Victor Dibia describes this shift</a> toward code-driven agent actions.</p>
+<p>Use skills for domain knowledge, multi-step procedures, and recurring work such as database migrations or payment integrations. They fit tasks where the agent needs instructions for <em>how</em> to use an existing capability.</p>
 <h3 id="4-clibash-the-unix-renaissance">4. CLI/Bash — The Unix Renaissance</h3>
 <p>The Unix terminal turned out to be the most token-efficient agent interface. The math is one-sided: a CLI tool manifest costs about 100 tokens, while the equivalent MCP server schemas consume 50,000+ tokens. That is a <a href="https://www.scalekit.com/blog/mcp-vs-cli-use">4-32x difference measured by Scalekit</a> across 75 benchmark runs (32x for tasks like repo language and license lookup).</p>
 <p>Models are native CLI speakers. Their training data includes billions of terminal interactions from Stack Overflow, GitHub repos, and documentation. They natively understand <code>git</code>, <code>docker</code>, <code>kubectl</code>, <code>gh</code>, <code>curl</code>, and <code>jq</code> without any schema definitions.</p>

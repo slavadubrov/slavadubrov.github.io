@@ -1044,10 +1044,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-transformer-complication-layer-normalization-placement" class="md-nav__link">
+  <a href="#how-layer-normalization-changes-the-residual-path" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The Transformer Complication: Layer Normalization Placement
+        How layer normalization changes the residual path
       
     </span>
   </a>
@@ -1055,15 +1055,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#hyper-connections-the-width-revolution" class="md-nav__link">
+  <a href="#hyper-connections-add-parallel-residual-streams" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Hyper-Connections: The Width Revolution
+        Hyper-Connections add parallel residual streams
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Hyper-Connections: The Width Revolution">
+    <nav class="md-nav" aria-label="Hyper-Connections add parallel residual streams">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1711,7 +1711,7 @@
 
 <h1 id="manifold-constrained-hyper-connections-mhc-deepseek-residual-scaling-explained">Manifold-Constrained Hyper-Connections (mHC): DeepSeek Residual Scaling Explained</h1>
 <p>Modern deep learning rests on the residual connection. After a decade of stacking layers deeper, researchers at DeepSeek asked a different question: what if we scaled <em>width</em> instead? Their answer, <strong><a href="https://arxiv.org/abs/2512.24880">Manifold-Constrained Hyper-Connections (mHC)</a></strong>, fixes a long-standing stability problem with width scaling.</p>
-<p>In this post, I'll walk through the evolution from basic residuals to mHC, explaining why each step was necessary and how DeepSeek's solution actually works at scale.</p>
+<p>This post starts with standard residual connections, then introduces Hyper-Connections and the instability they create. That sequence makes the final mHC constraint and its implementation easier to understand.</p>
 <!-- more -->
 
 <p><strong>TL;DR</strong>: Hyper-Connections expand residual streams into multiple parallel flows for faster convergence, but break the identity mapping that keeps training stable. mHC restores stability by constraining mixing matrices to the Birkhoff Polytope (doubly stochastic matrices) using the differentiable Sinkhorn-Knopp algorithm. Result: 4 parallel streams at only 6.7% training overhead.</p>
@@ -1730,7 +1730,7 @@
 </ol>
 <p>This one architectural change made networks with hundreds of layers trainable.</p>
 <hr />
-<h2 id="the-transformer-complication-layer-normalization-placement">The Transformer Complication: Layer Normalization Placement</h2>
+<h2 id="how-layer-normalization-changes-the-residual-path">How layer normalization changes the residual path</h2>
 <p>Transformers added a new variable: where to put Layer Normalization (LN). The decision looks minor and isn't.</p>
 <p><img alt="Post-LN vs Pre-LN Trade-offs" src="../../../../assets/2026-01-21-mhc-hyper-connections/ln_placement.svg" /></p>
 <table>
@@ -1759,7 +1759,7 @@
 </table>
 <p>The <a href="https://arxiv.org/abs/2304.14802"><strong>ResiDual</strong></a> architecture tried to solve this with <em>dual</em> residual paths, one Pre-LN for stability and one Post-LN for capacity. Still a single residual stream though. What if you could have multiple parallel streams?</p>
 <hr />
-<h2 id="hyper-connections-the-width-revolution">Hyper-Connections: The Width Revolution</h2>
+<h2 id="hyper-connections-add-parallel-residual-streams">Hyper-Connections add parallel residual streams</h2>
 <p><a href="https://arxiv.org/abs/2409.19606">Hyper-Connections (HC)</a> took a different route. Don't just add depth, expand the residual stream's <em>width</em>.</p>
 <p><img alt="Hyper-Connections Architecture" src="../../../../assets/2026-01-21-mhc-hyper-connections/hyper_connections.svg" /></p>
 <h3 id="what-is-a-stream">What is a "Stream"?</h3>
@@ -1802,7 +1802,7 @@
 <p>The core problem: unconstrained matrices can take any value (negative numbers, large magnitudes, anything). We need a way to keep them in the "well-behaved" set, where they preserve signal energy the way identity does.</p>
 <hr />
 <h2 id="the-mhc-solution-geometric-constraints">The mHC Solution: Geometric Constraints</h2>
-<p>The mHC insight is that you can have flexible routing <em>and</em> stability if you constrain the mixing matrices to a specific mathematical structure: the <strong>Birkhoff Polytope</strong>, the set of all doubly stochastic matrices, where every row and column sums to 1 and all elements are non-negative.</p>
+<p>mHC keeps flexible routing but constrains each mixing matrix to the <strong>Birkhoff Polytope</strong>. This is the set of doubly stochastic matrices: every value is non-negative, and every row and column sums to one. Those constraints prevent the matrix from amplifying or discarding the residual signal without limit.</p>
 <p><img alt="The mHC Solution" src="../../../../assets/2026-01-21-mhc-hyper-connections/mhc_solution.svg" /></p>
 <h3 id="the-three-constraints">The Three Constraints</h3>
 <p>mHC constrains the mixing matrix H^res to be <strong>doubly stochastic</strong>: all entries non-negative, every row and column summing to exactly 1. That enforces three properties at once:</p>
@@ -1923,7 +1923,7 @@
 <li><strong>Sinkhorn-Knopp makes the constraint differentiable</strong>, enabling end-to-end training.</li>
 <li><strong>Infrastructure work</strong> (kernel fusion, selective recomputation) is what makes the whole thing practical.</li>
 </ol>
-<p>For practitioners: if you're hitting limits with depth scaling and you have access to custom kernel development, mHC is a principled way to scale capacity through width while keeping training stable.</p>
+<p>mHC is relevant when deeper models no longer provide an efficient path to more capacity. It offers stable width scaling, but the practical gains depend on custom kernels and careful systems work.</p>
 <hr />
 <h2 id="references">References</h2>
 <ul>

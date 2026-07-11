@@ -2116,8 +2116,8 @@
 
 
 <h1 id="search-ranking-stack-in-2026-bm25-embeddings-cross-encoders-and-llm-reranking">Search Ranking Stack in 2026: BM25, Embeddings, Cross-Encoders, and LLM Reranking</h1>
-<p>Search stopped being a string-matching problem a while ago. When someone types "wireless headphones" into a product search engine, they expect more than items containing those two words. They want the best result given semantic relevance, product quality, user preferences, and availability. The gap between what BM25 returns and what users actually want has changed how search systems get built.</p>
-<p>This post walks through a modern search ranking stack: a multi-stage pipeline combining BM25 sparse retrieval, dense semantic embeddings, reciprocal rank fusion, cross-encoder reranking, and LLM listwise ranking. I built a <a href="https://github.com/slavadubrov/search-ranking-stack">working demo</a> that benchmarks each stage on the Amazon ESCI product search dataset, so every layer's contribution shows up in real numbers.</p>
+<p>Search must satisfy both exact and semantic intent. A query for "wireless headphones" should match those words, but the final order may also depend on product quality, user preferences, and availability. No single ranking method handles all of those signals well.</p>
+<p>This post builds the stack one stage at a time: BM25 retrieval, dense embeddings, Reciprocal Rank Fusion, cross-encoder reranking, and finally LLM listwise ranking. A <a href="https://github.com/slavadubrov/search-ranking-stack">working demo</a> benchmarks every stage on the Amazon ESCI product-search dataset.</p>
 <!-- more -->
 
 <p><strong>TL;DR</strong>: A multi-stage hybrid pipeline is the production-friendly default. Run BM25 and dense retrieval in parallel, fuse them with Reciprocal Rank Fusion, rerank the survivors with a cross-encoder, and let an LLM handle the final precision layer. On the Amazon ESCI benchmark this gets a <strong>22.5% NDCG@10 improvement</strong> over BM25 alone (0.585 to 0.717). The LLM reranker contributes the single largest jump (+0.072).</p>
@@ -2167,7 +2167,7 @@
 </table>
 <p>Start with BM25 as the baseline. Add dense retrieval when vocabulary mismatch hurts recall. Add a cross-encoder when the first page has the right candidates in the wrong order. Add an LLM only after you can afford the latency and can evaluate the ranking decisions.</p>
 <h2 id="how-we-got-here">How we got here</h2>
-<p>Search ranking moved through three rough phases, each one fixing a specific limitation of what came before. The modern stack only makes sense if you've seen the path it took.</p>
+<p>The stack is easier to understand as three layers. Lexical retrieval finds exact terms, dense retrieval closes vocabulary gaps, and rerankers compare the strongest candidates in detail.</p>
 <h3 id="bm25-and-lexical-retrieval">BM25 and lexical retrieval</h3>
 <p>For decades, <a href="https://en.wikipedia.org/wiki/Okapi_BM25">BM25</a> was the default. It's a probabilistic model that scores documents by the frequency of query terms in the document, normalized by document length and inverse document frequency (IDF).</p>
 <p>BM25 is great at exact keyword matching. Searching for a specific error code, product SKU, or HTTP status code works because the system only needs literal token overlap. The catch is the <strong>vocabulary mismatch problem</strong>: a query for "cheap laptop" misses documents about "budget notebook computer" because the words don't line up. BM25 has no notion of semantic intent.</p>
@@ -2186,7 +2186,7 @@
 <hr />
 <h2 id="the-multi-stage-funnel">The multi-stage funnel</h2>
 <p>Running an expensive cross-encoder or LLM across millions of documents isn't viable, so modern search stacks use a funnel. Each stage filters the candidate pool down while model complexity goes up.</p>
-<p>A single-stage search is either too slow (complex models on everything) or too imprecise (simple models everywhere). The funnel splits the difference, and it's the standard production layout at scale.</p>
+<p>A complex model is too slow to score the whole corpus, while a cheap retriever lacks final precision. The funnel uses each model only where its cost is reasonable.</p>
 <p><img alt="Multi-Stage Ranking Funnel" src="../../../../assets/2026-02-08-search-ranking-stack/multi_stage_funnel.svg" /></p>
 <table>
 <thead>

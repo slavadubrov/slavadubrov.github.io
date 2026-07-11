@@ -1016,10 +1016,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-scaling-matters" class="md-nav__link">
+  <a href="#what-forces-a-model-beyond-one-gpu" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why scaling matters
+        What forces a model beyond one GPU
       
     </span>
   </a>
@@ -1686,7 +1686,7 @@
 <p>This is a practical walk-through of the parallelism strategies that actually work in production, drawn from Hugging Face's <a href="https://huggingface.co/spaces/nanotron/ultrascale-playbook">Ultra-Scale Playbook</a>.</p>
 <!-- more -->
 
-<p><strong>TL;DR</strong>: Scaling LLMs is a memory, bandwidth, and communication problem before it is an algorithm problem. Start with data parallelism, move to FSDP/ZeRO when model states no longer fit, add tensor or pipeline parallelism when a single GPU cannot hold or execute the model efficiently, and use MoE only when the serving and routing complexity is justified.</p>
+<p><strong>TL;DR</strong>: Scaling LLMs is mainly a memory and communication problem. Start with data parallelism. Move to FSDP or ZeRO when model state no longer fits on one GPU. Add tensor or pipeline parallelism only when one GPU cannot hold or run the model efficiently. Use a Mixture of Experts (MoE) when its routing and serving complexity has a clear payoff.</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <p>You'll get the most out of this if you're already comfortable with:</p>
 <ul>
@@ -1694,8 +1694,8 @@
 <li>Transformer mechanics: attention and feed-forward networks.</li>
 <li>PyTorch basics: <code>nn.Module</code>, <code>DataLoader</code>, the standard training loop.</li>
 </ul>
-<h2 id="why-scaling-matters">Why scaling matters</h2>
-<p>Four things push you off a single GPU. A 70B model needs roughly 140GB in FP16, almost double an A100's 80GB. Even on eight A100s, a 13B from-scratch run takes weeks. Long contexts (32K tokens and up) blow past single-GPU memory before you've done any real work. And at production load, distributed inference is what keeps tail latency from running away on you.</p>
+<h2 id="what-forces-a-model-beyond-one-gpu">What forces a model beyond one GPU</h2>
+<p>Four constraints push a model beyond one GPU. First, a 70B model needs roughly 140GB for FP16 weights, almost twice an A100's 80GB. Second, training time remains long even when the model fits: a 13B run from scratch can take weeks on eight A100s. Third, contexts of 32K tokens or more consume large amounts of memory. Finally, production traffic may require distributed inference to keep tail latency under control.</p>
 <h2 id="1-parallelism-techniques-explained-simply">1. Parallelism techniques, explained simply</h2>
 <h3 id="11-data-parallelism-dp">1.1 Data parallelism (DP)</h3>
 <p>The simplest split. Every GPU holds the full model and processes a different slice of the batch. After backprop, the GPUs all-reduce their gradients (averaging), then each updates its own copy. Identical models, different data, synchronized weights.</p>
@@ -1704,7 +1704,7 @@
 <p>Tools: <a href="https://pytorch.org/docs/stable/notes/ddp.html">PyTorch DDP</a>, <a href="https://horovod.ai/">Horovod</a>.</p>
 <h3 id="12-fully-sharded-data-parallelism-fsdp">1.2 Fully sharded data parallelism (FSDP)</h3>
 <p>DP, but memory-aware. Parameters, gradients, and optimizer states are sharded across GPUs. During the forward pass, each GPU gathers the parameters it needs from the others, computes, then drops the borrowed shards to free memory. Backward pass repeats the gather, then reduces gradients so each GPU only updates its own shard.</p>
-<p>This is the layer to reach for once the model has outgrown a single GPU (typically anything past ~10B parameters) and you want to keep training on a single machine without rewriting your code. In practice FSDP lets you train models 4–8× larger than what fits on one GPU.</p>
+<p>Use FSDP after the model state outgrows one GPU, often beyond roughly 10B parameters. It lets you keep training on one machine without rewriting the model. In practice, FSDP can support models four to eight times larger than a single GPU could hold.</p>
 <p><img alt="FSDP" src="../../../../assets/2025-05-04-scaling-llms/fsdp.svg" /></p>
 <blockquote>
 <p>[!NOTE] <strong>ZeRO stages, briefly</strong>
@@ -1732,12 +1732,12 @@ FSDP is often described in ZeRO terms (Zero Redundancy Optimizer):</p>
 <p>Tools: <a href="https://pytorch.org/docs/stable/fsdp.html">PyTorch FSDP</a>, <a href="https://www.deepspeed.ai/tutorials/zero/">DeepSpeed ZeRO-3</a>.</p>
 <h3 id="13-tensor-parallelism-tp">1.3 Tensor parallelism (TP)</h3>
 <p>Split individual layers across GPUs. Take a weight matrix, chunk it column-wise (or row-wise), and give each GPU a chunk. Each device computes its piece of the output; an all-reduce or concatenation stitches the results back together before the next layer. This happens at every layer.</p>
-<p>TP earns its keep when individual layers are too large even after FSDP — huge attention matrices or wide FFNs. It also assumes fast intra-node interconnect: NVLink or NVSwitch, not PCIe. Across nodes, the per-layer all-reduce becomes the bottleneck and the win disappears. TP degree of 2–8 inside a single machine is the typical sweet spot.</p>
+<p>Use TP when individual layers remain too large after FSDP, for example because of huge attention matrices or wide feed-forward networks. TP requires a fast connection within the node, such as NVLink or NVSwitch. Across nodes, the all-reduce at every layer often becomes the bottleneck. A TP degree of two to eight GPUs within one machine is the usual range.</p>
 <p><img alt="Tensor Parallelism" src="../../../../assets/2025-05-04-scaling-llms/tensor_parallelism.svg" /></p>
 <p>Tools: <a href="https://github.com/NVIDIA/Megatron-LM">Megatron-LM</a>, <a href="https://github.com/NVIDIA/TensorRT-LLM">TensorRT-LLM</a>, <a href="https://github.com/hpcaitech/ColossalAI">ColossalAI</a>.</p>
 <h3 id="14-pipeline-parallelism-pp">1.4 Pipeline parallelism (PP)</h3>
 <p>Split the model vertically, by layer groups. Layers 1–10 live on GPU 1, layers 11–20 on GPU 2, and so on. Then send micro-batches through the pipeline so every stage stays busy: GPU 1 finishes batch 1 and hands it to GPU 2, then immediately starts on batch 2. With enough micro-batches in flight, every device is doing work on something.</p>
-<p>Reach for PP when the model is so deep that even FSDP can't fit it, or when you need to span nodes and inter-node bandwidth is the limiting factor. The annoying part is pipeline "bubbles" — idle stages at the head and tail of each batch — which you minimize by running many small micro-batches instead of a few big ones.</p>
+<p>Use PP when even FSDP cannot fit a deep model, or when the model must span nodes with limited inter-node bandwidth. Its main cost is a pipeline "bubble": stages sit idle at the start and end of each batch. Many small micro-batches reduce that idle time.</p>
 <p><img alt="Pipeline Parallelism" src="../../../../assets/2025-05-04-scaling-llms/pipeline_parallelism.svg" /></p>
 <p>Tools: <a href="https://www.deepspeed.ai/tutorials/pipeline/">DeepSpeed PP</a>, <a href="https://github.com/NVIDIA/Megatron-LM">Megatron-LM</a>, <a href="https://arxiv.org/abs/1811.06965">GPipe</a>.</p>
 <h3 id="15-context-parallelism-cp">1.5 Context parallelism (CP)</h3>

@@ -2031,8 +2031,8 @@
 
 <h1 id="long-running-ai-agent-runtime-in-2026-sessions-sandboxes-checkpoints-and-harnesses">Long-Running AI Agent Runtime in 2026: Sessions, Sandboxes, Checkpoints, and Harnesses</h1>
 <p><a href="/blog/#agents-101"><strong>Part 5 of the Engineering the Agentic Stack series</strong></a></p>
-<p>The previous four posts covered the inside of the agent: <a href="/blog/2026/01/31/ai-agent-reasoning-loops/">reasoning loops</a>, <a href="/blog/2026/02/14/ai-agent-memory-architecture/">memory architecture</a>, <a href="/blog/2026/03/24/ai-agent-tool-use/">tool use</a>, <a href="/blog/2026/04/20/ai-agent-security/">security</a>. This one is about the outside: the production runtime around long-running AI agents.</p>
-<p>Production AI agents in 2026 stopped being request handlers and started being background workers. A run can last a few hours. The worker hosting it might not. The interesting engineering moved out of the agent into the runtime around it. The model picks the next move. The runtime decides what happens to that move when the worker dies mid-call.</p>
+<p>The previous four posts covered the agent's internal design: <a href="/blog/2026/01/31/ai-agent-reasoning-loops/">reasoning loops</a>, <a href="/blog/2026/02/14/ai-agent-memory-architecture/">memory</a>, <a href="/blog/2026/03/24/ai-agent-tool-use/">tool use</a>, and <a href="/blog/2026/04/20/ai-agent-security/">security</a>. This article covers the runtime that keeps those parts working across long sessions and process failures.</p>
+<p>An agent run may last for hours, while its worker process may restart at any time. The model still chooses the next action, but the runtime must preserve state, control execution, and recover from a failure in the middle of a tool call.</p>
 <!-- more -->
 
 <p><strong>TL;DR</strong>: Long-running AI agents need a runtime outside the model: session logs, harness logic, sandbox isolation, checkpoints, traces, policy checks, secrets, and cost limits. Queue + worker + checkpoint DB is the default when you own the stack; hosted harnesses fit when their vendor constraints are acceptable. Pick by run length first, then recovery semantics, replay needs, sandbox isolation, and operational ownership.</p>
@@ -2076,7 +2076,7 @@
 </table>
 <p>Use the runtime as the design unit for long-running agents. If you cannot explain where each primitive lives, the agent is still a prototype.</p>
 <p>It's a long post. Here is what you'll find:</p>
-<p>The first half walks through the five runtime primitives and the failure modes each one is there to handle. The second half compares eleven deployment shapes — SDK-in-an-app-server, queue + worker, Temporal, Anthropic Managed Agents, Deep Agents Deploy, Cloud Run, Lambda, ECS, Kubernetes Job per session, plus two more — and ends with a decision guide for picking one.</p>
+<p>The first half explains five runtime primitives and the failure each one handles. The second compares eleven deployment shapes, from an SDK inside an app server to queues, durable workflows, managed agents, serverless platforms, ECS, and per-session Kubernetes Jobs. A decision guide connects those options to run length and recovery needs.</p>
 <hr />
 <h2 id="what-changes-when-long-running-agent-sessions-outlast-processes">What changes when long-running agent sessions outlast processes</h2>
 <p>A year ago, "deploying an agent" meant wrapping a chat endpoint in a container and pointing a load balancer at it. The work was indistinguishable from any other Python web service. That stopped being true the moment agents started running for hours instead of seconds.</p>
@@ -2089,7 +2089,7 @@
 <p>"The core challenge of long-running agents is that they must work in discrete sessions, and each new session begins with no memory of what came before."</p>
 </blockquote>
 <p>Take that sentence seriously and the whole runtime stack changes shape. Three consequences follow from "discrete sessions with no shared memory," and each one forces a specific piece of infrastructure into the design.</p>
-<p>If sessions are discrete, the session has to live <em>outside</em> the process. In-memory state is gone the moment the worker exits, so the session has to be written to a durable store the next worker can read. If a session can resume after a crash, the durable record has to contain everything that happened so far, not just the final answer. That lets the next worker pick up at the right point instead of replaying the run from scratch. If the model fills its context window before the work is done, something has to checkpoint the progress, tear the current session down, and start a fresh one that loads the checkpoint instead of replaying the full history. In <a href="https://www.anthropic.com/engineering/managed-agents">Anthropic's phrasing</a>, the harness becomes "cattle": disposable, restartable, identical instances. The state lives somewhere else.</p>
+<p>The session must live outside the worker process. A durable store records model calls, tool results, and approvals so another worker can resume at the last safe point after a crash. Checkpoints also let the runtime start a fresh model session when the context window fills, without replaying the full history. In <a href="https://www.anthropic.com/engineering/managed-agents">Anthropic's phrasing</a>, harness instances become disposable and restartable; durable state lives elsewhere.</p>
 <p>The model decides what to do next. The runtime decides whether the move is allowed, where it executes, how it is recorded, and how the run resumes after a crash. The rest of this post is about that runtime.</p>
 <hr />
 <h2 id="the-five-runtime-primitives-every-long-running-ai-agent-needs">The five runtime primitives every long-running AI agent needs</h2>

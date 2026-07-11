@@ -1733,9 +1733,9 @@
 
 <h1 id="modern-data-processing-engines-compared-polars-datafusion-daft-ray-data-pandas-and-spark">Modern Data Processing Engines Compared: Polars, DataFusion, Daft, Ray Data, Pandas, and Spark</h1>
 <p>For years, <strong>Pandas</strong> handled in-memory tabular work and <strong>Apache Spark</strong> handled the distributed kind. That split worked fine when the data was structured.</p>
-<p>Modern workloads aren't always structured anymore. Image, audio, and video pipelines now sit alongside the tabular ones, and once GPU inference enters the picture, the JVM's garbage collection and Python's GIL stop being annoyances and start being the bottleneck. That's a big part of why a new generation of engines built on <strong>Rust</strong> and <strong>Apache Arrow</strong> has taken off.</p>
-<p>I've moved most of my single-node pipelines to Polars over the last year, and I wanted to see how it actually stacks up against the rest of the new stack. So I benchmarked Polars, DataFusion, Daft, Ray Data, and Spark on real datasets — NYC taxi trips for the tabular side, Food-101 images for the multimodal side.</p>
-<p>All of the code lives in the <a href="https://github.com/slavadubrov/engine-comparison-demo">engine-comparison-demo repository</a>. Clone it and run the benchmarks on your own hardware — your numbers will be different from mine, and that's the point.</p>
+<p>Modern pipelines also process images, audio, and video. In these workloads, CPU decoding can starve GPU inference, while JVM garbage collection and Python's Global Interpreter Lock limit throughput. New engines use <strong>Rust</strong> and <strong>Apache Arrow</strong> to reduce those costs.</p>
+<p>To compare the options, I benchmarked Polars, DataFusion, Daft, Ray Data, and Spark on two real datasets. NYC taxi trips represent tabular work; Food-101 images represent a multimodal pipeline.</p>
+<p>The <a href="https://github.com/slavadubrov/engine-comparison-demo">engine-comparison-demo repository</a> contains the code. Run it on your own hardware because engine performance depends on the machine, dataset, and workload.</p>
 <!-- more -->
 
 <p><strong>TL;DR</strong>: On the marketing-friendly benchmarks, Rust-native engines hit 94x speedups over Pandas on a single node. On real workloads you'll see something more modest but consistent — Polars and DataFusion are both solid defaults. For multimodal pipelines, pipelined engines like Ray Data and Daft run up to 18x faster than Spark because they actually keep GPUs busy. There's no winner across the board. The right pick depends on your data, your scale, and whether GPUs are in the loop.</p>
@@ -1743,8 +1743,8 @@
 <h2 id="data-processing-workload-types">Data processing workload types</h2>
 <p>Engines specialize, so the first question to answer is what kind of workload you actually have. The biggest split is structured vs. multimodal.</p>
 <p><img alt="Two Worlds of Data: Structured vs. Multimodal" src="../../../../assets/2026-02-21-compute-engines/data-bifurcation.svg" /></p>
-<p><strong>Structured / Tabular Data.</strong> Filtering, aggregating, joining. CPU-bound, usually in memory. A lot of this work runs on distributed clusters that didn't need to be distributed in the first place — about <a href="https://pola.rs/posts/polars-cloud-what-we-are-building/">90% of queries process less than 1 TB of data</a>, which fits comfortably on a single machine these days.</p>
-<p><strong>Multimodal AI.</strong> Images, audio, video. GPU-bound on the inference side, but the CPU preprocessing is what kills you. Deep learning models eat data faster than CPUs can decode it, so on a standard <code>g6.xlarge</code> (4 CPUs per GPU), GPU utilization drops below 20%. The whole pipeline ends up gated by how fast you can feed the GPU.</p>
+<p><strong>Structured or tabular data</strong> involves filtering, aggregation, and joins. It is usually CPU-bound and often fits in memory. According to Polars, about <a href="https://pola.rs/posts/polars-cloud-what-we-are-building/">90% of queries process less than 1TB</a>, so many can run on one modern machine instead of a cluster.</p>
+<p><strong>Multimodal AI</strong> processes images, audio, or video. Inference runs on the GPU, but CPU preprocessing often limits the pipeline. On a standard <code>g6.xlarge</code> with four CPUs per GPU, decoding may feed the model slowly enough for GPU utilization to fall below 20%.</p>
 <p>The new engines target both. Rust gives them speed, Arrow gives them zero-copy data sharing across processes, and streaming execution lets them handle datasets bigger than RAM.</p>
 <hr />
 <h2 id="part-1-single-node-processing">Part 1: Single-Node Processing</h2>
