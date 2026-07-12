@@ -1066,19 +1066,19 @@
 
 <h1 id="harness-engineering-for-ai-agents-designing-the-loop-around-the-model">Harness Engineering for AI Agents: Designing the Loop Around the Model</h1>
 <p><a href="/blog/#agents-101"><strong>Part 6 of the Engineering the Agentic Stack series</strong></a></p>
-<p>An LLM can suggest a tool call, write a patch, and say the task is done. It
-can't, by itself, decide which files it may change, retry a flaky API safely,
-keep a useful handoff for the next session, or prove that the patch works.
-Those jobs belong to the <strong>harness</strong>: the software loop around the model.</p>
-<p>The model can claim completion before the work satisfies its acceptance criteria.
-The harness makes that claim testable.</p>
+<p>An LLM can suggest a tool call, write a patch, and claim the task is complete. It
+cannot enforce which files the call may change, retry safely, preserve a useful
+handoff, or verify that the patch meets its acceptance criteria. Those jobs
+belong to the <strong>harness</strong>: the software loop around the model.</p>
+<p>A harness turns completion from a model claim into a testable system decision.</p>
 <!-- more -->
 
 <p><strong>TL;DR</strong>: A harness gives an agent context, tools, durable state, checks, and
 stopping rules. Treat every extra component as a hypothesis about a failure mode:
 "this model loses state," "this tool flakes," or "self-review misses bugs."
-Keep the model, task suite, and scoring rule fixed; add or remove one component;
-then measure task success, escaped defects, cost, wall time, and review effort.</p>
+Keep the model, task suite, scoring rule, and total budget fixed; add or remove
+one component; then measure task success, escaped defects, cost, wall time, and
+review effort.</p>
 <p><img alt="The harness control loop" src="../../../../review/assets/2026-06-10-harness-engineering/harness-control-loop.svg" /></p>
 <hr />
 <h2 id="separate-the-loop-harness-and-runtime">Separate the loop, harness, and runtime</h2>
@@ -1151,7 +1151,7 @@ ignores this instruction?</p>
 </tr>
 <tr>
 <td><strong>Deterministic code</strong></td>
-<td>Retries, idempotency, budgets, checkpoints, linters, tests, release gates</td>
+<td>Idempotent retries, budgets, checkpoints, linters, tests, release gates</td>
 <td>Subjective product judgment with no stated rubric</td>
 </tr>
 <tr>
@@ -1163,22 +1163,43 @@ ignores this instruction?</p>
 </table>
 <p>A prompt can tell an agent to run tests. A harness can refuse to finish while
 tests fail. The first is guidance. The second is a property of the system.</p>
+<p>A complete tool contract covers five things: validated arguments, structured
+results and errors, a side-effect class, a timeout and retry policy, and a
+permission category. Tool descriptions and annotations can inform those
+decisions, but they do not grant authority. The MCP specification explicitly
+tells clients to treat <a href="https://modelcontextprotocol.io/specification/2025-11-25/server/tools">tool annotations as untrusted</a>
+unless they come from a trusted server.</p>
+<p>Run cheap deterministic checks before a model evaluator. Use an evaluator for
+criteria that code cannot express cleanly, such as whether a visual hierarchy
+matches a design brief, and give it an explicit rubric.</p>
 <p>This is also why good <a href="/blog/2026/03/24/ai-agent-tool-use/">tool design</a> matters.
-A narrow tool makes the action easier to describe, validate, approve, and trace.
-SWE-agent made this point early: a tailored agent-computer interface with focused
-search and edit operations beat its shell-only no-demonstration baseline on
-SWE-bench Lite, 18.0% versus 7.33% under the paper's conditions. The interface
-did not improve the model weights. It made the work less ambiguous.</p>
+A narrow tool makes the action easier to describe, validate, approve, and trace.</p>
+<p>SWE-agent demonstrated the effect with a fixed model. Under the paper's
+conditions, its full interface resolved 18.0% of SWE-bench Lite tasks with GPT-4
+Turbo, compared with 11.0% for the shell-only agent. Removing editor linting or
+replacing its last-five-observations policy with full history reduced the score
+to 15.0%. The model weights stayed fixed; the action and feedback surfaces
+changed.</p>
 <p>Do not put a destructive-action guardrail in a long system prompt and call it
-security. That is a policy memo addressed to a probabilistic process. <!-- 🌶️ --></p>
+security. That is a policy memo addressed to a probabilistic process.</p>
 <hr />
 <h2 id="state-is-part-of-the-harness">State is part of the harness</h2>
 <p>Long tasks do not fail only because the model made a bad decision. They also fail
 because the next session starts without the last session's working map.</p>
 <p><a href="/blog/2026/02/14/ai-agent-memory-architecture/">Agent memory</a> covers the storage
 side: checkpoints for a run, durable facts for later work, and human-readable
-files for project knowledge. A harness needs to choose which kind of state the
-next turn needs. Three patterns solve different problems:</p>
+files for project knowledge. Before choosing a storage pattern, separate three
+kinds of state:</p>
+<ul>
+<li><strong>Conversation state</strong> records messages, tool calls, and observations.</li>
+<li><strong>Workspace state</strong> is what actually changed outside the transcript: files,
+  processes, browser state, or external API objects.</li>
+<li><strong>Task state</strong> records the plan, acceptance status, pending approvals, and the
+  evidence collected so far.</li>
+</ul>
+<p>Resuming a conversation does not restore a workspace or prove that a task is
+complete. The harness must restore each kind of state deliberately. Three
+patterns address different continuity failures:</p>
 <ul>
 <li><strong>Compaction</strong> shortens an active conversation so the same session can keep
   going. It helps when the direction is still sound and only the history is too
@@ -1197,6 +1218,16 @@ need none of them. A multi-hour coding run may need all three. Measure the
 failure that you are trying to prevent, not the fashionability of the component.</p>
 <hr />
 <h2 id="treat-harness-parts-as-hypotheses">Treat harness parts as hypotheses</h2>
+<p>Start with traces, not components. Inspect failed runs and classify the repeated
+cause: model judgment, missing context, ambiguous tool feedback, environment
+failure, policy enforcement, or a weak acceptance rule. Then change the smallest
+part of the harness that can affect that cause. Otherwise, a critic or retry loop
+can hide the symptom while leaving the original failure intact.</p>
+<p>A useful trace is more than a transcript. For every side effect, correlate the
+model's <strong>proposal</strong>, the policy or human <strong>authorization</strong>, the runtime
+<strong>execution</strong>, the postcondition <strong>verification</strong>, and the harness's final
+<strong>acceptance</strong> decision. Without that chain, a team cannot tell whether the model,
+policy, tool, environment, or evaluator failed.</p>
 <p>Every harness component encodes a claim about the agent:</p>
 <table>
 <thead>
@@ -1209,8 +1240,8 @@ failure that you are trying to prevent, not the fashionability of the component.
 <tbody>
 <tr>
 <td>A transient API error ends the run</td>
-<td>Bounded retry with clear retryable errors</td>
-<td>Success rate, extra calls, wall time</td>
+<td>Bounded retry for an idempotent operation</td>
+<td>Success rate, duplicate effects, extra calls, wall time</td>
 </tr>
 <tr>
 <td>The next session repeats work</td>
@@ -1237,16 +1268,35 @@ failure that you are trying to prevent, not the fashionability of the component.
 <p>Start with the smallest loop that can solve a representative task. Add one
 component for one observed failure. Then try removing it later. Models improve,
 tasks change, and last quarter's workaround can become today's latency tax.</p>
-<p>This is the point of <strong>ablation</strong>. Hold the model, task suite, environment, and
-scoring rule steady. Change one harness component. Run enough trials to see a
-stable result. Keep the component only if it improves a metric you care about.</p>
+<p>This is the point of <strong>ablation</strong>. Use a simple protocol:</p>
+<ol>
+<li>Hold the model, task suite, environment, and scoring rule steady.</li>
+<li>Fix the total token, time, and dollar budget. Otherwise, a retry or subagent
+   experiment may only show that more compute helps.</li>
+<li>Change one harness component.</li>
+<li>Choose the trial count or stopping rule before running the experiment.</li>
+<li>Reuse the same task instances, repeat stochastic runs, and report the spread
+   or confidence interval with the mean.</li>
+<li>Keep the component only if it improves a metric you care about.</li>
+</ol>
+<p>Anthropic's <a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">agent-evaluation guide</a>
+provides useful terms for this protocol: a task, a stochastic trial, its trace,
+and the final state that the grader checks.</p>
+<p>A retry policy needs the same discipline. Retrying a mutating operation can
+perform it twice when the first response is lost. Restrict automatic retries to
+read-only or idempotent operations, or protect the mutation with an idempotency
+key or deduplication record. AWS's <a href="https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_prevent_interaction_failure_idempotent.html">idempotency guidance</a>
+shows why this belongs in the executable boundary rather than an instruction to
+the model.</p>
 <p><img alt="Harness ablation loop" src="../../../../review/assets/2026-06-10-harness-engineering/harness-ablation-loop.svg" /></p>
-<p>The strongest public examples follow this pattern. LangChain reports holding
-<code>gpt-5.2-codex</code> fixed and changing only the harness around <code>deepagents-cli</code>,
-moving its Terminal-Bench 2.0 score from 52.8% to 66.5%. That is a
-vendor-published result, so do not treat it as a universal gain. It does show the
-right experimental shape: the model was fixed, the benchmark stayed fixed, and
-the harness moved.</p>
+<p>LangChain offers an example of <strong>fixed-model harness optimization</strong>, not a
+one-component ablation. It reports holding <code>gpt-5.2-codex</code> fixed while changing
+the system prompt, tools, and middleware around <code>deepagents-cli</code>. Across those
+changes, its Terminal-Bench 2.0 score moved from 52.8% to 66.5%.</p>
+<p>The post shows a useful trace-driven workflow, but it does not publish a
+confidence interval, a fixed-total-budget comparison, or a per-change ablation
+table. Treat the result as a vendor case study, not proof that any one component
+produced the gain.</p>
 <p>Track more than one number. A component that raises success by two points but
 doubles cost or slows every task may still be wrong for your product. I would
 track at least:</p>
@@ -1256,12 +1306,15 @@ track at least:</p>
 <li>retries, tool errors, and policy blocks;</li>
 <li>human review minutes and override rate.</li>
 </ol>
+<p>Count every started trial in the primary denominator, including timeouts,
+policy stops, harness exceptions, and evaluator failures. Keep a run ledger that
+separates those outcomes from model, tool, and environment failures. Otherwise,
+a higher average success rate can hide harness crashes, evaluator false passes,
+or duplicate side effects.</p>
 <p>The task suite plays the same role as the eval set in
 <a href="/blog/2026/05/10/rag-evaluation-metrics/">production evaluation</a>: it turns a
 claim that a system is "better" into a result you can reproduce and inspect.</p>
 <p>A passing check is evidence. It is not a character reference for the agent.</p>
-<!-- 🌶️ -->
-
 <hr />
 <h2 id="run-the-ablation-lab">Run the ablation lab</h2>
 <p>The companion project lives here: <a href="https://github.com/slavadubrov/harness-demo">https://github.com/slavadubrov/harness-demo</a>.
@@ -1303,8 +1356,8 @@ and one real acceptance check.</p>
 <p>When a failure repeats, respond with the smallest enforceable change:</p>
 <ol>
 <li>Add context or a better tool if the model cannot find or express the action.</li>
-<li>Add deterministic code if the action must obey a hard limit or always run a
-   check.</li>
+<li>Add deterministic code if the action must obey a hard limit, retry safely,
+   or always run a check.</li>
 <li>Add durable state if the work crosses sessions or workers.</li>
 <li>Add a separate evaluator only when fresh judgment catches failures that the
    generator routinely misses.</li>
@@ -1313,19 +1366,23 @@ and one real acceptance check.</p>
 <p>That is harness engineering. You are not trying to make a prompt sound more
 serious. You are designing the feedback system that turns uncertain model output
 into work you can inspect, reproduce, and trust.</p>
+<hr />
 <h2 id="key-takeaways">Key Takeaways</h2>
 <ol>
 <li>The harness is the code and conventions around the model: context, tools,
    state, checks, retries, traces, and stopping rules.</li>
 <li>Keep reasoning-loop problems, harness problems, and runtime problems separate
    enough that you can fix the right layer.</li>
-<li>Put hard boundaries in tools or deterministic code, not only in prompts.</li>
-<li>Compaction, handoffs, and context resets solve different state failures.</li>
-<li>Every harness component is a hypothesis. Use a fixed-model ablation to decide
-   whether it earns its overhead.</li>
+<li>Typed tools still need separate permission, side-effect, timeout, and retry
+   policies; schemas do not grant authority.</li>
+<li>Conversation, workspace, and task state are different. Compaction, handoffs,
+   and resets solve only some of their continuity failures.</li>
+<li>Every harness component is a hypothesis. Test it with a fixed model, fixed
+   tasks, and fixed total budget, then include every started run in the result.</li>
 <li>A synthetic lab can teach the method. It cannot establish production-agent
    performance.</li>
 </ol>
+<hr />
 <h2 id="references">References</h2>
 <ul>
 <li>OpenAI, <em><a href="https://openai.com/index/unrolling-the-codex-agent-loop/">Unrolling the Codex agent loop</a></em>.</li>
@@ -1335,6 +1392,9 @@ into work you can inspect, reproduce, and trust.</p>
 <li>LangChain, <em><a href="https://www.langchain.com/blog/improving-deep-agents-with-harness-engineering">Improving Deep Agents with harness engineering</a></em>.</li>
 <li>Yang et al., <em><a href="https://proceedings.neurips.cc/paper_files/paper/2024/file/5a7c947568c1b1328ccc5230172e1e7c-Paper-Conference.pdf">SWE-agent: Agent-Computer Interfaces Enable Automated Software Engineering</a></em>.</li>
 <li>Terminal-Bench, <em><a href="https://www.tbench.ai/">official site</a></em> and <em><a href="https://harborframework.com/">Harbor</a></em>.</li>
+<li>AWS, <em><a href="https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_prevent_interaction_failure_idempotent.html">Make mutating operations idempotent</a></em>.</li>
+<li>Anthropic Engineering, <em><a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">Demystifying evals for AI agents</a></em>.</li>
+<li>Model Context Protocol, <em><a href="https://modelcontextprotocol.io/specification/2025-11-25/server/tools">Tools specification</a></em>.</li>
 </ul>
 
 
