@@ -959,10 +959,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#follow-one-action-through-the-loop" class="md-nav__link">
+  <a href="#what-happens-between-a-proposed-edit-and-acceptance" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Follow one action through the loop
+        What happens between a proposed edit and acceptance
       
     </span>
   </a>
@@ -1077,26 +1077,28 @@
 
 <h1 id="harness-engineering-for-ai-agents-designing-the-loop-around-the-model">Harness engineering for AI agents: designing the loop around the model</h1>
 <p><a href="/blog/#ai-agents"><strong>Part 6 of the Engineering the Agentic Stack series</strong></a></p>
-<p>In a synthetic checkout run, a coding agent edits <code>src/checkout.py</code>, runs the
-nearest unit test, receives exit code 0, and reports success. The browser
-checkout still fails.</p>
-<p>The run stopped because its acceptance rule treated the unit test as enough
-evidence. That rule lives in the <strong>harness</strong>, the program around the LLM that
-builds each model request, executes or rejects tool calls, and decides when the
-evidence is sufficient. The code that makes that final decision is the
-acceptance gate. For this task, add the browser test to the gate and keep the
-loop open when the test fails.</p>
+<p>An agent's reasoning loop chooses the next action. Its <strong>harness</strong> supplies
+context, executes or rejects tool calls, records progress, and decides whether
+the task is complete.</p>
+<p>Models propose edits and declare tasks complete. The harness enforces
+permissions and runs the acceptance checks that decide whether the loop can
+stop. <a href="/blog/2026/05/26/ai-agent-runtime/">Part 5</a> covered the runtime that keeps
+the process alive. This article focuses on the control code inside that runtime
+and how to measure whether each addition helps.</p>
+<p>The examples use one small checkout change throughout the article. The agent
+edits <code>src/checkout.py</code>; the harness validates the edit, runs the unit and
+browser checkout tests, and keeps the loop open until both pass.</p>
 <!-- more -->
 
-<p><strong>TL;DR</strong>: Start with one model, a few narrow tools, and the browser checkout
-test from the opening. Add retries after traces show transient call failures.
-Add a progress handoff when resumed sessions repeat work. When you test either
-change, keep the model version, tasks, grader, and total budget fixed. Remove the
-component when it does not improve the measured result.</p>
-<p>The diagram follows one proposed checkout edit. The harness supplies the task
-and files, checks the proposed <code>edit_file</code> arguments and permissions, runs the
-edit, executes the checkout tests, and either asks the model to continue or
-accepts the task.</p>
+<p><strong>TL;DR</strong>: Start with one model, a few narrow tools, and an explicit acceptance
+check. Add retries after traces show transient call failures. Add a progress
+handoff when resumed sessions repeat work. When you test either change, keep the
+model version, tasks, grader, and total budget fixed. Remove the component when
+it does not improve the measured result.</p>
+<p>The diagram expands that checkout change. The harness supplies the task and
+files, checks the proposed <code>edit_file</code> arguments and permissions, runs the edit,
+executes the checkout tests, and either asks the model to continue or accepts
+the task.</p>
 <p><img alt="One checkout action through the harness" src="../../../../review/assets/2026-06-10-harness-engineering/harness-control-loop.svg" /></p>
 <hr />
 <h2 id="what-the-harness-owns">What the harness owns</h2>
@@ -1150,8 +1152,8 @@ an engineer would inspect. The case study is product-specific. The task became
 checkable only after the application and its performance signals were available
 inside the agent environment.</p>
 <hr />
-<h2 id="follow-one-action-through-the-loop">Follow one action through the loop</h2>
-<p>In the checkout task, suppose the model asks to replace <code>calculate_discount</code> in
+<h2 id="what-happens-between-a-proposed-edit-and-acceptance">What happens between a proposed edit and acceptance</h2>
+<p>For the checkout example, the model proposes replacing <code>calculate_discount</code> in
 <code>src/checkout.py</code>. Several things happen before that edit counts as progress:</p>
 <ol>
 <li>The context builder supplies the task, repository instructions, relevant
@@ -1175,10 +1177,10 @@ decision, the files that changed, and the results of the unit and browser tests.
 A final <code>done</code> message without those records does not prove that checkout works.</p>
 <hr />
 <h2 id="decide-where-each-rule-is-enforced">Decide where each rule is enforced</h2>
-<p>Enforce the missing browser test with normal program logic. The harness runs the
-command, reads its exit code, and refuses to end the run while the command fails.
-A prompt can remind the model to run the test, but the reminder cannot prevent
-the model from declaring success.</p>
+<p>Put the browser acceptance check in normal program logic. The harness runs the
+command, reads its exit code, and refuses to end the run while the command
+fails. A prompt can remind the model to run the test, but the reminder cannot
+prevent the model from declaring success.</p>
 <p>Other rules fit different layers:</p>
 <table>
 <thead>
@@ -1243,15 +1245,15 @@ specification therefore requires clients to treat
 <a href="https://modelcontextprotocol.io/specification/2025-11-25/server/tools">tool annotations as untrusted</a>
 unless the server itself is trusted. Trust is a client-side setting: the operator
 decides which servers may supply metadata used for permission or retry decisions.</p>
-<p>Now suppose <code>create_test_order</code> creates the order, but its HTTP response is lost.
-The harness sees a timeout and cannot tell whether the server completed the
-request. Repeating the call may create a second order. Reads such as
-<code>get_order_status</code> can usually be retried. A creation call needs protection such
-as an idempotency key: the client attaches a unique request identifier, and the
-service returns the first result instead of creating another order when it sees
-that identifier again. Without this protection, the harness should check
-whether the order exists or ask for a human decision before another attempt.
-AWS documents this pattern in its
+<p>There is a separate retry problem when <code>create_test_order</code> creates the order but
+its HTTP response is lost. The harness sees a timeout and cannot tell whether
+the server completed the request. Repeating the call may create a second order.
+Read operations such as <code>get_order_status</code> can usually be retried. A creation
+call needs protection such as an idempotency key: the client attaches a unique
+request identifier, and the service returns the first result instead of creating
+another order when it sees that identifier again. Without this protection, the
+harness should check whether the order exists or ask for a human decision before
+another attempt. AWS documents this pattern in its
 <a href="https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/">idempotent API guidance</a>.</p>
 <p>A successful <code>create_test_order</code> response proves only that the tool returned
 data. It does not prove that the edited checkout works. The harness should
@@ -1261,7 +1263,7 @@ with a written rubric. Check that evaluator's decisions against human reviews
 before using it as a completion gate.</p>
 <hr />
 <h2 id="long-runs-need-a-handoff">Long runs need a handoff</h2>
-<p>Now let the checkout change grow into a two-hour migration. The first session
+<p>A two-hour checkout migration can outlast one model session. The first session
 changes six files, starts a local payment sandbox, finds one failing browser
 test, and reaches its context limit. A conversation summary helps the next model
 turn, but it cannot restart the sandbox or prove which files are currently
@@ -1367,9 +1369,9 @@ self-review miss. Remove planners, critics, or retries that do not move the
 chosen number.</p>
 <hr />
 <h2 id="measure-one-change-at-a-time">Measure one change at a time</h2>
-<p>An <strong>ablation</strong> tests that expected effect by changing or removing one harness
-component while the rest of the experiment stays fixed. For example, does editor
-linting help this model on this task suite?</p>
+<p>An <strong>ablation</strong> measures whether a harness component causes the expected effect.
+Change or remove that component while the rest of the experiment stays fixed.
+For example, does editor linting help this model on this task suite?</p>
 <p>Use the following protocol:</p>
 <ol>
 <li>Freeze the model version, task instances, environment, grader, and prompts
@@ -1387,10 +1389,10 @@ tasks accepted as complete, cost and wall time per completed task, tool errors,
 duplicate orders, review minutes, and manual permission overrides. Choose the
 metric that carries the real cost for the product. A two-point rise in completed
 tasks is a bad trade if it doubles the review queue.</p>
-<p>A progress handoff gives the running example a concrete A/B test. Both variants
-use the same model, tasks, grader, and total budget. The handoff is the only
-switch, and the measured outcome is repeated work after the checkout migration
-resumes.</p>
+<p>A paired checkout experiment makes the progress handoff measurable. Both
+variants use the same model, tasks, grader, and total budget. The handoff is the
+only switch, and the measured outcome is repeated work after the checkout
+migration resumes.</p>
 <p><img alt="A paired test of one harness component" src="../../../../review/assets/2026-06-10-harness-engineering/harness-ablation-loop.svg" /></p>
 <p>The SWE-agent paper fixes GPT-4 Turbo on the 300-task SWE-bench Lite split and
 reports 18.0% resolved with its full interface, compared with 11.0% for the
