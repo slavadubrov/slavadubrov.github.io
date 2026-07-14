@@ -1083,17 +1083,20 @@ checkout still fails.</p>
 <p>The run stopped because its acceptance rule treated the unit test as enough
 evidence. That rule lives in the <strong>harness</strong>, the program around the LLM that
 builds each model request, executes or rejects tool calls, and decides when the
-evidence is sufficient. For this task, the fix is specific: add the browser test
-to the acceptance gate and keep the loop open when it fails.</p>
+evidence is sufficient. The code that makes that final decision is the
+acceptance gate. For this task, add the browser test to the gate and keep the
+loop open when the test fails.</p>
 <!-- more -->
 
-<p><strong>TL;DR</strong>: The first version needs one model, a few narrow tools, and an
-end-to-end acceptance check. Read failed traces before adding machinery. When
-you compare a new component, keep the model version, task set, grader, and total
-budget unchanged across both variants. Remove it when the result stays the same.</p>
-<p>One proposed checkout edit moves from context to authorization, execution,
-verification, and a stopping decision. The harness can record, reject, or verify
-each transition without relying on the final message from the model.</p>
+<p><strong>TL;DR</strong>: Start with one model, a few narrow tools, and the browser checkout
+test from the opening. Add retries after traces show transient call failures.
+Add a progress handoff when resumed sessions repeat work. When you test either
+change, keep the model version, tasks, grader, and total budget fixed. Remove the
+component when it does not improve the measured result.</p>
+<p>The diagram follows one proposed checkout edit. The harness supplies the task
+and files, checks the proposed <code>edit_file</code> arguments and permissions, runs the
+edit, executes the checkout tests, and either asks the model to continue or
+accepts the task.</p>
 <p><img alt="One checkout action through the harness" src="../../assets/2026-06-10-harness-engineering/harness-control-loop.svg" /></p>
 <hr />
 <h2 id="what-the-harness-owns">What the harness owns</h2>
@@ -1123,7 +1126,7 @@ system accepts the result or hands control back to the user.</p>
 </tr>
 <tr>
 <td><strong>Harness</strong></td>
-<td>Builds context, exposes tools, applies policy, records state, and checks completion</td>
+<td>Supplies task context, rejects disallowed calls, records results, and checks completion</td>
 <td>Allows edits under <code>src/</code> and requires browser checkout</td>
 </tr>
 <tr>
@@ -1133,10 +1136,11 @@ system accepts the result or hands control back to the user.</p>
 </tr>
 </tbody>
 </table>
-<p>The boundary between harness and runtime varies by implementation. Look at the
-failure itself: a poor plan points toward model instructions or reasoning, while
-an edit outside the allowed directory points toward tool policy. A dead worker
-belongs to the runtime.</p>
+<p>Frameworks split these responsibilities differently, so diagnose the code that
+should respond to the failure. A poor plan may need better instructions or model
+reasoning. If <code>edit_file</code> targets a path outside <code>src/</code>, the harness should
+reject it. If the sandbox process dies before the edit runs, the runtime should
+restart the worker or report the crash.</p>
 <p>OpenAI's own <a href="https://openai.com/index/harness-engineering/">harness-engineering case study</a>
 describes a team that made one application instance bootable per worktree, wired
 browser automation into the agent environment, and exposed logs, metrics, and
@@ -1153,102 +1157,108 @@ inside the agent environment.</p>
 <li>The context builder supplies the task, repository instructions, relevant
    files, prior tool results, and the current plan.</li>
 <li>The model proposes an <code>edit_file</code> call with a path and replacement text.</li>
-<li>The tool boundary validates the arguments, checks the path against the allowed
-   scope, and asks for approval if the operation needs it.</li>
+<li>The tool boundary, the harness code between proposal and execution, validates
+   the arguments, checks the path against the allowed scope, and asks for
+   approval if the operation needs it.</li>
 <li>The runtime applies the edit in the sandbox and returns a structured result.</li>
 <li>The harness runs the checks attached to the task. Here that means checkout
    unit tests followed by an end-to-end browser test.</li>
 <li>A failed check becomes new context for the next model turn. A passing result
    is recorded as evidence for completion.</li>
 </ol>
-<p>The model's tool call is a proposal, which lets ordinary code reject
-<code>../../secrets.env</code>, block a destructive command, or stop a run that has exhausted
-its budget before the call reaches the runtime. At step 5, ordinary code can
-inspect an exit status directly without asking the same model to interpret its
-own work.</p>
-<p>An agent's final message carries little weight by itself, so I want the trace to
-answer a concrete question: which check passed, against which artifact, after
-which side effects?</p>
+<p>At step 2, no file has changed. The harness can reject <code>../../secrets.env</code>,
+require approval for a destructive command, or stop a run that has exhausted its
+budget. After the tests run, the harness reads their exit codes itself. The
+model does not get to mark its own edit as passing.</p>
+<p>The trace should show the proposed path and replacement text, the permission
+decision, the files that changed, and the results of the unit and browser tests.
+A final <code>done</code> message without those records does not prove that checkout works.</p>
 <hr />
 <h2 id="decide-where-each-rule-is-enforced">Decide where each rule is enforced</h2>
-<p>The browser test from the opening gives us one concrete rule: the agent may
-report completion only after that test passes. A prompt can state the rule and
-ask the agent to run the test, yet the model can still forget the instruction or
-decide that a unit test is enough. The acceptance gate reads the browser test's
-exit code and rejects completion when the test fails. No model judgment is
-needed.</p>
-<p>The table shows where each rule goes:</p>
+<p>Enforce the missing browser test with normal program logic. The harness runs the
+command, reads its exit code, and refuses to end the run while the command fails.
+A prompt can remind the model to run the test, but the reminder cannot prevent
+the model from declaring success.</p>
+<p>Other rules fit different layers:</p>
 <table>
 <thead>
 <tr>
-<th>Layer</th>
-<th>Rules it can handle</th>
-<th>Checkout example</th>
+<th>Put the rule in</th>
+<th>Good fit</th>
+<th>Example</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><strong>Prompt or skill</strong></td>
-<td>Search order, coding conventions, preferred plan shape</td>
+<td>Search order, coding conventions, and plan format</td>
 <td>Read <code>AGENTS.md</code> before editing checkout code</td>
 </tr>
 <tr>
 <td><strong>Tool boundary</strong></td>
-<td>Argument validation, file scope, approvals, capability limits</td>
+<td>Argument validation, allowed paths, approvals, and tool access</td>
 <td>Permit writes only under <code>src/</code></td>
 </tr>
 <tr>
 <td><strong>Deterministic code</strong></td>
-<td>Budgets, timeouts, retries, tests, release gates</td>
+<td>Budgets, timeouts, retries, test exit codes, and release gates</td>
 <td>Keep the run open while browser checkout fails</td>
 </tr>
 <tr>
 <td><strong>Separate evaluator</strong></td>
-<td>Visual quality, rubric-based review, adversarial inspection</td>
-<td>Compare the checkout page with a design brief</td>
+<td>Visual review or criteria that need human-like judgment</td>
+<td>Compare the checkout page with a written rubric</td>
 </tr>
 </tbody>
 </table>
-<p>In the checkout run, the prompt tells the model which instructions to read,
-while the tool boundary limits what it may change and deterministic code decides
-whether the required tests passed. A separate evaluator handles artifact
-judgments that those checks cannot make.</p>
-<p>The tool boundary needs more than a natural-language tool description. For a
-call such as <code>create_test_order</code>, the harness needs a contract with:</p>
+<p>The tool boundary needs more than a natural-language description. For a call
+such as <code>create_test_order</code>, the harness needs a contract with:</p>
 <ul>
 <li>validated arguments, so malformed input is rejected before execution</li>
-<li>a structured result, so later checks do not have to parse free-form text</li>
-<li>a side-effect class, so the harness knows whether the call only reads state or
-  may change it</li>
+<li>a structured result such as <code>{ "order_id": "123", "created": true }</code>, so
+  later checks do not have to parse free-form text</li>
+<li>an effect category that records whether the call only fetches information or
+  changes a file, database record, or external service, and whether repeating
+  the call is safe. This label tells the harness whether an automatic retry
+  could duplicate work: it can retry <code>get_order_status</code>, but it must not blindly
+  retry <code>create_test_order</code> because the first call may already have created the
+  order</li>
 <li>a timeout and retry policy, so a lost response does not trigger an unlimited
   sequence of calls</li>
-<li>a permission category, so the harness can require the right approval before
-  execution</li>
+<li>a permission rule that says what approval is required. Reading order status
+  may run automatically, while creating an order may require confirmation</li>
 </ul>
-<p>The description helps the model choose the tool. The harness checks the contract
-before execution. That distinction matters when one server supplies the tool
-metadata and another client decides whether the call is allowed. The MCP
-specification tells clients to treat
+<p>The natural-language description is text shown to the model. It might say,
+"Create a test order for checkout verification." That sentence helps the model
+decide when to propose <code>create_test_order</code>. It does not authorize the call.
+Before execution, the MCP client, which is part of the harness in this example,
+validates the arguments and applies its own rules. It checks whether the server
+is trusted, whether creating an order requires approval, and whether a failed
+call may be retried.</p>
+<p>An MCP server publishes tool descriptions and optional behavior annotations to
+the client. A faulty or malicious server could describe a state-changing tool as
+harmless. If the client accepted that claim automatically, it might run or retry
+<code>create_test_order</code> without approval and create a duplicate. The MCP
+specification therefore requires clients to treat
 <a href="https://modelcontextprotocol.io/specification/2025-11-25/server/tools">tool annotations as untrusted</a>
-unless they came from a trusted server.</p>
-<p>Timeouts make the side-effect class matter. In a second synthetic checkout run,
-<code>create_test_order</code> creates the order, but the HTTP response is lost. Repeating
-the request without checking the service would create a second order.</p>
-<p>Reads are simpler to retry. The harness may also retry a mutation when an
-idempotency key or a deduplication record protects it. The service can then
-recognize the repeated request, skip the duplicate mutation, and return the
-first call's result to the harness. AWS's
-<a href="https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/">idempotent API guidance</a>
-describes this pattern with a client request identifier.</p>
-<p>Without that protection, the harness needs to check whether the order already
-exists before it retries. If the result cannot be recovered safely, the next
-step may require compensation or a human decision.</p>
-<p>The tool may now run. The harness must still decide whether the resulting
-checkout change is acceptable. Start with checks that have an objective result,
-such as a schema validator and the test suite. Add a separate evaluator when the
-requirement depends on judgment, such as visual hierarchy or the quality of an
-explanation, and verify its rubric against human decisions before using it as an
-acceptance gate.</p>
+unless the server itself is trusted. Trust is a client-side setting: the operator
+decides which servers may supply metadata used for permission or retry decisions.</p>
+<p>Now suppose <code>create_test_order</code> creates the order, but its HTTP response is lost.
+The harness sees a timeout and cannot tell whether the server completed the
+request. Repeating the call may create a second order. Reads such as
+<code>get_order_status</code> can usually be retried. A creation call needs protection such
+as an idempotency key: the client attaches a unique request identifier, and the
+service returns the first result instead of creating another order when it sees
+that identifier again. Without this protection, the harness should check
+whether the order exists or ask for a human decision before another attempt.
+AWS documents this pattern in its
+<a href="https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/">idempotent API guidance</a>.</p>
+<p>A successful <code>create_test_order</code> response proves only that the tool returned
+data. It does not prove that the edited checkout works. The harness should
+validate the response schema and run the test suite. If the acceptance rule
+includes visual hierarchy, a separate evaluator can compare a browser screenshot
+with a written rubric. Check that evaluator's decisions against human reviews
+before using it as a completion gate.</p>
 <hr />
 <h2 id="long-runs-need-a-handoff">Long runs need a handoff</h2>
 <p>Now let the checkout change grow into a two-hour migration. The first session
@@ -1256,50 +1266,49 @@ changes six files, starts a local payment sandbox, finds one failing browser
 test, and reaches its context limit. A conversation summary helps the next model
 turn, but it cannot restart the sandbox or prove which files are currently
 modified.</p>
-<p>The next session has to reconstruct three different kinds of state:</p>
+<p>The next session has to recover three things:</p>
 <table>
 <thead>
 <tr>
-<th>State</th>
-<th>What it contains</th>
+<th>What must be recovered</th>
+<th>What it includes</th>
 <th>How it can fail</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Conversation</strong></td>
-<td>Messages, tool calls, observations</td>
+<td><strong>Conversation history</strong></td>
+<td>Messages, tool calls, and returned results</td>
 <td>Old details crowd out the current task</td>
 </tr>
 <tr>
-<td><strong>Workspace</strong></td>
-<td>Files, processes, browser state, external objects</td>
+<td><strong>Working environment</strong></td>
+<td>Files, processes, browser state, and created orders</td>
 <td>The transcript says a service is running after it died</td>
 </tr>
 <tr>
-<td><strong>Task</strong></td>
+<td><strong>Task progress</strong></td>
 <td>Plan, completed checks, pending approval, next action</td>
 <td>The next session repeats finished work</td>
 </tr>
 </tbody>
 </table>
-<p>Compaction and a handoff solve different problems. Compaction replaces older
-conversation detail with a shorter summary so the same session can continue. It
-does not recreate the workspace for another worker.</p>
-<p>A progress handoff is written for that next worker. It records the current
-branch, changed files, last test command, its output, and the next unresolved
-step. If the old conversation has accumulated bad assumptions or too much stale
-detail, a context reset starts a new worker from this handoff.</p>
+<p>Compaction replaces older messages with a shorter summary so the current
+session can continue. It does not restart a dead process or tell the next worker
+which files now differ. A progress handoff records what the next session needs:
+the current branch, changed files, last test command and output, and the next
+unresolved step. If the old conversation contains stale assumptions, the
+harness can start a fresh worker with that handoff and the current workspace.</p>
 <p>A 10-minute documentation edit may need none of these mechanisms. A migration
 that crosses sessions may need a handoff even when the conversation still fits
 in the context window, because the next worker must reconstruct the workspace
 and task status.</p>
 <p>Anthropic's experiments with
 <a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">long-running coding agents</a>
-used git history and a progress file between sessions. Its later
+used git history and a progress file between sessions, while its later
 <a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">harness-design report</a>
-separates compaction from a fresh-context handoff and records the extra
-orchestration, tokens, and wall time required by that design.</p>
+separates compaction from a fresh-context handoff and reports the additional
+orchestration, token use, and wall time required by handoffs.</p>
 <hr />
 <h2 id="use-the-trace-to-separate-different-failures">Use the trace to separate different failures</h2>
 <p>Across ten synthetic runs of the checkout task, six call the order API and
@@ -1309,16 +1318,12 @@ skip the required browser test.</p>
 <p>One retry policy cannot repair all ten runs. The first six need bounded retries.
 The next two need idempotency or a status lookup before another request, while
 the last two need an acceptance gate tied to the missing browser test.</p>
-<p>A chat transcript records what the agent saw, but it cannot prove whether the
-service created an order before the response disappeared. To reconstruct a side
-effect, the trace needs to preserve five events in order:</p>
-<ol>
-<li>the tool call proposed by the model</li>
-<li>the policy check or human authorization that allowed it</li>
-<li>the result of runtime execution</li>
-<li>the postcondition check against the workspace or external service</li>
-<li>the final decision to continue or accept the run</li>
-</ol>
+<p>A chat transcript records what the model saw, but it cannot prove whether the
+service created an order before the response disappeared. For each order API
+call, the trace should record the arguments, the local permission or approval
+decision, whether the server ran the call, whether a status lookup found the
+order, and whether the browser test later passed. That sequence distinguishes a
+lost response from a request that never reached the service.</p>
 <table>
 <thead>
 <tr>
@@ -1336,53 +1341,52 @@ effect, the trace needs to preserve five events in order:</p>
 <tr>
 <td>A resumed session repeats work</td>
 <td>Structured progress handoff</td>
-<td>Resume time, repeated actions, stale decisions</td>
+<td>Time to resume and actions repeated</td>
 </tr>
 <tr>
-<td>The agent finishes with a broken artifact</td>
-<td>Deterministic acceptance check</td>
-<td>Escaped defects, false passes</td>
+<td>The agent finishes with a broken checkout</td>
+<td>Browser acceptance check</td>
+<td>Broken checkouts accepted as complete</td>
 </tr>
 <tr>
 <td>Visual defects survive passing tests</td>
 <td>Fresh evaluator with a written rubric</td>
-<td>Defects found, false rejects, review minutes</td>
+<td>Visual defects found, correct pages rejected, review time</td>
 </tr>
 <tr>
 <td>The agent edits outside its scope</td>
 <td>Narrower tool permission</td>
-<td>Blocked calls, overrides, policy violations</td>
+<td>Out-of-scope calls blocked and manual overrides granted</td>
 </tr>
 </tbody>
 </table>
-<p>Before adding a component, write down the failure it should prevent and the
-metric that should move. A progress file should reduce resume time enough to
-repay the cost of writing and reading it. A fresh reviewer should catch defects
-that tests and self-review miss without creating too many false rejects. If the
-expected metric does not improve, extra planners, critics, and retries only add
-work around the original defect.</p>
+<p>Before adding a component, name the repeated failure it should reduce and the
+number you will track. A progress file earns its cost only if it cuts resume time
+or repeated actions. A fresh reviewer should catch defects that tests and
+self-review miss. Remove planners, critics, or retries that do not move the
+chosen number.</p>
 <hr />
 <h2 id="measure-one-change-at-a-time">Measure one change at a time</h2>
-<p>Each proposed component now has a failure it should prevent and a metric it
-should change. An <strong>ablation</strong> tests that expectation by changing or removing one
-harness component while the rest of the experiment stays fixed. For example,
-does editor linting help this model on this task suite?</p>
+<p>An <strong>ablation</strong> tests that expected effect by changing or removing one harness
+component while the rest of the experiment stays fixed. For example, does editor
+linting help this model on this task suite?</p>
 <p>Use the following protocol:</p>
 <ol>
 <li>Freeze the model version, task instances, environment, grader, and prompts
    outside the component under test.</li>
 <li>Give both variants the same total token, time, and dollar budget.</li>
 <li>Choose the number of trials or stopping rule before running the comparison.</li>
-<li>Run the same task instances in both variants. Repeat stochastic trials.</li>
+<li>Run the same task instances in both variants. Because model outputs vary,
+   repeat each task several times.</li>
 <li>Report the mean together with the spread or confidence interval.</li>
 <li>Count every started trial, including timeouts, policy stops, harness crashes,
    and evaluator failures.</li>
 </ol>
-<p>Success rate alone can hide an expensive component. At minimum, track escaped
-defects, cost and wall time per completed task, tool errors, duplicate effects,
-review minutes, and operator overrides. Choose the main metric based on where
-the product pays for failure. A two-point success gain can still be a bad trade
-if it doubles the review queue.</p>
+<p>Success rate alone can hide an expensive component. At minimum, track broken
+tasks accepted as complete, cost and wall time per completed task, tool errors,
+duplicate orders, review minutes, and manual permission overrides. Choose the
+metric that carries the real cost for the product. A two-point rise in completed
+tasks is a bad trade if it doubles the review queue.</p>
 <p>A progress handoff gives the running example a concrete A/B test. Both variants
 use the same model, tasks, grader, and total budget. The handoff is the only
 switch, and the measured outcome is repeated work after the checkout migration
@@ -1417,22 +1421,22 @@ shell-only agent. The paper also changed individual interface features:</p>
 </tr>
 </tbody>
 </table>
-<p>These numbers belong to that model, benchmark, and $4 per-task budget. Because
-the model stayed fixed while individual interface features changed, the rows
-show the effect of those interface choices under the paper's conditions.</p>
+<p>These numbers belong to that model, benchmark, and $4 per-task budget. The
+<code>without linting</code>, <code>full file</code>, and <code>full history</code> rows are the useful
+one-feature tests: each changed an interface feature while the model and
+evaluation setup stayed fixed.</p>
 <p>LangChain published a broader fixed-model comparison for <code>deepagents-cli</code>. It
 reports a Terminal-Bench 2.0 increase from 52.8% to 66.5% with
 <code>gpt-5.2-codex</code> fixed while its team changed the system prompt, tools, and
-middleware.</p>
-<p>Several parts of the harness changed together. The post also omits a confidence
-interval, a fixed-total-budget comparison, and a per-change ablation table. I
-read it as a vendor case study of trace-driven tuning. The bundled change set
-cannot isolate any one component.</p>
-<p>Anthropic describes one-at-a-time removal after a model upgrade. In its
-long-running application harness, an evaluator checked 27 criteria for one
-sprint. With a later model, some tasks no longer benefited enough from that
-evaluator to justify its cost. The team removed harness pieces one at a time and
-checked the result, including components that had helped the previous model.</p>
+middleware. The post bundles several changes and omits a confidence interval,
+fixed-total-budget comparison, and per-change ablation table. The combined
+package helped in that published setup, but the result does not identify which
+change caused the gain.</p>
+<p>Anthropic reports that an evaluator checked 27 criteria during one sprint on a
+long-running application. After the team switched to a later model, some tasks
+no longer improved enough to justify the extra evaluator calls. The team removed
+one harness component at a time and checked whether those criteria still passed,
+including components that had helped the previous model.</p>
 <hr />
 <h2 id="try-the-method-in-the-companion-lab">Try the method in the companion lab</h2>
 <p>The <a href="https://github.com/slavadubrov/harness-demo">harness-demo project</a> is a
@@ -1441,8 +1445,9 @@ covering flaky tools, lost progress, optimistic self-review, and ambiguous
 completion.</p>
 <p>The lab uses a deterministic simulation instead of an LLM call. Its token counts
 and outcomes are synthetic, so each failure remains easy to connect to the
-component that handles it. Production-agent performance requires sampled tasks,
-real model calls, and a product grader.</p>
+component that handles it. The lab's pass rate says nothing about live-agent
+performance. Measuring that requires sampled tasks, real model calls, and a
+product grader.</p>
 <p>Run it from the project directory:</p>
 <div class="highlight"><pre><span></span><code>make<span class="w"> </span>check
 make<span class="w"> </span>run
@@ -1463,20 +1468,16 @@ and spends extra simulated tokens, so the output puts cost beside pass rate.</p>
 </code></pre></div>
 <hr />
 <h2 id="start-with-one-loop-and-one-acceptance-check">Start with one loop and one acceptance check</h2>
-<p>The first coding-agent harness I would build is small. One capable model gets
-the repository instructions and a few narrow tools inside a sandbox. The
-acceptance check exercises the finished artifact.</p>
-<p>The harness records each tool call, its result, the cost, and the final check in
-one trace. When the first useful failure appears, that trace shows what happened
-without forcing the engineer to reconstruct the run from terminal logs and chat
-transcripts.</p>
-<p>Retries enter the loop after traces show transient tool errors. When sessions
-repeat work or lose the next step, use a progress handoff. A separate evaluator
-belongs there when tests pass while the same class of subjective defect
-continues to escape.</p>
-<p>For each addition, record who owns it, what it costs, and which regression test
-justifies keeping it. Run the removal test again after a model upgrade because a
-component that helped the previous model may only add cost to the new one.</p>
+<p>My first version of a coding-agent harness has one capable model, repository
+instructions, a few narrow tools, a sandbox, and the browser checkout test. I
+record tool calls, results, costs, and the final test in one trace so the first
+useful failures are visible without reconstructing them from terminal logs and
+chat transcripts.</p>
+<p>Retries come after traces show transient tool errors. Add a progress handoff when
+sessions repeat work or lose the next step. Add a separate evaluator when the
+tests pass but browser screenshots repeatedly violate the written UI rubric.
+For each addition, record who maintains it, how many tokens or seconds it adds,
+and the test that would justify removing it after a model upgrade.</p>
 <p>Six months later, someone who sees <code>progress_handoff=True</code> should be able to find
 the failed traces that justified it and the regression cases that still keep it
 there.</p>
