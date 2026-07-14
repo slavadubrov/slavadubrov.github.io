@@ -1036,17 +1036,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#key-takeaways" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Key takeaways
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#references" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1088,21 +1077,25 @@
 
 <h1 id="harness-engineering-for-ai-agents-designing-the-loop-around-the-model">Harness engineering for AI agents: designing the loop around the model</h1>
 <p><a href="/blog/#ai-agents"><strong>Part 6 of the Engineering the Agentic Stack series</strong></a></p>
-<p>A coding agent changes a file, runs the nearest unit test, and reports success.
-The requested behavior still fails in the browser because nothing in the run
-required a browser check, and on the next attempt a shell command times out after
-creating a resource, so the agent retries and creates it twice.</p>
+<p>Consider a synthetic checkout task. A coding agent changes <code>src/checkout.py</code>,
+runs the nearest unit test, receives exit code 0, and reports success. The
+checkout still fails in the browser because the run never required a browser
+check. On the next attempt, <code>create_test_order</code> times out after the service has
+created the order, so an automatic retry creates a second one.</p>
 <p>The program around the LLM decides which tools exist, which calls are allowed,
 what state survives, and what evidence is required before the run can stop. That
 program is the <strong>harness</strong>, and harness engineering begins with failures like
 these, fixed in the part of the system that can enforce the rule.</p>
 <!-- more -->
 
-<p><strong>TLDR</strong>: The first version needs one model, a few narrow tools, and an
+<p><strong>TL;DR</strong>: The first version needs one model, a few narrow tools, and an
 end-to-end acceptance check. Read failed traces before adding machinery. When
 you compare a new component, keep the model version, task set, grader, and total
 budget unchanged across both variants. Remove it when the result stays the same.</p>
-<p><img alt="The harness control loop" src="../../../../review/assets/2026-06-10-harness-engineering/harness-control-loop.svg" /></p>
+<p>One proposed checkout edit moves from context to authorization, execution,
+verification, and a stopping decision. The harness can record, reject, or verify
+each transition without relying on the final message from the model.</p>
+<p><img alt="One checkout action through the harness" src="../../../../review/assets/2026-06-10-harness-engineering/harness-control-loop.svg" /></p>
 <hr />
 <h2 id="what-the-harness-owns">What the harness owns</h2>
 <p>OpenAI's <a href="https://openai.com/index/unrolling-the-codex-agent-loop/">Codex loop walkthrough</a>
@@ -1122,7 +1115,7 @@ system accepts the result or hands control back to the user.</p>
 <tr>
 <td><strong>Model</strong></td>
 <td>Proposes text, a tool call, or a final answer</td>
-<td>Suggests an edit to <code>parser.py</code></td>
+<td>Suggests an edit to <code>checkout.py</code></td>
 </tr>
 <tr>
 <td><a href="/blog/2026/01/31/ai-agent-reasoning-loops/"><strong>Reasoning loop</strong></a></td>
@@ -1132,7 +1125,7 @@ system accepts the result or hands control back to the user.</p>
 <tr>
 <td><strong>Harness</strong></td>
 <td>Builds context, exposes tools, applies policy, records state, and checks completion</td>
-<td>Allows edits under <code>src/</code> and requires the import test</td>
+<td>Allows edits under <code>src/</code> and requires browser checkout</td>
 </tr>
 <tr>
 <td><a href="/blog/2026/05/26/ai-agent-runtime/"><strong>Runtime</strong></a></td>
@@ -1148,14 +1141,15 @@ belongs to the runtime.</p>
 <p>OpenAI's own <a href="https://openai.com/index/harness-engineering/">harness-engineering case study</a>
 describes a team that made one application instance bootable per worktree, wired
 browser automation into the agent environment, and exposed logs, metrics, and
-traces. A task such as "keep these four user journeys under two
-seconds" became testable because the agent could run the application and query
-the same signals an engineer would inspect. The setup is product-specific. The
-harness exposed evidence the model could act on.</p>
+traces. A task such as "keep these four user journeys under two seconds" became
+testable because the agent could run the application and query the same signals
+an engineer would inspect. The case study is product-specific. The task became
+checkable only after the application and its performance signals were available
+inside the agent environment.</p>
 <hr />
 <h2 id="follow-one-action-through-the-loop">Follow one action through the loop</h2>
-<p>Suppose the model asks to replace a function in <code>src/parser.py</code>. Several things
-happen before that edit counts as progress:</p>
+<p>In the checkout task, suppose the model asks to replace <code>calculate_discount</code> in
+<code>src/checkout.py</code>. Several things happen before that edit counts as progress:</p>
 <ol>
 <li>The context builder supplies the task, repository instructions, relevant
    files, prior tool results, and the current plan.</li>
@@ -1163,8 +1157,8 @@ happen before that edit counts as progress:</p>
 <li>The tool boundary validates the arguments, checks the path against the allowed
    scope, and asks for approval if the operation needs it.</li>
 <li>The runtime applies the edit in the sandbox and returns a structured result.</li>
-<li>The harness runs the checks attached to the task. Here that might mean parser
-   unit tests followed by an end-to-end import test.</li>
+<li>The harness runs the checks attached to the task. Here that means checkout
+   unit tests followed by an end-to-end browser test.</li>
 <li>A failed check becomes new context for the next model turn. A passing result
    is recorded as evidence for completion.</li>
 </ol>
@@ -1220,10 +1214,11 @@ harness still decides whether the call may run. The MCP specification makes this
 trust boundary explicit by telling clients to treat
 <a href="https://modelcontextprotocol.io/specification/2025-11-25/server/tools">tool annotations as untrusted</a>
 unless they came from a trusted server.</p>
-<p>Imagine <code>create_ticket</code> succeeds, but the HTTP response is lost. A retry gets
-dangerous here because repeating the request opens a second ticket. Automatic retries fit reads
-and operations protected by an idempotency key or a deduplication record, while
-other mutations need a status check, compensation step, or human decision. AWS's
+<p>In the same synthetic run, <code>create_test_order</code> succeeds, but the HTTP response is
+lost. A retry gets dangerous because repeating the request creates another test
+order. Automatic retries fit reads and operations protected by an idempotency
+key or a deduplication record, while other mutations need a status check,
+compensation step, or human decision. AWS's
 <a href="https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/">idempotent API guidance</a>
 shows how a client request identifier lets a service recognize a repeated call
 and return the earlier result.</p>
@@ -1233,10 +1228,10 @@ quality of an explanation, and when its rubric has been checked against human
 decisions.</p>
 <hr />
 <h2 id="long-runs-need-a-handoff">Long runs need a handoff</h2>
-<p>Now let the parser task grow into a two-hour migration where the first session
-changes six files, starts a local service, finds one failing integration test,
-and reaches its context limit. A summary of the conversation helps the next model turn, but
-the summary cannot restart the service or prove which files are currently
+<p>Now let the checkout change grow into a two-hour migration. The first session
+changes six files, starts a local payment sandbox, finds one failing browser
+test, and reaches its context limit. A conversation summary helps the next model
+turn, but it cannot restart the sandbox or prove which files are currently
 modified.</p>
 <p>It helps to separate the state:</p>
 <table>
@@ -1270,10 +1265,10 @@ A progress handoff records the small amount of information the next session
 needs: the current branch, changed files, last test command, its output, and the
 next unresolved step. A context reset starts a new worker from that handoff when
 the old conversation has accumulated bad assumptions or too much stale detail.</p>
-<p>These mechanisms solve different problems. A 10-minute documentation edit may
-need none of them. A migration that crosses sessions may need a handoff even
-when the conversation still fits in the context window, because the next worker
-must reconstruct the workspace and task status.</p>
+<p>A 10-minute documentation edit may need none of these mechanisms. A migration
+that crosses sessions may need a handoff even when the conversation still fits
+in the context window, because the next worker must reconstruct the workspace
+and task status.</p>
 <p>Anthropic's experiments with
 <a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">long-running coding agents</a>
 used git history and a progress file between sessions, while its later
@@ -1282,10 +1277,10 @@ separates compaction from a fresh-context handoff and records the extra
 orchestration, tokens, and wall time.</p>
 <hr />
 <h2 id="read-the-trace-before-adding-machinery">Read the trace before adding machinery</h2>
-<p>Imagine ten failed runs of the same checkout task. Six runs propose the correct
-API call and receive a <code>503</code>. Two calls reach the service, but the response
-disappears after the mutation, while the remaining runs update the code
-successfully and skip the required end-to-end test.</p>
+<p>Across ten synthetic runs of the checkout task, six propose the correct API call
+and receive a <code>503</code>. Two calls reach the service, but the response disappears
+after the mutation. The remaining runs update the code successfully and skip
+the required browser test.</p>
 <p>A generic retry loop muddles the failures. The first six runs need a bounded
 retry policy. The next two need idempotency or a status lookup before retrying,
 while the last two need an acceptance gate tied to the missing test.</p>
@@ -1352,7 +1347,11 @@ linting helps this model on this task suite.</p>
 defects, cost and wall time per completed task, tool errors, duplicate effects,
 review minutes, and operator overrides. Product economics decide the metric, and
 a two-point gain can be a bad trade when it doubles the review queue.</p>
-<p><img alt="Harness component ablation" src="../../../../review/assets/2026-06-10-harness-engineering/harness-ablation-loop.svg" /></p>
+<p>A progress handoff gives the running example a concrete A/B test. Both variants
+use the same model, tasks, grader, and total budget. The handoff is the only
+switch, and the measured outcome is repeated work after the checkout migration
+resumes.</p>
+<p><img alt="A paired test of one harness component" src="../../../../review/assets/2026-06-10-harness-engineering/harness-ablation-loop.svg" /></p>
 <p>The SWE-agent paper fixes GPT-4 Turbo on the 300-task SWE-bench Lite split and
 reports 18.0% resolved with its full interface, compared with 11.0% for the
 shell-only agent. The paper also changed individual interface features:</p>
@@ -1424,7 +1423,8 @@ and spends extra simulated tokens, so the output puts cost beside pass rate.</p>
 <span class="k">if</span> <span class="n">task</span><span class="o">.</span><span class="n">needs_fresh_evaluator</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">config</span><span class="o">.</span><span class="n">evaluator</span><span class="p">:</span>
     <span class="n">failures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;self-review missed an implementation gap&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>Production experiments use sampled tasks, real traces, and product graders.</p>
+<p>In production, replace the simulated counts with sampled tasks, real traces, and
+product graders.</p>
 <hr />
 <h2 id="a-sensible-first-harness">A sensible first harness</h2>
 <p>My first version of a coding-agent harness has one capable model, repository
@@ -1440,20 +1440,6 @@ removal test after model upgrades.</p>
 <p>Six months later, someone who sees <code>progress_handoff=True</code> should be able to find
 the failed traces that justified it and the regression cases that still keep it
 there.</p>
-<hr />
-<h2 id="key-takeaways">Key takeaways</h2>
-<ol>
-<li>The harness assembles context, exposes tools, applies permissions, records
-   state, and decides which evidence is enough to finish.</li>
-<li>Prompts carry guidance. Tool boundaries and deterministic code enforce file
-   scope, budgets, retries, and acceptance checks.</li>
-<li>Conversation, workspace, and task state need separate recovery plans on long
-   runs.</li>
-<li>Traces should connect proposal, authorization, execution, verification, and
-   acceptance for every side effect.</li>
-<li>Test one harness change at a time with a fixed model, task suite, grader, and
-   total budget. Remove components whose benefit has disappeared.</li>
-</ol>
 <hr />
 <h2 id="references">References</h2>
 <ul>
