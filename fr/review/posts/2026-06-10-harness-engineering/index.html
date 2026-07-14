@@ -1077,15 +1077,14 @@
 
 <h1 id="harness-engineering-for-ai-agents-designing-the-loop-around-the-model">Harness engineering for AI agents: designing the loop around the model</h1>
 <p><a href="/blog/#ai-agents"><strong>Part 6 of the Engineering the Agentic Stack series</strong></a></p>
-<p>Consider a synthetic checkout task. A coding agent changes <code>src/checkout.py</code>,
-runs the nearest unit test, receives exit code 0, and reports success. The
-checkout still fails in the browser because the run never required a browser
-check. On the next attempt, <code>create_test_order</code> times out after the service has
-created the order, so an automatic retry creates a second one.</p>
-<p>The program around the LLM decides which tools exist, which calls are allowed,
-what state survives, and what evidence is required before the run can stop. That
-program is the <strong>harness</strong>, and harness engineering begins with failures like
-these, fixed in the part of the system that can enforce the rule.</p>
+<p>In a synthetic checkout run, a coding agent edits <code>src/checkout.py</code>, runs the
+nearest unit test, receives exit code 0, and reports success. The browser
+checkout still fails.</p>
+<p>The run stopped because its acceptance rule treated the unit test as enough
+evidence. That rule lives in the <strong>harness</strong>, the program around the LLM that
+builds each model request, executes or rejects tool calls, and decides when the
+evidence is sufficient. For this task, the fix is specific: add the browser test
+to the acceptance gate and keep the loop open when it fails.</p>
 <!-- more -->
 
 <p><strong>TL;DR</strong>: The first version needs one model, a few narrow tools, and an
@@ -1102,7 +1101,7 @@ each transition without relying on the final message from the model.</p>
 describes the basic cycle. The harness assembles a prompt, asks the model for the
 next action, executes a tool call, appends the result, and asks again until the
 system accepts the result or hands control back to the user.</p>
-<p>Four terms tend to get mixed together:</p>
+<p>That cycle spans four parts that framework documentation often blurs:</p>
 <table>
 <thead>
 <tr>
@@ -1172,7 +1171,11 @@ answer a concrete question: which check passed, against which artifact, after
 which side effects?</p>
 <hr />
 <h2 id="put-rules-where-they-can-hold">Put rules where they can hold</h2>
-<p>Use the cost of a missed rule to choose its home.</p>
+<p>The missing browser check from the opening belongs in deterministic code. A
+prompt can ask the agent to run it, while the acceptance gate reads the exit
+code and refuses completion on failure. Only the gate can keep the run open when
+the model tries to stop.</p>
+<p>Other rules fit different layers:</p>
 <table>
 <thead>
 <tr>
@@ -1185,28 +1188,25 @@ which side effects?</p>
 <tr>
 <td><strong>Prompt or skill</strong></td>
 <td>Search order, coding conventions, preferred plan shape</td>
-<td>Read <code>AGENTS.md</code> before editing</td>
+<td>Read <code>AGENTS.md</code> before editing checkout code</td>
 </tr>
 <tr>
 <td><strong>Tool boundary</strong></td>
 <td>Argument validation, file scope, approvals, capability limits</td>
-<td>Permit writes only under <code>docs/</code></td>
+<td>Permit writes only under <code>src/</code></td>
 </tr>
 <tr>
 <td><strong>Deterministic code</strong></td>
 <td>Budgets, timeouts, retries, tests, release gates</td>
-<td>Keep the run open while <code>make build</code> fails</td>
+<td>Keep the run open while browser checkout fails</td>
 </tr>
 <tr>
 <td><strong>Separate evaluator</strong></td>
 <td>Visual quality, rubric-based review, adversarial inspection</td>
-<td>Compare a rendered page with a design brief</td>
+<td>Compare the checkout page with a design brief</td>
 </tr>
 </tbody>
 </table>
-<p>A prompt can ask the agent to run tests, while the acceptance gate reads the test
-exit code and refuses completion on failure. In practice, only the gate guarantees
-that a failing test keeps the run open.</p>
 <p>The same split applies to tools. A useful tool contract has validated arguments,
 structured results, a side-effect class, a timeout and retry policy, and a
 permission category. The description helps the model choose the tool. The
@@ -1214,18 +1214,19 @@ harness still decides whether the call may run. The MCP specification makes this
 trust boundary explicit by telling clients to treat
 <a href="https://modelcontextprotocol.io/specification/2025-11-25/server/tools">tool annotations as untrusted</a>
 unless they came from a trusted server.</p>
-<p>In the same synthetic run, <code>create_test_order</code> succeeds, but the HTTP response is
-lost. A retry gets dangerous because repeating the request creates another test
-order. Automatic retries fit reads and operations protected by an idempotency
-key or a deduplication record, while other mutations need a status check,
-compensation step, or human decision. AWS's
+<p>A second synthetic checkout run exposes the retry part of that contract.
+<code>create_test_order</code> succeeds, but the HTTP response is lost. A retry gets
+dangerous because repeating the request creates another test order. Automatic
+retries fit reads and operations protected by an idempotency key or a
+deduplication record, while other mutations need a status check, compensation
+step, or human decision. AWS's
 <a href="https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/">idempotent API guidance</a>
 shows how a client request identifier lets a service recognize a repeated call
 and return the earlier result.</p>
-<p>Run the schema validator and test suite first. A separate evaluator
-earns its place when the requirement depends on judgment, such as visual hierarchy or the
-quality of an explanation, and when its rubric has been checked against human
-decisions.</p>
+<p>After the tool returns, the artifact still needs checks. Run the schema validator
+and test suite first. A separate evaluator earns its place when the requirement
+depends on judgment, such as visual hierarchy or the quality of an explanation,
+and when its rubric has been checked against human decisions.</p>
 <hr />
 <h2 id="long-runs-need-a-handoff">Long runs need a handoff</h2>
 <p>Now let the checkout change grow into a two-hour migration. The first session
@@ -1233,7 +1234,7 @@ changes six files, starts a local payment sandbox, finds one failing browser
 test, and reaches its context limit. A conversation summary helps the next model
 turn, but it cannot restart the sandbox or prove which files are currently
 modified.</p>
-<p>It helps to separate the state:</p>
+<p>The next session has to reconstruct three different kinds of state:</p>
 <table>
 <thead>
 <tr>
@@ -1277,16 +1278,17 @@ separates compaction from a fresh-context handoff and records the extra
 orchestration, tokens, and wall time.</p>
 <hr />
 <h2 id="read-the-trace-before-adding-machinery">Read the trace before adding machinery</h2>
-<p>Across ten synthetic runs of the checkout task, six propose the correct API call
-and receive a <code>503</code>. Two calls reach the service, but the response disappears
-after the mutation. The remaining runs update the code successfully and skip
-the required browser test.</p>
-<p>A generic retry loop muddles the failures. The first six runs need a bounded
-retry policy. The next two need idempotency or a status lookup before retrying,
-while the last two need an acceptance gate tied to the missing test.</p>
-<p>The transcript alone cannot show this split. For each side effect, I want the
-trace to keep the model's proposal, policy or human authorization, runtime
-execution, postcondition check, and final acceptance decision in order.</p>
+<p>Across ten synthetic runs of the checkout task, six call the order API and
+receive a <code>503</code> before an order is created. In two runs, the order exists but
+the response disappears. The remaining two update the code successfully and
+skip the required browser test.</p>
+<p>One retry policy cannot repair all ten runs. The first six need bounded retries.
+The next two need idempotency or a status lookup before another request, while
+the last two need an acceptance gate tied to the missing browser test.</p>
+<p>A chat transcript records what the agent saw, but it cannot prove whether the
+service created an order before the response disappeared. For each side effect,
+I want the trace to keep the model's proposal, policy or human authorization,
+runtime execution, postcondition check, and final acceptance decision in order.</p>
 <table>
 <thead>
 <tr>
@@ -1329,9 +1331,9 @@ miss. Write the expected effect down first. A pile of planners, critics, and
 retries can otherwise slow the run while the original defect remains.</p>
 <hr />
 <h2 id="measure-one-change-at-a-time">Measure one change at a time</h2>
-<p>An <strong>ablation</strong> changes or removes one harness component while the rest of the
-experiment stays fixed, answering a narrow question such as whether editor
-linting helps this model on this task suite.</p>
+<p>An <strong>ablation</strong> tests that expected effect by changing or removing one harness
+component while the rest of the experiment stays fixed. For example, does editor
+linting help this model on this task suite?</p>
 <p>Use the following protocol:</p>
 <ol>
 <li>Freeze the model version, task instances, environment, grader, and prompts
@@ -1401,10 +1403,10 @@ including components that had helped the previous model.</p>
 small, deterministic exercise with four configurations and 12 synthetic tasks
 covering flaky tools, lost progress, optimistic self-review, and ambiguous
 completion.</p>
-<p>It does not call an LLM. The token counts and outcomes are simulated so the
-relationship between each failure and harness component stays easy to inspect
-while the lab teaches the experiment design without making a claim about
-production-agent performance.</p>
+<p>The lab uses a deterministic simulation instead of an LLM call. Its token counts
+and outcomes are synthetic, so each failure remains easy to connect to the
+component that handles it. Production-agent performance requires sampled tasks,
+real model calls, and a product grader.</p>
 <p>Run it from the project directory:</p>
 <div class="highlight"><pre><span></span><code>make<span class="w"> </span>check
 make<span class="w"> </span>run
@@ -1423,8 +1425,6 @@ and spends extra simulated tokens, so the output puts cost beside pass rate.</p>
 <span class="k">if</span> <span class="n">task</span><span class="o">.</span><span class="n">needs_fresh_evaluator</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">config</span><span class="o">.</span><span class="n">evaluator</span><span class="p">:</span>
     <span class="n">failures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;self-review missed an implementation gap&quot;</span><span class="p">)</span>
 </code></pre></div>
-<p>In production, replace the simulated counts with sampled tasks, real traces, and
-product graders.</p>
 <hr />
 <h2 id="a-sensible-first-harness">A sensible first harness</h2>
 <p>My first version of a coding-agent harness has one capable model, repository
