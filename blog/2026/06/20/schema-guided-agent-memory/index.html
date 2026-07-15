@@ -216,7 +216,7 @@
        
 <meta property="article:published_time" content="2026-06-20" />
  
-<meta property="article:modified_time" content="2026-07-14" />
+<meta property="article:modified_time" content="2026-07-15" />
  
 <meta property="article:author" content="Viacheslav Dubrov" />
   
@@ -238,7 +238,7 @@
       "@id": "https://slavadubrov.github.io/blog/2026/06/20/schema-guided-agent-memory/"
     },
     "datePublished": "2026-06-20",
-    "dateModified": "2026-07-14",
+    "dateModified": "2026-07-15",
     "author": {
       "@type": "Person",
       "@id": "https://slavadubrov.github.io/#person",
@@ -1143,17 +1143,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#key-takeaways" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Key takeaways
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#references" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1342,13 +1331,13 @@
                     <li
                       class="blog-category-post"
                     >
-                      <a href="../../../../2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">LoRAX Serving Guide: Thousands of LoRA Adapters on Kubernetes</a>
+                      <a href="../../../../2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes</a>
                     </li>
                     
                     <li
                       class="blog-category-post"
                     >
-                      <a href="../../../../2025/05/11/open-source-llm-formats/">Open-Source LLM Variants and File Formats: Instruct, GGUF, GPTQ, AWQ, and MoE</a>
+                      <a href="../../../../2025/05/11/open-source-llm-formats/">Open-Weight LLM Variants, Quantization, and Formats: Instruct, MoE, GGUF, GPTQ, and AWQ</a>
                     </li>
                     
                     <li
@@ -1397,7 +1386,7 @@
                     <li
                       class="blog-category-post"
                     >
-                      <a href="../../../../2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">LoRAX Serving Guide: Thousands of LoRA Adapters on Kubernetes</a>
+                      <a href="../../../../2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes</a>
                     </li>
                     
                     <li
@@ -1538,15 +1527,15 @@
 
 <h1 id="ai-agent-memory-schema-guided-typed-state-for-long-running-systems">AI Agent Memory: Schema-Guided Typed State for Long-Running Systems</h1>
 <p>Long-running agents often retrieve stale facts because ordinary semantic memory has no rule for deciding which value is current.</p>
-<p>Mira first gives a passport deadline of July 15, then corrects it to June 30. Vector search can retrieve both statements. A memory system must also record that the later value supersedes the earlier one.</p>
+<p>When a user changes a passport deadline from July 15 to June 30, vector search can retrieve both statements. A stateful memory layer must record that the June 30 value supersedes the earlier one.</p>
 <!-- more -->
 
-<p><strong>TL;DR</strong>: Treat durable agent memory as typed application state. Extract memory candidates through a structured-output boundary, store records with tenant scope, validity windows, supersession, provenance, and schema versioning, then retrieve the smallest current slice on the read path. Use vector search for fuzzy recall, but don't treat its ranking as the authority for mutable facts.</p>
+<p><strong>TL;DR</strong>: Treat durable agent memory as typed application state. Extract memory candidates through a structured-output boundary, store records with tenant scope, validity windows, supersession, provenance, and schema versioning, then retrieve the smallest current slice on the read path. Reserve vector search for fuzzy recall. Read mutable facts from scoped, current records.</p>
 <hr />
 <h2 id="the-context-window-trap">The context-window trap</h2>
-<p>The context window is the input available to one model call. An application may carry messages into later calls, but the model doesn't decide which old facts remain true or who may see them.</p>
+<p>The context window is the input available to one model call. An application may carry messages into later calls, but application policy must decide which old facts remain true and who may see them.</p>
 <p>Long-running agents need to remember preferences, task status, customer facts, tool decisions, compliance notes, and prior mistakes. The easy version is to append summaries or dump old notes into a vector store. That works until one of the remembered facts changes.</p>
-<p>Now the agent has two passport deadlines, two preferred formats, or two project decisions. Semantic search may retrieve both. A summary may overwrite one. A long context may include the stale one next to the active one. These designs can recall text, but they can't enforce which value is current.</p>
+<p>Now the agent has two passport deadlines, two preferred formats, or two project decisions. Semantic search may retrieve both. A summary may overwrite one. A long context may include the stale one next to the active one. These designs recall text while leaving the current value unenforced.</p>
 <p>The contract has to answer concrete questions:</p>
 <ul>
 <li>What is true now?</li>
@@ -1559,21 +1548,21 @@
 <p><strong>Schema-Guided Agent Memory (SGAM)</strong> stores those answers as fields and relations instead of leaving them implicit in prose.</p>
 <hr />
 <h2 id="what-sgam-means">What SGAM means</h2>
-<p>Before defining the pattern, separate three terms that use similar names but operate at different layers.</p>
-<p><strong>Schema-Guided Dialogue (SGD)</strong> is the 2019 Google task-oriented dialogue dataset. Its schema describes service APIs, intents, and slots so a dialogue model can track state for services it has not seen before. It's useful precedent, but it deals with dialogue services rather than durable agent memory.</p>
-<p><strong>Schema-Guided Memory (SGM)</strong> is the research term used by Mei et al. in <em>According to Me: Long-Term Personalized Referential Memory QA</em>. The paper compares free-text <strong>Descriptive Memory (DM)</strong> with fixed-schema key-value memory items. The source information is the same; the representation changes.</p>
-<p>In this article, I use <strong>Schema-Guided Agent Memory (SGAM)</strong> to mean an engineering pattern in which schemas govern writes, updates, retrieval, and deletion. The schema defines application state rather than merely formatting a note.</p>
+<p>Three similarly named ideas establish the scope of SGAM.</p>
+<p><strong>Schema-Guided Dialogue (SGD)</strong> is the 2019 Google task-oriented dialogue dataset. Its schema describes service APIs, intents, and slots so a dialogue model can track state for services it has not seen before. It is useful precedent for schema-based tracking, with a scope limited to dialogue services.</p>
+<p><strong>Schema-Guided Memory (SGM)</strong> is the research term used by Mei et al. in <em>According to Me: Long-Term Personalized Referential Memory QA</em>. The paper compares free-text <strong>Descriptive Memory (DM)</strong> with fixed-schema key-value memory items. Both representations contain the same source information in different structures.</p>
+<p>In this article, I use <strong>Schema-Guided Agent Memory (SGAM)</strong> to mean an engineering pattern in which schemas govern writes, updates, retrieval, and deletion. The schema defines application state and its lifecycle.</p>
 <p>ATM-Bench shows why the representation matters. It uses roughly four years of personal data from emails, images, and videos. The questions require personal references, location, multiple pieces of evidence, and updates over time. Performance drops on the hard split, while SGM improves over DM because the retriever can address fields such as time, source, location, entities, and tags directly.</p>
 <p>SGM versus DM answers a storage question: should memory remain free text, or should it use named fields? A production agent has another problem before storage. It must reason from an unstructured conversation to a proposed memory update. <strong>Schema-Guided Reasoning (SGR)</strong> defines that decision path: inspect the evidence, identify the subject and attribute, check whether the fact changes existing state, then produce a candidate write. SGAM applies the storage and lifecycle rules after that model call.</p>
 <hr />
 <h2 id="sgr-is-the-write-gate">SGR is the write gate</h2>
-<p><strong>Structured Output (SO)</strong> enforces the candidate object's shape. <strong>Schema-Guided Reasoning (SGR)</strong> goes further by encoding the steps and order the model must follow to reach that candidate. <strong>Schema-Guided Agent Memory (SGAM)</strong> takes over after the model call and manages the candidate as durable state.</p>
+<p>The memory write crosses three layers. <strong>Structured Output (SO)</strong> enforces the candidate object's shape. <strong>Schema-Guided Reasoning (SGR)</strong> encodes the steps and order the model must follow to reach that candidate. <strong>Schema-Guided Agent Memory (SGAM)</strong> manages the candidate as durable state after the model call.</p>
 <p>I've written about SGR several times. The original <a href="/blog/2025/12/28/schema-guided-reasoning-vllm/">vLLM and XGrammar article</a> covered the mechanism. Later posts applied it to <a href="/blog/2026/06/10/agent-evals-traces-to-test-suites/">structured judges</a>, <a href="/blog/2026/01/31/ai-agent-reasoning-loops/">planners and routers</a>, and <a href="/blog/2026/05/10/rag-evaluation-metrics/">reproducible RAG rubrics</a>. In each case, the schema described both the intermediate reasoning fields and the final decision. Structured Output made that schema binding during decoding.</p>
 <p>A verdict, route, or plan usually expires with the current request. Another run may read a memory candidate days later or use it to choose a tool call. That longer lifetime demands storage rules that SGR doesn't provide.</p>
 <p>SGR constrains one model call by defining its reasoning topology. For a memory write, the schema might require source evidence, a normalized subject and attribute, a comparison with current state, and only then the proposed update. Pydantic or JSON Schema describes that path. Provider-native Structured Output or a guided decoding runtime such as XGrammar prevents the model from skipping fields or returning a different shape.</p>
-<p>This doesn't guarantee that the conclusion is correct. It makes the required decision path explicit and inspectable instead of accepting a final object with no account of how the model reached it.</p>
+<p>The schema cannot guarantee a correct conclusion. It makes the required decision path explicit and inspectable, including the evidence and comparison that produced the candidate.</p>
 <p>SGAM decides what happens after that object exists. Should it be stored? Does it supersede an older fact? Which tenant can see it? Is it current or historical? Which source episode backs it?</p>
-<p>All three use schemas, so they are easy to mistake for one mechanism. They operate at different layers: SO controls the generated shape, SGR defines the route from evidence to decision, and SGAM controls the persisted state.</p>
+<p>The table fixes the ownership and failure mode of each layer:</p>
 <table>
 <thead>
 <tr>
@@ -1625,7 +1614,6 @@
 <p>On the write path, the sequence is:</p>
 <div class="highlight"><pre><span></span><code>SGR reasoning schema + Structured Output -&gt; candidate write -&gt; SGAM policy and persistence
 </code></pre></div>
-<p>SGR guides the model through the predefined extraction and decision path. Structured Output enforces that path and produces the <code>MemoryDelta</code> object. SGAM then applies tenant checks, conflict policy, validity windows, provenance, and retention before it commits the delta.</p>
 <p>The following illustrative excerpt from <code>memory_models.py</code> defines the object passed from extraction to the SGAM write service:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">Field</span>
@@ -1679,11 +1667,10 @@ confidence
 retention_policy
 </code></pre></div>
 <p>With these fields, a new passport deadline can close the previous deadline without erasing history. The same table can answer current and point-in-time queries, then trace the result to its source episode. <code>schema_version</code> supports migrations, while <code>retention_policy</code> tells deletion jobs what else they must remove.</p>
-<p>RAG retrieves documents. SGAM maintains mutable state.</p>
-<p>Vector search still belongs in the system for fuzzy recall, clustering, and expansion. But the current value of <code>mira.passport_deadline</code> should come from a scoped memory record, not whichever chunk happened to rank first.</p>
+<p>Use RAG to retrieve documents and SGAM to maintain mutable state. Vector search still belongs in the system for fuzzy recall, clustering, and expansion. The current value of <code>mira.passport_deadline</code> should come from a scoped memory record rather than whichever chunk happened to rank first.</p>
 <hr />
 <h2 id="a-stale-fact-example">A stale-fact example</h2>
-<p>Compare two representations of the same episodes: a DM baseline and an SGAM ledger.</p>
+<p>Consider a synthetic two-episode trace represented as a DM baseline and an SGAM ledger:</p>
 <div class="highlight"><pre><span></span><code>e1: Mira prefers concise answers. Her passport deadline is 2026-07-15.
 e2: Mira corrected the deadline. It is now 2026-06-30.
 </code></pre></div>
@@ -1825,7 +1812,7 @@ SGAM point-in-time state:
 <p>SGAM is overkill when memory is short-lived, exploratory, or cheap to recompute. If the agent only needs a few turns of continuity, a checkpoint and trimmed message history are enough. Static document QA may need only RAG. And if the domain is so unsettled that the schema changes every day, typed memory will slow the team down.</p>
 <hr />
 <h2 id="evaluation-checklist">Evaluation checklist</h2>
-<p>Reading the final answer isn't enough. A memory system can produce a plausible response after it wrote the wrong fact, retrieved a stale one, or crossed a tenant boundary.</p>
+<p>Evaluate the memory lifecycle as well as the final answer. A system can produce a plausible response after it wrote the wrong fact, retrieved a stale one, or crossed a tenant boundary.</p>
 <p>I use the same stage-by-stage split as my <a href="/blog/2026/05/10/rag-evaluation-metrics/">RAG evaluation article</a>. Measure the stage where a failure can happen rather than limiting evaluation to the generated text. The trace discipline from <a href="/blog/2026/06/10/agent-evals-traces-to-test-suites/">the agent evaluation article</a> also applies because a memory bug often appears in the run history before it reaches the answer.</p>
 <p>I would test SGAM with replay. Feed a fixed sequence of episodes into the memory writer, inspect the ledger after each meaningful turn, then ask current-state and point-in-time questions against the resulting store.</p>
 <table>
@@ -1877,14 +1864,6 @@ SGAM point-in-time state:
 <p>Typed memory can still be wrong. A schema makes bad writes easier to inspect; it does not make them trustworthy. You still need source trust, user confirmation for sensitive facts, conflict policy, deletion, and monitoring.</p>
 <p>Schema migration is work. Once memory becomes state, you own versioning, backfills, old records, and deletion behavior. Skip that work and old records will outlive the semantics or retention policy that created them.</p>
 <hr />
-<h2 id="key-takeaways">Key takeaways</h2>
-<ol>
-<li>The context window provides input for the current turn. Durable agent memory needs a separate state contract.</li>
-<li>SGR defines the reasoning path to a candidate write, Structured Output enforces it, and SGAM manages the record after commit.</li>
-<li>Vector recall is useful, but current facts need scope, validity, supersession, and provenance.</li>
-<li>Start with a simple relational or JSON-backed memory ledger before reaching for a graph.</li>
-<li>Evaluate memory by write correctness, temporal retrieval, grounding, tenant isolation, and deletion behavior.</li>
-</ol>
 <h2 id="references">References</h2>
 <ul>
 <li><a href="https://arxiv.org/abs/2603.01990">According to Me: Long-Term Personalized Referential Memory QA</a> - Mei et al. paper introducing ATM-Bench and Schema-Guided Memory.</li>

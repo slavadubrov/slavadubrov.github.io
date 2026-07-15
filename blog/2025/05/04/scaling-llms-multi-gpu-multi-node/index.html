@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="How to scale large language models across multiple GPUs and nodes with data parallelism, FSDP, tensor parallelism, pipeline parallelism, and context parallelism.">
+        <meta name="description" content="How to scale large language models across GPUs and nodes with data, fully sharded, tensor, pipeline, context, and expert parallelism.">
       
       
         <meta name="author" content="Viacheslav Dubrov">
@@ -95,7 +95,7 @@
      
 <!-- Open Graph -->
 <meta property="og:title" content="Scaling Large Language Models: Multi-GPU and Multi-Node Strategies That Hold Up in Practice" />
-<meta property="og:description" content="How to scale large language models across multiple GPUs and nodes with data parallelism, FSDP, tensor parallelism, pipeline parallelism, and context parallelism." />
+<meta property="og:description" content="How to scale large language models across GPUs and nodes with data, fully sharded, tensor, pipeline, context, and expert parallelism." />
 <meta property="og:url" content="https://slavadubrov.github.io/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" />
 <meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
 <meta
@@ -109,7 +109,7 @@
   content="summary"
 />
 <meta name="twitter:title" content="Scaling Large Language Models: Multi-GPU and Multi-Node Strategies That Hold Up in Practice" />
-<meta name="twitter:description" content="How to scale large language models across multiple GPUs and nodes with data parallelism, FSDP, tensor parallelism, pipeline parallelism, and context parallelism." />
+<meta name="twitter:description" content="How to scale large language models across GPUs and nodes with data, fully sharded, tensor, pipeline, context, and expert parallelism." />
 <meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png" />
 <!-- Site identity schema -->
 <script type="application/ld+json">
@@ -216,7 +216,7 @@
        
 <meta property="article:published_time" content="2025-05-04" />
  
-<meta property="article:modified_time" content="2026-06-07" />
+<meta property="article:modified_time" content="2026-07-15" />
  
 <meta property="article:author" content="Viacheslav Dubrov" />
   
@@ -231,7 +231,7 @@
     "@type": "BlogPosting",
     "@id": "https://slavadubrov.github.io/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/#blogposting",
     "headline": "Scaling Large Language Models: Multi-GPU and Multi-Node Strategies That Hold Up in Practice",
-    "description": "How to scale large language models across multiple GPUs and nodes with data parallelism, FSDP, tensor parallelism, pipeline parallelism, and context parallelism.",
+    "description": "How to scale large language models across GPUs and nodes with data, fully sharded, tensor, pipeline, context, and expert parallelism.",
     "url": "https://slavadubrov.github.io/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/",
     "image": "https://slavadubrov.github.io/assets/og-image.png",
     "inLanguage": "en",
@@ -240,7 +240,7 @@
       "@id": "https://slavadubrov.github.io/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/"
     },
     "datePublished": "2025-05-04",
-    "dateModified": "2026-06-07",
+    "dateModified": "2026-07-15",
     "author": {
       "@type": "Person",
       "@id": "https://slavadubrov.github.io/#person",
@@ -1007,10 +1007,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#prerequisites" class="md-nav__link">
+  <a href="#start-with-two-memory-budgets" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Prerequisites
+        Start with two memory budgets
       
     </span>
   </a>
@@ -1018,10 +1018,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-forces-a-model-beyond-one-gpu" class="md-nav__link">
+  <a href="#every-parallel-dimension-makes-a-trade" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What forces a model beyond one GPU
+        Every parallel dimension makes a trade
       
     </span>
   </a>
@@ -1029,199 +1029,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#1-parallelism-techniques-explained-simply" class="md-nav__link">
+  <a href="#replicated-data-parallelism-throughput-without-capacity" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Parallelism techniques, explained simply
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="1. Parallelism techniques, explained simply">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#11-data-parallelism-dp" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1.1 Data parallelism (DP)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#12-fully-sharded-data-parallelism-fsdp" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1.2 Fully sharded data parallelism (FSDP)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="1.2 Fully sharded data parallelism (FSDP)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#enabling-fsdp-in-pytorch" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Enabling FSDP in PyTorch
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#13-tensor-parallelism-tp" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1.3 Tensor parallelism (TP)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#14-pipeline-parallelism-pp" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1.4 Pipeline parallelism (PP)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#15-context-parallelism-cp" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1.5 Context parallelism (CP)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#16-expert-parallelism-mixture-of-experts" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1.6 Expert parallelism (Mixture of Experts)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#quick-comparison-which-parallelism-should-you-use" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Quick comparison: which parallelism should you use?
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#2-practical-training-strategies" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. Practical training strategies
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="2. Practical training strategies">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#21-single-machine-28-gpus" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.1 Single machine, 2–8 GPUs
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#22-small-cluster-216-nodes-128-gpus" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.2 Small cluster, 2–16 nodes (≤128 GPUs)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#23-large-cluster-hundreds-to-thousands-of-gpus" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.3 Large cluster (hundreds to thousands of GPUs)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#3-tools-worth-learning" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3. Tools worth learning
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="3. Tools worth learning">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#a-minimal-accelerate-fsdp-config" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        A minimal accelerate FSDP config
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#4-a-decision-framework" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4. A decision framework
+        Replicated data parallelism: throughput without capacity
       
     </span>
   </a>
@@ -1229,10 +1040,87 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#5-the-ultra-scale-cheat-sheet" class="md-nav__link">
+  <a href="#fully-sharded-data-parallelism-state-memory-for-collectives" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. The Ultra-Scale cheat sheet
+        Fully sharded data parallelism: state memory for collectives
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tensor-parallelism-partition-layer-math" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tensor parallelism: partition layer math
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pipeline-parallelism-partition-depth-and-schedule-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline parallelism: partition depth and schedule time
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#context-parallelism-partition-long-sequence-activations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context parallelism: partition long-sequence activations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#expert-parallelism-only-for-an-moe-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expert parallelism: only for an MoE architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compose-a-layout-from-the-topology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compose a layout from the topology
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#training-and-serving-need-separate-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Training and serving need separate decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#measure-a-scaling-layout-honestly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measure a scaling layout honestly
       
     </span>
   </a>
@@ -1244,17 +1132,6 @@
     <span class="md-ellipsis">
       
         Conclusion
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#key-takeaways" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Key Takeaways
       
     </span>
   </a>
@@ -1450,13 +1327,13 @@
                     <li
                       class="blog-category-post"
                     >
-                      <a href="../../../10/22/lorax-serving-guide-lora-adapters-kubernetes/">LoRAX Serving Guide: Thousands of LoRA Adapters on Kubernetes</a>
+                      <a href="../../../10/22/lorax-serving-guide-lora-adapters-kubernetes/">LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes</a>
                     </li>
                     
                     <li
                       class="blog-category-post"
                     >
-                      <a href="../../11/open-source-llm-formats/">Open-Source LLM Variants and File Formats: Instruct, GGUF, GPTQ, AWQ, and MoE</a>
+                      <a href="../../11/open-source-llm-formats/">Open-Weight LLM Variants, Quantization, and Formats: Instruct, MoE, GGUF, GPTQ, and AWQ</a>
                     </li>
                     
                     <li
@@ -1505,7 +1382,7 @@
                     <li
                       class="blog-category-post"
                     >
-                      <a href="../../../10/22/lorax-serving-guide-lora-adapters-kubernetes/">LoRAX Serving Guide: Thousands of LoRA Adapters on Kubernetes</a>
+                      <a href="../../../10/22/lorax-serving-guide-lora-adapters-kubernetes/">LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes</a>
                     </li>
                     
                     <li
@@ -1645,261 +1522,181 @@
 
 
 <h1 id="scaling-large-language-models-multi-gpu-and-multi-node-strategies-that-hold-up-in-practice">Scaling Large Language Models: Multi-GPU and Multi-Node Strategies That Hold Up in Practice</h1>
-<p>Today's LLMs don't fit on a single GPU. A 70B-parameter model needs about 140GB for weights alone in FP16, nearly twice what an A100 holds. Training or serving these models means splitting the work across multiple GPUs, and getting the split wrong wastes most of your compute budget.</p>
-<p>This is a practical walk-through of the parallelism strategies that actually work in production, drawn from Hugging Face's <a href="https://huggingface.co/spaces/nanotron/ultrascale-playbook">Ultra-Scale Playbook</a>.</p>
+<p>Large-model workloads move beyond one GPU for different reasons. A training job may run out of memory on optimizer state, another on long-sequence activations, and a model that fits may still miss its throughput target. Each problem calls for a different partition and communication pattern.</p>
+<p>This is a practical walk-through of the main parallelism strategies and the constraints behind them, informed by Hugging Face's <a href="https://huggingface.co/spaces/nanotron/ultrascale-playbook">Ultra-Scale Playbook</a>. The goal is to show what each split buys, what it communicates, and when combinations become necessary.</p>
 <!-- more -->
 
-<p><strong>TL;DR</strong>: Scaling LLMs is mainly a memory and communication problem. Start with data parallelism. Move to FSDP or ZeRO when model state no longer fits on one GPU. Add tensor or pipeline parallelism only when one GPU cannot hold or run the model efficiently. Use a Mixture of Experts (MoE) when its routing and serving complexity has a clear payoff.</p>
-<h2 id="prerequisites">Prerequisites</h2>
-<p>You'll get the most out of this if you're already comfortable with:</p>
-<ul>
-<li>Backpropagation, gradients, and optimizers like AdamW.</li>
-<li>Transformer mechanics: attention and feed-forward networks.</li>
-<li>PyTorch basics: <code>nn.Module</code>, <code>DataLoader</code>, the standard training loop.</li>
-</ul>
-<h2 id="what-forces-a-model-beyond-one-gpu">What forces a model beyond one GPU</h2>
-<p>Four constraints push a model beyond one GPU. First, a 70B model needs roughly 140GB for FP16 weights, almost twice an A100's 80GB. Second, training time remains long even when the model fits: a 13B run from scratch can take weeks on eight A100s. Third, contexts of 32K tokens or more consume large amounts of memory. Finally, production traffic may require distributed inference to keep tail latency under control.</p>
-<h2 id="1-parallelism-techniques-explained-simply">1. Parallelism techniques, explained simply</h2>
-<h3 id="11-data-parallelism-dp">1.1 Data parallelism (DP)</h3>
-<p>The simplest split. Every GPU holds the full model and processes a different slice of the batch. After backprop, the GPUs all-reduce their gradients (averaging), then each updates its own copy. Identical models, different data, synchronized weights.</p>
-<p>Reach for it when the model fits comfortably on one GPU and you just want to chew through more batches per second. Setup cost is near zero; DDP in PyTorch is a one-line wrapper. The catch is memory: every GPU still holds the full model, optimizer states, and gradients, so you're buying throughput, not capacity.</p>
-<p><img alt="Data Parallelism" src="../../../../assets/2025-05-04-scaling-llms/data_parallelism.svg" /></p>
-<p>Tools: <a href="https://pytorch.org/docs/stable/notes/ddp.html">PyTorch DDP</a>, <a href="https://horovod.ai/">Horovod</a>.</p>
-<h3 id="12-fully-sharded-data-parallelism-fsdp">1.2 Fully sharded data parallelism (FSDP)</h3>
-<p>DP, but memory-aware. Parameters, gradients, and optimizer states are sharded across GPUs. During the forward pass, each GPU gathers the parameters it needs from the others, computes, then drops the borrowed shards to free memory. Backward pass repeats the gather, then reduces gradients so each GPU only updates its own shard.</p>
-<p>Use FSDP after the model state outgrows one GPU, often beyond roughly 10B parameters. It lets you keep training on one machine without rewriting the model. In practice, FSDP can support models four to eight times larger than a single GPU could hold.</p>
-<p><img alt="FSDP" src="../../../../assets/2025-05-04-scaling-llms/fsdp.svg" /></p>
 <blockquote>
-<p>[!NOTE] <strong>ZeRO stages, briefly</strong>
-FSDP is often described in ZeRO terms (Zero Redundancy Optimizer):</p>
-<ul>
-<li>Stage 1: shard optimizer states only (~4× memory savings).</li>
-<li>Stage 2: shard gradients + optimizer states (~8× memory savings).</li>
-<li>Stage 3: shard parameters + gradients + optimizer states (linear scaling with N GPUs).</li>
-</ul>
-<p>PyTorch FSDP defaults to Stage 3 behavior.</p>
+<p><strong>TL;DR.</strong> Replicated data parallelism buys training throughput when one replica fits. Fully sharded data parallelism partitions model state but adds parameter all-gathers and gradient reduce-scatters. Tensor, pipeline, context, and expert parallelism split layer math, depth, sequence, and MoE experts. Combine them only after identifying the binding memory or communication constraint.</p>
 </blockquote>
-<h4 id="enabling-fsdp-in-pytorch">Enabling FSDP in PyTorch</h4>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">torch.distributed.fsdp</span><span class="w"> </span><span class="kn">import</span> <span class="n">FullyShardedDataParallel</span> <span class="k">as</span> <span class="n">FSDP</span>
+<p>This guide assumes you are comfortable with backpropagation, Transformer layers, and a standard PyTorch training loop.</p>
+<h2 id="start-with-two-memory-budgets">Start with two memory budgets</h2>
+<p>Training and inference do not have the same footprint.</p>
+<div class="highlight"><pre><span></span><code>training peak ≈ parameters
+              + gradients
+              + optimizer state
+              + saved activations
+              + temporary buffers
+              + communication buffers
+              + allocator headroom
 
-<span class="c1"># 1. Wrap your model</span>
-<span class="n">model</span> <span class="o">=</span> <span class="n">MyLLM</span><span class="p">()</span>
-<span class="n">model</span> <span class="o">=</span> <span class="n">FSDP</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
-
-<span class="c1"># 2. Train as usual</span>
-<span class="n">output</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span>
-<span class="n">loss</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
-<span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
-<span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+inference peak ≈ resident weights
+               + KV cache
+               + runtime workspace
+               + communication buffers
+               + allocator headroom
 </code></pre></div>
-<p>Tools: <a href="https://pytorch.org/docs/stable/fsdp.html">PyTorch FSDP</a>, <a href="https://www.deepspeed.ai/tutorials/zero/">DeepSpeed ZeRO-3</a>.</p>
-<h3 id="13-tensor-parallelism-tp">1.3 Tensor parallelism (TP)</h3>
-<p>Split individual layers across GPUs. Take a weight matrix, chunk it column-wise (or row-wise), and give each GPU a chunk. Each device computes its piece of the output; an all-reduce or concatenation stitches the results back together before the next layer. This happens at every layer.</p>
-<p>Use TP when individual layers remain too large after FSDP, for example because of huge attention matrices or wide feed-forward networks. TP requires a fast connection within the node, such as NVLink or NVSwitch. Across nodes, the all-reduce at every layer often becomes the bottleneck. A TP degree of two to eight GPUs within one machine is the usual range.</p>
-<p><img alt="Tensor Parallelism" src="../../../../assets/2025-05-04-scaling-llms/tensor_parallelism.svg" /></p>
-<p>Tools: <a href="https://github.com/NVIDIA/Megatron-LM">Megatron-LM</a>, <a href="https://github.com/NVIDIA/TensorRT-LLM">TensorRT-LLM</a>, <a href="https://github.com/hpcaitech/ColossalAI">ColossalAI</a>.</p>
-<h3 id="14-pipeline-parallelism-pp">1.4 Pipeline parallelism (PP)</h3>
-<p>Split the model vertically, by layer groups. Layers 1–10 live on GPU 1, layers 11–20 on GPU 2, and so on. Then send micro-batches through the pipeline so every stage stays busy: GPU 1 finishes batch 1 and hands it to GPU 2, then immediately starts on batch 2. With enough micro-batches in flight, every device is doing work on something.</p>
-<p>Use PP when even FSDP cannot fit a deep model, or when the model must span nodes with limited inter-node bandwidth. Its main cost is a pipeline "bubble": stages sit idle at the start and end of each batch. Many small micro-batches reduce that idle time.</p>
-<p><img alt="Pipeline Parallelism" src="../../../../assets/2025-05-04-scaling-llms/pipeline_parallelism.svg" /></p>
-<p>Tools: <a href="https://www.deepspeed.ai/tutorials/pipeline/">DeepSpeed PP</a>, <a href="https://github.com/NVIDIA/Megatron-LM">Megatron-LM</a>, <a href="https://arxiv.org/abs/1811.06965">GPipe</a>.</p>
-<h3 id="15-context-parallelism-cp">1.5 Context parallelism (CP)</h3>
-<p>For very long sequences. Split a 64K-token context across, say, four GPUs (16K tokens each). Each GPU runs self-attention on its local chunk, then GPUs exchange keys and values to compute the cross-chunk attention pieces. The merged result is what you'd get from running the full context on one device, without the memory bill.</p>
-<p>This is the lever you pull when context length, not model size, is the bottleneck: long-document analysis, book-length reasoning, code generation over a large repo. CP is what makes 100K+ token training feasible on hardware that would otherwise top out at 8K.</p>
-<p><img alt="Context Parallelism" src="../../../../assets/2025-05-04-scaling-llms/context_parallelism.svg" /></p>
-<p>Tools: <a href="https://github.com/huggingface/picotron">Picotron</a>, <a href="https://github.com/huggingface/nanotron">Nanotron</a>.</p>
-<h3 id="16-expert-parallelism-mixture-of-experts">1.6 Expert parallelism (Mixture of Experts)</h3>
-<p>Specialization. Replace dense FFN layers with N expert sub-networks (8, 64, sometimes more). A small gating network picks the top-k experts (usually top-2) for each token. Only those experts run for that token; the rest sit idle. Different experts can live on different GPUs, so the model can be huge in total parameters while per-token compute stays small.</p>
-<p>Mixtral-8x7B has 56B total parameters but only ~13B active per token; Grok and DeepSeek-V2 use the same trick. The price is training-side complexity: load balancing between experts is its own engineering problem, and routing instability has caused more than one MoE run to diverge.</p>
-<p><img alt="Mixture of Experts" src="../../../../assets/2025-05-04-scaling-llms/moe.svg" /></p>
-<p>Tools: <a href="https://github.com/huggingface/picotron">Picotron</a>, <a href="https://github.com/huggingface/nanotron">Nanotron</a>.</p>
-<h3 id="quick-comparison-which-parallelism-should-you-use">Quick comparison: which parallelism should you use?</h3>
+<p>A 70-billion-parameter model has a 140 GB decimal lower bound for BF16 weights alone. That number says little about training, where gradients, optimizer state, master weights, and activations may dominate. It also does not size serving, where cache policy, sequence length, batch concurrency, and quantization matter.</p>
+<p>Profile the exact architecture, precision, sequence length, micro-batch, optimizer, checkpointing policy, and runtime. Record peak allocated and reserved memory, tokens per second, time in kernels, and time exposed in collectives.</p>
+<p><img alt="Distributed scaling starts from a measured bottleneck" src="../../../../assets/2025-05-04-scaling-llms/scaling_decision_tree.svg" /></p>
+<h2 id="every-parallel-dimension-makes-a-trade">Every parallel dimension makes a trade</h2>
+<p>The useful question is not “Which technique is best?” It is “Which tensor dimension is split, which state is replicated, and which collective enters the critical path?”</p>
 <table>
 <thead>
 <tr>
-<th>Technique</th>
-<th>What it splits</th>
-<th>Best for</th>
-<th>Memory savings</th>
-<th>Communication cost</th>
+<th>Strategy</th>
+<th>Splits</th>
+<th>Primary relief</th>
+<th>Communication introduced</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Data Parallelism (DP)</strong></td>
-<td>Data batches</td>
-<td>Models that fit on 1 GPU</td>
-<td>None (copies model)</td>
-<td>Low (only gradients)</td>
+<td>Replicated data parallelism</td>
+<td>batch</td>
+<td>training throughput</td>
+<td>gradient all-reduce</td>
 </tr>
 <tr>
-<td><strong>FSDP</strong></td>
-<td>Model + optimizer + gradients</td>
-<td>Models too big for 1 GPU</td>
-<td>High (4–8×)</td>
-<td>Medium</td>
+<td>Fully sharded data parallelism</td>
+<td>parameters, gradients, optimizer state across a DP group</td>
+<td>model-state memory</td>
+<td>parameter all-gather, gradient reduce-scatter</td>
 </tr>
 <tr>
-<td><strong>Tensor Parallelism (TP)</strong></td>
-<td>Individual layers</td>
-<td>Huge layers, fast GPUs</td>
-<td>Medium</td>
-<td>High (per layer)</td>
+<td>Tensor parallelism</td>
+<td>matrix or attention dimensions inside layers</td>
+<td>layer weights and activations</td>
+<td>collectives within transformer blocks</td>
 </tr>
 <tr>
-<td><strong>Pipeline Parallelism (PP)</strong></td>
-<td>Layer groups (stages)</td>
-<td>Very deep models</td>
-<td>Medium</td>
-<td>Low (between stages)</td>
+<td>Pipeline parallelism</td>
+<td>layer groups</td>
+<td>model depth and per-stage state</td>
+<td>point-to-point activations plus scheduling bubbles</td>
 </tr>
 <tr>
-<td><strong>Context Parallelism (CP)</strong></td>
-<td>Sequence length</td>
-<td>Long contexts (64K+ tokens)</td>
-<td>High (for activations)</td>
-<td>Medium</td>
+<td>Context parallelism</td>
+<td>sequence dimension</td>
+<td>long-sequence activation memory</td>
+<td>key/value or attention exchange across the sequence group</td>
 </tr>
 <tr>
-<td><strong>Expert Parallelism (MoE)</strong></td>
-<td>Experts in MoE layers</td>
-<td>Massive sparse models</td>
-<td>None (more params, less FLOPs)</td>
-<td>Medium</td>
+<td>Expert parallelism</td>
+<td>MoE experts and routed tokens</td>
+<td>expert capacity per rank</td>
+<td>token dispatch and combine, commonly all-to-all</td>
 </tr>
 </tbody>
 </table>
-<p>A reasonable default: start with FSDP. Add TP when individual layers are still too big. Add PP when you need to span multiple nodes. Add CP when context length is the bottleneck.</p>
-<h2 id="2-practical-training-strategies">2. Practical training strategies</h2>
-<p>Different hardware shapes call for different combinations. Here's what I'd actually do in three common ones.</p>
-<h3 id="21-single-machine-28-gpus">2.1 Single machine, 2–8 GPUs</h3>
-<p>Use pure FSDP first — PyTorch FSDP or DeepSpeed ZeRO-2/ZeRO-3 — driven by Hugging Face <code>accelerate</code> or <code>torchrun</code>. If individual attention or FFN layers are still too large after sharding, layer in TP=2.</p>
-<p>A few hardware-specific notes. Consumer GPUs (RTX 4090 and similar) on PCIe should stick to TP=1 or TP=2 max; the interconnect can't keep up with anything more. Server GPUs (A100, H100) with NVLink handle TP=2 to TP=4 fine. And on eight GPUs in a single box, pure FSDP often handles models up to 70B without needing TP at all.</p>
-<h3 id="22-small-cluster-216-nodes-128-gpus">2.2 Small cluster, 2–16 nodes (≤128 GPUs)</h3>
-<p>You want 2D or 3D parallelism: TP plus FSDP, optionally plus PP. The shape that works in practice:</p>
+<p>Memory relief is not a fixed multiplier. It depends on sharding degree, what remains replicated, transient unsharded state, activation policy, padding, imbalance, and buffers.</p>
+<h2 id="replicated-data-parallelism-throughput-without-capacity">Replicated data parallelism: throughput without capacity</h2>
+<p><img alt="Replicated data parallel training" src="../../../../assets/2025-05-04-scaling-llms/data_parallelism.svg" /></p>
+<p>Distributed data parallelism keeps a full training replica on every rank. Each rank handles a different micro-batch, and gradients are synchronized before the optimizer step.</p>
+<p>Use it when the full training state fits with safe headroom and the global batch can grow or gradient accumulation can adjust. Its main advantages are simple semantics and mature overlap between backward computation and bucketed gradient reduction.</p>
+<p>Adding ranks can hurt if the local batch becomes too small, the network cannot hide the all-reduce, input delivery stalls, or the desired optimization batch does not scale.</p>
+<h2 id="fully-sharded-data-parallelism-state-memory-for-collectives">Fully sharded data parallelism: state memory for collectives</h2>
+<p><img alt="Fully sharded data parallel execution" src="../../../../assets/2025-05-04-scaling-llms/fsdp.svg" /></p>
+<p>Fully sharded data parallelism stores parameter, gradient, and optimizer shards across a group. A layer's parameters are all-gathered for computation and can be resharded afterward; gradients are reduce-scattered back to owners.</p>
+<p>Current PyTorch documentation distinguishes FSDP2's <code>fully_shard</code> API from the older <code>FullyShardedDataParallel</code> wrapper. FSDP2 groups communication by the modules to which <code>fully_shard</code> is applied and recommends bottom-up application so layer groups can overlap communication and computation.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">torch.distributed.fsdp</span><span class="w"> </span><span class="kn">import</span> <span class="n">fully_shard</span>
+
+
+<span class="c1"># Apply bottom-up: each block becomes a communication group.</span>
+<span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">transformer</span><span class="o">.</span><span class="n">blocks</span><span class="p">:</span>
+    <span class="n">fully_shard</span><span class="p">(</span><span class="n">block</span><span class="p">)</span>
+
+<span class="c1"># Shard remaining root parameters such as embeddings and output projection.</span>
+<span class="n">fully_shard</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+
+<span class="c1"># Construct the optimizer after parameters have become sharded DTensors.</span>
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">AdamW</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="n">learning_rate</span><span class="p">)</span>
+</code></pre></div>
+<p>This is a structural sketch, not a complete launcher. Device meshes, mixed precision, checkpointing, initialization, optimizer state, and distributed checkpoints must match the training stack.</p>
+<p>Sharding is attractive when model state is the binding constraint and layer compute can hide enough collective traffic. It may be a poor trade for small models, slow links, tiny layers, or layouts whose shard group crosses the wrong topology boundary.</p>
+<h2 id="tensor-parallelism-partition-layer-math">Tensor parallelism: partition layer math</h2>
+<p><img alt="Tensor parallel layer partition" src="../../../../assets/2025-05-04-scaling-llms/tensor_parallelism.svg" /></p>
+<p>Tensor parallelism partitions linear algebra inside a layer—for example, column-parallel and row-parallel projections. Partial results require collectives within transformer blocks, so latency and bandwidth matter repeatedly throughout the forward and backward passes.</p>
+<p>Use it when a layer or its activations do not fit, or when the matmuls are large enough for partitioned kernels to outperform one rank. Map the tensor-parallel group to the fastest communication domain available, then measure. High degree can shrink each local matrix until kernel efficiency falls while collective overhead grows.</p>
+<p>Sequence parallelism is often paired with tensor parallelism to avoid replicating some activation work; it is distinct from context parallelism over the model's full input sequence.</p>
+<h2 id="pipeline-parallelism-partition-depth-and-schedule-time">Pipeline parallelism: partition depth and schedule time</h2>
+<p><img alt="Pipeline parallel stages and micro-batches" src="../../../../assets/2025-05-04-scaling-llms/pipeline_parallelism.svg" /></p>
+<p>Pipeline parallelism places different layer groups on different stages and sends activations between them. Micro-batches keep stages working concurrently.</p>
+<p>It relieves per-stage model state and can reduce the volume of communication crossing a slower boundary compared with per-layer tensor collectives. Its costs are bubbles, activation transfers, stage imbalance, more complex scheduling, and harder recovery and checkpointing.</p>
+<p>For a simple balanced GPipe-style schedule with <code>p</code> stages and <code>m</code> micro-batches, the idealized forward bubble fraction is approximately:</p>
+<div class="highlight"><pre><span></span><code>(p - 1) / (m + p - 1)
+</code></pre></div>
+<p>Real schedules may use one-forward/one-backward, interleaving, or zero-bubble variants, and unequal layer cost can dominate the formula. Choose stage boundaries from measured time and memory, not equal layer counts.</p>
+<h2 id="context-parallelism-partition-long-sequence-activations">Context parallelism: partition long-sequence activations</h2>
+<p><img alt="Context parallel attention exchange" src="../../../../assets/2025-05-04-scaling-llms/context_parallelism.svg" /></p>
+<p>Context parallelism distributes the sequence dimension. Each rank owns a sequence shard, while attention exchanges the information needed to preserve full-context semantics. Implementations may use point-to-point rings, all-gather, all-to-all, or hierarchical combinations.</p>
+<p>It reduces activation memory for long-context training but replicates weights across the context group and introduces attention communication. Benefit depends on attention type, causal masking, sequence length, recomputation, and how context groups compose with tensor and data parallel groups.</p>
+<p>Do not select it from a universal 8K, 32K, or 100K threshold. Profile activation memory and attention communication for the actual architecture.</p>
+<h2 id="expert-parallelism-only-for-an-moe-architecture">Expert parallelism: only for an MoE architecture</h2>
+<p><img alt="Expert-parallel token routing" src="../../../../assets/2025-05-04-scaling-llms/moe.svg" /></p>
+<p>Expert parallelism distributes experts in mixture-of-experts layers. The router sends token representations to selected experts and combines their results. Only selected experts compute for each token, but total expert weights still require storage and serving placement.</p>
+<p>This is not an optimization switch for a dense model. It is part of an MoE architecture and brings load balance, capacity, token all-to-all, dropped or padded tokens, auxiliary losses, and failure skew. Track tokens per expert, routing entropy, capacity overflow, communication time, and quality by route.</p>
+<h2 id="compose-a-layout-from-the-topology">Compose a layout from the topology</h2>
+<p>Large training systems combine dimensions. The total world size commonly follows a product such as:</p>
+<div class="highlight"><pre><span></span><code>world size = DP × TP × PP × CP
+</code></pre></div>
+<p>Expert parallelism may share or fold dimensions differently, so verify the framework's supported mesh rather than multiplying blindly.</p>
+<p>Build the layout in this order:</p>
 <ol>
-<li>TP within each node (TP=4 or TP=8 with NVLink).</li>
-<li>FSDP across nodes for data parallelism.</li>
-<li>Add PP if the model is so deep that even FSDP can't fit it, splitting it vertically across nodes.</li>
+<li>Draw communication domains: GPU-to-GPU links, switches, NUMA boundaries, node fabric, oversubscription, and storage path.</li>
+<li>Place frequent latency-sensitive collectives, commonly TP, in the fastest suitable domain.</li>
+<li>Choose FSDP or replicated DP groups from remaining capacity and bandwidth.</li>
+<li>Add PP when depth placement or cross-domain traffic benefits, balancing measured stage time and memory.</li>
+<li>Add CP only for the sequence constraint, and EP only for the model's expert topology.</li>
+<li>Confirm divisibility of heads, hidden dimensions, layers, experts, batch, and sequence for the candidate mesh.</li>
+<li>Benchmark several valid meshes; topology-aware heuristics choose candidates, not winners.</li>
 </ol>
-<p>The reason this layout works: NVLink is fast enough to handle TP's per-layer chatter, while InfiniBand between nodes only has to sync FSDP shards, which is much cheaper communication. Net effect: you minimize cross-node bandwidth, which is almost always the bottleneck at this scale.</p>
-<p>When you do add PP, set the micro-batch count to at least 4× the pipeline degree. Fewer than that and the bubbles eat your throughput.</p>
-<h3 id="23-large-cluster-hundreds-to-thousands-of-gpus">2.3 Large cluster (hundreds to thousands of GPUs)</h3>
-<p>This is where 4D parallelism (DP × TP × PP × CP) starts to make sense. Map each dimension to your hardware topology, and use Megatron-LM or Nanotron — they support 4D out of the box, and rolling your own is a project.</p>
-<p>Realistically, you only need this when you're pretraining 70B+ models with 32K+ context windows from scratch. Most fine-tuning, even of large models, doesn't.</p>
-<p>A concrete example. Training a 70B model with 32K context on 512 GPUs:</p>
+<p>Two clusters with the same GPU count can prefer different layouts because link bandwidth, switch hierarchy, CPU attachment, and network contention differ.</p>
+<h2 id="training-and-serving-need-separate-decisions">Training and serving need separate decisions</h2>
+<p>Inference usually does not carry gradients or optimizer state, so FSDP-style training layouts do not transfer automatically.</p>
+<p>For serving, ask:</p>
 <ul>
-<li>TP=8 within each 8-GPU node.</li>
-<li>PP=4 across four nodes.</li>
-<li>CP=4 for the long context.</li>
-<li>DP=4 for throughput.</li>
-<li>8 × 4 × 4 × 4 = 512 GPUs.</li>
+<li>Does one replica fit weights, KV cache, workspace, and target concurrency?</li>
+<li>Is throughput better served by more independent replicas or by sharding one replica?</li>
+<li>Does TP reduce per-rank weight and cache pressure enough to repay per-layer communication?</li>
+<li>Is PP supported efficiently for the model and request scheduler?</li>
+<li>How do prefill and decode stress compute, memory bandwidth, and interconnect differently?</li>
+<li>What happens to tail latency when requests have different prompt and output lengths?</li>
 </ul>
-<p>Scaling efficiency on a setup like this lands around 70–80% with good InfiniBand, and you can push to ~85% with careful tuning. Anything below that and you're leaving real money on the table.</p>
-<h2 id="3-tools-worth-learning">3. Tools worth learning</h2>
-<p>A short cheat sheet for picking the right one:</p>
-<table>
-<thead>
-<tr>
-<th>Tool</th>
-<th>When to use</th>
-<th>Learning curve</th>
-<th>Best for</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Hugging Face Accelerate</strong></td>
-<td>Any distributed training with minimal code changes</td>
-<td>★☆☆☆☆</td>
-<td>Beginners, quick prototypes</td>
-</tr>
-<tr>
-<td><strong>PyTorch FSDP</strong></td>
-<td>Medium-to-large models (1–30B) on a single node</td>
-<td>★★☆☆☆</td>
-<td>The common case</td>
-</tr>
-<tr>
-<td><strong>DeepSpeed ZeRO</strong></td>
-<td>Multi-node training with good documentation</td>
-<td>★★★☆☆</td>
-<td>Production training</td>
-</tr>
-<tr>
-<td><strong>Megatron-LM</strong></td>
-<td>Very large models (70B+), 3D/4D parallelism</td>
-<td>★★★★☆</td>
-<td>Production at scale</td>
-</tr>
-<tr>
-<td><strong>Nanotron</strong></td>
-<td>Learning and research on modern parallelism</td>
-<td>★★★☆☆</td>
-<td>Education, experimentation</td>
-</tr>
-<tr>
-<td><strong>vLLM</strong></td>
-<td>Fast inference with PagedAttention and KV caching</td>
-<td>★★☆☆☆</td>
-<td>Serving in production</td>
-</tr>
-<tr>
-<td><strong>TensorRT-LLM</strong></td>
-<td>Maximum inference speed on NVIDIA GPUs</td>
-<td>★★★★☆</td>
-<td>Production inference optimization</td>
-</tr>
-</tbody>
-</table>
-<h4 id="a-minimal-accelerate-fsdp-config">A minimal <code>accelerate</code> FSDP config</h4>
-<div class="highlight"><pre><span></span><code><span class="nt">compute_environment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LOCAL_MACHINE</span>
-<span class="nt">distributed_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">FSDP</span>
-<span class="nt">fsdp_config</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">fsdp_auto_wrap_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRANSFORMER_BASED_WRAP</span>
-<span class="w">    </span><span class="nt">fsdp_backward_prefetch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">BACKWARD_PRE</span>
-<span class="w">    </span><span class="nt">fsdp_state_dict_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SHARDED_STATE_DICT</span>
-<span class="nt">machine_rank</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
-<span class="nt">main_process_ip</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
-<span class="nt">main_process_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
-<span class="nt">main_training_function</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
-<span class="nt">mixed_precision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bf16</span>
-<span class="nt">num_machines</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<span class="nt">num_processes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
-<span class="nt">use_cpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
-</code></pre></div>
-<p>If you're starting out, I'd reach for Hugging Face Accelerate to get something running, then drop down to PyTorch FSDP or DeepSpeed once you need finer control.</p>
-<h2 id="4-a-decision-framework">4. A decision framework</h2>
-<p><img alt="Scaling Decision Tree" src="../../../../assets/2025-05-04-scaling-llms/scaling_decision_tree.svg" /></p>
-<p>The picture above mirrors what I'd do in practice: FSDP first, TP when layers are too big, PP for multi-node depth, CP for long context. Add complexity only after the simpler approach has actually run out of room.</p>
-<h2 id="5-the-ultra-scale-cheat-sheet">5. The Ultra-Scale cheat sheet</h2>
-<p>Hugging Face's team put together a single-page visual summary that covers most of what's above:</p>
-<p><img alt="Ultra-Scale LLM Cheatsheet" src="https://nanotron-ultrascale-playbook.static.hf.space/assets/images/ultra-cheatsheet.svg" /></p>
+<p>Benchmark the complete server with the scheduler, quantization, context distribution, batching policy, and traffic shape. Training tokens per second cannot predict serving time to first token or inter-token latency.</p>
+<h2 id="measure-a-scaling-layout-honestly">Measure a scaling layout honestly</h2>
+<p>For each candidate, record:</p>
+<ul>
+<li>model, code, runtime, kernels, and topology identity</li>
+<li>global and local batch, sequence distribution, and token count</li>
+<li>peak memory by category where available</li>
+<li>useful tokens per second and model FLOP utilization when calculated consistently</li>
+<li>exposed time in all-reduce, all-gather, reduce-scatter, all-to-all, and point-to-point operations</li>
+<li>input stalls, checkpoint time, restart behavior, and straggler distribution</li>
+<li>training loss or serving-output parity against the baseline</li>
+</ul>
+<p>Compare weak and strong scaling deliberately. Weak scaling increases total work with rank count; strong scaling holds total work constant. A percentage labeled “scaling efficiency” is meaningless without that denominator and baseline.</p>
 <h2 id="conclusion">Conclusion</h2>
-<p>FSDP handles most of what you'll run into. TP fits inside a node when individual layers still won't fit. PP spreads the model across nodes when depth is the constraint. CP comes in when context length is what's running you out of memory. The principle that holds across all of them is to match the parallelism strategy to the hardware topology you actually have, and to add a new dimension only once the simpler one has run out.</p>
-<p>Further reading:</p>
-<ul>
-<li><a href="https://huggingface.co/spaces/nanotron/ultrascale-playbook">Hugging Face Ultra-Scale Playbook</a> — the interactive guide this post draws on.</li>
-<li><a href="https://pytorch.org/tutorials/intermediate/FSDP_tutorial.html">PyTorch FSDP Tutorial</a> — the official getting-started guide.</li>
-<li><a href="https://www.deepspeed.ai/tutorials/">DeepSpeed Tutorials</a> — full DeepSpeed documentation.</li>
-</ul>
-<hr />
-<h2 id="key-takeaways">Key Takeaways</h2>
-<ol>
-<li>Data parallelism is the simplest baseline, but it replicates model state on every GPU.</li>
-<li>FSDP and ZeRO reduce memory pressure by sharding parameters, gradients, and optimizer state.</li>
-<li>Tensor and pipeline parallelism solve different bottlenecks: layer math versus layer placement.</li>
-<li>Context parallelism matters when sequence length, not parameter count, becomes the limiting factor.</li>
-<li>Mixture-of-Experts improves active compute per token, but makes routing, load balancing, and serving harder.</li>
-</ol>
-<hr />
+<p>Parallelism is a mapping from a measured bottleneck to a tensor dimension and a communication pattern. Replication, sharding, layer partitioning, staging, sequence partitioning, and expert routing each relieve a different constraint and create a different failure mode.</p>
+<p>Inventory the workload, draw the topology, generate valid meshes, and profile them. The winning layout is the one that fits with headroom and minimizes exposed communication for the job you actually run.</p>
 <h2 id="references">References</h2>
 <ul>
-<li><a href="https://pytorch.org/docs/stable/fsdp.html">PyTorch FSDP documentation</a> - fully sharded data parallel training.</li>
-<li><a href="https://arxiv.org/abs/1910.02054">DeepSpeed ZeRO paper</a> - optimizer and model-state partitioning.</li>
-<li><a href="https://arxiv.org/abs/1909.08053">Megatron-LM paper</a> - tensor model parallelism.</li>
-<li><a href="https://arxiv.org/abs/1811.06965">GPipe paper</a> - pipeline parallel training.</li>
-<li><a href="https://arxiv.org/abs/2101.03961">Switch Transformers paper</a> - sparse expert models.</li>
+<li><a href="https://docs.pytorch.org/docs/stable/distributed.fsdp.fully_shard.html">PyTorch FSDP2 <code>fully_shard</code> documentation</a></li>
+<li><a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.parallel.DistributedDataParallel.html">PyTorch DistributedDataParallel documentation</a></li>
+<li><a href="https://docs.nvidia.com/megatron-core/developer-guide/latest/user-guide/parallelism-guide.html">NVIDIA Megatron Core parallelism strategies</a></li>
+<li><a href="https://huggingface.co/spaces/nanotron/ultrascale-playbook">Hugging Face Ultra-Scale Playbook</a></li>
+<li><a href="https://arxiv.org/abs/1910.02054">DeepSpeed ZeRO paper</a></li>
+<li><a href="https://arxiv.org/abs/1811.06965">GPipe paper</a></li>
 </ul>
 
 
