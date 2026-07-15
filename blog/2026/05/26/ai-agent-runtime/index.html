@@ -216,7 +216,7 @@
        
 <meta property="article:published_time" content="2026-05-26" />
  
-<meta property="article:modified_time" content="2026-06-07" />
+<meta property="article:modified_time" content="2026-07-14" />
  
 <meta property="article:author" content="Viacheslav Dubrov" />
   
@@ -238,7 +238,7 @@
       "@id": "https://slavadubrov.github.io/blog/2026/05/26/ai-agent-runtime/"
     },
     "datePublished": "2026-05-26",
-    "dateModified": "2026-06-07",
+    "dateModified": "2026-07-14",
     "author": {
       "@type": "Person",
       "@id": "https://slavadubrov.github.io/#person",
@@ -1332,10 +1332,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#three-queries-you-actually-need" class="md-nav__link">
+  <a href="#queries-for-three-common-failures" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Three queries you actually need
+        Queries for three common failures
       
     </span>
   </a>
@@ -1404,10 +1404,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#hosted-sandbox-vs-docker-fargate-sandbox" class="md-nav__link">
+  <a href="#hosted-sandbox-vs-an-owned-execution-environment" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Hosted sandbox vs Docker / Fargate sandbox
+        Hosted sandbox vs an owned execution environment
       
     </span>
   </a>
@@ -1496,6 +1496,17 @@
     <span class="md-ellipsis">
       
         Key takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-next-layer-is-the-harness-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The next layer is the harness loop
       
     </span>
   </a>
@@ -1993,10 +2004,10 @@
 <h1 id="long-running-ai-agent-runtime-in-2026-sessions-sandboxes-checkpoints-and-harnesses">Long-Running AI Agent Runtime in 2026: Sessions, Sandboxes, Checkpoints, and Harnesses</h1>
 <p><a href="/blog/#ai-agents"><strong>Part 5 of the Engineering the Agentic Stack series</strong></a></p>
 <p>The previous four posts covered the agent's internal design: <a href="/blog/2026/01/31/ai-agent-reasoning-loops/">reasoning loops</a>, <a href="/blog/2026/02/14/ai-agent-memory-architecture/">memory</a>, <a href="/blog/2026/03/24/ai-agent-tool-use/">tool use</a>, and <a href="/blog/2026/04/20/ai-agent-security/">security</a>. This article covers the runtime that keeps those parts working across long sessions and process failures.</p>
-<p>An agent run may last for hours, while its worker process may restart at any time. The model still chooses the next action, but the runtime must preserve state, control execution, and recover from a failure in the middle of a tool call.</p>
+<p>An agent run may last for hours, while its worker process may restart at any time. The model still chooses the next action, but the runtime must preserve state, control execution, and recover from a failure in the middle of a tool call. This post defines the runtime boundary. Part 6 will examine the harness inside it: the feedback, retry, handoff, and acceptance logic that determines whether the agent keeps working or stops.</p>
 <!-- more -->
 
-<p><strong>TL;DR</strong>: Long-running AI agents need a runtime outside the model: session logs, harness logic, sandbox isolation, checkpoints, traces, policy checks, secrets, and cost limits. Queue + worker + checkpoint DB is the default when you own the stack; hosted harnesses fit when their vendor constraints are acceptable. Pick by run length first, then recovery semantics, replay needs, sandbox isolation, and operational ownership.</p>
+<p><strong>TL;DR</strong>: Long-running AI agents need durable state and execution controls outside the model: session logs, a harness, sandbox isolation, checkpoints, traces, policy checks, secret brokering, and cost limits. Queue + worker + checkpoint DB is a strong owned-stack default. Hosted runtimes fit when their model, data, and operational constraints are acceptable. Use run length as the first coarse filter, then decide from side effects, recovery semantics, sandbox isolation, and ownership.</p>
 <h2 id="what-is-an-ai-agent-runtime">What is an AI agent runtime?</h2>
 <p>An <strong>AI agent runtime</strong> is the infrastructure layer that keeps a tool-using agent alive, isolated, observable, and resumable after the model call ends. It owns session state, tool execution, checkpoints, policy checks, secrets, traces, cost limits, and deployment shape. The model chooses the next action; the runtime decides where that action executes, whether it is allowed, how it is recorded, and how the run resumes after failure.</p>
 <table>
@@ -2021,7 +2032,7 @@
 <tr>
 <td>Sandbox</td>
 <td>Isolate code, files, network, and tools</td>
-<td>Container, VM, browser sandbox, managed workspace</td>
+<td>Hardened container, VM, browser sandbox, managed workspace</td>
 </tr>
 <tr>
 <td>Checkpoint</td>
@@ -2036,8 +2047,7 @@
 </tbody>
 </table>
 <p>Use the runtime as the design unit for long-running agents. If you cannot explain where each primitive lives, the agent is still a prototype.</p>
-<p>It's a long post. Here is what you'll find:</p>
-<p>The first half explains five runtime primitives and the failure each one handles. The second compares eleven deployment shapes, from an SDK inside an app server to queues, durable workflows, managed agents, serverless platforms, ECS, and per-session Kubernetes Jobs. A decision guide connects those options to run length and recovery needs.</p>
+<p>The first half maps five primitives to the failures they contain. The second compares eleven deployment shapes by run length, recovery semantics, isolation, and ownership.</p>
 <hr />
 <h2 id="what-changes-when-long-running-agent-sessions-outlast-processes">What changes when long-running agent sessions outlast processes</h2>
 <p>A year ago, "deploying an agent" meant wrapping a chat endpoint in a container and pointing a load balancer at it. The work was indistinguishable from any other Python web service. That stopped being true the moment agents started running for hours instead of seconds.</p>
@@ -2054,7 +2064,7 @@
 <p>The model decides what to do next. The runtime decides whether the move is allowed, where it executes, how it is recorded, and how the run resumes after a crash. The rest of this post is about that runtime.</p>
 <hr />
 <h2 id="the-five-runtime-primitives-every-long-running-ai-agent-needs">The five runtime primitives every long-running AI agent needs</h2>
-<p>Anthropic's <a href="https://www.anthropic.com/engineering/managed-agents">Scaling Managed Agents</a> write-up gave the industry a working vocabulary, and most of the field has converged on it. Five components do most of the runtime work. The harness drives the agent forward step by step; the session records what it did; the sandbox is where commands execute; the checkpoint is what the next worker reads on resume; the trace is what you read days later when you need to understand what went wrong. Each component is swappable as long as the responsibility stays intact.</p>
+<p>Anthropic's <a href="https://www.anthropic.com/engineering/managed-agents">Scaling Managed Agents</a> write-up provides a useful vocabulary for five runtime responsibilities. The harness drives the agent forward step by step; the session records what it did; the sandbox is where commands execute; the checkpoint is what the next worker reads on resume; the trace is what you read days later when you need to understand what went wrong. An implementation can merge components, but the responsibilities and failure boundaries still need names.</p>
 <p><img alt="The five runtime primitives" src="../../../../assets/2026-05-26-the-runtime/runtime-primitives.svg" /></p>
 <p><strong>Session.</strong> An append-only log of everything that happened: model calls, tool calls, results, errors, approvals. Recovery is <code>wake(sessionId) → getSession(id) → resume from last event</code>. In LangGraph this is a <code>thread_id</code> plus a Postgres checkpointer (see <a href="https://docs.langchain.com/oss/javascript/langgraph/persistence">LangGraph persistence</a>). The OpenAI Agents SDK ships ten built-in session backends including <code>SQLiteSession</code>, <code>RedisSession</code>, <code>SQLAlchemySession</code>, <code>MongoDBSession</code>, and <code>EncryptedSession</code> (see the <a href="https://openai.github.io/openai-agents-python/sessions/">Sessions docs</a>).</p>
 <p><strong>Harness.</strong> The orchestration loop. It calls the model, parses tool calls, executes them, writes results back into the session, and applies retry rules. Anthropic puts it bluntly:</p>
@@ -2082,22 +2092,22 @@
 <p>A practical sanity check on your own stack: write down every component you run and which of the five primitives it implements. <a href="https://www.postgresql.org/">Postgres</a> might cover session and checkpoint. The worker container is the harness. A hosted-sandbox service such as <a href="https://www.daytona.io/">Daytona</a>, <a href="https://modal.com/">Modal</a>, or <a href="https://e2b.dev/">E2B</a> is the sandbox. <a href="https://grafana.com/oss/tempo/">Tempo</a> or <a href="https://smith.langchain.com/">LangSmith</a> is the trace. If you find that two primitives live in the same process, one crash takes both down. If two share a single credential, one leak takes both down. Both are easy to introduce by accident when you're moving fast: a worker that also writes traces, a sidecar token that also unlocks the checkpoint DB.</p>
 <hr />
 <h2 id="production-ai-agent-runtime-failure-modes">Production AI agent runtime failure modes</h2>
-<p>The runtime exists for the things the model cannot do on its own: manage retries, remember what it did three hours ago, isolate one run's filesystem from another's, stop itself before spending the budget. By now we've named seven pieces of it: harness, session log, sandbox, checkpointer, tracer, policy engine, secret broker. Once a single agent run crosses about 30 minutes of wall time, a recognizable set of failures starts showing up. Most of them have nothing to do with reasoning quality; they are problems with state, retries, sandboxes, and budgets.</p>
-<p>The failures fall into four loose groups:</p>
+<p>The runtime manages retries, restores prior work, isolates workspaces, and enforces budgets. The five primitives above own the run lifecycle, while policy and secret brokering cut across them. As runs stretch across workers and context windows, failures shift toward state, duplicate side effects, sandbox drift, and budget enforcement.</p>
+<p>The failures fall into four groups:</p>
 <ul>
 <li><strong>Quality-of-output failures:</strong> the agent declares victory before the work is actually done, forgets what it did across a context-window reset, or trusts its own self-evaluation and ships broken output.</li>
 <li><strong>Cost-control failures:</strong> the agent gets stuck in a retry loop, or spends through a token or tool-call budget without producing anything useful.</li>
 <li><strong>State and crash failures:</strong> workspaces drift because one run touches files another run owns, tool calls fire more than once because retries replay them, or work is lost when a worker dies between events.</li>
 <li><strong>Context-window failures:</strong> the model summarises and quits early because it thinks it is running out of room, even when the window still has headroom.</li>
 </ul>
-<p>The table below maps each failure to the mitigation pattern, the runtime hook where the mitigation lives, and whether the mitigation is still needed on the current model generation. Some are no longer needed. The older your harness is, the more obsolete mitigations it likely contains.</p>
+<p>The table maps each failure to a mitigation, the runtime hook that enforces it, and the scope of the cited evidence. Model-specific behavior can change, so the evidence column is a prompt to re-test the assumption rather than a permanent yes/no rule.</p>
 <p><img alt="Failure modes and their mitigations" src="../../../../assets/2026-05-26-the-runtime/failure-modes.png" /></p>
 <table>
 <thead>
 <tr>
 <th>Failure mode</th>
 <th>Mitigation</th>
-<th>Still needed?</th>
+<th>Evidence scope</th>
 <th>Runtime hook</th>
 </tr>
 </thead>
@@ -2122,8 +2132,8 @@
 </tr>
 <tr>
 <td><strong>Context anxiety:</strong> model summarises and quits early</td>
-<td>(a) Enable the 1M-token beta but cap effective usage at 200k (<a href="https://cognition.ai/blog/devin-sonnet-4-5-lessons-and-challenges">Cognition's Sonnet 4.5 fix</a>). (b) Tear the session down and rebuild from a handoff.</td>
-<td><strong>No on Opus 4.5</strong>; Anthropic reports "the behavior was gone" and the resets "had become dead weight." <strong>Yes</strong> on Sonnet 4.5 and GPT-5/Codex.</td>
+<td>Cap the active session and rebuild from a handoff when the model stops using the remaining context effectively. Cognition's Sonnet 4.5 workaround enabled a larger window but capped effective use at 200k.</td>
+<td>Vendor observations differ between Sonnet 4.5 and Opus 4.5. Re-test before carrying the workaround to another model or harness.</td>
 <td>Outer driver caps session length, starts the next, resumes from checkpoint</td>
 </tr>
 <tr>
@@ -2188,7 +2198,7 @@
 </ol>
 <p>There is no step in that list that requires the agent to remember anything between runs. The state lives in the session and the checkpoint, and the agent reads it back on each resume.</p>
 <p>Side-effecting tools need idempotency. Any tool with side effects needs an idempotency key derived from the session ID and tool-call ID, stored before the side effect fires. <code>send_email(session_id, tool_call_id, message_hash)</code>. <code>create_pr(session_id, tool_call_id, branch_name)</code>. <code>charge_customer(session_id, tool_call_id, invoice_id)</code>. At-least-once execution is the default in queues and workflow engines. If repeating a tool call can cause real harm, the tool is not ready for agents.</p>
-<p>Evaluation has to run outside the producing context. The same context that produced the answer cannot reliably judge whether the answer is correct. A fresh evaluator reads files and artifacts, runs tests, lints, browser checks, or schema validation, and returns <code>pass</code>, <code>fail</code>, or <code>needs_human</code>. For code agents, this is another model session with read-only tools. For data and report agents, it is a deterministic validator plus a reviewer model.</p>
+<p>Evaluation should include evidence outside the producing context. A fresh evaluator reduces shared-context bias, while tests, lints, browser checks, and schema validation provide deterministic evidence. The check can return <code>pass</code>, <code>fail</code>, or <code>needs_human</code>. For code agents, the reviewer may be another model session with read-only tools. For data and report agents, combine deterministic validation with a reviewer model where judgment is still required.</p>
 <hr />
 <h2 id="eleven-ai-agent-deployment-patterns-and-what-decides-between-them">Eleven AI agent deployment patterns and what decides between them</h2>
 <p>Once the five primitives are named, the question is which deployment shape runs them. By "shape" I mean an arrangement of those primitives: where the harness lives, where state persists, and what kind of sandbox runs the work. It is not just a single vendor pick. The chart below shows where each shape is comfortable on the run-length axis. The text after it walks through what decides between them.</p>
@@ -2201,7 +2211,7 @@
 <h3 id="2-queue-worker-checkpoint-db">2. Queue + worker + checkpoint DB</h3>
 <p>The default I recommend for most teams, and the production shape used in <a href="https://github.com/slavadubrov/market-analyst-agent"><code>market-analyst-agent</code></a>: a Python worker with a PostgreSQL checkpointer, <a href="https://redis.io/">Redis Streams</a> (or <a href="https://www.rabbitmq.com/">RabbitMQ</a>) for the inbound queue, and an MCP sidecar for tools. Good for 10-minute to multi-hour runs with idempotent steps. The local runner can bypass the queue for synchronous development, but the queue is part of the production shape once you need async submission and backpressure.</p>
 <p>The app accepts a request, creates a session row, pushes a job, and returns a run ID. The worker pulls the job, runs the harness, writes checkpoints, streams status, and stores artifacts as it goes. Postgres survives, workers are cattle, and queue depth gives you backpressure. Spot/Preemptible compute works as long as the checkpointer finishes writing to disk before it reports success.</p>
-<p>In this shape, the worker is the harness. The worker container plus a per-thread workspace mount is the sandbox. Postgres owns session and checkpoint state. Traces go through OpenTelemetry to whatever observability stack you run.</p>
+<p>In this shape, the worker is the harness. Its container and per-thread workspace provide an execution boundary, but untrusted code still needs a hardened sandbox or VM. Postgres owns session and checkpoint state. Traces go through OpenTelemetry to whatever observability stack you run.</p>
 <h3 id="3-durable-workflow-engine-temporal-style">3. Durable workflow engine (Temporal-style)</h3>
 <p>Agent orchestration code runs inside a Temporal Workflow; model calls and tool calls run as Activities. Workflow state lives in an event-history log backed by Cassandra, MySQL, or Postgres, so state replays cleanly across deploys. The public-preview <a href="https://temporal.io/blog/announcing-openai-agents-sdk-integration">Temporal × OpenAI Agents SDK integration</a> ships an <code>OpenAIAgentsPlugin</code> and an <code>activity_as_tool</code> helper, and the <a href="https://temporal.io/blog/introducing-temporal-and-agentic-sandboxes-openai-agents-sdk">agentic sandboxes write-up</a> describes forking a running agent onto a different sandbox provider mid-conversation. Idle workflows consume zero compute. The caveats are real: streaming and voice agents are unsupported in the current integration, and <code>LocalShellTool</code> and <code>ComputerTool</code> are disabled because they don't fit a distributed model.</p>
 <p>Use this shape when the run has real waiting points: human approvals, external callbacks, long sleeps, retries with business rules, deploy windows. A human approval becomes a durable sleep that consumes no compute, not a polling loop that does.</p>
@@ -2276,19 +2286,19 @@
 <p>Cloud Run has two different runtime modes, and which one fits depends on how the agent is invoked. <strong>Services</strong> are HTTP-bound and scale to zero between requests; the harness runs as a request handler that returns when the run is done. <strong>Jobs</strong> run to completion without an HTTP entrypoint; the harness runs as a one-shot worker that exits when the task finishes. Both can host the harness, but neither holds state across runs. Sessions and checkpoints have to live in Postgres, Spanner, or a similar external store.</p>
 <p>The hard limits are very different between the two. <a href="https://docs.cloud.google.com/run/docs/configuring/request-timeout">Cloud Run service request timeout</a>: default 300 s, max <strong>3,600 s (60 min)</strong>. <a href="https://docs.cloud.google.com/run/docs/triggering/websockets">WebSockets</a> get the same timeout. <a href="https://docs.cloud.google.com/run/docs/configuring/task-timeout">Cloud Run jobs</a>: default 10 min per task, max <strong>168 h (7 days)</strong>; for tasks using GPUs, max <strong>1 hour</strong>. Services scale to zero unless you enable always-on CPU; jobs do not have HTTP and do not autoscale.</p>
 <p>Use a service for synchronous runs up to 60 minutes. Use a job for longer one-shot or async work. Cloud Run Jobs can keep a task alive for days, but they do not give you durable replay across deploys, version changes, or worker replacement. Above 7 days, do not use Cloud Run.</p>
-<p>Cloud Run hosts the harness. Session, checkpoint, sandbox, and trace are external services you wire in, typically Postgres or Spanner for session/checkpoint, the container itself as the sandbox, and Cloud Logging plus OpenTelemetry for trace.</p>
+<p>Cloud Run hosts the harness. Session and checkpoint state live in Postgres, Spanner, or another external store, and traces can flow through Cloud Logging and OpenTelemetry. The service container is an execution environment; add a separate sandbox when the agent runs untrusted code.</p>
 <h3 id="8-aws-lambda-why-it-is-the-wrong-tool">8. AWS Lambda (why it is the wrong tool)</h3>
 <p><a href="https://docs.aws.amazon.com/lambda/latest/dg/configuration-timeout.html">Lambda's maximum function timeout</a> is <strong>900 s (15 minutes)</strong>, hard. <a href="https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html">API Gateway</a> adds a separate 29 s cap on top of that. An agent harness whose minimum useful run is "minutes to hours" cannot survive on Lambda without an external state store and a re-invocation strategy that essentially rebuilds the queue + worker shape from scratch. Use Lambda for individual tool calls, such as file fetches or S3 uploads, invoked by a longer-running orchestrator. Do not put the orchestrator there.</p>
 <p>At most, Lambda holds one tool call inside its 15-minute cap. The harness, session, checkpoint, sandbox, and trace all have to live somewhere else.</p>
 <h3 id="9-aws-ecs-fargate-task-per-run">9. AWS ECS / Fargate task per run</h3>
 <p>No documented hard cap on task runtime (unlike Lambda). Per <a href="https://docs.aws.amazon.com/AmazonECS/latest/developerguide/throttling.html">Fargate throttling quotas</a>, launches are rate-limited: a burst of 100, refilling at 20 per second, with on-demand and spot tracked on separate 20/sec budgets. <a href="https://docs.aws.amazon.com/AmazonECS/latest/developerguide/operating-at-scale-service-quotas.html">ECS service quotas</a>: services with AWS Cloud Map service discovery cap at 1,000 tasks per service; the theoretical ceiling is 5,000 EC2 instances per cluster. Fargate requires <code>awsvpc</code> mode, so every task gets its own network interface and a private IP, which is the right shape when you need VPC-internal data access. Fargate Spot is available; budget for interruption. Durability is on you: there is no Temporal-style replay built in.</p>
-<p>Fargate hosts the harness and gives each run its own sandbox: one task per run. Session, checkpoint, and trace go to external services. RDS or DynamoDB plus CloudWatch/X-Ray are the usual picks.</p>
+<p>Fargate hosts the harness and gives each run its own task. That separates workspaces and task credentials, but it is not a complete sandbox for hostile code by itself. Session, checkpoint, and trace go to external services such as RDS or DynamoDB plus CloudWatch/X-Ray.</p>
 <h3 id="10-kubernetes-job-or-namespace-per-session">10. Kubernetes Job or namespace per session</h3>
 <p>Good when you already operate <a href="https://kubernetes.io/">Kubernetes</a> and want sandbox-per-session with cluster-wide controls. Bad when you need sub-second startup, because pulling the container image and initializing the pod takes too long on a cold start. The pattern is one Job per agent run, with <code>activeDeadlineSeconds</code>, a PersistentVolumeClaim for the workspace, and a sidecar for the MCP server. Crash recovery is yours to build. Adopting Kubernetes just to host agents is expensive in configuration overhead and operational burden. Only worth it if you already run K8s for other reasons.</p>
-<p>K8s hosts the harness and the sandbox, usually as one Job per run and sometimes with a dedicated namespace for stronger isolation. Session and checkpoint live in an external DB or on a PersistentVolumeClaim. Trace flows into whatever in-cluster observability stack you already run.</p>
+<p>Kubernetes hosts the harness and per-run execution environment, usually as one Job and sometimes with a dedicated namespace. Strong isolation still depends on runtime class, network policy, pod security, and the underlying container or VM boundary. Session and checkpoint state live in an external database or on a PersistentVolumeClaim.</p>
 <h3 id="11-local-docker-compose-dev-only">11. Local Docker Compose (dev only)</h3>
 <p>The reference for the next section. The point of this shape is that it mirrors the production topology one-for-one (same primitives, same network shape) while running on a single box. Read the "not production-safe" list at the end of the next section before you ship anything that looks like this.</p>
-<p>Compose mirrors shape #2 on a single host. Postgres holds session and checkpoint. The worker container is the harness. The workspace mount is the shared sandbox. The optional OpenTelemetry stack is the trace.</p>
+<p>Compose mirrors shape #2 on a single host. Postgres holds session and checkpoint state, and the worker container is the harness. The shared workspace mount is convenient for development but does not isolate untrusted runs. The optional OpenTelemetry stack records traces.</p>
 <hr />
 <h2 id="reference-stack-docker-compose">Reference stack: Docker Compose</h2>
 <p>The reference topology, used in <a href="https://github.com/slavadubrov/market-analyst-agent"><code>slavadubrov/market-analyst-agent</code></a>, is a LangGraph worker, a Postgres checkpointer, <a href="https://qdrant.tech/">Qdrant</a> for retrieval, an MCP sidecar, a Redis queue for async production-like runs, and an optional <a href="https://prometheus.io/">Prometheus</a> / <a href="https://grafana.com/">Grafana</a> / <a href="https://grafana.com/oss/loki/">Loki</a> / Tempo / <a href="https://opentelemetry.io/">OTel</a> observability stack. In local compose, Redis is optional only because the synchronous runner can call the worker directly. <code>docker compose up</code> brings the whole topology up locally.</p>
@@ -2344,7 +2354,7 @@
 <span class="n">span</span><span class="o">.</span><span class="n">set_attribute</span><span class="p">(</span><span class="s2">&quot;gen_ai.usage.output_tokens&quot;</span><span class="p">,</span> <span class="n">usage</span><span class="o">.</span><span class="n">output_tokens</span><span class="p">)</span>
 </code></pre></div>
 <p>Attribute names taken verbatim from the <a href="https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/">OpenTelemetry GenAI semantic conventions registry</a>.</p>
-<h3 id="three-queries-you-actually-need">Three queries you actually need</h3>
+<h3 id="queries-for-three-common-failures">Queries for three common failures</h3>
 <div class="highlight"><pre><span></span><code># Loki: token usage per agent over 1h
 sum by (gen_ai_agent_name) (
     rate({service_name=&quot;market-analyst-agent&quot;} | json | unwrap gen_ai_usage_output_tokens [1h])
@@ -2372,7 +2382,7 @@ sum by (gen_ai_agent_name) (
 <li><code>PROGRESS.md</code>, <code>feature-list.json</code>, and any other agent-authored progress files.</li>
 <li><code>env.txt</code>: image tags, model version, harness commit SHA.</li>
 </ul>
-<p>This bundle is what a human (or another agent) needs to figure out what happened. Without it, every failed run is a guess. "The agent got stuck" is vague. A useful failure report looks more like this: session <code>s_123</code> spent 71 percent of tokens in a three-command retry loop after <code>npm install</code> failed.</p>
+<p>This bundle gives a human or reviewer agent enough evidence to reconstruct the failure. "The agent got stuck" is vague. An illustrative report is concrete: session <code>s_123</code> spent 71 percent of its tokens repeating three commands after <code>npm install</code> failed.</p>
 <hr />
 <h2 id="picking-the-right-shape-a-decision-guide">Picking the right shape: a decision guide</h2>
 <p>Most of the comparison above collapses into a handful of decisions.</p>
@@ -2385,21 +2395,19 @@ sum by (gen_ai_agent_name) (
 <li><strong>More than 24 h, must survive deploys:</strong> durable workflow engine (Temporal-style). Cloud Run Jobs can hold long work up to their task limit, but they do not provide replay semantics.</li>
 <li><strong>Multi-day RL training loops:</strong> K8s Job + volume + Temporal.</li>
 </ul>
-<p>Once run length is decided, the rest is platform choice.</p>
+<p>After that coarse filter, check side effects, recovery, replay, isolation, data location, and the team that will operate the system.</p>
 <h3 id="platform-fit-by-use-case">Platform fit by use case</h3>
 <p><img alt="Platform fit by use case" src="../../../../assets/2026-05-26-the-runtime/decision-matrix.svg" /></p>
-<p>The matrix is dense on purpose: eleven shapes across many workload types in one view. Two patterns shape almost every reading of it.</p>
-<p>Deep Agents Deploy is the only column with green on every row. That means it is the only shape in the lineup that fits every workload type the matrix tracks: short runs, multi-hour runs, code agents, research agents, scheduled jobs. That breadth is the strongest argument for picking it. The trade-off is maturity. The harness shipped recently, and there is less production track record around it than around older alternatives like a queue + worker + Postgres stack that teams have been running for years. If "fits every workload type without re-platforming" is the constraint that matters most to you, accept the lower maturity and pick Deep Agents Deploy. Otherwise prefer the shape you already operate.</p>
+<p>The matrix is dense because no single green cell decides the architecture. Broad workload coverage is useful, but it does not show data residency, replay semantics, provider dependence, operational maturity, or the cost of moving state later.</p>
+<p>Deep Agents Deploy covers every workload type tracked in the matrix, which makes it a candidate when one platform must serve short runs, multi-hour work, code agents, research agents, and scheduled jobs. That breadth comes with a shorter production track record than a queue + worker + Postgres stack. Treat the green cells as capability claims to validate, then compare the operational constraints that the matrix cannot encode.</p>
 <p>Anthropic Managed Agents either fits your workload entirely or not at all. The product has three hard constraints: it is hosted-only, Claude-only, and sub-24-hour per session. If your workload satisfies all three, for example an internal coding agent that runs in 2-6 hour bursts and you would rather not operate a harness yourself, Managed Agents is a strong fit and removes a large chunk of platform work from your team. If one constraint fails because you need a non-Claude model, self-hosted compliance, or 48-hour runs, Managed Agents does not fit. No amount of configuration changes that.</p>
 <p>The pricing is worth modeling before you commit, not after. The session-hour line is $0.08/hour on top of standard token costs. If a single session ran continuously, that is about $58/month per session. At 100 sessions running continuously, it is about $5,800/month <em>before tokens</em>. Multiply $0.08 by your expected concurrent-session hours, add it to your token bill, and compare against what a queue + worker stack on your own infra would cost. Do this before you commit, because migrating off Managed Agents later is a re-platforming exercise, not a config change.</p>
 <h3 id="hosted-harness-vs-owned-harness">Hosted harness vs owned harness</h3>
 <p>The distinction here is operational, not who wrote the harness code. <strong>Hosted</strong> means the vendor runs the harness loop in their infrastructure and you call an API. <strong>Owned</strong> means you run the loop on your own infrastructure, even if the harness code itself came from a vendor.</p>
 <p>LangChain shows up on both sides of this line, which trips people up. They ship <strong>LangGraph</strong>, an MIT-licensed library you self-host (owned), <em>and</em> <strong>Deep Agents Deploy</strong>, a managed product that runs a Deep Agents harness on LangSmith Deployment in its default cloud mode (hosted). Same company, two different operational models. You pick the model, not the vendor. (Deep Agents Deploy also has a self-hosted mode for teams that want the harness ergonomics without the cloud component; that mode lands in the owned bucket.)</p>
-<p>Choose a hosted harness when you do not have platform capacity and the vendor constraints fit. Managed Agents means Claude-only. Deep Agents Deploy in cloud mode means LangSmith in production. In return, the vendor owns caching and compaction.</p>
-<p>An owned harness (LangGraph, Deep Agents Deploy in self-hosted mode, or a custom harness on top of an SDK) is the right call when you have platform engineers, when you need to iterate on harness shape faster than a vendor will release updates, when compliance pushes data residency under your control, or when multi-model routing across providers is non-negotiable. You pay for it in pages and operational surface area.</p>
-<p>Most teams should start hosted, measure what they need to change, and migrate to owned only when the hosted constraints start to hurt.</p>
-<h3 id="hosted-sandbox-vs-docker-fargate-sandbox">Hosted sandbox vs Docker / Fargate sandbox</h3>
-<p>Pick a hosted sandbox when sandbox creation time matters (sub-200 ms), you need session pause/resume with memory state, or you need fork/branch semantics. Pick Docker or Fargate when you already pay for that compute, you need VPC-internal access to sensitive data sources, or you have hard data-residency constraints.</p>
+<p>Choose a hosted harness when its model support, data boundary, recovery behavior, and extension points already fit. Choose an owned harness when those constraints are requirements you expect to change. Migration between the two changes state, observability, and execution boundaries, so test the exit path before production data depends on it.</p>
+<h3 id="hosted-sandbox-vs-an-owned-execution-environment">Hosted sandbox vs an owned execution environment</h3>
+<p>Pick a hosted sandbox when the provider's isolation, pause/resume, or fork semantics match the threat model and startup budget. Docker or Fargate can fit trusted internal workloads that need VPC access or strict data residency, but a standard container is not a sufficient boundary for hostile code. Add gVisor, Kata, a microVM, or another hardened runtime when the agent installs untrusted packages or executes generated programs.</p>
 <h3 id="state-stores-git-db-and-object-storage-side-by-side">State stores: Git, DB, and object storage side by side</h3>
 <p>Long-running agents usually have three state stores running at the same time, not one, and each holds a different kind of state. Git stores the workspace state: the code, documents, and progress files the agent is changing. Each commit gives the harness a stable recovery point and gives the next session a compact history to inspect. The checkpoint DB holds the harness's graph state: what was decided, which nodes ran, which results came back, and what should run next. That is what lets the next worker resume mid-run. The artifact store holds the big final outputs, such as PDFs, parquet files, and screenshots. Those do not belong in git or the checkpoint DB.</p>
 <h4 id="when-to-use-git-as-state">When to use git as state</h4>
@@ -2432,13 +2440,15 @@ sum by (gen_ai_agent_name) (
 <ol>
 <li>Long-running agents need a runtime, not just a bigger HTTP timeout. The runtime keeps the session, workspace, tool results, checkpoints, traces, budgets, approvals, and credentials outside the model's memory.</li>
 <li>The core components are session, harness, sandbox, checkpoint, and trace. Policy checks and secret brokering cut across all of them.</li>
-<li>The first deployment question is run length. A 20-second helper can live in an app server. A six-hour coding or research run needs a queue, worker, durable state, and a sandbox strategy.</li>
-<li>Queue + worker + checkpoint DB is the practical default when you want to own the runtime. Hosted harnesses such as Anthropic Managed Agents or Deep Agents Deploy are better when their vendor constraints fit and you do not want to operate the loop yourself.</li>
+<li>Run length is the first coarse deployment filter. Side effects, replay, isolation, data location, and operational ownership complete the decision.</li>
+<li>Queue + worker + checkpoint DB is a strong owned-stack default. A hosted harness fits when its model, data, recovery, and extension constraints already match the workload.</li>
 <li>Side-effecting tools need idempotency keys. In queues and workflow engines, retries are normal. Without deduplication, a retry can send the same email, create the same PR, or charge the same customer twice.</li>
 <li>Observability has to survive the worker. For a failed six-hour run, the useful artifacts are the event log, last checkpoint, trace, tool-call timeline, workspace diff, screenshots, and environment metadata.</li>
 <li>Runtime assumptions age as models change. Re-test context resets, evaluator patterns, tool surfaces, and budget rules when you switch models or harnesses.</li>
 <li>Secrets should stay outside the harness and outside the model context. The agent gets tool capabilities, not raw credentials.</li>
 </ol>
+<h2 id="the-next-layer-is-the-harness-loop">The next layer is the harness loop</h2>
+<p>This runtime can keep a run alive and recoverable, but durability does not prove the work is correct. Part 6, <strong>Harness Engineering for AI Agents</strong>, will cover the loop around the model: how a trace becomes a test case, where retry and stop rules live, what a handoff must preserve, and how an external acceptance check decides that a run is done.</p>
 <h2 id="references">References</h2>
 <h3 id="engineering-write-ups">Engineering write-ups</h3>
 <ul>
@@ -2509,6 +2519,7 @@ sum by (gen_ai_agent_name) (
 <li><a href="/blog/2026/03/24/ai-agent-tool-use/">Part 3: AI Agent Tool Use in 2026</a>: MCP, CLI, Skills, code execution, and ACI.</li>
 <li><a href="/blog/2026/04/20/ai-agent-security/">Part 4: AI Agent Security in 2026</a>: guardrails, permissions, sandboxes, HITL, and MCP scoping.</li>
 <li><strong>Part 5: Long-Running AI Agent Runtime in 2026</strong> (this post)</li>
+<li><strong>Part 6: Harness Engineering for AI Agents</strong> (coming next): acceptance checks, traces, retries, handoffs, and the loop around the model.</li>
 </ul>
 <hr />
 <p><em>The Market Analyst Agent code (LangGraph worker, Postgres checkpointer, Qdrant memory, MCP sidecar, and the Docker Compose topology described above) is on <a href="https://github.com/slavadubrov/market-analyst-agent">GitHub</a>.</em></p>

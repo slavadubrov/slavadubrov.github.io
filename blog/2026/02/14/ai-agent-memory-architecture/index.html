@@ -1315,21 +1315,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#whats-next" class="md-nav__link">
+  <a href="#the-next-layer-is-action" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What's next
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#key-takeaways_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Key Takeaways
+        The next layer is action
       
     </span>
   </a>
@@ -1826,11 +1815,11 @@
 
 <h1 id="ai-agent-memory-architecture-in-2026-checkpoints-vector-stores-and-file-based-memory">AI Agent Memory Architecture in 2026: Checkpoints, Vector Stores, and File-Based Memory</h1>
 <p><a href="/blog/#ai-agents"><strong>Part 2 of the Engineering the Agentic Stack series</strong></a></p>
-<p>State is what separates a chatbot from an AI agent. Without <strong>agent memory</strong>, every interaction starts from zero. The agent cannot pause and resume, learn from past sessions, or personalize. <a href="/blog/2026/01/31/ai-agent-reasoning-loops/">Part 1</a> covered AI agent reasoning loops: <em>how</em> an agent thinks. This post is about the memory architecture that determines <em>what</em> it remembers.</p>
+<p>A reasoning loop only survives one request unless its state is stored outside the worker. Without <strong>agent memory</strong>, the agent cannot resume a paused plan, recover after a crash, or recall a preference from an earlier session. <a href="/blog/2026/01/31/ai-agent-reasoning-loops/">Part 1</a> covered the control flow. This post identifies which state each later turn needs and where that state should live.</p>
 <p>I'll walk through the memory architecture of the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>, showing how hot checkpoints, cold vector stores, and file-based document memory work together for long-running agents. Then I'll cover when PostgreSQL, Redis, Qdrant, key-value stores, and plain Markdown files each make sense.</p>
 <!-- more -->
 
-<p><strong>TL;DR</strong>: AI agent memory splits into three tiers. <strong>Hot memory</strong> is thread-level checkpoints in Redis or PostgreSQL for pause/resume. <strong>Cold memory</strong> is cross-session knowledge in a vector store or key-value backend for personalization. <strong>Document memory</strong> is human-readable files the agent reads and writes for persistent project knowledge. LangGraph's checkpoint system handles the hot layer natively. For cold memory, vector search with Qdrant gives you semantic recall; a key-value store is enough for structured facts. For document memory, a file-based store gives you debuggability and zero embedding infrastructure.</p>
+<p><strong>TL;DR</strong>: Separate memory by access pattern. <strong>Hot memory</strong> is thread-level checkpoint state for pause and resume. <strong>Cold memory</strong> holds cross-session facts in a key-value or vector store. <strong>Document memory</strong> keeps project knowledge in inspectable files. Start with the failure you need to fix, then choose the store. Do not put exact facts in a fuzzy retrieval system or treat a checkpoint as an audit log.</p>
 <hr />
 <h2 id="what-is-ai-agent-memory">What is AI agent memory?</h2>
 <p><strong>AI agent memory</strong> is the state layer that lets an agent preserve task progress, retrieve prior knowledge, and update what it knows across runs. In production it is not one vector database. It is a mix of hot checkpoints, cold semantic or structured stores, and human-readable document memory.</p>
@@ -1886,7 +1875,7 @@
 </ul>
 <p>In the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a> from <a href="/blog/2026/01/31/ai-agent-reasoning-loops/">Part 1</a>, the request "Analyze NVDA" produces a plan, five tool calls, gathered data, and a draft report. When the user replies "looks good, but add competitor analysis," a checkpoint store lets the agent load the state from the last node and add the competitor step. Without checkpointed state, it cannot resolve what "looks good" refers to and has to start over.</p>
 <p>Long-term memory handles a different case. If the user returns a week later and asks, "Update my NVDA analysis," the agent may need to recall a preference for conservative risk assessments and an interest in semiconductor stocks. A vector-backed memory store can retrieve those facts across sessions without asking for them again.</p>
-<p>LangGraph splits this cleanly. Every graph execution runs inside a <strong>thread</strong> — a single conversation or task. State within a thread is <strong>working memory</strong>. State that persists across threads is <strong>long-term memory</strong>. The engineering question is which storage backend to use for each.</p>
+<p>LangGraph splits this by scope. Every graph execution runs inside a <strong>thread</strong>, meaning one conversation or task. Persisted state within that thread is <strong>short-term memory</strong>. State shared across threads is <strong>long-term memory</strong>. The model's current context and in-process variables form the working-memory layer above both stores.</p>
 <p><img alt="Memory Taxonomy" src="../../../../assets/2026-02-14-memory/memory-taxonomy.svg" /></p>
 <hr />
 <h2 id="a-taxonomy-of-ai-agent-memory">A taxonomy of AI agent memory</h2>
@@ -1949,18 +1938,18 @@
 <p><strong>Working memory</strong> is what the LLM is actively reasoning with right now: Python variables in the current function, the contents of the context window, tool call arguments mid-execution. It's the fastest and most ephemeral layer. Nothing persists beyond the current step. Working memory is bounded by the model's context window, which makes it the actual bottleneck. Everything the agent "knows" at decision time has to fit here, whether it came from the checkpoint store, a vector query, or a file read. The other tiers exist to feed the right information into working memory at the right time.</p>
 <p><strong>Short-term memory</strong> is the checkpoint LangGraph writes after each node. <strong>Episodic</strong> and <strong>semantic</strong> memories persist across threads. <strong>Document memory</strong> stores project notes, research summaries, and learned conventions in files that people and agents can inspect. <strong>Procedural memory</strong> lives in system instructions and tool definitions rather than changing for each user.</p>
 <p>For implementation, these categories collapse into three tiers. Hot memory holds the current session. Cold memory supports recall across sessions. Document memory keeps accumulated project knowledge readable and directly editable.</p>
-<p>Most frameworks and surveys focus on the hot/cold split and skip document memory, despite how widely adopted it is. The CoALA framework classifies memory as working, episodic, semantic, and procedural; no mention of files. The <a href="https://arxiv.org/abs/2512.13564">Memory in the Age of AI Agents survey</a> covers vector stores and knowledge graphs but not document files. LangGraph's docs cover checkpoints and the Store interface but have no native concept of file-based memory.</p>
-<p>In practice, document memory is now a default in AI coding assistants. Claude Code, Cursor, Windsurf, and Devin all treat file-based memory as a core feature. And the pattern is spreading beyond coding: open-world game agents store reusable skills as code libraries (<a href="https://arxiv.org/abs/2305.16291">Voyager</a>), competition-winning enterprise agents iterate on procedural prompt documents across runs (<a href="/blog/2026/01/11/enterprise-rag-challenge-agent-architectures/">ECR3 winning approaches</a>), and web automation agents synthesize reusable workflow APIs from successful episodes (<a href="https://arxiv.org/abs/2409.07429">Agent Workflow Memory</a>). The advantages — debuggability, version control, zero infrastructure — aren't coding-specific.</p>
-<p>A useful observation from the same survey: agent memory is <em>not</em> the same as RAG or context engineering. The distinguishing feature is that the agent itself does the read/write operations. It decides what to remember and what to forget, instead of relying on a fixed retrieval pipeline.</p>
-<p>The <a href="https://arxiv.org/abs/2304.03442">Generative Agents paper</a> (Park et al., 2023) showed how far this can go: simulated agents that stored, reflected on, and retrieved their own memories produced strikingly human-like behavior. The architectural pattern — a <strong>memory stream</strong> with retrieval scored by recency, importance, and relevance — is the template most modern agent memory systems still build on.</p>
+<p>CoALA classifies working, episodic, semantic, and procedural memory. The <a href="https://arxiv.org/abs/2512.13564">Memory in the Age of AI Agents survey</a> emphasizes vector stores and knowledge graphs, while LangGraph documents checkpoints and its Store interface. File-backed project knowledge sits outside those taxonomies even though Claude Code, Cursor, Windsurf, and Devin all load persistent project files.</p>
+<p>The same storage pattern appears in other domains. Voyager stores reusable game skills as code libraries, ECR3 teams iterated on procedural prompt documents, and Agent Workflow Memory induces reusable web workflows from successful episodes. Files make that knowledge inspectable and versionable without a separate embedding service.</p>
+<p>Agent-managed memory also differs from a fixed RAG pipeline in who performs the write. The agent or its harness selects what to store, update, and delete, then later chooses when to retrieve it.</p>
+<p>The <a href="https://arxiv.org/abs/2304.03442">Generative Agents paper</a> (Park et al., 2023) showed how far this can go: simulated agents stored, reflected on, and retrieved their own memories. Its <strong>memory stream</strong> ranked candidates by recency, importance, and relevance, a design that still provides a useful reference point for agent-memory retrieval.</p>
 <hr />
 <h2 id="short-term-agent-memory-the-checkpoint-store">Short-term agent memory: the checkpoint store</h2>
 <p>Every time a LangGraph node executes, the framework serializes the full graph state and writes it to a <strong>checkpoint store</strong>. That's the foundation for pause/resume, time-travel debugging, and HITL workflows.</p>
 <p><img alt="Hot Memory Checkpoint Flow" src="../../../../assets/2026-02-14-memory/hot-memory-checkpoint.svg" /></p>
-<p>A checkpoint contains the graph state needed to resume: the <code>AgentState</code> from <a href="/blog/2026/01/31/ai-agent-reasoning-loops/">Part 1</a> (messages, identity, user profile, plan steps, research data, execution mode), plus LangGraph metadata like which node produced it and a monotonically increasing sequence number. When the graph resumes — after a HITL interrupt or a process restart — it loads the latest checkpoint and continues from exactly where it stopped. A checkpoint is not the same thing as an append-only event log or trace; <a href="/blog/2026/05/26/ai-agent-runtime/">Part 5</a> separates those runtime observability surfaces explicitly.</p>
+<p>A checkpoint contains the graph state needed to resume: the <code>AgentState</code> from <a href="/blog/2026/01/31/ai-agent-reasoning-loops/">Part 1</a> (messages, identity, user profile, plan steps, research data, execution mode), plus LangGraph metadata such as the node that produced it and its checkpoint ID. After a HITL interrupt or process restart, the graph loads the latest recorded boundary and re-enters the next node. It does not continue from an arbitrary Python line. A checkpoint is also different from an append-only event log or trace; <a href="/blog/2026/05/26/ai-agent-runtime/">Part 5</a> separates those runtime observability surfaces explicitly.</p>
 <h3 id="how-langgraph-checkpointing-works">How LangGraph checkpointing works</h3>
 <p>LangGraph's <code>BaseCheckpointSaver</code> is a simple interface: <code>put()</code> writes a checkpoint, <code>get_tuple()</code> reads the latest one for a thread, <code>list()</code> returns the history. Every checkpoint is keyed by <code>(thread_id, checkpoint_ns, checkpoint_id)</code>, where <code>thread_id</code> identifies the conversation, <code>checkpoint_ns</code> handles subgraph namespacing, and <code>checkpoint_id</code> is a unique version.</p>
-<p>The decision that matters is which backend to put behind it. LangGraph ships two production options: PostgreSQL and Redis.</p>
+<p>The decision that matters is which backend to put behind it. PostgreSQL and Redis are two common production choices.</p>
 <h3 id="postgresql-vs-redis">PostgreSQL vs Redis</h3>
 <p><img alt="Redis vs PostgreSQL" src="../../../../assets/2026-02-14-memory/redis-vs-postgres.svg" /></p>
 <table>
@@ -1973,48 +1962,33 @@
 </thead>
 <tbody>
 <tr>
-<td><strong>Read latency</strong></td>
-<td>~0.65ms</td>
-<td>~0.095ms</td>
-</tr>
-<tr>
-<td><strong>Write latency</strong></td>
-<td>~2ms (unlogged) to 10ms (with WAL)</td>
-<td>~0.095ms</td>
-</tr>
-<tr>
-<td><strong>Throughput</strong></td>
-<td>~15K txn/s</td>
-<td>~893K req/s</td>
-</tr>
-<tr>
-<td><strong>Durability</strong></td>
-<td>Full ACID, WAL + replication</td>
-<td>Configurable (AOF/RDB), risk of data loss</td>
+<td><strong>Durability model</strong></td>
+<td>ACID transactions, WAL, and replication</td>
+<td>Configurable AOF or RDB persistence</td>
 </tr>
 <tr>
 <td><strong>Checkpoint history</strong></td>
-<td>Full history (resume, time-travel debugging)</td>
-<td>Configurable retention via maxcount</td>
+<td>Durable history for resume and debugging</td>
+<td>Retention depends on saver and eviction settings</td>
 </tr>
 <tr>
-<td><strong>Operational cost</strong></td>
-<td>Moderate (standard RDBMS ops)</td>
-<td>Higher (RAM-bound, memory management)</td>
+<td><strong>Primary constraint</strong></td>
+<td>Database write latency and table growth</td>
+<td>RAM use, eviction, and persistence configuration</td>
 </tr>
 <tr>
-<td><strong>Scaling pattern</strong></td>
-<td>Vertical + read replicas</td>
-<td>Horizontal (Redis Cluster)</td>
+<td><strong>Operational fit</strong></td>
+<td>Teams already operating relational databases</td>
+<td>Teams already operating Redis at high throughput</td>
 </tr>
 <tr>
-<td><strong>Best for</strong></td>
-<td>Durability-first resume and debugging</td>
-<td>Low-latency, high-throughput, real-time</td>
+<td><strong>Best default for</strong></td>
+<td>Durable resume and reproducible debugging</td>
+<td>Latency-sensitive, recoverable session state</td>
 </tr>
 </tbody>
 </table>
-<p><em>Latency benchmarks from <a href="https://www.cybertec-postgresql.com/en/postgresql-vs-redis-vs-memcached-performance/">CyberTec</a> and <a href="https://risingwave.com/blog/postgresql-vs-redis-performance-and-use-case-comparison/">RisingWave</a> comparisons.</em></p>
+<p>Generic database benchmarks do not predict checkpoint performance. Measure the serialized state size, write frequency, persistence settings, and concurrency of your own graph.</p>
 <h3 id="postgresql-the-durable-default">PostgreSQL: the durable default</h3>
 <p>PostgreSQL is the safer default for most teams. Checkpoints survive crashes, you get full transaction semantics, and the checkpoint history makes time-travel debugging straightforward.</p>
 <p>From <a href="https://github.com/slavadubrov/market-analyst-agent"><code>checkpointer_setup.py</code></a>:</p>
@@ -2167,47 +2141,40 @@
 <thead>
 <tr>
 <th>Approach</th>
-<th>Best For</th>
-<th>Latency</th>
-<th>Complexity</th>
+<th>Best for</th>
+<th>Main operational cost</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><strong>Vector search (Qdrant)</strong></td>
 <td>Semantic recall of unstructured facts</td>
-<td>5–20ms</td>
-<td>Medium</td>
+<td>Embedding and index lifecycle</td>
 </tr>
 <tr>
 <td><strong>Key-value store (Redis)</strong></td>
-<td>Structured user profiles, preferences</td>
-<td>&lt;1ms</td>
-<td>Low</td>
+<td>Structured user profiles and preferences</td>
+<td>Memory use and persistence policy</td>
 </tr>
 <tr>
 <td><strong>Document store (files)</strong></td>
-<td>Project knowledge, agent-managed notes</td>
-<td>1–5ms</td>
-<td>Low</td>
+<td>Project knowledge and agent-managed notes</td>
+<td>Concurrency, permissions, and search</td>
 </tr>
 <tr>
 <td><strong>Full-text search (PostgreSQL <a href="https://www.postgresql.org/docs/current/gin.html">GIN index</a>)</strong></td>
-<td>Keyword-based recall of conversation history</td>
-<td>2–10ms</td>
-<td>Low</td>
+<td>Keyword recall over conversation history</td>
+<td>Index growth and query tuning</td>
 </tr>
 <tr>
 <td><strong>Knowledge graph (Neo4j)</strong></td>
-<td>Entity relationships, multi-hop reasoning</td>
-<td>10–50ms</td>
-<td>High</td>
+<td>Entity relationships and multi-hop queries</td>
+<td>Graph modeling and another data system</td>
 </tr>
 <tr>
 <td><strong>Hybrid (vector + keyword)</strong></td>
-<td>Best recall when query intent varies</td>
-<td>10–30ms</td>
-<td>Medium</td>
+<td>Recall when query intent varies</td>
+<td>Two scoring paths to tune and evaluate</td>
 </tr>
 </tbody>
 </table>
@@ -2250,8 +2217,8 @@
 <p><strong>Managed memory frameworks</strong> like <a href="https://mem0.ai/research">Mem0</a> and <a href="https://docs.letta.com/concepts/memgpt/">Letta</a> (formerly MemGPT) handle the extraction-consolidation-retrieval pipeline for you. Mem0's approach is notable: an LLM extracts candidate memories, a decision engine compares each new fact against existing entries in the vector store, and a resolver decides to add, update, or delete, which keeps the memory store coherent and non-redundant. Letta takes an operating-systems angle: agents manage their own context window using memory management tools, autonomously moving data between "core memory" (in-context) and "archival memory" (out-of-context). Both are worth evaluating if you want faster time-to-production and don't need full control over the memory pipeline.</p>
 <hr />
 <h2 id="document-memory-the-agents-filing-cabinet">Document memory: the agent's filing cabinet</h2>
-<p>The pattern is widespread in practice but underexplored in academic literature. Framework documentation covers vector stores, knowledge graphs, and context management in depth, but file-based memory barely gets a footnote. That's a gap worth filling, because this is how the most effective AI coding assistants actually persist knowledge. <a href="https://www.letta.com/blog/benchmarking-ai-agent-memory">Letta's benchmark</a> found a plain filesystem approach scored 74.0% on the LoCoMo conversational memory benchmark, beating several specialized memory libraries. Frontier models are already trained on agentic coding tasks and handle file operations natively, so the pattern matches their strengths.</p>
-<p>The shift came from longer context windows. In 2023-2024, with 8k-32k tokens to work with, you had no choice but to shred documents into chunks and embed them. With 1M+ token windows (Gemini 1.5, Claude 4), it's usually more effective to let the agent read the whole file than to guess which chunks are relevant. The operational story is also simpler. You can read, edit, and <code>git diff</code> a Markdown file. You cannot <code>git diff</code> a vector database.</p>
+<p>File-based memory has more product adoption than coverage in the memory taxonomies above. In one vendor-run LoCoMo evaluation, <a href="https://www.letta.com/blog/benchmarking-ai-agent-memory">Letta reported</a> 74.0% for its filesystem approach. Keep that result within its model, benchmark, and harness conditions, but the operational advantage is easy to inspect: developers can read, edit, and diff the stored knowledge directly.</p>
+<p>Longer context windows also make whole-file reads practical for some project documents. Chunked retrieval still fits large corpora, but a short conventions or handoff file can often be loaded directly. The choice depends on document size, retrieval precision, context budget, and how often people need to review or edit the memory.</p>
 <p>Vector stores and key-value backends handle semantic recall and structured lookups well. But there's a third category of agent knowledge that neither serves cleanly: <strong>accumulated project context</strong>, the conventions, research notes, and decisions that the agent needs across sessions and that benefit from being human-readable and version-controlled.</p>
 <p>This is <strong>document memory</strong>: the agent reads and writes structured files (Markdown, JSON, YAML) to a known directory. No embeddings, no database, no infrastructure. Just files on disk that both the agent and the developer can <code>cat</code>, <code>grep</code>, <code>git diff</code>, and edit by hand.</p>
 <h3 id="why-files">Why files?</h3>
@@ -2465,7 +2432,7 @@
 </li>
 </ul>
 <p>The <a href="https://sites.google.com/view/memagent-iclr26/">MemAgents workshop at ICLR 2026</a> is one sign the research community is catching up to what practitioners have already built. Document memory has clearly outgrown its coding-assistant origins.</p>
-<p>Skills are document memory with a schema. The <a href="https://agentskills.io/specification">Agent Skills standard</a> (<code>SKILL.md</code> files with YAML frontmatter and a Markdown body) is now used by both Anthropic and OpenAI Codex.</p>
+<p>Skills use documents to package procedural instructions. The <a href="https://agentskills.io/specification">Agent Skills standard</a> stores those instructions in <code>SKILL.md</code> files with YAML frontmatter and a Markdown body. That resembles document memory at the storage layer, but the role is different: a skill tells the agent how to perform a class of work, while memory records facts learned from a project or prior run. <a href="/blog/2026/03/24/ai-agent-tool-use/">Part 3</a> covers that distinction from the tool side.</p>
 <p><a href="https://modelcontextprotocol.io/specification/2025-11-05">MCP (Model Context Protocol)</a> goes the same direction: tool definitions are JSON Schema files any agent can discover and call. The protocol has <a href="https://www.pento.ai/blog/a-year-of-mcp-2025-review">97 million monthly SDK downloads</a> and is supported by OpenAI, Google, Microsoft, and AWS. MCP is not coding-specific. The same servers connect agents to databases, internal APIs, and enterprise systems.</p>
 <p>Both point at the same pattern: procedural knowledge stored as schema-enforced documents, with explicit read/write operations. MCP, now governed by the <a href="https://www.anthropic.com/news/donating-the-model-context-protocol-and-establishing-of-the-agentic-ai-foundation">Agentic AI Foundation</a>, is the closest thing to an interop standard the agent ecosystem has.</p>
 <h3 id="scaling-document-memory-for-production">Scaling document memory for production</h3>
@@ -2707,44 +2674,16 @@
 <hr />
 <h2 id="key-takeaways">Key takeaways</h2>
 <ol>
-<li>
-<p>Agent memory splits into three tiers: hot (checkpoint store for the current session), cold (long-term store for cross-session knowledge), and document (file store for accumulated project knowledge). Design each tier for its access pattern.</p>
-</li>
-<li>
-<p>Use PostgreSQL checkpointing as your default. It gives you ACID durability, full checkpoint history, and time-travel debugging. Switch to Redis only when sub-millisecond latency is a hard requirement.</p>
-</li>
-<li>
-<p>LangGraph's checkpoint system handles hot memory natively. Every node write is persisted automatically, so pause/resume and HITL workflows need zero application code.</p>
-</li>
-<li>
-<p>Start long-term memory with key-value stores for structured user profiles. Add vector search (Qdrant, Pinecone, or LangGraph's built-in Store with vector index) when you need semantic recall over unstructured facts.</p>
-</li>
-<li>
-<p>Document memory is underexplored in the literature but widely adopted in practice. Most frameworks and surveys cover vector stores and checkpoints but skip file-based memory. The pattern has spread well beyond AI coding assistants. Claude Code, Cursor, and Windsurf converged on plain-text files; Voyager stores Minecraft skills as code libraries; ECR3 winners iterated on procedural prompt documents; web agents synthesize reusable workflow APIs. When the agent learns something wrong, you open a Markdown file and fix it. When you want to know what the agent knows, you <code>ls</code> the memory directory.</p>
-</li>
-<li>
-<p>Memory changes the product, not just the infrastructure. The difference between "the agent remembers my preferences" and "the agent asks me the same questions every time" is what makes users come back.</p>
-</li>
-<li>
-<p>Set retention policies from day one. Stale memory hurts agent performance, and unbounded storage creates privacy risks. Expire episodic memories after 90 days, preferences after 365, and review document memory periodically for contradictions.</p>
-</li>
-<li>
-<p>Cap recalled context. Every recalled fact competes for tokens in the context window. Retrieve the top 5 most relevant facts, not everything you have.</p>
-</li>
+<li>Agent memory is several stores with different access patterns. Keep resumable checkpoints, structured facts, semantic recall, and project documents distinct.</li>
+<li>Build pause and resume before personalization. Losing task progress is the first memory failure a long-running agent exposes.</li>
+<li>Put deterministic facts in structured storage. Use vector search when the query is fuzzy and phrasing varies.</li>
+<li>Use files for project knowledge that people need to inspect, edit, version, or review in a diff.</li>
+<li>Give every memory type an expiry, conflict, and deletion rule. A memory the system cannot correct becomes product debt.</li>
+<li>Limit what returns to the model. Stored memory has value only when retrieval puts the right evidence into the current context.</li>
 </ol>
 <hr />
-<h2 id="whats-next">What's next</h2>
-<p>In Part 3, <strong>AI Agent Tool Use in 2026</strong>, I'll cover tool ergonomics and the Agent-Computer Interface (ACI): how to design tools that LLMs can actually use reliably. Tool descriptions, argument schemas, and error handling patterns are what decide whether your agent calls the right tool with the right arguments, or hallucinates its way into a cascade of failures.</p>
-<hr />
-<h2 id="key-takeaways_1">Key Takeaways</h2>
-<ol>
-<li>Agent memory is not one store. Separate hot checkpoints, cold semantic memory, structured facts, and document memory.</li>
-<li>Use checkpoint stores for pause/resume before adding long-term personalization. Losing task progress is the first production failure users notice.</li>
-<li>Vector memory is useful for fuzzy recall, but deterministic facts belong in structured storage.</li>
-<li>File-based memory is underrated because it is inspectable, editable, and versionable.</li>
-<li>Memory needs expiry and conflict rules. Stale preferences and duplicated facts are product bugs, not just retrieval noise.</li>
-<li>The agent should write memories only when the behavior benefits from remembering them later.</li>
-</ol>
+<h2 id="the-next-layer-is-action">The next layer is action</h2>
+<p>Part 3, <a href="/blog/2026/03/24/ai-agent-tool-use/"><strong>AI Agent Tool Use in 2026</strong></a>, moves from stored state to action. It asks how an agent discovers and calls tools, and how the tool boundary returns errors that the reasoning loop can use. Parts 5 and 6 return to memory from the operational side: the runtime restores a checkpoint, while the harness decides what belongs in the handoff to the next model session.</p>
 <h2 id="references">References</h2>
 <h3 id="papers">Papers</h3>
 <ul>
@@ -2817,6 +2756,7 @@
 <li><a href="/blog/2026/03/24/ai-agent-tool-use/">Part 3: AI Agent Tool Use in 2026</a> — MCP, CLI, Skills, code execution, and ACI</li>
 <li><a href="/blog/2026/04/20/ai-agent-security/">Part 4: AI Agent Security in 2026</a> — guardrails, permissions, sandboxes, HITL, and MCP scoping</li>
 <li><a href="/blog/2026/05/26/ai-agent-runtime/">Part 5: Long-Running AI Agent Runtime in 2026</a> — sessions, sandboxes, checkpoints, harnesses, and deployment shapes</li>
+<li><strong>Part 6: Harness Engineering for AI Agents</strong> (coming next) — acceptance checks, traces, retries, handoffs, and the loop around the model</li>
 </ul>
 
 
