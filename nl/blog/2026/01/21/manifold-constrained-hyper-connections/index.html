@@ -1,1779 +1,127 @@
-
-<!doctype html>
-<html lang="nl" class="no-js">
-  <head>
-    
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1">
-      
-        <meta name="description" content="Een technische uitleg van DeepSeek’s Manifold-Constrained Hyper-Connections (mHC), schaling van de breedte van de residuestroom, Sinkhorn-routering en trainingsstabiliteit.">
-      
-      
-        <meta name="author" content="Viacheslav Dubrov">
-      
-      
-        <link rel="canonical" href="https://slavadubrov.github.io/nl/blog/2026/01/21/manifold-constrained-hyper-connections/">
-      
-      
-      
-      
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="en">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/de/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="de">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/ru/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="ru">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/es/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="es">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/pt/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="pt">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/fr/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="fr">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/nl/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="nl">
-        
-      
-      
-        <link rel="alternate" type="application/rss+xml" title="RSS feed" href="../../../../../../feed_rss_created.xml">
-        <link rel="alternate" type="application/rss+xml" title="RSS feed met geüpdatet inhoud" href="../../../../../../feed_rss_updated.xml">
-      
-      <link rel="icon" href="../../../../../../assets/favicon-eoc.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.6">
-    
-    
-      
-        <title>Manifolds-beperkte hyperverbindingen (mHC): Uitleg van DeepSeek Residual Scaling - Edge of Context: Practical AI Engineering</title>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../../assets/stylesheets/main.484c7ddc.min.css">
-      
-        
-        <link rel="stylesheet" href="../../../../../../assets/stylesheets/palette.ab4e12ef.min.css">
-      
-      
-
-
-    
-    
-      
-    
-    
-      
-        
-        
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
-        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../../assets/brand.css">
-    
-      <link rel="stylesheet" href="../../../../../../assets/blog-sidebar.css">
-    
-      <link rel="stylesheet" href="../../../../../../assets/blog-index.css">
-    
-    <script>__md_scope=new URL("../../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
-    
-      
-  
-
-
-  
-  
-
-<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-T51K83ENZ5"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-T51K83ENZ5",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
-  
-    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
-  
-
-    
-        
-
-   
-     
-<!-- Open Graph -->
-<meta property="og:title" content="Manifolds-beperkte hyperverbindingen (mHC): Uitleg van DeepSeek Residual Scaling" />
-<meta property="og:description" content="Een technische uitleg van DeepSeek’s Manifold-Constrained Hyper-Connections (mHC), schaling van de breedte van de residuestroom, Sinkhorn-routering en trainingsstabiliteit." />
-<meta property="og:url" content="https://slavadubrov.github.io/nl/blog/2026/01/21/manifold-constrained-hyper-connections/" />
-<meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
-<meta
-  property="og:type"
-  content="article"
-/>
-<meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png" />
-<!-- Twitter Card -->
-<meta
-  name="twitter:card"
-  content="summary"
-/>
-<meta name="twitter:title" content="Manifolds-beperkte hyperverbindingen (mHC): Uitleg van DeepSeek Residual Scaling" />
-<meta name="twitter:description" content="Een technische uitleg van DeepSeek’s Manifold-Constrained Hyper-Connections (mHC), schaling van de breedte van de residuestroom, Sinkhorn-routering en trainingsstabiliteit." />
-<meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png" />
-<!-- Site identity schema -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Person",
-        "@id": "https://slavadubrov.github.io/#person",
-        "name": "Viacheslav Dubrov",
-        "alternateName": "Slava Dubrov",
-        "url": "https://slavadubrov.github.io/about/",
-        "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-      },
-      {
-        "@type": "WebSite",
-        "@id": "https://slavadubrov.github.io/#website",
-        "name": "Edge of Context: Practical AI Engineering",
-        "alternateName": "Edge of Context",
-        "url": "https://slavadubrov.github.io/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "nl",
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        }
-      },
-      {
-        "@type": "Blog",
-        "@id": "https://slavadubrov.github.io/#blog",
-        "name": "Edge of Context: Practical AI Engineering",
-        "url": "https://slavadubrov.github.io/blog/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "nl",
-        "author": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "isPartOf": {
-          "@id": "https://slavadubrov.github.io/#website"
-        }
-      }
-    ]
-  }
-</script>
-
-<script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      "itemListElement": [
-        {
-          "@type": "ListItem",
-          "position": 1,
-          "name": "Edge of Context: Practical AI Engineering",
-          "item": "https://slavadubrov.github.io/"
-        },
-        {
-          "@type": "ListItem",
-          "position": 2,
-          "name": "Manifolds-beperkte hyperverbindingen (mHC): Uitleg van DeepSeek Residual Scaling",
-          "item": "https://slavadubrov.github.io/nl/blog/2026/01/21/manifold-constrained-hyper-connections/"
-        }
-  
-      ]
-    }
-</script>
- 
-<style>
-  /* Header social icons */
-  .md-header__social {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-left: 0.5rem;
-  }
-  .md-header__social a {
-    color: var(--md-primary-bg-color);
-    opacity: 0.7;
-    transition: opacity 0.2s;
-  }
-  .md-header__social a:hover {
-    opacity: 1;
-  }
-  .md-header__social svg {
-    width: 1.2rem;
-    height: 1.2rem;
-    fill: currentColor;
-  }
-  /* Adjust search to make room for social icons */
-  .md-search {
-    margin-right: 0;
-  }
-</style>
-
-<!-- Article-specific Open Graph -->
-       
-<meta property="article:published_time" content="2026-01-21" />
- 
-<meta property="article:modified_time" content="2026-05-31" />
- 
-<meta property="article:author" content="Viacheslav Dubrov" />
-  
-<meta property="article:tag" content="Model Engineering" />
- 
-<!-- Schema.org JSON-LD -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    "@id": "https://slavadubrov.github.io/nl/blog/2026/01/21/manifold-constrained-hyper-connections/#blogposting",
-    "headline": "Manifolds-beperkte hyperverbindingen (mHC): Uitleg van DeepSeek Residual Scaling",
-    "description": "Een technische uitleg van DeepSeek\u2019s Manifold-Constrained Hyper-Connections (mHC), schaling van de breedte van de residuestroom, Sinkhorn-routering en trainingsstabiliteit.",
-    "url": "https://slavadubrov.github.io/nl/blog/2026/01/21/manifold-constrained-hyper-connections/",
-    "image": "https://slavadubrov.github.io/assets/og-image.png",
-    "inLanguage": "nl",
-    "mainEntityOfPage": {
-      "@type": "WebPage",
-      "@id": "https://slavadubrov.github.io/nl/blog/2026/01/21/manifold-constrained-hyper-connections/"
-    },
-    "datePublished": "2026-01-21",
-    "dateModified": "2026-05-31",
-    "author": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "publisher": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "isPartOf": {
-      "@type": "Blog",
-      "@id": "https://slavadubrov.github.io/#blog",
-      "name": "Edge of Context: Practical AI Engineering",
-      "url": "https://slavadubrov.github.io/"
-    },
-    "keywords": "Model Engineering"
-  }
-</script>
-
-  
-<link rel="alternate" href="https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="x-default">
-</head>
-  
-  
-    
-    
-      
-    
-    
-    
-    
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
-  
-    
-    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
-    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
-    <label class="md-overlay" for="__drawer"></label>
-    <div data-md-component="skip">
-      
-        
-        <a href="#manifold-constrained-hyper-connections-mhc-uitleg-van-deepseek-residual-scalingmanifolds-beperkte-hyperverbindingen-mhc-lost-een-langdurig-bestaand-stabiliteitsprobleem-met-breedte-schaalverhoudingen-op" class="md-skip">
-          Ga naar inhoud
-        </a>
-      
-    </div>
-    <div data-md-component="announce">
-      
-    </div>
-    
-     
-      
-
-  
-
-<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
-  <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    <label class="md-header__button md-icon" for="__drawer">
-      
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
-    </label>
-    <div class="md-header__title" data-md-component="header-title">
-      <div class="md-header__ellipsis">
-        <div class="md-header__topic">
-          <span class="md-ellipsis">
-            Edge of Context: Practical AI Engineering
-          </span>
-        </div>
-        <div class="md-header__topic" data-md-component="header-topic">
-          <span class="md-ellipsis">
-            
-              Manifolds-beperkte hyperverbindingen (mHC): Uitleg van DeepSeek Residual Scaling
-            
-          </span>
-        </div>
-      </div>
-    </div>
-    
-      
-        <form class="md-header__option" data-md-component="palette">
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
-    
-      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
-    
-      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-</form>
-      
-    
-    
-      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
-    
-    
-      <div class="md-header__option">
-  <div class="md-select">
-    
-    <button class="md-header__button md-icon" aria-label="Selecteer taal">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
-    </button>
-    <div class="md-select__inner">
-      <ul class="md-select__list">
-        
-          <li class="md-select__item">
-            <a href="../../../../../../blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="en" class="md-select__link">
-              English
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../de/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="de" class="md-select__link">
-              Deutsch
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../ru/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="ru" class="md-select__link">
-              Русский
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../es/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="es" class="md-select__link">
-              Español
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../pt/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="pt" class="md-select__link">
-              Português
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../fr/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="fr" class="md-select__link">
-              Français
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="./" hreflang="nl" class="md-select__link">
-              Nederlands
-            </a>
-          </li>
-        
-      </ul>
-    </div>
-  </div>
-</div>
-    
-    
-      
-      
-        <label class="md-header__button md-icon" for="__search">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        </label>
-        <div class="md-search" data-md-component="search" role="dialog">
-  <label class="md-search__overlay" for="__search"></label>
-  <div class="md-search__inner" role="search">
-    <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" aria-label="Zoeken" placeholder="Zoeken" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
-      <label class="md-search__icon md-icon" for="__search">
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-      </label>
-      <nav class="md-search__options" aria-label="Zoeken">
-        
-        <button type="reset" class="md-search__icon md-icon" title="Leegmaken" aria-label="Leegmaken" tabindex="-1">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-        </button>
-      </nav>
-      
-    </form>
-    <div class="md-search__output">
-      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
-        <div class="md-search-result" data-md-component="search-result">
-          <div class="md-search-result__meta">
-            Zoeken initialiseren
-          </div>
-          <ol class="md-search-result__list" role="presentation"></ol>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-      
-    
-    
-  </nav>
-  
-    
-      
-<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
-  <div class="md-grid">
-    <ul class="md-tabs__list">
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../../" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Start
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Blog
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
-        <a href="../../../../fast-answers/" class="md-tabs__link">
-          
-  
-  
-    
-  
-  Snelle antwoorden
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../../about/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Over
-
-      </a>
-    </li>
-  
-
-      
-    </ul>
-  </div>
-</nav>
-    
-  
-</header>
-    
-<script>
-  // Inject social icons into header after DOM loads
-  document.addEventListener("DOMContentLoaded", function () {
-    const header = document.querySelector(".md-header__inner");
-    if (header) {
-      const social = document.createElement("div");
-      social.className = "md-header__social";
-      social.innerHTML = `
-      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
-      </a>
-      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
-      </a>
-      <a href="https://www.tiktok.com/@edge.of.context" title="TikTok" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M448 209.9a210.1 210.1 0 0 1-122.8-39.2v178.7A162.6 162.6 0 1 1 185 188.3v89.9a74.6 74.6 0 1 0 52.2 71.2V0h88a121.2 121.2 0 0 0 1.9 22.2 122.2 122.2 0 0 0 53.9 80.2 121.4 121.4 0 0 0 67 20.1v87.4z"/></svg>
-      </a>
-      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
-      </a>
-    `;
-      header.appendChild(social);
-    }
-  });
-</script>
-
-    <div class="md-container" data-md-component="container">
-      
-      
-        
-      
-      <main class="md-main" data-md-component="main">
-        <div class="md-main__inner md-grid">
-          
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-
-  
-
-
-<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigatie" data-md-level="0">
-  <label class="md-nav__title" for="__drawer">
-    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    Edge of Context: Practical AI Engineering
-  </label>
-  
-  <ul class="md-nav__list" data-md-scrollfix>
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Start
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Blog
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-      
-        
-          
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <div class="md-nav__link md-nav__container">
-            <a href="../../../../fast-answers/" class="md-nav__link ">
-              
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Snelle antwoorden
-  
-
-    
-  </span>
-  
-  
-
-            </a>
-            
-              
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
-                <span class="md-nav__icon md-icon"></span>
-              </label>
-            
-          </div>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Snelle antwoorden
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ai-agent-frameworks/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Frameworks
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/rag-evaluation-tools/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    RAG Evaluation Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/local-llm-tools-macos/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Local LLM Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ocr-models-document-ai/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    OCR Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ner-models/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    NER Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/agent-security-patterns/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Security Patterns
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/search-ranking-stack/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Search Ranking Stack
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../../about/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Over
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-  </ul>
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-<nav class="md-nav md-nav--secondary" aria-label="Inhoudsopgave">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Inhoudsopgave
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#waarom-residuele-verbindingen-werken" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Waarom residuele verbindingen werken
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Waarom residuele verbindingen werken">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#het-diepteprobleem" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Het diepteprobleem
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#de-residuele-oplossing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        De residuele oplossing
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#de-complicatie-bij-transformers-de-plaatsing-van-layer-normalization" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        De complicatie bij Transformers: de plaatsing van layer normalization
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#hyper-connections-de-revolutie-in-breedte" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Hyper-Connections: De revolutie in breedte
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Hyper-Connections: De revolutie in breedte">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#wat-is-een-stream" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Wat is een “Stream”?
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#kernmechanismen" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Kernmechanismen
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#de-resultaten" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        De resultaten
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#het-nadeel" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Het nadeel
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#waarom-hyper-connecties-falen" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Waarom hyper-connecties falen
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Waarom hyper-connecties falen">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#de-wiskunde-achter-instabiliteit" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        De wiskunde achter instabiliteit
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#de-drie-beperkingen" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        De drie beperkingen
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#de-sinkhorn-knopp-algoritme" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        De Sinkhorn-Knopp-algoritme
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#verfijningen-van-initialisatie" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Verfijningen van initialisatie
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#volledige-mhc-architectuur" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Volledige mHC-architectuur
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#infrastructuur-het-praktisch-maken" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Infrastructuur: Het praktisch maken
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Infrastructuur: Het praktisch maken">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#kernelfusie" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Kernelfusie
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#selectieve-herberekening" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Selectieve herberekening
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#resultaten" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Resultaten
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#empirische-validatie" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Empirische validatie
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#afwegingen-en-overwegingen" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Afwegingen en overwegingen
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#belangrijkste-conclusies" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Belangrijkste conclusies
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#referenties" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Referenties
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-          
-              
-
-<div class="md-content md-content--post" data-md-component="content">
-  <div
-    class="md-sidebar md-sidebar--post"
-    data-md-component="sidebar"
-    data-md-type="navigation"
-  >
-    <div class="md-sidebar__scrollwrap">
-      <div class="md-sidebar__inner md-post">
-        <nav class="md-nav md-nav--primary">
-          <div class="md-post__back">
-            <div class="md-nav__title md-nav__container">
-              <a href="../../../../" class="md-nav__link">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-                <span class="md-ellipsis"> Terug naar de inhoudsopgave </span>
-              </a>
-            </div>
-          </div>
-
-          
-          <ul class="md-post__meta md-nav__list">
-            <li class="md-nav__item md-nav__item--section">
-              <div class="md-post__title">
-                <span class="md-ellipsis"
-                  >Onderwerpen</span
-                >
-              </div>
-              <nav class="md-nav">
-                          
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-agents"
-                  >
-                    <span class="blog-category-icon"
-                      >🦾</span
-                    >
-                    <span class="blog-category-name"
-                      >AI-agenten</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../06/20/schema-guided-agent-memory/">Gedächtnis van AI-agenten: schema-gestuurde getypeerde toestand voor langlopende systemen</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../06/10/agent-evals-traces-to-test-suites/">Beoordeling van AI-agenten in productieomgevingen: van trace-gegevens tot testsets</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/26/ai-agent-runtime/">Lange-lopende AI-agent runtime in 2026: sessies, sandboxen, checkpoints en harnesses</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/20/ai-agent-security/">Beveiliging van AI-agenten in 2026: beperkende maatregelen, toestemmingen, sandboxomgevingen en MCP-bedreigingen</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../03/24/ai-agent-tool-use/">Gebruik van AI-agenthulpmiddelen in 2026: MCP, CLI, Skills en codeuitvoering</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../02/14/ai-agent-memory-architecture/">AI-agentgeheugenarchitectuur in 2026: checkpoints, vectoropslag en bestandsgebaseerd geheugen</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../31/ai-agent-reasoning-loops/">Redeneerlusjes van AI-agenten in 2026: ReAct versus ReWOO versus Plan-en-uitvoeren</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../11/enterprise-rag-challenge-agent-architectures/">Enterprise RAG Challenge 3 (ECR3): Succesvolle architecturen voor AI-agenten</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/12/28/schema-guided-reasoning-vllm/">Schema-geleid redeneren op vLLM: Gestructureerde uitvoer met xgrammar en Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/20/domain-driven-design-ai-agents/">Domein-gestuurd ontwerp voor AI-agenten: Begrensde contexten, hulpmiddelen en bedrijfsregels</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/05/context-engineering-ai-agents/">Context engineering voor AI-agenten: contextvensters, geheugen, hulpmiddelen en beperkende maatregelen</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/06/10/mcp-server-tutorial-uv-fastmcp/">Tutorial voor MCP-server met uv en FastMCP: Bouw een FeatureStoreLite-server</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section blog-category-section--active"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#model-engineering"
-                  >
-                    <span class="blog-category-icon"
-                      >🤖</span
-                    >
-                    <span class="blog-category-name"
-                      >Modelengineering</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Modelkwantificatie in 2026: van fundamenten tot productiegebruik</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../03/13/llm-engineering-guide/">GGML-engineeringsgids: 45 concepten voor inferentie, training, architectuur en operationele beheersing</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post blog-category-post--active"
-                    >
-                      <a href="./">Manifolds-beperkte hyperverbindingen (mHC): Uitleg van DeepSeek Residual Scaling</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../04/llm-fine-tuning-guide/">Gids voor fine-tuning van LLM’s: LoRA, QLoRA, DoRA, Unsloth, Axolotl en implementatie</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/12/28/schema-guided-reasoning-vllm/">Schema-geleid redeneren op vLLM: Gestructureerde uitvoer met xgrammar en Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">LoRAX-beheergids: Duizenden LoRA-adapters op Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/11/open-source-llm-formats/">Open-source varianten en bestandsformaten van LLM’s: Instruct, GGUF, GPTQ, AWQ en MoE</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/10/local-llms-on-macos/">Lokale LLM’s op macOS: Ollama, LM Studio, llama.cpp, MLX en Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/04/scaling-llms-multi-gpu-multi-node/">Schaalbaarheid van grote taalmodellen: multi-GPU- en multi-node-strategieën die in de praktijk werken</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-infrastructure"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >AI-infrastructuur</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Modelkwantificatie in 2026: van fundamenten tot productiegebruik</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../02/21/modern-data-processing-engines/">Vergelijking van moderne dataverwerkingsmachines: Polars, DataFusion, Daft, Ray Data, Pandas en Spark</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">LoRAX-beheergids: Duizenden LoRA-adapters op Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/06/mlops-vs-llmops/">MLOps versus LLMOps: Infrastructuur voor foundation models en LLM-systemen</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/04/scaling-llms-multi-gpu-multi-node/">Schaalbaarheid van grote taalmodellen: multi-GPU- en multi-node-strategieën die in de praktijk werken</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#retrieval-and-language-systems"
-                  >
-                    <span class="blog-category-icon"
-                      >🔍</span
-                    >
-                    <span class="blog-category-name"
-                      >Zoek- en taalsystemen</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/10/rag-evaluation-metrics/">Evaluatie van RAG: Metrieken voor elke fase van een productiesysteem voor RAG</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/02/ner-guide/">Het definitieve handboek over NER in 2026: encoders, LLM’s en de drie-laagse productiearchitectuur</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../03/04/ocr-guide/">Het definitieve handboek over OCR in 2026: van pipelines tot VLM’s</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../02/08/search-ranking-stack/">Search Ranking Stack in 2026: BM25, Embeddings, Cross-Encoders en LLM Reranking</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#developer-tooling"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >Ontwikkelaarstools</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/06/10/mcp-server-tutorial-uv-fastmcp/">Tutorial voor MCP-server met uv en FastMCP: Bouw een FeatureStoreLite-server</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/10/local-llms-on-macos/">Lokale LLM’s op macOS: Ollama, LM Studio, llama.cpp, MLX en Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/10/stable-diffusion-macos-tools/">Stable Diffusion op macOS: Tools voor tekenen, DiffusionBee, ComfyUI, A1111 en Fooocus</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/08/pyproject-toml-guide/">Gids voor `pyproject.toml`: pakketbouw in Python, afhankelijkheden en configuratie van tools</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/07/zprofile-vs-zshrc/">Zsh-startbestanden: `~/.zprofile` versus `~/.zshrc` op macOS en Linux</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/04/19/macbook-ai-engineering-setup/">Instellingen van een MacBook voor AI-engineering: macOS-hulpmiddelen, Python, Docker en workflow in de terminal</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/04/17/uv-python-on-macos/">UV op macOS: Beheer van Python-versies, projecten en tools</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                
-              </nav>
-            </li>
-          </ul>
-
-          
-        </nav>
-        
-      </div>
-    </div>
-  </div>
-  <article class="md-content__inner md-typeset">
-     
-  
-
-
-
-
-<!-- automated-translation-notice:start -->
-
-<div class="admonition info">
-<p class="admonition-title">Automatische vertaling</p>
-</div>
-<p>Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p>
+<!DOCTYPE html><html lang="nl"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Manifolds-beperkte hyperverbindingen (mHC): Uitleg van DeepSeek Residual Scaling - Edge of Context: Practical AI Engineering</title><meta name="description" content="Een technische uitleg van DeepSeek’s Manifold-Constrained Hyper-Connections (mHC), schaling van de breedte van de residuestroom, Sinkhorn-routering en trainingsstabiliteit."><link rel="canonical" href="https://slavadubrov.github.io/nl/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="de" href="https://slavadubrov.github.io/de/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="en" href="https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="es" href="https://slavadubrov.github.io/es/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="fr" href="https://slavadubrov.github.io/fr/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="nl" href="https://slavadubrov.github.io/nl/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="pt" href="https://slavadubrov.github.io/pt/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="ru" href="https://slavadubrov.github.io/ru/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="x-default" href="https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/"><meta property="og:type" content="article"><meta property="og:title" content="Manifolds-beperkte hyperverbindingen (mHC): Uitleg van DeepSeek Residual Scaling - Edge of Context: Practical AI Engineering"><meta property="og:description" content="Een technische uitleg van DeepSeek’s Manifold-Constrained Hyper-Connections (mHC), schaling van de breedte van de residuestroom, Sinkhorn-routering en trainingsstabiliteit."><meta property="og:url" content="https://slavadubrov.github.io/nl/blog/2026/01/21/manifold-constrained-hyper-connections/"><meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Manifolds-beperkte hyperverbindingen (mHC): Uitleg van DeepSeek Residual Scaling - Edge of Context: Practical AI Engineering"><meta name="twitter:description" content="Een technische uitleg van DeepSeek’s Manifold-Constrained Hyper-Connections (mHC), schaling van de breedte van de residuestroom, Sinkhorn-routering en trainingsstabiliteit."><meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta property="article:published_time" content="2026-01-21"><meta property="article:modified_time" content="2026-05-31"><link rel="icon" href="/assets/favicon-eoc.svg" type="image/svg+xml"><link href="/pagefind/pagefind-component-ui.css" rel="stylesheet"><script src="/pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Manifolds-beperkte hyperverbindingen (mHC): Uitleg van DeepSeek Residual Scaling - Edge of Context: Practical AI Engineering","description":"Een technische uitleg van DeepSeek’s Manifold-Constrained Hyper-Connections (mHC), schaling van de breedte van de residuestroom, Sinkhorn-routering en trainingsstabiliteit.","url":"https://slavadubrov.github.io/nl/blog/2026/01/21/manifold-constrained-hyper-connections/","image":"https://slavadubrov.github.io/assets/og-image.png","datePublished":"2026-01-21","dateModified":"2026-05-31","author":{"@type":"Person","name":"Viacheslav Dubrov"}}</script><link rel="stylesheet" href="/_astro/BaseLayout.DgRW7Vi7.css"></head> <body> <a class="skip-link" href="#main-content">Skip to content</a> <header class="site-header"> <a class="brand" data-home-link href="/nl/" aria-label="Edge of Context home"> <img src="/assets/logo-eoc.svg" alt="" width="36" height="36"> <span>Edge of Context</span> </a> <nav aria-label="Primary navigation"> <ul> <li><a data-nav="home" href="/nl/">Start</a></li><li><a data-nav="blog" href="/nl/blog/">Blog</a></li><li><a data-nav="fastAnswers" href="/nl/blog/fast-answers/">Korte antwoorden</a></li><li><a data-nav="about" href="/nl/about/">Over</a></li> </ul> </nav> <div class="header-actions"> <pagefind-modal-trigger data-search-label="true">Zoeken</pagefind-modal-trigger> <label class="locale-switcher"> <span class="visually-hidden">Taal</span> <select id="locale-select"> <option value="/de/blog/2026/01/21/manifold-constrained-hyper-connections/">Deutsch</option><option value="/blog/2026/01/21/manifold-constrained-hyper-connections/">English</option><option value="/es/blog/2026/01/21/manifold-constrained-hyper-connections/">Español</option><option value="/fr/blog/2026/01/21/manifold-constrained-hyper-connections/">Français</option><option value="/nl/blog/2026/01/21/manifold-constrained-hyper-connections/" selected>Nederlands</option><option value="/pt/blog/2026/01/21/manifold-constrained-hyper-connections/">Português</option><option value="/ru/blog/2026/01/21/manifold-constrained-hyper-connections/">Русский</option> </select> </label> </div> </header> <main id="main-content" tabindex="-1">  <article class="prose" data-pagefind-body> <p class="article-meta"> <time datetime="2026-01-21">2026-01-21</time>  · Bijgewerkt <time datetime="2026-05-31">2026-05-31</time> </p> <!-- automated-translation-notice:start -->
+<blockquote>
+<p>[!NOTE] Automatische vertaling
+Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p>
+</blockquote>
 <!-- automated-translation-notice:end -->
-
 <h1 id="manifold-constrained-hyper-connections-mhc-uitleg-van-deepseek-residual-scalingmanifolds-beperkte-hyperverbindingen-mhc-lost-een-langdurig-bestaand-stabiliteitsprobleem-met-breedte-schaalverhoudingen-op">Manifold-Constrained Hyper-Connections (mHC): Uitleg van DeepSeek Residual Scaling<a href="https://arxiv.org/abs/2512.24880">Manifolds-beperkte hyperverbindingen (mHC)</a>**, lost een langdurig bestaand stabiliteitsprobleem met breedte-schaalverhoudingen op.</h1>
 <p>In dit artikel ga ik de ontwikkeling bespreken, van eenvoudige residuen tot mHC, waarbij ik uitleg waarom elke stap noodzakelijk was en hoe de oplossing van DeepSeek in werkelijkheid op grote schaal functioneert.</p>
 <!-- more -->
-
 <p><strong>Kort samengevat</strong>: Hyper-Connections breiden residuele stromen uit tot meerdere parallelle stromen om een snellere convergentie te bereiken, maar ze verstoren de identiteitsmapping die de stabiliteit van het trainen bewaart. mHC herstelt deze stabiliteit door mengmatrices te beperken tot het Birkhoff Polytope (dubbel stochastische matrices) met behulp van de differentieerbare Sinkhorn-Knopp-algoritme. Het resultaat: 4 parallelle stromen bij slechts 6,7% extra trainingsbelasting.</p>
-<hr />
+<hr>
 <h2 id="waarom-residuele-verbindingen-werken">Waarom residuele verbindingen werken</h2>
 <p>Voordat we bespreken wat mHC corrigeert, moeten we eerst begrijpen waarop het is gebaseerd.</p>
 <h3 id="het-diepteprobleem">Het diepteprobleem</h3>
 <p>Het stapelen van meer lagen zou de capaciteit van een model moeten verhogen. In de praktijk worden zeer diepe netwerken moeilijker te trainen. De capaciteit is er wel, maar de gradientgebaseerde optimalisatie faalt: gradients verdwijnen (krimpen tot bijna nul) of exploderen (groeien oneindig) wanneer ze door meerdere lagen gaan.</p>
 <h3 id="de-residuele-oplossing">De residuele oplossing</h3>
 <p>The <a href="https://arxiv.org/abs/1512.03385">ResNet-paper</a> er werd een elegante oplossing geïntroduceerd. In plaats van een directe afbeelding te leren, wordt de <em>residu</em> geleerd, oftewel het verschil ten opzichte van de identiteitfunctie:</p>
-<p><img alt="Standaard residuele verbinding" src="../../../../assets/2026-01-21-mhc-hyper-connections/residual_connection.svg" /></p>
+<p><img src="/nl/blog/assets/2026-01-21-mhc-hyper-connections/residual_connection.svg" alt="Standaard residuele verbinding"></p>
 <p>Het trucje zit in de <strong>identiteitsshortcut</strong>. Wanneer de residuele functie F(x) nul oplevert, werkt de laag als een perfecte doorlaatlaag. Hieruit volgen twee gevolgen:</p>
 <ol>
 <li><strong>Gradientenweg</strong>: Gradienten stromen rechtstreeks door de shortcut heen, waardoor verdwijningseffecten worden vermeden.</li>
 <li><strong>Eenvoudige optimalisatie</strong>: Als de identiteit optimaal is, leert het netwerk eenvoudigweg F(x) → 0.</li>
 </ol>
 <p>Dit ene architectuurverandering maakte het mogelijk om netwerken met honderden lagen te trainen.</p>
-<hr />
+<hr>
 <h2 id="de-complicatie-bij-transformers-de-plaatsing-van-layer-normalization">De complicatie bij Transformers: de plaatsing van layer normalization</h2>
 <p>Transformers brachten een nieuwe variabele met zich mee: waar Layer Normalization (LN) moet worden geplaatst. De beslissing lijkt onbeduidend, maar is dat niet.</p>
-<p><img alt="Trade-offs tussen post-LN en pre-LN benaderingen" src="../../../../assets/2026-01-21-mhc-hyper-connections/ln_placement.svg" /></p>
-<table>
-<thead>
-<tr>
-<th>Variant</th>
-<th>Plaatsing van LN’s</th>
-<th>Voordelen</th>
-<th>Belangrijkste beperking</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Post-LN</strong></td>
-<td>Na de residuele blokken</td>
-<td>Hoge modelcapaciteit</td>
-<td>Gradientverdwijning: LN in het hoofdpad schaalde de gradients per laag opnieuw in</td>
-</tr>
-<tr>
-<td><strong>Pre-LN</strong></td>
-<td>Voor de residuele blokken</td>
-<td>Uitstekende stabiliteit</td>
-<td>Representatieruimtekolaps: kenmerken worden over de lagen heen vergelijkbaar</td>
-</tr>
-</tbody>
-</table>
+<p><img src="/nl/blog/assets/2026-01-21-mhc-hyper-connections/ln_placement.svg" alt="Trade-offs tussen post-LN en pre-LN benaderingen"></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Variant</th><th>Plaatsing van LN’s</th><th>Voordelen</th><th>Belangrijkste beperking</th></tr></thead><tbody><tr><td><strong>Post-LN</strong></td><td>Na de residuele blokken</td><td>Hoge modelcapaciteit</td><td>Gradientverdwijning: LN in het hoofdpad schaalde de gradients per laag opnieuw in</td></tr><tr><td><strong>Pre-LN</strong></td><td>Voor de residuele blokken</td><td>Uitstekende stabiliteit</td><td>Representatieruimtekolaps: kenmerken worden over de lagen heen vergelijkbaar</td></tr></tbody></table>
 <p>The <a href="https://arxiv.org/abs/2304.14802"><strong>ResiDual</strong></a> De architectuur probeerde dit op te lossen met <em>twee</em> residuele paden: één Pre-LN voor stabiliteit en één Post-LN voor capaciteit. Er is echter nog steeds maar één residueel stroompje. Wat als je meerdere parallele stroompjes zou kunnen hebben?</p>
-<hr />
+<hr>
 <h2 id="hyper-connections-de-revolutie-in-breedte">Hyper-Connections: De revolutie in breedte</h2>
 <p><a href="https://arxiv.org/abs/2409.19606">Hyper-Connecties (HC)</a> Er werd een andere route genomen. Voeg niet alleen diepte toe, maar vergroot ook de <em>breedte</em> van de residuele stroom.</p>
-<p><img alt="Architectuur voor hyperconnecties" src="../../../../assets/2026-01-21-mhc-hyper-connections/hyper_connections.svg" /></p>
+<p><img src="/nl/blog/assets/2026-01-21-mhc-hyper-connections/hyper_connections.svg" alt="Architectuur voor hyperconnecties"></p>
 <h3 id="wat-is-een-stream">Wat is een “Stream”?</h3>
-<p>Bij standaard transformers vormen de invoer-tokenembeddings één enkele <span class="arithmatex">\(d\)</span>-dimensionale vector die de kenmerken van het token weergeeft. Deze enkele vectorreeks vormt de “residuale stream” die door elk blok stroomt.</p>
-<p>Bij Hyper-Connections is een <strong>stream</strong> een van de <span class="arithmatex">\(n\)</span> parallele instantiaties van deze toestand.</p>
-<p>Hoe verkrijgen we ze? Aan het begin van het netwerk wordt de oorspronkelijke invoerembedding <span class="arithmatex">\(n\)</span> keer gerepliceerd (waarbij <span class="arithmatex">\(n\)</span> de “expansieratio” is, meestal 4). De standaard <span class="arithmatex">\(d\)</span>-dimensionale verborgen toestand wordt dan een <span class="arithmatex">\(n \times d\)</span> “hyperverborgen matrix”.</p>
-<p>Deze <span class="arithmatex">\(n\)</span> identieke streams stromen door de transformerlagen van het netwerk, waar ze op verschillende manieren worden geaggregeerd, gerouteerd en uitgebreid door de hieronder beschreven mechanismen. Hierdoor gaan ze onmiddellijk uiteen en vormen ze aparte representatieroutes.</p>
+<p>Bij standaard transformers vormen de invoer-tokenembeddings één enkele <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>d</mi></mrow><annotation encoding="application/x-tex">d</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">d</span></span></span></span>-dimensionale vector die de kenmerken van het token weergeeft. Deze enkele vectorreeks vormt de “residuale stream” die door elk blok stroomt.</p>
+<p>Bij Hyper-Connections is een <strong>stream</strong> een van de <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> parallele instantiaties van deze toestand.</p>
+<p>Hoe verkrijgen we ze? Aan het begin van het netwerk wordt de oorspronkelijke invoerembedding <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> keer gerepliceerd (waarbij <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> de “expansieratio” is, meestal 4). De standaard <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>d</mi></mrow><annotation encoding="application/x-tex">d</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">d</span></span></span></span>-dimensionale verborgen toestand wordt dan een <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>×</mo><mi>d</mi></mrow><annotation encoding="application/x-tex">n \times d</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">n</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">d</span></span></span></span> “hyperverborgen matrix”.</p>
+<p>Deze <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> identieke streams stromen door de transformerlagen van het netwerk, waar ze op verschillende manieren worden geaggregeerd, gerouteerd en uitgebreid door de hieronder beschreven mechanismen. Hierdoor gaan ze onmiddellijk uiteen en vormen ze aparte representatieroutes.</p>
 <h3 id="kernmechanismen">Kernmechanismen</h3>
-<p>In plaats van één residuele route houdt HC <span class="arithmatex">\(n\)</span> parallele streams in stand die door het hele netwerk stromen. In elk transformerblok worden drie operaties uitgevoerd, elk geregeld door kleine, leerbare gewichten:</p>
+<p>In plaats van één residuele route houdt HC <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> parallele streams in stand die door het hele netwerk stromen. In elk transformerblok worden drie operaties uitgevoerd, elk geregeld door kleine, leerbare gewichten:</p>
 <ol>
-<li><strong>Aggregatie (<span class="arithmatex">\(H_{pre}\)</span>, voor-mapping)</strong>: De <span class="arithmatex">\(n\)</span> binnenkomende stromen worden gecomprimeerd tot één enkele vector voor de transformer-blok, waarbij gebruik wordt gemaakt van een leerbare matrix <span class="arithmatex">\(H_{pre}\)</span>. Elke stroom wordt vermenigvuldigd met een leerbaar belangheidsgewicht, waardoor dit fungeert als een invoerfilter.</li>
-<li><strong>Expansie (<span class="arithmatex">\(H_{post}\)</span>, na-mapping)</strong>: Na de kern transformer-blok (Attention of MLP) wordt de uitvoer via een leerbare matrix <span class="arithmatex">\(H_{post}\)</span> verspreid over <span class="arithmatex">\(n\)</span> afzonderlijke stromen. Dit dient als een uitvoergate, waarbij elke stroom wordt geschaald met een uniek leerbaar gewicht.</li>
-<li><strong>Menging (routing tussen stromen)</strong>: De nieuw geexpandeerde stromen worden gecombineerd met de oorspronkelijke residuele stromen. Een leerbare “feature-router”-matrix van formaat <span class="arithmatex">\(n \times n\)</span> (<span class="arithmatex">\(\mathbf{H}^{res}\)</span>) bepaalt hoe informatie uit elke stroom naar de andere stromen stroomt, waardoor kenmerken op elkaar worden overgedragen vóór de volgende laag.</li>
+<li><strong>Aggregatie (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>p</mi><mi>r</mi><mi>e</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{pre}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">e</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>, voor-mapping)</strong>: De <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> binnenkomende stromen worden gecomprimeerd tot één enkele vector voor de transformer-blok, waarbij gebruik wordt gemaakt van een leerbare matrix <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>p</mi><mi>r</mi><mi>e</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{pre}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">e</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>. Elke stroom wordt vermenigvuldigd met een leerbaar belangheidsgewicht, waardoor dit fungeert als een invoerfilter.</li>
+<li><strong>Expansie (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>p</mi><mi>o</mi><mi>s</mi><mi>t</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{post}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight">os</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>, na-mapping)</strong>: Na de kern transformer-blok (Attention of MLP) wordt de uitvoer via een leerbare matrix <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>p</mi><mi>o</mi><mi>s</mi><mi>t</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{post}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight">os</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span> verspreid over <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> afzonderlijke stromen. Dit dient als een uitvoergate, waarbij elke stroom wordt geschaald met een uniek leerbaar gewicht.</li>
+<li><strong>Menging (routing tussen stromen)</strong>: De nieuw geexpandeerde stromen worden gecombineerd met de oorspronkelijke residuele stromen. Een leerbare “feature-router”-matrix van formaat <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>×</mo><mi>n</mi></mrow><annotation encoding="application/x-tex">n \times n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">n</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi mathvariant="bold">H</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\mathbf{H}^{res}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6861em;"></span><span class="mord"><span class="mord mathbf">H</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span></span></span></span></span></span></span></span>) bepaalt hoe informatie uit elke stroom naar de andere stromen stroomt, waardoor kenmerken op elkaar worden overgedragen vóór de volgende laag.</li>
 </ol>
 <p>De mengingsmatrix H fungeert als verkeersregelaar: zij stuurt kenmerken tussen de stromen op basis van geleerde patronen. Hierdoor stroomt de informatie veel rijkker dan wanneer deze alleen via één residueel pad zou gaan.</p>
 <h3 id="de-resultaten">De resultaten</h3>
-<p><img alt="HC Prestaties" src="../../../../assets/2026-01-21-mhc-hyper-connections/hc_performance.svg" /></p>
+<p><img src="/nl/blog/assets/2026-01-21-mhc-hyper-connections/hc_performance.svg" alt="HC Prestaties"></p>
 <p>HC convergeert ongeveer <strong>1,8× sneller</strong> dan standaard residuen. De parallele stromen bieden de gradienten meer paden en stellen het netwerk in staat om meer gevarieerde representaties vast te houden.</p>
 <h3 id="het-nadeel">Het nadeel</h3>
 <p>Er is een kritisch probleem: <strong>HC is op grote schaal instabiel</strong>.</p>
-<hr />
+<hr>
 <h2 id="waarom-hyper-connecties-falen">Waarom hyper-connecties falen</h2>
 <p>De flexibiliteit die HC mogelijk maakt, is ook wat het doet falen. Het vernietigt de identiteitsmapping die ervoor zorgt dat residuen in de eerste plaats getraineerd kunnen worden.</p>
-<p><img alt="Probleem met HC-instabiliteit" src="../../../../assets/2026-01-21-mhc-hyper-connections/hc_instability.svg" /></p>
+<p><img src="/nl/blog/assets/2026-01-21-mhc-hyper-connections/hc_instability.svg" alt="Probleem met HC-instabiliteit"></p>
 <h3 id="de-wiskunde-achter-instabiliteit">De wiskunde achter instabiliteit</h3>
 <p>Bij standaardresiduen:</p>
-<div class="arithmatex">\[x_{l+1} = x_l + F(x_l)\]</div>
-<p>Wanneer <span class="arithmatex">\(F(x) \rightarrow 0\)</span>, is dit een identiteit: <span class="arithmatex">\(x_{l+1} = x_l\)</span>. Het signaal gaat onveranderd door.</p>
+<p><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>x</mi><mrow><mi>l</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>=</mo><msub><mi>x</mi><mi>l</mi></msub><mo>+</mo><mi>F</mi><mo stretchy="false">(</mo><msub><mi>x</mi><mi>l</mi></msub><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">x_{l+1} = x_l + F(x_l)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6389em;vertical-align:-0.2083em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span><span class="mbin mtight">+</span><span class="mord mtight">1</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2083em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.7333em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">F</span><span class="mopen">(</span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mclose">)</span></span></span></span></p>
+<p>Wanneer <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>F</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>→</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">F(x) \rightarrow 0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">F</span><span class="mopen">(</span><span class="mord mathnormal">x</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">→</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span>, is dit een identiteit: <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>x</mi><mrow><mi>l</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>=</mo><msub><mi>x</mi><mi>l</mi></msub></mrow><annotation encoding="application/x-tex">x_{l+1} = x_l</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6389em;vertical-align:-0.2083em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span><span class="mbin mtight">+</span><span class="mord mtight">1</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2083em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span>. Het signaal gaat onveranderd door.</p>
 <p>Bij Hyper-Connections bevat het residuele pad een matrixvermenigvuldiging:</p>
-<div class="arithmatex">\[x_{l+1} = \mathbf{H}^{res}_l \cdot x_l + \dots\]</div>
+<p><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>x</mi><mrow><mi>l</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>=</mo><msubsup><mi mathvariant="bold">H</mi><mi>l</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msubsup><mo>⋅</mo><msub><mi>x</mi><mi>l</mi></msub><mo>+</mo><mo>…</mo></mrow><annotation encoding="application/x-tex">x_{l+1} = \mathbf{H}^{res}_l \cdot x_l + \dots</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6389em;vertical-align:-0.2083em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span><span class="mbin mtight">+</span><span class="mord mtight">1</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2083em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.9692em;vertical-align:-0.2831em;"></span><span class="mord"><span class="mord mathbf">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-2.4169em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span></span></span><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2831em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.7333em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.123em;"></span><span class="minner">…</span></span></span></span></p>
 <p>Na L lagen wordt het signaal als volgt:</p>
-<div class="arithmatex">\[x_L = \mathbf{H}^{res}_L \times \mathbf{H}^{res}_{L-1} \times \dots \times \mathbf{H}^{res}_1 \times x_0\]</div>
+<p><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>x</mi><mi>L</mi></msub><mo>=</mo><msubsup><mi mathvariant="bold">H</mi><mi>L</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msubsup><mo>×</mo><msubsup><mi mathvariant="bold">H</mi><mrow><mi>L</mi><mo>−</mo><mn>1</mn></mrow><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msubsup><mo>×</mo><mo>⋯</mo><mo>×</mo><msubsup><mi mathvariant="bold">H</mi><mn>1</mn><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msubsup><mo>×</mo><msub><mi>x</mi><mn>0</mn></msub></mrow><annotation encoding="application/x-tex">x_L = \mathbf{H}^{res}_L \times \mathbf{H}^{res}_{L-1} \times \dots \times \mathbf{H}^{res}_1 \times x_0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3283em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">L</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.9614em;vertical-align:-0.2753em;"></span><span class="mord"><span class="mord mathbf">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-2.4247em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">L</span></span></span><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2753em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1.0198em;vertical-align:-0.3337em;"></span><span class="mord"><span class="mord mathbf">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-2.4247em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">L</span><span class="mbin mtight">−</span><span class="mord mtight">1</span></span></span></span><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.3337em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="minner">⋯</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.9342em;vertical-align:-0.2481em;"></span><span class="mord"><span class="mord mathbf">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-2.4519em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">1</span></span></span><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2481em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3011em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">0</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></p>
 <p>Als de waarden in H zelfs maar enigszins afwijken van 1,0, leidt deze productie tot:</p>
 <ul>
-<li><strong>Een explosie</strong>: waarden &gt; 1,0 vermenigvuldigen zich exponentieel.</li>
-<li><strong>Een verdwijning</strong>: waarden &lt; 1,0 nemen exponentieel af.</li>
+<li><strong>Een explosie</strong>: waarden > 1,0 vermenigvuldigen zich exponentieel.</li>
+<li><strong>Een verdwijning</strong>: waarden &#x3C; 1,0 nemen exponentieel af.</li>
 </ul>
 <p>Het DeepSeek-team meette dit met “Amax Gain Magnitude”, een maatstaf die de maximale verhouding tussen de amplitude van het uitgangssignaal en dat van het invoersignaal over alle lagen bijhoudt. In standaard HC bereikt deze waarde <strong>~3000</strong> in diepe netwerken. Op dat punt is training niet langer haalbaar.</p>
-<p><img alt="De oorzaak op de hoogste niveau: verlies van identiteit" src="../../../../assets/2026-01-21-mhc-hyper-connections/loss_of_identity.svg" /></p>
+<p><img src="/nl/blog/assets/2026-01-21-mhc-hyper-connections/loss_of_identity.svg" alt="De oorzaak op de hoogste niveau: verlies van identiteit"></p>
 <p>Het kernprobleem: onbeperkte matrices kunnen elke waarde aannemen (negatieve getallen, hoge groottes, alles). We hebben een manier nodig om ze binnen de “goed gedragende” set te houden, zodat ze de signaalenergie op dezelfde manier behouden als de identiteitsmatrix.</p>
-<p><img alt="De mHC-oplossing" src="../../../../assets/2026-01-21-mhc-hyper-connections/mhc_solution.svg" /></p>
+<p><img src="/nl/blog/assets/2026-01-21-mhc-hyper-connections/mhc_solution.svg" alt="De mHC-oplossing"></p>
 <h3 id="de-drie-beperkingen">De drie beperkingen</h3>
 <p>De mHC beperkt de mengmatrix H^res tot een <strong>tweevoudig stochastische</strong> matrix: alle elementen zijn niet-negatief, en de som van elke rij en kolom is precies 1. Dit zorgt er tegelijkertijd voor dat drie eigenschappen worden nageleefd:</p>
-<table>
-<thead>
-<tr>
-<th>Beperking</th>
-<th>Regel</th>
-<th>Waarom dit belangrijk is</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Positiviteit</strong></td>
-<td>Alle elementen &gt; 0</td>
-<td>Verhindert de oscillerende signaalwaarde die gradienten onstabiel maakt.</td>
-</tr>
-<tr>
-<td><strong>Totaal rijwaarde = 1</strong></td>
-<td>Elke rij somt op 1,0.</td>
-<td>Normaliseert de bijdrage van de uitvoer; er is geen enkele stroom die de overhand heeft.</td>
-</tr>
-<tr>
-<td><strong>Som van kolom = 1</strong></td>
-<td>Elke kolom heeft een som van 1,0.</td>
-<td>Normaliseert de invoerverdeling; alle stromen dragen evenredig bij</td>
-</tr>
-</tbody>
-</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Beperking</th><th>Regel</th><th>Waarom dit belangrijk is</th></tr></thead><tbody><tr><td><strong>Positiviteit</strong></td><td>Alle elementen > 0</td><td>Verhindert de oscillerende signaalwaarde die gradienten onstabiel maakt.</td></tr><tr><td><strong>Totaal rijwaarde = 1</strong></td><td>Elke rij somt op 1,0.</td><td>Normaliseert de bijdrage van de uitvoer; er is geen enkele stroom die de overhand heeft.</td></tr><tr><td><strong>Som van kolom = 1</strong></td><td>Elke kolom heeft een som van 1,0.</td><td>Normaliseert de invoerverdeling; alle stromen dragen evenredig bij</td></tr></tbody></table>
 <p>Het cruciale resultaat: <strong>Energie In = Energie Uit</strong>. De signaalsterkte blijft behouden tot diep in het netwerk, waardoor het probleem van een exponentiële explosie wordt voorkomen.</p>
 <p>Deze beperking heeft ook nuttige wiskundige gevolgen:</p>
 <ol>
@@ -1783,28 +131,25 @@
 </ol>
 <h3 id="de-sinkhorn-knopp-algoritme">De Sinkhorn-Knopp-algoritme</h3>
 <p>De uitdaging: hoe forceer je een leerbare matrix ertoe om dubbel stochastisch te worden, terwijl je ervoor zorgt dat deze nog steeds differentieerbaar blijft? De <strong>Sinkhorn-Knopp-algoritme</strong> lost dit op. Het is een iteratieve projectie die na slechts enkele stappen convergeert naar een dubbel stochastische vorm.</p>
-<p><img alt="Detaljene van de Sinkhorn-algoritme" src="../../../../assets/2026-01-21-mhc-hyper-connections/sinkhorn_detailed.svg" /></p>
+<p><img src="/nl/blog/assets/2026-01-21-mhc-hyper-connections/sinkhorn_detailed.svg" alt="Detaljene van de Sinkhorn-algoritme"></p>
 <p>Uitgebreide uitleg met een concreet voorbeeld:</p>
 <p><strong>Stap 1: Positiviteit.</strong> Pas exp() toe op de ruwe gewichten zodat alle elementen strikt positief zijn:</p>
-<div class="highlight"><pre><span></span><code>Raw Matrix           →    Positive Matrix
-[-0.5  2.1  0.8]          [0.6   7.9   2.2]  Σ=10.7
-[ 1.3 -4.0  1.9]    exp   [3.7   0.02  6.7]  Σ=10.4
-[ 0.1  0.6 -0.2]    →     [1.1   1.8   0.8]  Σ=3.7
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Raw Matrix           →    Positive Matrix</span></span>
+<span class="line"><span>[-0.5  2.1  0.8]          [0.6   7.9   2.2]  Σ=10.7</span></span>
+<span class="line"><span>[ 1.3 -4.0  1.9]    exp   [3.7   0.02  6.7]  Σ=10.4</span></span>
+<span class="line"><span>[ 0.1  0.6 -0.2]    →     [1.1   1.8   0.8]  Σ=3.7</span></span></code></pre>
 <p><strong>Stap 2: Normalisatie van rijen.</strong> Deel elke rij door de som van diens elementen:</p>
-<div class="highlight"><pre><span></span><code>Positive Matrix      →    Row Normalized
-[0.6   7.9   2.2]         [0.25  0.65  0.10]  Σ=1.0
-[3.7   0.02  6.7]   /row  [0.35  0.01  0.64]  Σ=1.0
-[1.1   1.8   0.8]    →    [0.30  0.45  0.25]  Σ=1.0
-                           Σ=0.9 Σ=1.1 Σ=0.99  ← columns not yet =1
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Positive Matrix      →    Row Normalized</span></span>
+<span class="line"><span>[0.6   7.9   2.2]         [0.25  0.65  0.10]  Σ=1.0</span></span>
+<span class="line"><span>[3.7   0.02  6.7]   /row  [0.35  0.01  0.64]  Σ=1.0</span></span>
+<span class="line"><span>[1.1   1.8   0.8]    →    [0.30  0.45  0.25]  Σ=1.0</span></span>
+<span class="line"><span>                           Σ=0.9 Σ=1.1 Σ=0.99  ← columns not yet =1</span></span></code></pre>
 <p><strong>Stap 3: Normalisatie van kolommen.</strong> Deel elke kolom door de som van de waarden daarin:</p>
-<div class="highlight"><pre><span></span><code>Row Normalized       →    Doubly Stochastic
-[0.25  0.65  0.10]        [0.28  0.45  0.27]  Σ=1.0
-[0.35  0.01  0.64]  /col  [0.40  0.09  0.51]  Σ=1.0
-[0.30  0.45  0.25]   →    [0.32  0.46  0.22]  Σ=1.0
-                           Σ=1.0 Σ=1.0 Σ=1.0  ← converges in few iterations
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Row Normalized       →    Doubly Stochastic</span></span>
+<span class="line"><span>[0.25  0.65  0.10]        [0.28  0.45  0.27]  Σ=1.0</span></span>
+<span class="line"><span>[0.35  0.01  0.64]  /col  [0.40  0.09  0.51]  Σ=1.0</span></span>
+<span class="line"><span>[0.30  0.45  0.25]   →    [0.32  0.46  0.22]  Σ=1.0</span></span>
+<span class="line"><span>                           Σ=1.0 Σ=1.0 Σ=1.0  ← converges in few iterations</span></span></code></pre>
 <p><strong>Stap 4: Itereren.</strong> Herhaal stappen 2-3 voor t_max iteraties (meestal 20) totdat convergentie is bereikt.</p>
 <p>Het hele proces is differentieerbaar, zodat gradienten tijdens het trainen kunnen stromen. Sinkhorn-Knopp is bovendien goedkoop en veroorzaakt minimale extra belasting voor de trainingscyclus.</p>
 <p>Initialisatie is eveneens belangrijk.</p>
@@ -1814,21 +159,21 @@
 <li><strong>Sigmoid in plaats van Tanh</strong>: De coëfficiënten blijven niet-negatief en begrensd (tussen 0 en 1).</li>
 <li><strong>Vermenigvuldiger met 2</strong>: Sigmoid-outputten liggen bij initialisatie rond 0,5. Door dit met 2 te vermenigvuldigen, krijg je een begingewicht van ongeveer 1,0, wat overeenkomt met identiek gedrag.</li>
 </ul>
-<hr />
+<hr>
 <h2 id="volledige-mhc-architectuur">Volledige mHC-architectuur</h2>
 <p>Samen gezien:</p>
-<p><img alt="mHC Complete Architectuur" src="../../../../assets/2026-01-21-mhc-hyper-connections/mhc_architecture.svg" /></p>
+<p><img src="/nl/blog/assets/2026-01-21-mhc-hyper-connections/mhc_architecture.svg" alt="mHC Complete Architectuur"></p>
 <p>De stroom door elk blok:</p>
 <ol>
-<li><strong>Invoer</strong>: <span class="arithmatex">\(n\)</span> parallele residuele stromen komen de laag binnen.</li>
-<li><strong>Aggregatie (<span class="arithmatex">\(H_{pre}\)</span>)</strong>: De <span class="arithmatex">\(n\)</span> stromen worden via een gewogen som, met behulp van de matrix <span class="arithmatex">\(H_{pre}\)</span>, gecombineerd tot één vector. In mHC zijn deze aggregatiegewichten lokaal beperkt (<span class="arithmatex">\(\sigma(\cdot)\)</span>) tot niet-negatieve waarden, waardoor onnatuurlijke schaling en destructieve interferentie worden voorkomen.</li>
+<li><strong>Invoer</strong>: <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> parallele residuele stromen komen de laag binnen.</li>
+<li><strong>Aggregatie (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>p</mi><mi>r</mi><mi>e</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{pre}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">e</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>)</strong>: De <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> stromen worden via een gewogen som, met behulp van de matrix <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>p</mi><mi>r</mi><mi>e</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{pre}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">e</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>, gecombineerd tot één vector. In mHC zijn deze aggregatiegewichten lokaal beperkt (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>σ</mi><mo stretchy="false">(</mo><mo>⋅</mo><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">\sigma(\cdot)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.0359em;">σ</span><span class="mopen">(</span><span class="mord">⋅</span><span class="mclose">)</span></span></span></span>) tot niet-negatieve waarden, waardoor onnatuurlijke schaling en destructieve interferentie worden voorkomen.</li>
 <li><strong>Berekening</strong>: De standaard Transformer-blok (Attention of MLP) verwerkt de enkele geaggregeerde vector.</li>
-<li><strong>Uitbreiding (<span class="arithmatex">\(H_{post}\)</span>)</strong>: De enkele uitvoer van het blok wordt verspreid en geschaald naar <span class="arithmatex">\(n\)</span> afzonderlijke update-stromen met behulp van de matrix <span class="arithmatex">\(H_{post}\)</span>, die eveneens beperkt moet blijven tot niet-negatieve waarden.</li>
-<li><strong>Menging (<span class="arithmatex">\(H_{res}\)</span> routing)</strong>: De stromen delen informatie via een <span class="arithmatex">\(n \times n\)</span> mengmatrix <span class="arithmatex">\(\mathbf{H}^{res}\)</span>. In mHC is deze matrix strikt beperkt tot het Birkhoff-polytoop (dubbel stochastisch), zodat de signaalenergie behouden blijft.</li>
-<li><strong>Uitvoer</strong>: De bijgewerkte <span class="arithmatex">\(n\)</span> stromen gaan door naar de volgende laag, zonder te exploderen of te verdwijnen.</li>
+<li><strong>Uitbreiding (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>p</mi><mi>o</mi><mi>s</mi><mi>t</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{post}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight">os</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>)</strong>: De enkele uitvoer van het blok wordt verspreid en geschaald naar <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> afzonderlijke update-stromen met behulp van de matrix <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>p</mi><mi>o</mi><mi>s</mi><mi>t</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{post}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight">os</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>, die eveneens beperkt moet blijven tot niet-negatieve waarden.</li>
+<li><strong>Menging (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{res}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8333em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span> routing)</strong>: De stromen delen informatie via een <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>×</mo><mi>n</mi></mrow><annotation encoding="application/x-tex">n \times n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">n</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> mengmatrix <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi mathvariant="bold">H</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\mathbf{H}^{res}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6861em;"></span><span class="mord"><span class="mord mathbf">H</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span></span></span></span></span></span></span></span>. In mHC is deze matrix strikt beperkt tot het Birkhoff-polytoop (dubbel stochastisch), zodat de signaalenergie behouden blijft.</li>
+<li><strong>Uitvoer</strong>: De bijgewerkte <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> stromen gaan door naar de volgende laag, zonder te exploderen of te verdwijnen.</li>
 </ol>
 <p>Het belangrijkste verschil ten opzichte van standaard HC is dat elke meng- en aggregatieoperatie gaat via een Sinkhorn-beperking of een soortgelijke normalisatie. Dit zorgt ervoor dat het signaal stabiel blijft over honderden lagen.</p>
-<hr />
+<hr>
 <h2 id="infrastructuur-het-praktisch-maken">Infrastructuur: Het praktisch maken</h2>
 <p>Het uitbreiden naar n=4 stromen levert aanzienlijke overhead op. Elke stroom heeft zijn eigen geheugen, en Sinkhorn vereist 20 iteraties per laag. Het DeepSeek-team heeft dit opgelost met verschillende optimalisaties.</p>
 <h3 id="kernelfusie">Kernelfusie</h3>
@@ -1842,12 +187,12 @@
 <p>Een aangepaste versie van <a href="https://arxiv.org/abs/2412.19437">DualPipe</a> De planning overlapt deze herberekening met de communicatie van gradients, waardoor de kosten van herberekenen grotendeels verborgen blijven.</p>
 <h3 id="resultaten">Resultaten</h3>
 <p>Met deze optimalisaties leidt een <strong>uitbreidingsgraad van n=4 tot slechts 6,7% trainingsoverhead</strong> ten opzichte van de basisversie. Complex topologisch routeren is op grote schaal haalbaar.</p>
-<hr />
+<hr>
 <h2 id="empirische-validatie">Empirische validatie</h2>
 <p>Leiden de theoretische garanties daadwerkelijk tot echte verbeteringen?</p>
 <p>De ruwe trainingsdynamiek is scherp. Zonder beperkingen stijgt de signaalmagnitude (Amax Gain) bij diepe netwerken die standaard Hyper-Connections gebruiken aanzienlijk tot ongeveer 3.000, wat leidt tot grote instabiliteit en frequente pieken in de verlieswaarden. Door de dubbel stochastische beperking toe te passen, houdt mHC de Amax Gain gedurende het hele trainingsproces rond de 1,6.</p>
 <p>Maar stabiliteit doet er niet toe als de prestaties van het model verslechteren. Om de representatieve capaciteit te testen, beoordeelde het team een mHC-27B-model (gebouwd op de DeepSeek-V3-architectuur) tegen zowel standaard ResNet- als onbeperkte HC-baselines. Op redeneringsbenchmarks zoals GSM8K en MATH wint mHC consequent. De prestatieverbeteringen door parallelle streamrouting zijn echt, en met Sinkhorn-beperkingen kun je eindelijk deze zeer brede residuele paden trainen zonder dat de training uit elkaar valt.</p>
-<hr />
+<hr>
 <h2 id="afwegingen-en-overwegingen">Afwegingen en overwegingen</h2>
 <p>mHC is geen gratis maaltijd. Drie punten die het waard zijn om te benadrukken:</p>
 <ol>
@@ -1855,7 +200,7 @@
 <li><strong>Implementatiecomplexiteit</strong>: Je kunt dit niet zomaar in gewone PyTorch schrijven en verwachten dat het snel is. De lage overhead vereist aangepaste, nauwkeurig getuneerde CUDA-kernen.</li>
 <li><strong>Sterke inductieve bias</strong>: De dubbel stochastische beperking dwingt tot strikte signaalconservatie. Als je taak echt signaalversterking dieper in het netwerk nodig heeft, werkt deze beperking juist tegen je.</li>
 </ol>
-<hr />
+<hr>
 <h2 id="belangrijkste-conclusies">Belangrijkste conclusies</h2>
 <ol>
 <li><strong>Residuele verbindingen werken dankzij identity mapping</strong>: de mogelijkheid om signalen onveranderd door te laten gaan.</li>
@@ -1866,124 +211,26 @@
 <li><strong>Infrastructuurwerk</strong> (kernelfusie, selectieve herberekening) is wat het geheel praktisch maakt.</li>
 </ol>
 <p>Voor praktijkspecialisten: als u tegen grenzen aanloopt bij het schalen van de diepte en toegang heeft tot de ontwikkeling van aangepaste kernels, is mHC een principieel goede manier om capaciteit via de breedte te vergroten zonder de training instabiel te maken.</p>
-<hr />
+<hr>
 <h2 id="referenties">Referenties</h2>
 <ul>
 <li><a href="https://arxiv.org/abs/2512.24880">mHC: Hyperverbindingen onder beperking door manifoldstructuren</a> - Xie et al. (DeepSeek) <a href="https://arxiv.org/abs/1512.03385">Deep Residuale Leren voor Afbeeldingsherkenning</a> - He et al. (ResNet) <a href="https://arxiv.org/abs/2409.19606">Hyperverbindingen</a> - Oorspronkelijk HC-artikel <a href="https://arxiv.org/abs/2504.17577">TileLang</a> - Framework voor optimalisatie van CUDA-kernen <a href="https://arxiv.org/abs/2412.19437">DualPipe</a> - Scheduler voor pipelineparalleliteit voor DeepSeek-V3 <a href="https://arxiv.org/abs/2304.14802">ResiDual</a> - Architectuur met dubbele residuele paden</li>
-</ul>
-
-
-
-
-
-
-
-  
-  
-
-
-
-  
-
-
-  
-
-
- 
-  </article>
-</div>
-
-          
-<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
-        </div>
-        
-      </main>
-      
-        <footer class="md-footer">
-  
-  <div class="md-footer-meta md-typeset">
-    <div class="md-footer-meta__inner md-grid">
-      <div class="md-copyright">
-  
-  
-    Made with
-    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
-      Material for MkDocs
-    </a>
-  
-</div>
-      
-        
-<div class="md-social">
-  
-    
-    
-    
-    
-    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://www.tiktok.com/@edge.of.context" target="_blank" rel="noopener" title="TikTok" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M448.5 209.9c-44 .1-87-13.6-122.8-39.2v178.7c0 33.1-10.1 65.4-29 92.6s-45.6 48-76.6 59.6-64.8 13.5-96.9 5.3-60.9-25.9-82.7-50.8-35.3-56-39-88.9 2.9-66.1 18.6-95.2 40-52.7 69.6-67.7 62.9-20.5 95.7-16v89.9c-15-4.7-31.1-4.6-46 .4s-27.9 14.6-37 27.3-14 28.1-13.9 43.9 5.2 31 14.5 43.7 22.4 22.1 37.4 26.9 31.1 4.8 46-.1 28-14.4 37.2-27.1 14.2-28.1 14.2-43.8V0h88c-.1 7.4.6 14.9 1.9 22.2 3.1 16.3 9.4 31.9 18.7 45.7s21.3 25.6 35.2 34.6c19.9 13.1 43.2 20.1 67 20.1V210z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
-    </a>
-  
-</div>
-      
-    </div>
-  </div>
-</footer>
-      
-    </div>
-    <div class="md-dialog" data-md-component="dialog">
-      <div class="md-dialog__inner md-typeset"></div>
-    </div>
-    
-    
-    
-      
-      
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Gekopieerd naar klembord", "clipboard.copy": "Kopi\u00ebren naar klembord", "search.result.more.one": "1 extra overeenkomst op deze pagina", "search.result.more.other": "# extra overeenkomsten op deze pagina", "search.result.none": "Geen overeenkomende documenten", "search.result.one": "1 overeenkomende document", "search.result.other": "# overeenkomende documenten", "search.result.placeholder": "Typ om te beginnen met zoeken", "search.result.term.missing": "Ontbreekt", "select.version": "Selecteer versie"}, "version": null}</script>
-    
-    
-      <script src="../../../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-      
-        <script src="../../../../../../javascripts/mermaid-init.js"></script>
-      
-        <script src="../../../../../../javascripts/mathjax.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
-      
-    
-  </body>
-</html>
+</ul> </article>  </main> <footer class="site-footer"> <p data-footer-tagline>Praktische AI-engineering door Slava Dubrov.</p> <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>
+      document.querySelector("#locale-select")?.addEventListener("change", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLSelectElement && target.value) location.assign(target.value);
+      });
+      document.querySelectorAll("pre").forEach((pre) => {
+        if (pre.closest(".mermaid-diagram")) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-code";
+        button.textContent = "Copy";
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(pre.textContent || "");
+          button.textContent = "Copied";
+          setTimeout(() => { button.textContent = "Copy"; }, 1500);
+        });
+        pre.append(button);
+      });
+    </script> </body> </html>

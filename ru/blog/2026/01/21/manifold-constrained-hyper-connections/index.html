@@ -1,1774 +1,127 @@
-
-<!doctype html>
-<html lang="ru" class="no-js">
-  <head>
-    
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1">
-      
-        <meta name="description" content="Технический обзор механизмов DeepSeek: гиперсоединений с ограничениями по манифольдам (mHC), масштабирования ширины остаточного потока, алгоритма маршрутизации Sinkhorn и обеспечения стабильности обучения.">
-      
-      
-        <meta name="author" content="Viacheslav Dubrov">
-      
-      
-        <link rel="canonical" href="https://slavadubrov.github.io/ru/blog/2026/01/21/manifold-constrained-hyper-connections/">
-      
-      
-      
-      
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="en">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/de/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="de">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/ru/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="ru">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/es/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="es">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/pt/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="pt">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/fr/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="fr">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/nl/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="nl">
-        
-      
-      
-        <link rel="alternate" type="application/rss+xml" title="RSS канал" href="../../../../../../feed_rss_created.xml">
-        <link rel="alternate" type="application/rss+xml" title="RSS канал с новым контентом" href="../../../../../../feed_rss_updated.xml">
-      
-      <link rel="icon" href="../../../../../../assets/favicon-eoc.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.6">
-    
-    
-      
-        <title>Гиперсоединения с ограничениями манифольда (mHC): объяснение метода глубокой шкалировки Residual в DeepSeek - Edge of Context: Practical AI Engineering</title>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../../assets/stylesheets/main.484c7ddc.min.css">
-      
-        
-        <link rel="stylesheet" href="../../../../../../assets/stylesheets/palette.ab4e12ef.min.css">
-      
-      
-
-
-    
-    
-      
-    
-    
-      
-        
-        
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
-        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../../assets/brand.css">
-    
-      <link rel="stylesheet" href="../../../../../../assets/blog-sidebar.css">
-    
-      <link rel="stylesheet" href="../../../../../../assets/blog-index.css">
-    
-    <script>__md_scope=new URL("../../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
-    
-      
-  
-
-
-  
-  
-
-<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-T51K83ENZ5"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-T51K83ENZ5",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
-  
-    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
-  
-
-    
-        
-
-   
-     
-<!-- Open Graph -->
-<meta property="og:title" content="Гиперсоединения с ограничениями манифольда (mHC): объяснение метода глубокой шкалировки Residual в DeepSeek" />
-<meta property="og:description" content="Технический обзор механизмов DeepSeek: гиперсоединений с ограничениями по манифольдам (mHC), масштабирования ширины остаточного потока, алгоритма маршрутизации Sinkhorn и обеспечения стабильности обучения." />
-<meta property="og:url" content="https://slavadubrov.github.io/ru/blog/2026/01/21/manifold-constrained-hyper-connections/" />
-<meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
-<meta
-  property="og:type"
-  content="article"
-/>
-<meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png" />
-<!-- Twitter Card -->
-<meta
-  name="twitter:card"
-  content="summary"
-/>
-<meta name="twitter:title" content="Гиперсоединения с ограничениями манифольда (mHC): объяснение метода глубокой шкалировки Residual в DeepSeek" />
-<meta name="twitter:description" content="Технический обзор механизмов DeepSeek: гиперсоединений с ограничениями по манифольдам (mHC), масштабирования ширины остаточного потока, алгоритма маршрутизации Sinkhorn и обеспечения стабильности обучения." />
-<meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png" />
-<!-- Site identity schema -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Person",
-        "@id": "https://slavadubrov.github.io/#person",
-        "name": "Viacheslav Dubrov",
-        "alternateName": "Slava Dubrov",
-        "url": "https://slavadubrov.github.io/about/",
-        "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-      },
-      {
-        "@type": "WebSite",
-        "@id": "https://slavadubrov.github.io/#website",
-        "name": "Edge of Context: Practical AI Engineering",
-        "alternateName": "Edge of Context",
-        "url": "https://slavadubrov.github.io/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "ru",
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        }
-      },
-      {
-        "@type": "Blog",
-        "@id": "https://slavadubrov.github.io/#blog",
-        "name": "Edge of Context: Practical AI Engineering",
-        "url": "https://slavadubrov.github.io/blog/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "ru",
-        "author": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "isPartOf": {
-          "@id": "https://slavadubrov.github.io/#website"
-        }
-      }
-    ]
-  }
-</script>
-
-<script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      "itemListElement": [
-        {
-          "@type": "ListItem",
-          "position": 1,
-          "name": "Edge of Context: Practical AI Engineering",
-          "item": "https://slavadubrov.github.io/"
-        },
-        {
-          "@type": "ListItem",
-          "position": 2,
-          "name": "\u0413\u0438\u043f\u0435\u0440\u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u044f \u0441 \u043e\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0438\u044f\u043c\u0438 \u043c\u0430\u043d\u0438\u0444\u043e\u043b\u044c\u0434\u0430 (mHC): \u043e\u0431\u044a\u044f\u0441\u043d\u0435\u043d\u0438\u0435 \u043c\u0435\u0442\u043e\u0434\u0430 \u0433\u043b\u0443\u0431\u043e\u043a\u043e\u0439 \u0448\u043a\u0430\u043b\u0438\u0440\u043e\u0432\u043a\u0438 Residual \u0432 DeepSeek",
-          "item": "https://slavadubrov.github.io/ru/blog/2026/01/21/manifold-constrained-hyper-connections/"
-        }
-  
-      ]
-    }
-</script>
- 
-<style>
-  /* Header social icons */
-  .md-header__social {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-left: 0.5rem;
-  }
-  .md-header__social a {
-    color: var(--md-primary-bg-color);
-    opacity: 0.7;
-    transition: opacity 0.2s;
-  }
-  .md-header__social a:hover {
-    opacity: 1;
-  }
-  .md-header__social svg {
-    width: 1.2rem;
-    height: 1.2rem;
-    fill: currentColor;
-  }
-  /* Adjust search to make room for social icons */
-  .md-search {
-    margin-right: 0;
-  }
-</style>
-
-<!-- Article-specific Open Graph -->
-       
-<meta property="article:published_time" content="2026-01-21" />
- 
-<meta property="article:modified_time" content="2026-05-31" />
- 
-<meta property="article:author" content="Viacheslav Dubrov" />
-  
-<meta property="article:tag" content="Model Engineering" />
- 
-<!-- Schema.org JSON-LD -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    "@id": "https://slavadubrov.github.io/ru/blog/2026/01/21/manifold-constrained-hyper-connections/#blogposting",
-    "headline": "\u0413\u0438\u043f\u0435\u0440\u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u044f \u0441 \u043e\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0438\u044f\u043c\u0438 \u043c\u0430\u043d\u0438\u0444\u043e\u043b\u044c\u0434\u0430 (mHC): \u043e\u0431\u044a\u044f\u0441\u043d\u0435\u043d\u0438\u0435 \u043c\u0435\u0442\u043e\u0434\u0430 \u0433\u043b\u0443\u0431\u043e\u043a\u043e\u0439 \u0448\u043a\u0430\u043b\u0438\u0440\u043e\u0432\u043a\u0438 Residual \u0432 DeepSeek",
-    "description": "\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0439 \u043e\u0431\u0437\u043e\u0440 \u043c\u0435\u0445\u0430\u043d\u0438\u0437\u043c\u043e\u0432 DeepSeek: \u0433\u0438\u043f\u0435\u0440\u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u0439 \u0441 \u043e\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0438\u044f\u043c\u0438 \u043f\u043e \u043c\u0430\u043d\u0438\u0444\u043e\u043b\u044c\u0434\u0430\u043c (mHC), \u043c\u0430\u0441\u0448\u0442\u0430\u0431\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f \u0448\u0438\u0440\u0438\u043d\u044b \u043e\u0441\u0442\u0430\u0442\u043e\u0447\u043d\u043e\u0433\u043e \u043f\u043e\u0442\u043e\u043a\u0430, \u0430\u043b\u0433\u043e\u0440\u0438\u0442\u043c\u0430 \u043c\u0430\u0440\u0448\u0440\u0443\u0442\u0438\u0437\u0430\u0446\u0438\u0438 Sinkhorn \u0438 \u043e\u0431\u0435\u0441\u043f\u0435\u0447\u0435\u043d\u0438\u044f \u0441\u0442\u0430\u0431\u0438\u043b\u044c\u043d\u043e\u0441\u0442\u0438 \u043e\u0431\u0443\u0447\u0435\u043d\u0438\u044f.",
-    "url": "https://slavadubrov.github.io/ru/blog/2026/01/21/manifold-constrained-hyper-connections/",
-    "image": "https://slavadubrov.github.io/assets/og-image.png",
-    "inLanguage": "ru",
-    "mainEntityOfPage": {
-      "@type": "WebPage",
-      "@id": "https://slavadubrov.github.io/ru/blog/2026/01/21/manifold-constrained-hyper-connections/"
-    },
-    "datePublished": "2026-01-21",
-    "dateModified": "2026-05-31",
-    "author": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "publisher": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "isPartOf": {
-      "@type": "Blog",
-      "@id": "https://slavadubrov.github.io/#blog",
-      "name": "Edge of Context: Practical AI Engineering",
-      "url": "https://slavadubrov.github.io/"
-    },
-    "keywords": "Model Engineering"
-  }
-</script>
-
-  
-<link rel="alternate" href="https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="x-default">
-</head>
-  
-  
-    
-    
-      
-    
-    
-    
-    
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
-  
-    
-    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
-    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
-    <label class="md-overlay" for="__drawer"></label>
-    <div data-md-component="skip">
-      
-        
-        <a href="#mhc-deepseek-mhc" class="md-skip">
-          Перейти к содержанию
-        </a>
-      
-    </div>
-    <div data-md-component="announce">
-      
-    </div>
-    
-     
-      
-
-  
-
-<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
-  <nav class="md-header__inner md-grid" aria-label="Верхний колонтитул">
-    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    <label class="md-header__button md-icon" for="__drawer">
-      
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
-    </label>
-    <div class="md-header__title" data-md-component="header-title">
-      <div class="md-header__ellipsis">
-        <div class="md-header__topic">
-          <span class="md-ellipsis">
-            Edge of Context: Practical AI Engineering
-          </span>
-        </div>
-        <div class="md-header__topic" data-md-component="header-topic">
-          <span class="md-ellipsis">
-            
-              Гиперсоединения с ограничениями манифольда (mHC): объяснение метода глубокой шкалировки Residual в DeepSeek
-            
-          </span>
-        </div>
-      </div>
-    </div>
-    
-      
-        <form class="md-header__option" data-md-component="palette">
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
-    
-      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
-    
-      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-</form>
-      
-    
-    
-      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
-    
-    
-      <div class="md-header__option">
-  <div class="md-select">
-    
-    <button class="md-header__button md-icon" aria-label="Выберите язык">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
-    </button>
-    <div class="md-select__inner">
-      <ul class="md-select__list">
-        
-          <li class="md-select__item">
-            <a href="../../../../../../blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="en" class="md-select__link">
-              English
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../de/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="de" class="md-select__link">
-              Deutsch
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="./" hreflang="ru" class="md-select__link">
-              Русский
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../es/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="es" class="md-select__link">
-              Español
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../pt/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="pt" class="md-select__link">
-              Português
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../fr/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="fr" class="md-select__link">
-              Français
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../nl/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="nl" class="md-select__link">
-              Nederlands
-            </a>
-          </li>
-        
-      </ul>
-    </div>
-  </div>
-</div>
-    
-    
-      
-      
-        <label class="md-header__button md-icon" for="__search">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        </label>
-        <div class="md-search" data-md-component="search" role="dialog">
-  <label class="md-search__overlay" for="__search"></label>
-  <div class="md-search__inner" role="search">
-    <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" aria-label="Поиск" placeholder="Поиск" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
-      <label class="md-search__icon md-icon" for="__search">
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-      </label>
-      <nav class="md-search__options" aria-label="Поиск">
-        
-        <button type="reset" class="md-search__icon md-icon" title="Очистить" aria-label="Очистить" tabindex="-1">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-        </button>
-      </nav>
-      
-    </form>
-    <div class="md-search__output">
-      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
-        <div class="md-search-result" data-md-component="search-result">
-          <div class="md-search-result__meta">
-            Инициализация поиска
-          </div>
-          <ol class="md-search-result__list" role="presentation"></ol>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-      
-    
-    
-  </nav>
-  
-    
-      
-<nav class="md-tabs" aria-label="Вкладки" data-md-component="tabs">
-  <div class="md-grid">
-    <ul class="md-tabs__list">
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../../" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Главная
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Блог
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
-        <a href="../../../../fast-answers/" class="md-tabs__link">
-          
-  
-  
-    
-  
-  Быстрые ответы
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../../about/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Об авторе
-
-      </a>
-    </li>
-  
-
-      
-    </ul>
-  </div>
-</nav>
-    
-  
-</header>
-    
-<script>
-  // Inject social icons into header after DOM loads
-  document.addEventListener("DOMContentLoaded", function () {
-    const header = document.querySelector(".md-header__inner");
-    if (header) {
-      const social = document.createElement("div");
-      social.className = "md-header__social";
-      social.innerHTML = `
-      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
-      </a>
-      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
-      </a>
-      <a href="https://www.tiktok.com/@edge.of.context" title="TikTok" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M448 209.9a210.1 210.1 0 0 1-122.8-39.2v178.7A162.6 162.6 0 1 1 185 188.3v89.9a74.6 74.6 0 1 0 52.2 71.2V0h88a121.2 121.2 0 0 0 1.9 22.2 122.2 122.2 0 0 0 53.9 80.2 121.4 121.4 0 0 0 67 20.1v87.4z"/></svg>
-      </a>
-      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
-      </a>
-    `;
-      header.appendChild(social);
-    }
-  });
-</script>
-
-    <div class="md-container" data-md-component="container">
-      
-      
-        
-      
-      <main class="md-main" data-md-component="main">
-        <div class="md-main__inner md-grid">
-          
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-
-  
-
-
-<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Навигация" data-md-level="0">
-  <label class="md-nav__title" for="__drawer">
-    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    Edge of Context: Practical AI Engineering
-  </label>
-  
-  <ul class="md-nav__list" data-md-scrollfix>
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Главная
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Блог
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-      
-        
-          
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <div class="md-nav__link md-nav__container">
-            <a href="../../../../fast-answers/" class="md-nav__link ">
-              
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Быстрые ответы
-  
-
-    
-  </span>
-  
-  
-
-            </a>
-            
-              
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
-                <span class="md-nav__icon md-icon"></span>
-              </label>
-            
-          </div>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Быстрые ответы
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ai-agent-frameworks/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Frameworks
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/rag-evaluation-tools/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    RAG Evaluation Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/local-llm-tools-macos/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Local LLM Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ocr-models-document-ai/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    OCR Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ner-models/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    NER Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/agent-security-patterns/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Security Patterns
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/search-ranking-stack/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Search Ranking Stack
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../../about/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Об авторе
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-  </ul>
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-<nav class="md-nav md-nav--secondary" aria-label="Содержание">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Содержание
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Почему работают остаточные соединения
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Почему работают остаточные соединения">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Проблема глубины
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Решение с использованием остатков
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Гиперсоединения: революция в ширине канала
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Гиперсоединения: революция в ширине канала">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Что такое «стрим»?
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Основные механизмы
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_7" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Результаты
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_8" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Проблема
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_9" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Почему гиперсоединения ломаются
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Почему гиперсоединения ломаются">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_10" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Математика нестабильности
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#mhc" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Решение mHC: геометрические ограничения
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Решение mHC: геометрические ограничения">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_11" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Три ограничения
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#-" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Алгоритм Синкхорн-Кноппа
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_12" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Усовершенствования инициализации
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#mhc_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Полная архитектура mHC
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_13" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Инфраструктура: практическая реализация
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Инфраструктура: практическая реализация">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_14" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Слияние ядер
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_15" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Результаты
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_16" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Эмпирическая проверка
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_17" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Компромиссы и аспекты, которые следует учитывать
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_18" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Основные выводы
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_19" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Список литературы
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-          
-              
-
-<div class="md-content md-content--post" data-md-component="content">
-  <div
-    class="md-sidebar md-sidebar--post"
-    data-md-component="sidebar"
-    data-md-type="navigation"
-  >
-    <div class="md-sidebar__scrollwrap">
-      <div class="md-sidebar__inner md-post">
-        <nav class="md-nav md-nav--primary">
-          <div class="md-post__back">
-            <div class="md-nav__title md-nav__container">
-              <a href="../../../../" class="md-nav__link">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-                <span class="md-ellipsis"> На главную </span>
-              </a>
-            </div>
-          </div>
-
-          
-          <ul class="md-post__meta md-nav__list">
-            <li class="md-nav__item md-nav__item--section">
-              <div class="md-post__title">
-                <span class="md-ellipsis"
-                  >Темы</span
-                >
-              </div>
-              <nav class="md-nav">
-                          
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-agents"
-                  >
-                    <span class="blog-category-icon"
-                      >🦾</span
-                    >
-                    <span class="blog-category-name"
-                      >ИИ-агенты</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../06/20/schema-guided-agent-memory/">Память AI-агента: схемо-ориентированное типизированное состояние для долгосрочно работающих систем</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../06/10/agent-evals-traces-to-test-suites/">Оценка ИИ-агентов в производственной среде: от трейсов к наборам тестов</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/26/ai-agent-runtime/">Работа долгоживущих AI-агентов в 2026 году: сессии, песочницы, чекпоинты и инструменты управления</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/20/ai-agent-security/">Безопасность ИИ-агентов в 2026 году: ограничения, разрешения, песочницы и угрозы через MCP</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../03/24/ai-agent-tool-use/">Использование инструментов AI-агентов в 2026 году: MCP, CLI, навыки и выполнение кода</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../02/14/ai-agent-memory-architecture/">Архитектура памяти ИИ-агента в 2026 году: чекпоинты, векторные хранилища и память на основе файлов</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../31/ai-agent-reasoning-loops/">Циклы рассуждения ИИ-агентов в 2026 году: ReAct против ReWOO против модели планирования и выполнения</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../11/enterprise-rag-challenge-agent-architectures/">Enterprise RAG Challenge 3 (ECR3): Архитектуры успешных ИИ-агентов</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/12/28/schema-guided-reasoning-vllm/">Логические рассуждения с использованием схем в vLLM: структурированные выходные данные с помощью xgrammar и Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/20/domain-driven-design-ai-agents/">Дизайн, ориентированный на домен, для ИИ-агентов: ограниченные контексты, инструменты и бизнес-правила</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/05/context-engineering-ai-agents/">Инжиниринг контекста для ИИ-агентов: окна контекста, память, инструменты и механизмы контроля</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/06/10/mcp-server-tutorial-uv-fastmcp/">Учебник по серверу MCP с использованием uv и FastMCP: создание сервера FeatureStoreLite</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section blog-category-section--active"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#model-engineering"
-                  >
-                    <span class="blog-category-icon"
-                      >🤖</span
-                    >
-                    <span class="blog-category-name"
-                      >Model Engineering</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Квантизация моделей в 2026 году: от основ до внедрения в производство</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../03/13/llm-engineering-guide/">Руководство по инженерии LLM: 45 концепций для инференса, обучения, архитектуры и эксплуатации</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post blog-category-post--active"
-                    >
-                      <a href="./">Гиперсоединения с ограничениями манифольда (mHC): объяснение метода глубокой шкалировки Residual в DeepSeek</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../04/llm-fine-tuning-guide/">Руководство по тонкой настройке LLM: LoRA, QLoRA, DoRA, Unsloth, Axolotl и развертывание</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/12/28/schema-guided-reasoning-vllm/">Логические рассуждения с использованием схем в vLLM: структурированные выходные данные с помощью xgrammar и Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Руководство по развертыванию LoRAX: тысячи адаптеров LoRA в Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/11/open-source-llm-formats/">Варианты open-source LLM и форматы файлов: Instruct, GGUF, GPTQ, AWQ и MoE</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/10/local-llms-on-macos/">Локальные LLM на macOS: Ollama, LM Studio, llama.cpp, MLX и Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/04/scaling-llms-multi-gpu-multi-node/">Масштабирование крупных языковых моделей: стратегии с использованием нескольких GPU и нескольких узлов, эффективно работающие на практике</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-infrastructure"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >ИИ-инфраструктура</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Квантизация моделей в 2026 году: от основ до внедрения в производство</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../02/21/modern-data-processing-engines/">Сравнение современных движков обработки данных: Polars, DataFusion, Daft, Ray Data, Pandas и Spark</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Руководство по развертыванию LoRAX: тысячи адаптеров LoRA в Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/06/mlops-vs-llmops/">MLOps против LLMOps: инфраструктура для фундаментальных моделей и систем на основе больших языковых моделей</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/04/scaling-llms-multi-gpu-multi-node/">Масштабирование крупных языковых моделей: стратегии с использованием нескольких GPU и нескольких узлов, эффективно работающие на практике</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#retrieval-and-language-systems"
-                  >
-                    <span class="blog-category-icon"
-                      >🔍</span
-                    >
-                    <span class="blog-category-name"
-                      >Поисковые и языковые системы</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/10/rag-evaluation-metrics/">Оценка RAG: показатели для каждого этапа производственной системы RAG</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/02/ner-guide/">Полное руководство по NER в 2026 году: кодировщики, большие языковые модели и трехуровневая архитектура производства</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../03/04/ocr-guide/">Полное руководство по OCR в 2026 году: от пайплайнов до VLM</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../02/08/search-ranking-stack/">Стек технологий для ранжирования результатов поиска в 2026 году: BM25, эмбеддинги, кросс-энкодеры и переранжирование с использованием больших языковых моделей</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#developer-tooling"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >Developer Tooling</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/06/10/mcp-server-tutorial-uv-fastmcp/">Учебник по серверу MCP с использованием uv и FastMCP: создание сервера FeatureStoreLite</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/10/local-llms-on-macos/">Локальные LLM на macOS: Ollama, LM Studio, llama.cpp, MLX и Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/10/stable-diffusion-macos-tools/">Stable Diffusion на macOS: инструменты для рисования, DiffusionBee, ComfyUI, A1111 и Fooocus</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/08/pyproject-toml-guide/">Руководство по pyproject.toml: пакетизация Python, зависимости и настройка инструментов</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/07/zprofile-vs-zshrc/">Файлы для запуска Zsh: `~/.zprofile` против `~/.zshrc` в macOS и Linux</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/04/19/macbook-ai-engineering-setup/">Настройка MacBook для разработки в области ИИ: инструменты macOS, Python, Docker и рабочий процесс в терминале</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/04/17/uv-python-on-macos/">UV на macOS: управление версиями Python, проектами и инструментами</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                
-              </nav>
-            </li>
-          </ul>
-
-          
-        </nav>
-        
-      </div>
-    </div>
-  </div>
-  <article class="md-content__inner md-typeset">
-     
-  
-
-
-
-
-<!-- automated-translation-notice:start -->
-
-<div class="admonition info">
-<p class="admonition-title">Автоматический перевод</p>
-</div>
-<p>Эта статья была автоматически переведена с оригинальной английской версии.</p>
+<!DOCTYPE html><html lang="ru"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Гиперсоединения с ограничениями манифольда (mHC): объяснение метода глубокой шкалировки Residual в DeepSeek - Edge of Context: Practical AI Engineering</title><meta name="description" content="Технический обзор механизмов DeepSeek: гиперсоединений с ограничениями по манифольдам (mHC), масштабирования ширины остаточного потока, алгоритма маршрутизации Sinkhorn и обеспечения стабильности обучения."><link rel="canonical" href="https://slavadubrov.github.io/ru/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="de" href="https://slavadubrov.github.io/de/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="en" href="https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="es" href="https://slavadubrov.github.io/es/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="fr" href="https://slavadubrov.github.io/fr/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="nl" href="https://slavadubrov.github.io/nl/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="pt" href="https://slavadubrov.github.io/pt/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="ru" href="https://slavadubrov.github.io/ru/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="x-default" href="https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/"><meta property="og:type" content="article"><meta property="og:title" content="Гиперсоединения с ограничениями манифольда (mHC): объяснение метода глубокой шкалировки Residual в DeepSeek - Edge of Context: Practical AI Engineering"><meta property="og:description" content="Технический обзор механизмов DeepSeek: гиперсоединений с ограничениями по манифольдам (mHC), масштабирования ширины остаточного потока, алгоритма маршрутизации Sinkhorn и обеспечения стабильности обучения."><meta property="og:url" content="https://slavadubrov.github.io/ru/blog/2026/01/21/manifold-constrained-hyper-connections/"><meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Гиперсоединения с ограничениями манифольда (mHC): объяснение метода глубокой шкалировки Residual в DeepSeek - Edge of Context: Practical AI Engineering"><meta name="twitter:description" content="Технический обзор механизмов DeepSeek: гиперсоединений с ограничениями по манифольдам (mHC), масштабирования ширины остаточного потока, алгоритма маршрутизации Sinkhorn и обеспечения стабильности обучения."><meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta property="article:published_time" content="2026-01-21"><meta property="article:modified_time" content="2026-05-31"><link rel="icon" href="/assets/favicon-eoc.svg" type="image/svg+xml"><link href="/pagefind/pagefind-component-ui.css" rel="stylesheet"><script src="/pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Гиперсоединения с ограничениями манифольда (mHC): объяснение метода глубокой шкалировки Residual в DeepSeek - Edge of Context: Practical AI Engineering","description":"Технический обзор механизмов DeepSeek: гиперсоединений с ограничениями по манифольдам (mHC), масштабирования ширины остаточного потока, алгоритма маршрутизации Sinkhorn и обеспечения стабильности обучения.","url":"https://slavadubrov.github.io/ru/blog/2026/01/21/manifold-constrained-hyper-connections/","image":"https://slavadubrov.github.io/assets/og-image.png","datePublished":"2026-01-21","dateModified":"2026-05-31","author":{"@type":"Person","name":"Viacheslav Dubrov"}}</script><link rel="stylesheet" href="/_astro/BaseLayout.DgRW7Vi7.css"></head> <body> <a class="skip-link" href="#main-content">Skip to content</a> <header class="site-header"> <a class="brand" data-home-link href="/ru/" aria-label="Edge of Context home"> <img src="/assets/logo-eoc.svg" alt="" width="36" height="36"> <span>Edge of Context</span> </a> <nav aria-label="Primary navigation"> <ul> <li><a data-nav="home" href="/ru/">Главная</a></li><li><a data-nav="blog" href="/ru/blog/">Блог</a></li><li><a data-nav="fastAnswers" href="/ru/blog/fast-answers/">Краткие ответы</a></li><li><a data-nav="about" href="/ru/about/">О проекте</a></li> </ul> </nav> <div class="header-actions"> <pagefind-modal-trigger data-search-label="true">Поиск</pagefind-modal-trigger> <label class="locale-switcher"> <span class="visually-hidden">Язык</span> <select id="locale-select"> <option value="/de/blog/2026/01/21/manifold-constrained-hyper-connections/">Deutsch</option><option value="/blog/2026/01/21/manifold-constrained-hyper-connections/">English</option><option value="/es/blog/2026/01/21/manifold-constrained-hyper-connections/">Español</option><option value="/fr/blog/2026/01/21/manifold-constrained-hyper-connections/">Français</option><option value="/nl/blog/2026/01/21/manifold-constrained-hyper-connections/">Nederlands</option><option value="/pt/blog/2026/01/21/manifold-constrained-hyper-connections/">Português</option><option value="/ru/blog/2026/01/21/manifold-constrained-hyper-connections/" selected>Русский</option> </select> </label> </div> </header> <main id="main-content" tabindex="-1">  <article class="prose" data-pagefind-body> <p class="article-meta"> <time datetime="2026-01-21">2026-01-21</time>  · Обновлено <time datetime="2026-05-31">2026-05-31</time> </p> <!-- automated-translation-notice:start -->
+<blockquote>
+<p>[!NOTE] Автоматический перевод
+Эта статья была автоматически переведена с оригинальной английской версии.</p>
+</blockquote>
 <!-- automated-translation-notice:end -->
-
-<h1 id="mhc-deepseek-mhc">Гиперсоединения с ограничениями манифольда (mHC): объяснение метода резидуальной шкалировки DeepSeek<a href="https://arxiv.org/abs/2512.24880">Гиперсоединения с ограничениями манифольда (mHC)</a>** — решает давно существовавшую проблему стабильности, связанную с масштабированием ширины.</h1>
+<h1 id="гиперсоединения-с-ограничениями-манифольда-mhc-объяснение-метода-резидуальной-шкалировки-deepseekгиперсоединения-с-ограничениями-манифольда-mhc--решает-давно-существовавшую-проблему-стабильности-связанную-с-масштабированием-ширины">Гиперсоединения с ограничениями манифольда (mHC): объяснение метода резидуальной шкалировки DeepSeek<a href="https://arxiv.org/abs/2512.24880">Гиперсоединения с ограничениями манифольда (mHC)</a>** — решает давно существовавшую проблему стабильности, связанную с масштабированием ширины.</h1>
 <p>В этой статье я подробно расскажу о развитии подхода от простых остаточных значений до алгоритма mHC, объяснив, почему каждый из этих шагов был необходим, и как решение DeepSeek фактически работает в крупном масштабе.</p>
 <!-- more -->
-
 <p><strong>Кратко</strong>: Гипер-соединения расширяют остаточные потоки до нескольких параллельных потоков для ускорения сходимости, но нарушают карту идентичностей, обеспечивающую стабильность обучения. mHC восстанавливает стабильность путем ограничения матриц смешивания политопом Биркгофа (двойственно стохастическими матрицами) с использованием дифференцируемого алгоритма Sinkhorn-Knopp. Результат: 4 параллельных потока при добавочной нагрузке всего в 6,7% от общего времени обучения.</p>
-<hr />
-<h2 id="_1">Почему работают остаточные соединения</h2>
+<hr>
+<h2 id="почему-работают-остаточные-соединения">Почему работают остаточные соединения</h2>
 <p>Прежде чем рассмотреть, что исправляет mHC, необходимо понять, на чём он основан.</p>
-<h3 id="_2">Проблема глубины</h3>
+<h3 id="проблема-глубины">Проблема глубины</h3>
 <p>Добавление большего количества слоев должно увеличить пропускную способность модели. На практике очень глубокие сети становятся труднее для обучения. Пропускная способность есть, но терпит неудачу оптимизация на основе градиентов: градиенты исчезают (сокращаясь почти до нуля) или возрастают без предела по мере прохождения через множество слоев.</p>
-<h3 id="_3">Решение с использованием остатков</h3>
+<h3 id="решение-с-использованием-остатков">Решение с использованием остатков</h3>
 <p>Этот <a href="https://arxiv.org/abs/1512.03385">Статья ResNet</a> было предложено изящное решение. Вместо изучения прямого соответствия модель изучает _остаток — разницу от идентичности:</p>
-<p><img alt="Стандартное соединение остаточных значений" src="../../../../assets/2026-01-21-mhc-hyper-connections/residual_connection.svg" /></p>
+<p><img src="/ru/blog/assets/2026-01-21-mhc-hyper-connections/residual_connection.svg" alt="Стандартное соединение остаточных значений"></p>
 <p>Секрет заключается в <strong>сокращении по принципу тождества</strong>. Когда остаточная функция F(x) дает ноль, слой превращается в идеальный проводник сигналов. Это имеет два следствия:</p>
 <ol>
 <li><strong>«Шоссе градиентов»</strong>: градиенты проходят напрямую через это сокращение, избегая эффекта исчезновения значений.</li>
 <li><strong>Упрощённая оптимизация</strong>: если тождественное состояние является оптимальным, сеть просто обучается так, чтобы F(x) → 0.</li>
 </ol>
 <p>Именно эта архитектурная модификация позволила сделать обучаемыми сети с сотнями слоёв.</p>
-<p><img alt="Компромиссы между подходом после применения LN и подходом до него" src="../../../../assets/2026-01-21-mhc-hyper-connections/ln_placement.svg" /></p>
-<table>
-<thead>
-<tr>
-<th>Вариант</th>
-<th>Размещение LN</th>
-<th>Преимущества</th>
-<th>Основное ограничение</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Пост-LN</strong></td>
-<td>После остаточного блока</td>
-<td>Высокая емкость модели</td>
-<td>Исчезновение градиента: функция LN в основном пути масштабирует градиенты на каждом слое</td>
-</tr>
-<tr>
-<td><strong>Пред-LN</strong></td>
-<td>Перед остаточным блоком</td>
-<td>Отличная стабильность.</td>
-<td>Коллапс представлений: признаки становятся схожими между слоями</td>
-</tr>
-</tbody>
-</table>
+<p><img src="/ru/blog/assets/2026-01-21-mhc-hyper-connections/ln_placement.svg" alt="Компромиссы между подходом после применения LN и подходом до него"></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Вариант</th><th>Размещение LN</th><th>Преимущества</th><th>Основное ограничение</th></tr></thead><tbody><tr><td><strong>Пост-LN</strong></td><td>После остаточного блока</td><td>Высокая емкость модели</td><td>Исчезновение градиента: функция LN в основном пути масштабирует градиенты на каждом слое</td></tr><tr><td><strong>Пред-LN</strong></td><td>Перед остаточным блоком</td><td>Отличная стабильность.</td><td>Коллапс представлений: признаки становятся схожими между слоями</td></tr></tbody></table>
 <p>Этот <a href="https://arxiv.org/abs/2304.14802"><strong>ResiDual</strong></a> Архитектура пыталась решить эту проблему с помощью <em>двойных</em> потоков остатков: одного перед применением функции LN для обеспечения стабильности и другого после неё для увеличения пропускной способности. Однако это всё равно оставляет единственный поток остатков. Что, если бы можно было использовать несколько параллельных потоков?</p>
-<hr />
-<h2 id="_4">Гиперсоединения: революция в ширине канала</h2>
+<hr>
+<h2 id="гиперсоединения-революция-в-ширине-канала">Гиперсоединения: революция в ширине канала</h2>
 <p><a href="https://arxiv.org/abs/2409.19606">Гиперсоединения (HC)</a> прошёл другим путём. Не стоит просто увеличивать глубину — необходимо расширять <em>ширину</em> остаточного потока.</p>
-<p><img alt="Архитектура гиперсоединений" src="../../../../assets/2026-01-21-mhc-hyper-connections/hyper_connections.svg" /></p>
-<h3 id="_5">Что такое «стрим»?</h3>
-<p>В стандартных трансформерах эмбеддинги входных токенов образуют единый вектор размером <span class="arithmatex">\(d\)</span>, отражающий их характеристики. Эта последовательность единственного вектора и является «остаточным стримом», проходящим через каждый блок.</p>
-<p>В архитектуре Hyper-Connections <strong>стрим</strong> представляет собой одну из <span class="arithmatex">\(n\)</span> параллельных инстанций этого состояния.</p>
-<p>Как мы их получаем? В начале сети исходный входной эмбеддинг копируется <span class="arithmatex">\(n\)</span> раз (при этом <span class="arithmatex">\(n\)</span> — это «коэффициент расширения», обычно равный 4). Стандартное скрытое состояние размером <span class="arithmatex">\(d\)</span> превращается в «гиперскрытую матрицу» размером <span class="arithmatex">\(n \times d\)</span>.</p>
-<p>Эти <span class="arithmatex">\(n\)</span> идентичных стримов проходят через слои трансформатора сети, где они агрегируются, направляются и расширяются различными способами с помощью описанных ниже механизмов. Благодаря этому они сразу же разделяются и формируют отдельные пути представления информации.</p>
-<h3 id="_6">Основные механизмы</h3>
-<p>Вместо одного остаточного пути архитектура HC поддерживает <span class="arithmatex">\(n\)</span> параллельных стримов, проходящих через всю сеть. В каждом блоке трансформатора выполняются три операции, каждая из которых контролируется небольшими обучаемыми весами:</p>
+<p><img src="/ru/blog/assets/2026-01-21-mhc-hyper-connections/hyper_connections.svg" alt="Архитектура гиперсоединений"></p>
+<h3 id="что-такое-стрим">Что такое «стрим»?</h3>
+<p>В стандартных трансформерах эмбеддинги входных токенов образуют единый вектор размером <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>d</mi></mrow><annotation encoding="application/x-tex">d</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">d</span></span></span></span>, отражающий их характеристики. Эта последовательность единственного вектора и является «остаточным стримом», проходящим через каждый блок.</p>
+<p>В архитектуре Hyper-Connections <strong>стрим</strong> представляет собой одну из <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> параллельных инстанций этого состояния.</p>
+<p>Как мы их получаем? В начале сети исходный входной эмбеддинг копируется <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> раз (при этом <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> — это «коэффициент расширения», обычно равный 4). Стандартное скрытое состояние размером <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>d</mi></mrow><annotation encoding="application/x-tex">d</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">d</span></span></span></span> превращается в «гиперскрытую матрицу» размером <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>×</mo><mi>d</mi></mrow><annotation encoding="application/x-tex">n \times d</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">n</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">d</span></span></span></span>.</p>
+<p>Эти <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> идентичных стримов проходят через слои трансформатора сети, где они агрегируются, направляются и расширяются различными способами с помощью описанных ниже механизмов. Благодаря этому они сразу же разделяются и формируют отдельные пути представления информации.</p>
+<h3 id="основные-механизмы">Основные механизмы</h3>
+<p>Вместо одного остаточного пути архитектура HC поддерживает <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> параллельных стримов, проходящих через всю сеть. В каждом блоке трансформатора выполняются три операции, каждая из которых контролируется небольшими обучаемыми весами:</p>
 <ol>
-<li><strong>Агрегация (<span class="arithmatex">\(H_{pre}\)</span>, предварительное маппинг)</strong>: <span class="arithmatex">\(n\)</span> входящих потоков сжимаются в один вектор для блока трансформера с использованием обучаемой матрицы <span class="arithmatex">\(H_{pre}\)</span>. Каждый поток умножается на обучаемый коэффициент важности, что выполняет функцию фильтра входных данных.</li>
-<li><strong>Расширение (<span class="arithmatex">\(H_{post}\)</span>, постмаппинг)</strong>: После обработки основным блоком трансформера (Attention или MLP) его выход распространяется на <span class="arithmatex">\(n\)</span> отдельных потоков с помощью обучаемой матрицы <span class="arithmatex">\(H_{post}\)</span>. Это служит выходным шлюзом, при этом каждый поток масштабируется с использованием уникального обучаемого коэффициента.</li>
-<li><strong>Смешивание (маршрутизация между потоками)</strong>: Новообразованные расширенные потоки сливаются с исходными остаточными потоками. Обучаемая матрица «маршрутизатора признаков» размером <span class="arithmatex">\(n \times n\)</span> (<span class="arithmatex">\(\mathbf{H}^{res}\)</span>) определяет, как информация из каждого потока попадает в другие, обеспечивая взаимное обогащение признаков перед переходом к следующему слою.</li>
+<li><strong>Агрегация (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>p</mi><mi>r</mi><mi>e</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{pre}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">e</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>, предварительное маппинг)</strong>: <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> входящих потоков сжимаются в один вектор для блока трансформера с использованием обучаемой матрицы <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>p</mi><mi>r</mi><mi>e</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{pre}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">e</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>. Каждый поток умножается на обучаемый коэффициент важности, что выполняет функцию фильтра входных данных.</li>
+<li><strong>Расширение (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>p</mi><mi>o</mi><mi>s</mi><mi>t</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{post}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight">os</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>, постмаппинг)</strong>: После обработки основным блоком трансформера (Attention или MLP) его выход распространяется на <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> отдельных потоков с помощью обучаемой матрицы <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>p</mi><mi>o</mi><mi>s</mi><mi>t</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{post}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight">os</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>. Это служит выходным шлюзом, при этом каждый поток масштабируется с использованием уникального обучаемого коэффициента.</li>
+<li><strong>Смешивание (маршрутизация между потоками)</strong>: Новообразованные расширенные потоки сливаются с исходными остаточными потоками. Обучаемая матрица «маршрутизатора признаков» размером <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>×</mo><mi>n</mi></mrow><annotation encoding="application/x-tex">n \times n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">n</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi mathvariant="bold">H</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\mathbf{H}^{res}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6861em;"></span><span class="mord"><span class="mord mathbf">H</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span></span></span></span></span></span></span></span>) определяет, как информация из каждого потока попадает в другие, обеспечивая взаимное обогащение признаков перед переходом к следующему слою.</li>
 </ol>
 <p>Матрица смешивания H выступает в роли контроллера потока: она маршрутизирует признаки между потоками на основе выученных закономерностей. Таким образом, поток информации становится гораздо более насыщенным по сравнению с прохождением только по одному остаточному пути.</p>
-<h3 id="_7">Результаты</h3>
-<p><img alt="Производительность HC" src="../../../../assets/2026-01-21-mhc-hyper-connections/hc_performance.svg" /></p>
+<h3 id="результаты">Результаты</h3>
+<p><img src="/ru/blog/assets/2026-01-21-mhc-hyper-connections/hc_performance.svg" alt="Производительность HC"></p>
 <p>HC сходится примерно в <strong>1,8 раза быстрее</strong>, чем стандартные остатки. Параллельные потоки обеспечивают градиентам больше путей для движения, что позволяет сети сохранять более разнообразные представления.</p>
-<h3 id="_8">Проблема</h3>
+<h3 id="проблема">Проблема</h3>
 <p>Существует критическая проблема: <strong>HC становится нестабильным при масштабировании</strong>.</p>
-<hr />
-<h2 id="_9">Почему гиперсоединения ломаются</h2>
+<hr>
+<h2 id="почему-гиперсоединения-ломаются">Почему гиперсоединения ломаются</h2>
 <p>Та самая гибкость, которая делает возможным использование HC, также является причиной его сбоев. Она нарушает отображение идентичностей, благодаря которому остатки вообще могут обучаться.</p>
-<p><img alt="Проблема нестабильности HC" src="../../../../assets/2026-01-21-mhc-hyper-connections/hc_instability.svg" /></p>
-<h3 id="_10">Математика нестабильности</h3>
+<p><img src="/ru/blog/assets/2026-01-21-mhc-hyper-connections/hc_instability.svg" alt="Проблема нестабильности HC"></p>
+<h3 id="математика-нестабильности">Математика нестабильности</h3>
 <p>В стандартных остатках:</p>
-<div class="arithmatex">\[x_{l+1} = x_l + F(x_l)\]</div>
-<p>Когда <span class="arithmatex">\(F(x) \rightarrow 0\)</span>, это превращается в тождество: <span class="arithmatex">\(x_{l+1} = x_l\)</span>. Сигнал проходит без изменений.</p>
+<p><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>x</mi><mrow><mi>l</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>=</mo><msub><mi>x</mi><mi>l</mi></msub><mo>+</mo><mi>F</mi><mo stretchy="false">(</mo><msub><mi>x</mi><mi>l</mi></msub><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">x_{l+1} = x_l + F(x_l)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6389em;vertical-align:-0.2083em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span><span class="mbin mtight">+</span><span class="mord mtight">1</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2083em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.7333em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">F</span><span class="mopen">(</span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mclose">)</span></span></span></span></p>
+<p>Когда <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>F</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>→</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">F(x) \rightarrow 0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">F</span><span class="mopen">(</span><span class="mord mathnormal">x</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">→</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span>, это превращается в тождество: <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>x</mi><mrow><mi>l</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>=</mo><msub><mi>x</mi><mi>l</mi></msub></mrow><annotation encoding="application/x-tex">x_{l+1} = x_l</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6389em;vertical-align:-0.2083em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span><span class="mbin mtight">+</span><span class="mord mtight">1</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2083em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span>. Сигнал проходит без изменений.</p>
 <p>В архитектуре Hyper-Connections остаточный путь включает умножение матриц:</p>
-<div class="arithmatex">\[x_{l+1} = \mathbf{H}^{res}_l \cdot x_l + \dots\]</div>
+<p><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>x</mi><mrow><mi>l</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>=</mo><msubsup><mi mathvariant="bold">H</mi><mi>l</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msubsup><mo>⋅</mo><msub><mi>x</mi><mi>l</mi></msub><mo>+</mo><mo>…</mo></mrow><annotation encoding="application/x-tex">x_{l+1} = \mathbf{H}^{res}_l \cdot x_l + \dots</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6389em;vertical-align:-0.2083em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span><span class="mbin mtight">+</span><span class="mord mtight">1</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2083em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.9692em;vertical-align:-0.2831em;"></span><span class="mord"><span class="mord mathbf">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-2.4169em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span></span></span><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2831em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.7333em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.123em;"></span><span class="minner">…</span></span></span></span></p>
 <p>После обработки через L слоёв сигнал принимает вид:</p>
-<div class="arithmatex">\[x_L = \mathbf{H}^{res}_L \times \mathbf{H}^{res}_{L-1} \times \dots \times \mathbf{H}^{res}_1 \times x_0\]</div>
+<p><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>x</mi><mi>L</mi></msub><mo>=</mo><msubsup><mi mathvariant="bold">H</mi><mi>L</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msubsup><mo>×</mo><msubsup><mi mathvariant="bold">H</mi><mrow><mi>L</mi><mo>−</mo><mn>1</mn></mrow><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msubsup><mo>×</mo><mo>⋯</mo><mo>×</mo><msubsup><mi mathvariant="bold">H</mi><mn>1</mn><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msubsup><mo>×</mo><msub><mi>x</mi><mn>0</mn></msub></mrow><annotation encoding="application/x-tex">x_L = \mathbf{H}^{res}_L \times \mathbf{H}^{res}_{L-1} \times \dots \times \mathbf{H}^{res}_1 \times x_0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3283em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">L</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.9614em;vertical-align:-0.2753em;"></span><span class="mord"><span class="mord mathbf">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-2.4247em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">L</span></span></span><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2753em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1.0198em;vertical-align:-0.3337em;"></span><span class="mord"><span class="mord mathbf">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-2.4247em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">L</span><span class="mbin mtight">−</span><span class="mord mtight">1</span></span></span></span><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.3337em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="minner">⋯</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.9342em;vertical-align:-0.2481em;"></span><span class="mord"><span class="mord mathbf">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-2.4519em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">1</span></span></span><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2481em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3011em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">0</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></p>
 <p>Если значения элементов матрицы H даже незначительно отклоняются от 1.0, этот произведение либо:</p>
 <ul>
 <li><strong>Растёт экспоненциально</strong>: значения, превышающие 1.0, умножаются друг на друга с экспоненциальной скоростью.</li>
 <li><strong>Исчезает</strong>: значения, меньшие 1.0, уменьшаются с экспоненциальной скоростью.</li>
 </ul>
 <p>Команда DeepSeek измеряет этот эффект с помощью показателя «Amax Gain Magnitude», который отслеживает максимальное соотношение амплитуды выходного сигнала к амплитуде входного сигнала на всех слоях. В стандартных сетях типа HC этот показатель достигает <strong>~3000</strong> в глубоких сетях. При таких значениях обучение становится невозможным.</p>
-<p><img alt="Коренная причина: потеря идентичности" src="../../../../assets/2026-01-21-mhc-hyper-connections/loss_of_identity.svg" /></p>
+<p><img src="/ru/blog/assets/2026-01-21-mhc-hyper-connections/loss_of_identity.svg" alt="Коренная причина: потеря идентичности"></p>
 <p>Основная проблема заключается в том, что матрицы без ограничений могут принимать любые значения (отрицательные числа, большие модули и т. д.). Нам необходим способ удерживать их в наборе «правильно поведующихся» матриц, которые сохраняют энергию сигнала так же, как это делает единичная матрица.</p>
-<hr />
-<h2 id="mhc">Решение mHC: геометрические ограничения</h2>
+<hr>
+<h2 id="решение-mhc-геометрические-ограничения">Решение mHC: геометрические ограничения</h2>
 <p>Идея подхода mHC заключается в том, что гибкое маршрутизирование и стабильность возможны при наложении ограничений на матрицы смешивания с помощью определённой математической структуры — <strong>политопа Биркгофа</strong>, то есть множества всех двойственно стохастических матриц, у которых сумма элементов в каждой строке и каждом столбце равна 1, а все элементы неотрицательны.</p>
-<p><img alt="Решение mHC" src="../../../../assets/2026-01-21-mhc-hyper-connections/mhc_solution.svg" /></p>
-<h3 id="_11">Три ограничения</h3>
+<p><img src="/ru/blog/assets/2026-01-21-mhc-hyper-connections/mhc_solution.svg" alt="Решение mHC"></p>
+<h3 id="три-ограничения">Три ограничения</h3>
 <p>mHC ограничивает матрицу смешивания H^res таким образом, что она становится <strong>двойственно стохастической</strong>: все её элементы неотрицательны, а сумма элементов в каждой строке и каждом столбце равна ровно 1. Это одновременно обеспечивает соблюдение трех свойств:</p>
-<table>
-<thead>
-<tr>
-<th>Ограничение</th>
-<th>Правило</th>
-<th>Почему это важно</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Положительность</strong></td>
-<td>Все элементы больше 0</td>
-<td>Предотвращает колебания знака, приводящие к дестабилизации градиентов.</td>
-</tr>
-<tr>
-<td><strong>Сумма по строке = 1</strong></td>
-<td>Сумма значений в каждой строке равна 1.0.</td>
-<td>Нормализует вклад выходных данных; ни один поток не доминирует.</td>
-</tr>
-<tr>
-<td><strong>Сумма столбцов = 1</strong></td>
-<td>Сумма значений в каждой колонке равна 1,0.</td>
-<td>Нормализует распределение входных данных; все потоки вносят справедливый вклад.</td>
-</tr>
-</tbody>
-</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Ограничение</th><th>Правило</th><th>Почему это важно</th></tr></thead><tbody><tr><td><strong>Положительность</strong></td><td>Все элементы больше 0</td><td>Предотвращает колебания знака, приводящие к дестабилизации градиентов.</td></tr><tr><td><strong>Сумма по строке = 1</strong></td><td>Сумма значений в каждой строке равна 1.0.</td><td>Нормализует вклад выходных данных; ни один поток не доминирует.</td></tr><tr><td><strong>Сумма столбцов = 1</strong></td><td>Сумма значений в каждой колонке равна 1,0.</td><td>Нормализует распределение входных данных; все потоки вносят справедливый вклад.</td></tr></tbody></table>
 <p>Критический результат: <strong>Энергия на входе = Энергия на выходе</strong>. Амплитуда сигнала сохраняется на протяжении всей глубины сети, что исключает проблему экспоненциального роста затрат.</p>
 <p>У этого ограничения также имеются полезные математические последствия:</p>
 <ol>
@@ -1776,74 +129,71 @@
 <li><strong>Замыкание по умножению</strong>: Сложение двойственно стохастических матриц приводит к другой двойственно стохастической матрице.</li>
 <li><strong>Взвешенное среднее</strong>: Эта операция представляет собой выпуклую комбинацию (взвешенное среднее, при котором сумма весов равна 1) входных данных, что позволяет сохранить общую амплитуду сигнала.</li>
 </ol>
-<h3 id="-">Алгоритм Синкхорн-Кноппа</h3>
+<h3 id="алгоритм-синкхорн-кноппа">Алгоритм Синкхорн-Кноппа</h3>
 <p>Задача заключается в том, как <em>принудительно</em> сделать матрицу, подлежащую обучению, двойственно стохастической, сохраняя при этом её дифференцируемость. Для решения этой проблемы используется <strong>алгоритм Синкхорна–Кноппа</strong>. Это итеративная проекция, которая за несколько шагов приводит матрицу к двойственно стохастическому виду.</p>
-<p><img alt="Подробное описание алгоритма Синкхорна" src="../../../../assets/2026-01-21-mhc-hyper-connections/sinkhorn_detailed.svg" /></p>
+<p><img src="/ru/blog/assets/2026-01-21-mhc-hyper-connections/sinkhorn_detailed.svg" alt="Подробное описание алгоритма Синкхорна"></p>
 <p>Пошаговое руководство с конкретным примером:</p>
 <p><strong>Шаг 1: Положительность.</strong> Применяется функция exp() к исходным весам, чтобы все элементы стали строго положительными:</p>
-<div class="highlight"><pre><span></span><code>Raw Matrix           →    Positive Matrix
-[-0.5  2.1  0.8]          [0.6   7.9   2.2]  Σ=10.7
-[ 1.3 -4.0  1.9]    exp   [3.7   0.02  6.7]  Σ=10.4
-[ 0.1  0.6 -0.2]    →     [1.1   1.8   0.8]  Σ=3.7
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Raw Matrix           →    Positive Matrix</span></span>
+<span class="line"><span>[-0.5  2.1  0.8]          [0.6   7.9   2.2]  Σ=10.7</span></span>
+<span class="line"><span>[ 1.3 -4.0  1.9]    exp   [3.7   0.02  6.7]  Σ=10.4</span></span>
+<span class="line"><span>[ 0.1  0.6 -0.2]    →     [1.1   1.8   0.8]  Σ=3.7</span></span></code></pre>
 <p><strong>Шаг 2: Нормализация строк.</strong> Делим каждую строку на сумму её элементов:</p>
-<div class="highlight"><pre><span></span><code>Positive Matrix      →    Row Normalized
-[0.6   7.9   2.2]         [0.25  0.65  0.10]  Σ=1.0
-[3.7   0.02  6.7]   /row  [0.35  0.01  0.64]  Σ=1.0
-[1.1   1.8   0.8]    →    [0.30  0.45  0.25]  Σ=1.0
-                           Σ=0.9 Σ=1.1 Σ=0.99  ← columns not yet =1
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Positive Matrix      →    Row Normalized</span></span>
+<span class="line"><span>[0.6   7.9   2.2]         [0.25  0.65  0.10]  Σ=1.0</span></span>
+<span class="line"><span>[3.7   0.02  6.7]   /row  [0.35  0.01  0.64]  Σ=1.0</span></span>
+<span class="line"><span>[1.1   1.8   0.8]    →    [0.30  0.45  0.25]  Σ=1.0</span></span>
+<span class="line"><span>                           Σ=0.9 Σ=1.1 Σ=0.99  ← columns not yet =1</span></span></code></pre>
 <p><strong>Шаг 3: Нормализация столбцов.</strong> Делим каждый столбец на сумму его значений:</p>
-<div class="highlight"><pre><span></span><code>Row Normalized       →    Doubly Stochastic
-[0.25  0.65  0.10]        [0.28  0.45  0.27]  Σ=1.0
-[0.35  0.01  0.64]  /col  [0.40  0.09  0.51]  Σ=1.0
-[0.30  0.45  0.25]   →    [0.32  0.46  0.22]  Σ=1.0
-                           Σ=1.0 Σ=1.0 Σ=1.0  ← converges in few iterations
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Row Normalized       →    Doubly Stochastic</span></span>
+<span class="line"><span>[0.25  0.65  0.10]        [0.28  0.45  0.27]  Σ=1.0</span></span>
+<span class="line"><span>[0.35  0.01  0.64]  /col  [0.40  0.09  0.51]  Σ=1.0</span></span>
+<span class="line"><span>[0.30  0.45  0.25]   →    [0.32  0.46  0.22]  Σ=1.0</span></span>
+<span class="line"><span>                           Σ=1.0 Σ=1.0 Σ=1.0  ← converges in few iterations</span></span></code></pre>
 <p><strong>Шаг 4: Итерации.</strong> Повторяйте шаги 2–3 в течение t_max итераций (обычно 20), пока не будет достигнута конвергенция.</p>
 <p>Весь процесс является дифференцируемым, поэтому во время обучения градиенты свободно проходят через него. Метод Sinkhorn-Knopp также имеет низкую стоимость вычислений, что минимизирует дополнительную нагрузку на цикл обучения.</p>
 <p>Инициализация также играет важную роль.</p>
-<h3 id="_12">Усовершенствования инициализации</h3>
+<h3 id="усовершенствования-инициализации">Усовершенствования инициализации</h3>
 <p>Чтобы обучение начиналось стабильно:</p>
 <ul>
 <li><strong>Сигмоида вместо Танха</strong>: Коэффициенты остаются ненегативными и ограничены диапазоном от 0 до 1.</li>
 <li><strong>Умножитель 2</strong>: При инициализации выход сигмоиды составляет примерно 0,5. Умножение на 2 даёт начальное значение веса около 1,0, что соответствует поведению идентичности.</li>
 </ul>
-<hr />
-<h2 id="mhc_1">Полная архитектура mHC</h2>
-<p><img alt="mHC — полная архитектура" src="../../../../assets/2026-01-21-mhc-hyper-connections/mhc_architecture.svg" /></p>
+<hr>
+<h2 id="полная-архитектура-mhc">Полная архитектура mHC</h2>
+<p><img src="/ru/blog/assets/2026-01-21-mhc-hyper-connections/mhc_architecture.svg" alt="mHC — полная архитектура"></p>
 <p>Поток через каждый блок:</p>
 <ol>
-<li><strong>Входные данные</strong>: в слой поступают <span class="arithmatex">\(n\)</span> параллельных остаточных потоков.</li>
-<li><strong>Агрегация (<span class="arithmatex">\(H_{pre}\)</span>)</strong>: <span class="arithmatex">\(n\)</span> потоков объединяются в один вектор путем взвешенной суммы с использованием матрицы <span class="arithmatex">\(H_{pre}\)</span>. В архитектуре mHC эти веса агрегации локально ограничиваются условием <span class="arithmatex">\(\sigma(\cdot)\)</span>, требующим их ненегативности; это предотвращает неестественное масштабирование и разрушительное взаимодействие сигналов.</li>
+<li><strong>Входные данные</strong>: в слой поступают <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> параллельных остаточных потоков.</li>
+<li><strong>Агрегация (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>p</mi><mi>r</mi><mi>e</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{pre}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">e</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>)</strong>: <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> потоков объединяются в один вектор путем взвешенной суммы с использованием матрицы <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>p</mi><mi>r</mi><mi>e</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{pre}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">e</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>. В архитектуре mHC эти веса агрегации локально ограничиваются условием <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>σ</mi><mo stretchy="false">(</mo><mo>⋅</mo><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">\sigma(\cdot)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.0359em;">σ</span><span class="mopen">(</span><span class="mord">⋅</span><span class="mclose">)</span></span></span></span>, требующим их ненегативности; это предотвращает неестественное масштабирование и разрушительное взаимодействие сигналов.</li>
 <li><strong>Обработка данных</strong>: стандартный блок Transformer (Attention или MLP) обрабатывает полученный единый агрегированный вектор.</li>
-<li><strong>Расширение (<span class="arithmatex">\(H_{post}\)</span>)</strong>: единственный выходной сигнал блока распространяется и масштабируется до <span class="arithmatex">\(n\)</span> отдельных потоков обновлений с помощью матрицы <span class="arithmatex">\(H_{post}\)</span>, которая также ограничивается ненегативными значениями.</li>
-<li><strong>Смешивание (<span class="arithmatex">\(H_{res}\)</span>)</strong>: потоки обмениваются информацией через <span class="arithmatex">\(n \times n\)</span> матрицу смешивания <span class="arithmatex">\(\mathbf{H}^{res}\)</span>. В архитектуре mHC эта матрица строго ограничивается политопом Биркгофа (двойственно стохастическим), что обеспечивает сохранение энергии сигнала.</li>
-<li><strong>Выходные данные</strong>: обновленные <span class="arithmatex">\(n\)</span> потоков передаются на следующий слой без возникновения эффектов «взрыва» или «исчезновения» сигнала.</li>
+<li><strong>Расширение (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>p</mi><mi>o</mi><mi>s</mi><mi>t</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{post}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight">os</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>)</strong>: единственный выходной сигнал блока распространяется и масштабируется до <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> отдельных потоков обновлений с помощью матрицы <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>p</mi><mi>o</mi><mi>s</mi><mi>t</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{post}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight">os</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span>, которая также ограничивается ненегативными значениями.</li>
+<li><strong>Смешивание (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>H</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msub></mrow><annotation encoding="application/x-tex">H_{res}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8333em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0813em;">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:-0.0813em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span>)</strong>: потоки обмениваются информацией через <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>×</mo><mi>n</mi></mrow><annotation encoding="application/x-tex">n \times n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">n</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> матрицу смешивания <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi mathvariant="bold">H</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\mathbf{H}^{res}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6861em;"></span><span class="mord"><span class="mord mathbf">H</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span></span></span></span></span></span></span></span>. В архитектуре mHC эта матрица строго ограничивается политопом Биркгофа (двойственно стохастическим), что обеспечивает сохранение энергии сигнала.</li>
+<li><strong>Выходные данные</strong>: обновленные <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> потоков передаются на следующий слой без возникновения эффектов «взрыва» или «исчезновения» сигнала.</li>
 </ol>
 <p>Основное отличие от стандартной архитектуры HC заключается в том, что каждая операция смешивания и агрегации проходит через ограничения типа Sinkhorn или аналогичные методы нормализации. Именно это обеспечивает стабильность сигнала на протяжении сотен слоев.</p>
-<hr />
-<h2 id="_13">Инфраструктура: практическая реализация</h2>
-<p>Расширение до <span class="arithmatex">\(n=4\)</span> потоков создает значительную нагрузку: для каждого потока требуется отдельная память, а алгоритм Sinkhorn добавляет 20 итераций на слой. Команда DeepSeek преодолела эту проблему с помощью нескольких оптимизаций.</p>
-<h3 id="_14">Слияние ядер</h3>
+<hr>
+<h2 id="инфраструктура-практическая-реализация">Инфраструктура: практическая реализация</h2>
+<p>Расширение до <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>4</mn></mrow><annotation encoding="application/x-tex">n=4</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">4</span></span></span></span> потоков создает значительную нагрузку: для каждого потока требуется отдельная память, а алгоритм Sinkhorn добавляет 20 итераций на слой. Команда DeepSeek преодолела эту проблему с помощью нескольких оптимизаций.</p>
+<h3 id="слияние-ядер">Слияние ядер</h3>
 <p>Использование <a href="https://arxiv.org/abs/2504.17577">TileLang</a>, они объединили итерации алгоритма Sinkhorn с умножениями смешанной точности в специализированные ядра CUDA. Это сокращает количество обращений к памяти с высокой пропускной способностью (HBM), которая обычно является настоящим узким местом в современном оборудовании. <a href="https://arxiv.org/abs/2412.19437">DualPipe</a> Планирование перекрывается с процессом передачи градиентов, поэтому затраты на повторный расчёт в основном остаются незаметными.</p>
-<h3 id="_15">Результаты</h3>
+<h3 id="результаты-1">Результаты</h3>
 <p>Благодаря этим оптимизациям <strong>скорость расширения n=4 приносит всего 6,7% дополнительной нагрузки на обучение</strong> по сравнению с базовой версией. Использование сложных топологических маршрутов становится практически возможным в крупном масштабе.</p>
-<hr />
-<h2 id="_16">Эмпирическая проверка</h2>
+<hr>
+<h2 id="эмпирическая-проверка">Эмпирическая проверка</h2>
 <p>Приводят ли теоретические гарантии реальное улучшение?</p>
 <p>Реальные показатели обучения кардинально отличаются. При отсутствии ограничений глубокие сети, использующие стандартные Hyper-Connections, демонстрируют экстремально высокую амплитуду сигнала (Amax Gain), достигающую примерно 3 000, что приводит к серьёзной нестабильности и частым скачкам потерь. При соблюдении двойного стохастического ограничения механизм mHC поддерживает значение Amax Gain на уровне около 1,6 на протяжении всего процесса обучения.</p>
 <p>Но стабильность теряет значение, если снижается производительность модели. Для оценки её способности к представлению информации команда сравнила модель mHC-27B (созданную на архитектуре DeepSeek-V3) с обычными базовыми решениями типа ResNet и неограниченными вариантами HC. На тестах на рассуждения, таких как GSM8K и MATH, mHC последовательно показывает лучшие результаты. Прирост производительности, достигаемый за счёт параллельной обработки потоков, действительно существует, и благодаря ограничениям типа Sinkhorn наконец можно тренировать эти очень широкие резидуальные пути без риска срыва процесса обучения.</p>
-<hr />
-<h2 id="_17">Компромиссы и аспекты, которые следует учитывать</h2>
+<hr>
+<h2 id="компромиссы-и-аспекты-которые-следует-учитывать">Компромиссы и аспекты, которые следует учитывать</h2>
 <p>mHC — это не решение без каких-либо издержек. Существуют три момента, на которые стоит обратить внимание:</p>
 <ol>
 <li><strong>Вычислительная нагрузка</strong>: 6,7% — небольшой показатель по сравнению с получаемыми преимуществами, но это всё равно дополнительные затраты по сравнению с обычными резидуальными схемами.</li>
 <li><strong>Сложность реализации</strong>: Невозможно написать код для этой схемы на обычном PyTorch и ожидать высокой скорости работы. Для минимизации нагрузки требуются специальные, тщательно отточенные ядра CUDA.</li>
 <li><strong>Сильный индуктивный смещение</strong>: Двойное стохастическое ограничение обеспечивает строгое сохранение сигнала. Если ваша задача действительно требует усиления сигнала глубже в сети, это ограничение будет активно противодействовать этому процессу.</li>
 </ol>
-<hr />
-<h2 id="_18">Основные выводы</h2>
+<hr>
+<h2 id="основные-выводы">Основные выводы</h2>
 <ol>
 <li><strong>Резидуальные соединения работают благодаря отображению идентичности</strong>: возможности передавать сигналы без изменений.</li>
 <li><strong>Гипер-соединения масштабируют ширину вместо глубины</strong>, что позволяет достигать более быстрой конвергенции за счёт многопоточного маршрутизирования.</li>
@@ -1853,124 +203,26 @@
 <li><strong>Инфраструктурные решения</strong> (слияние ядер, избирательная пересчётка) делают всю систему практически применимой.</li>
 </ol>
 <p>Для практиков: если вы сталкиваетесь с ограничениями при масштабировании по глубине и имеете возможность разрабатывать собственные ядра, mHC представляет собой принципиально обоснованный способ увеличения пропускной способности за счёт расширения ширины сети при сохранении стабильности процесса обучения.</p>
-<hr />
-<h2 id="_19">Список литературы</h2>
+<hr>
+<h2 id="список-литературы">Список литературы</h2>
 <ul>
 <li><a href="https://arxiv.org/abs/2512.24880">mHC: гиперсвязи с ограничениями по манифолдам</a> - Си и др. (DeepSeek) <a href="https://arxiv.org/abs/1512.03385">Глубокое обучение с резидуальными слоями для распознавания изображений</a> - Хэ и др. (ResNet) <a href="https://arxiv.org/abs/2409.19606">Гиперсоединения</a> - Оригинальная статья в журнале HC <a href="https://arxiv.org/abs/2504.17577">TileLang</a> - Фреймворк оптимизации ядер CUDA <a href="https://arxiv.org/abs/2412.19437">DualPipe</a> - Планировщик параллелизма конвейеров для DeepSeek-V3 <a href="https://arxiv.org/abs/2304.14802">ResiDual</a> - Архитектура с двумя путями обработки остатков</li>
-</ul>
-
-
-
-
-
-
-
-  
-  
-
-
-
-  
-
-
-  
-
-
- 
-  </article>
-</div>
-
-          
-<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
-        </div>
-        
-      </main>
-      
-        <footer class="md-footer">
-  
-  <div class="md-footer-meta md-typeset">
-    <div class="md-footer-meta__inner md-grid">
-      <div class="md-copyright">
-  
-  
-    Made with
-    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
-      Material for MkDocs
-    </a>
-  
-</div>
-      
-        
-<div class="md-social">
-  
-    
-    
-    
-    
-    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://www.tiktok.com/@edge.of.context" target="_blank" rel="noopener" title="TikTok" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M448.5 209.9c-44 .1-87-13.6-122.8-39.2v178.7c0 33.1-10.1 65.4-29 92.6s-45.6 48-76.6 59.6-64.8 13.5-96.9 5.3-60.9-25.9-82.7-50.8-35.3-56-39-88.9 2.9-66.1 18.6-95.2 40-52.7 69.6-67.7 62.9-20.5 95.7-16v89.9c-15-4.7-31.1-4.6-46 .4s-27.9 14.6-37 27.3-14 28.1-13.9 43.9 5.2 31 14.5 43.7 22.4 22.1 37.4 26.9 31.1 4.8 46-.1 28-14.4 37.2-27.1 14.2-28.1 14.2-43.8V0h88c-.1 7.4.6 14.9 1.9 22.2 3.1 16.3 9.4 31.9 18.7 45.7s21.3 25.6 35.2 34.6c19.9 13.1 43.2 20.1 67 20.1V210z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
-    </a>
-  
-</div>
-      
-    </div>
-  </div>
-</footer>
-      
-    </div>
-    <div class="md-dialog" data-md-component="dialog">
-      <div class="md-dialog__inner md-typeset"></div>
-    </div>
-    
-    
-    
-      
-      
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u0421\u043a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u043d\u043e \u0432 \u0431\u0443\u0444\u0435\u0440", "clipboard.copy": "\u041a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0432 \u0431\u0443\u0444\u0435\u0440", "search.result.more.one": "\u0415\u0449\u0451 1 \u043d\u0430 \u044d\u0442\u043e\u0439 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0435", "search.result.more.other": "\u0415\u0449\u0451 # \u043d\u0430 \u044d\u0442\u043e\u0439 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0435", "search.result.none": "\u0421\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0439 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u043e", "search.result.one": "\u041d\u0430\u0439\u0434\u0435\u043d\u043e 1 \u0441\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0435", "search.result.other": "\u041d\u0430\u0439\u0434\u0435\u043d\u043e \u0441\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0439: #", "search.result.placeholder": "\u041d\u0430\u0447\u043d\u0438\u0442\u0435 \u043f\u0435\u0447\u0430\u0442\u0430\u0442\u044c \u0434\u043b\u044f \u043f\u043e\u0438\u0441\u043a\u0430", "search.result.term.missing": "\u041e\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442", "select.version": "\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0432\u0435\u0440\u0441\u0438\u044e"}, "version": null}</script>
-    
-    
-      <script src="../../../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-      
-        <script src="../../../../../../javascripts/mermaid-init.js"></script>
-      
-        <script src="../../../../../../javascripts/mathjax.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
-      
-    
-  </body>
-</html>
+</ul> </article>  </main> <footer class="site-footer"> <p data-footer-tagline>Практическая AI-инженерия от Славы Дуброва.</p> <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>
+      document.querySelector("#locale-select")?.addEventListener("change", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLSelectElement && target.value) location.assign(target.value);
+      });
+      document.querySelectorAll("pre").forEach((pre) => {
+        if (pre.closest(".mermaid-diagram")) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-code";
+        button.textContent = "Copy";
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(pre.textContent || "");
+          button.textContent = "Copied";
+          setTimeout(() => { button.textContent = "Copy"; }, 1500);
+        });
+        pre.append(button);
+      });
+    </script> </body> </html>

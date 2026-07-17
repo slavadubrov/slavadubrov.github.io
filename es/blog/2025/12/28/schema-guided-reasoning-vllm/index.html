@@ -1,1879 +1,18 @@
-
-<!doctype html>
-<html lang="es" class="no-js">
-  <head>
-    
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1">
-      
-        <meta name="description" content="Cómo el razonamiento guiado por esquemas utiliza vLLM, xgrammar, esquemas de Pydantic y decodificación restringida para lograr que las salidas de los LLM sean estructuradas y fiables.">
-      
-      
-        <meta name="author" content="Viacheslav Dubrov">
-      
-      
-        <link rel="canonical" href="https://slavadubrov.github.io/es/blog/2025/12/28/schema-guided-reasoning-vllm/">
-      
-      
-      
-      
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/blog/2025/12/28/schema-guided-reasoning-vllm/" hreflang="en">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/de/blog/2025/12/28/schema-guided-reasoning-vllm/" hreflang="de">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/ru/blog/2025/12/28/schema-guided-reasoning-vllm/" hreflang="ru">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/es/blog/2025/12/28/schema-guided-reasoning-vllm/" hreflang="es">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/pt/blog/2025/12/28/schema-guided-reasoning-vllm/" hreflang="pt">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/fr/blog/2025/12/28/schema-guided-reasoning-vllm/" hreflang="fr">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/nl/blog/2025/12/28/schema-guided-reasoning-vllm/" hreflang="nl">
-        
-      
-      
-        <link rel="alternate" type="application/rss+xml" title="Fuente RSS" href="../../../../../../feed_rss_created.xml">
-        <link rel="alternate" type="application/rss+xml" title="Fuente RSS de contenido actualizado" href="../../../../../../feed_rss_updated.xml">
-      
-      <link rel="icon" href="../../../../../../assets/favicon-eoc.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.6">
-    
-    
-      
-        <title>Razonamiento guiado por esquemas en vLLM: Salidas estructuradas con xgrammar y Pydantic - Edge of Context: Practical AI Engineering</title>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../../assets/stylesheets/main.484c7ddc.min.css">
-      
-        
-        <link rel="stylesheet" href="../../../../../../assets/stylesheets/palette.ab4e12ef.min.css">
-      
-      
-
-
-    
-    
-      
-    
-    
-      
-        
-        
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
-        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../../assets/brand.css">
-    
-      <link rel="stylesheet" href="../../../../../../assets/blog-sidebar.css">
-    
-      <link rel="stylesheet" href="../../../../../../assets/blog-index.css">
-    
-    <script>__md_scope=new URL("../../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
-    
-      
-  
-
-
-  
-  
-
-<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-T51K83ENZ5"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-T51K83ENZ5",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
-  
-    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
-  
-
-    
-        
-
-   
-     
-<!-- Open Graph -->
-<meta property="og:title" content="Razonamiento guiado por esquemas en vLLM: Salidas estructuradas con xgrammar y Pydantic" />
-<meta property="og:description" content="Cómo el razonamiento guiado por esquemas utiliza vLLM, xgrammar, esquemas de Pydantic y decodificación restringida para lograr que las salidas de los LLM sean estructuradas y fiables." />
-<meta property="og:url" content="https://slavadubrov.github.io/es/blog/2025/12/28/schema-guided-reasoning-vllm/" />
-<meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
-<meta
-  property="og:type"
-  content="article"
-/>
-<meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png" />
-<!-- Twitter Card -->
-<meta
-  name="twitter:card"
-  content="summary"
-/>
-<meta name="twitter:title" content="Razonamiento guiado por esquemas en vLLM: Salidas estructuradas con xgrammar y Pydantic" />
-<meta name="twitter:description" content="Cómo el razonamiento guiado por esquemas utiliza vLLM, xgrammar, esquemas de Pydantic y decodificación restringida para lograr que las salidas de los LLM sean estructuradas y fiables." />
-<meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png" />
-<!-- Site identity schema -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Person",
-        "@id": "https://slavadubrov.github.io/#person",
-        "name": "Viacheslav Dubrov",
-        "alternateName": "Slava Dubrov",
-        "url": "https://slavadubrov.github.io/about/",
-        "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-      },
-      {
-        "@type": "WebSite",
-        "@id": "https://slavadubrov.github.io/#website",
-        "name": "Edge of Context: Practical AI Engineering",
-        "alternateName": "Edge of Context",
-        "url": "https://slavadubrov.github.io/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "es",
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        }
-      },
-      {
-        "@type": "Blog",
-        "@id": "https://slavadubrov.github.io/#blog",
-        "name": "Edge of Context: Practical AI Engineering",
-        "url": "https://slavadubrov.github.io/blog/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "es",
-        "author": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "isPartOf": {
-          "@id": "https://slavadubrov.github.io/#website"
-        }
-      }
-    ]
-  }
-</script>
-
-<script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      "itemListElement": [
-        {
-          "@type": "ListItem",
-          "position": 1,
-          "name": "Edge of Context: Practical AI Engineering",
-          "item": "https://slavadubrov.github.io/"
-        },
-        {
-          "@type": "ListItem",
-          "position": 2,
-          "name": "Razonamiento guiado por esquemas en vLLM: Salidas estructuradas con xgrammar y Pydantic",
-          "item": "https://slavadubrov.github.io/es/blog/2025/12/28/schema-guided-reasoning-vllm/"
-        }
-  
-      ]
-    }
-</script>
- 
-<style>
-  /* Header social icons */
-  .md-header__social {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-left: 0.5rem;
-  }
-  .md-header__social a {
-    color: var(--md-primary-bg-color);
-    opacity: 0.7;
-    transition: opacity 0.2s;
-  }
-  .md-header__social a:hover {
-    opacity: 1;
-  }
-  .md-header__social svg {
-    width: 1.2rem;
-    height: 1.2rem;
-    fill: currentColor;
-  }
-  /* Adjust search to make room for social icons */
-  .md-search {
-    margin-right: 0;
-  }
-</style>
-
-<!-- Article-specific Open Graph -->
-       
-<meta property="article:published_time" content="2025-12-28" />
- 
-<meta property="article:modified_time" content="2026-06-07" />
- 
-<meta property="article:author" content="Viacheslav Dubrov" />
-  
-<meta property="article:tag" content="AI Agents" />
-
-<meta property="article:tag" content="Model Engineering" />
- 
-<!-- Schema.org JSON-LD -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    "@id": "https://slavadubrov.github.io/es/blog/2025/12/28/schema-guided-reasoning-vllm/#blogposting",
-    "headline": "Razonamiento guiado por esquemas en vLLM: Salidas estructuradas con xgrammar y Pydantic",
-    "description": "C\u00f3mo el razonamiento guiado por esquemas utiliza vLLM, xgrammar, esquemas de Pydantic y decodificaci\u00f3n restringida para lograr que las salidas de los LLM sean estructuradas y fiables.",
-    "url": "https://slavadubrov.github.io/es/blog/2025/12/28/schema-guided-reasoning-vllm/",
-    "image": "https://slavadubrov.github.io/assets/og-image.png",
-    "inLanguage": "es",
-    "mainEntityOfPage": {
-      "@type": "WebPage",
-      "@id": "https://slavadubrov.github.io/es/blog/2025/12/28/schema-guided-reasoning-vllm/"
-    },
-    "datePublished": "2025-12-28",
-    "dateModified": "2026-06-07",
-    "author": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "publisher": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "isPartOf": {
-      "@type": "Blog",
-      "@id": "https://slavadubrov.github.io/#blog",
-      "name": "Edge of Context: Practical AI Engineering",
-      "url": "https://slavadubrov.github.io/"
-    },
-    "keywords": "AI Agents, Model Engineering"
-  }
-</script>
-
-  
-<link rel="alternate" href="https://slavadubrov.github.io/blog/2025/12/28/schema-guided-reasoning-vllm/" hreflang="x-default">
-</head>
-  
-  
-    
-    
-      
-    
-    
-    
-    
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
-  
-    
-    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
-    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
-    <label class="md-overlay" for="__drawer"></label>
-    <div data-md-component="skip">
-      
-        
-        <a href="#razonamiento-guiado-por-esquemas-en-vllm-resultados-estructurados-con-xgrammar-y-pydantic" class="md-skip">
-          Saltar a contenido
-        </a>
-      
-    </div>
-    <div data-md-component="announce">
-      
-    </div>
-    
-     
-      
-
-  
-
-<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
-  <nav class="md-header__inner md-grid" aria-label="Cabecera">
-    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    <label class="md-header__button md-icon" for="__drawer">
-      
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
-    </label>
-    <div class="md-header__title" data-md-component="header-title">
-      <div class="md-header__ellipsis">
-        <div class="md-header__topic">
-          <span class="md-ellipsis">
-            Edge of Context: Practical AI Engineering
-          </span>
-        </div>
-        <div class="md-header__topic" data-md-component="header-topic">
-          <span class="md-ellipsis">
-            
-              Razonamiento guiado por esquemas en vLLM: Salidas estructuradas con xgrammar y Pydantic
-            
-          </span>
-        </div>
-      </div>
-    </div>
-    
-      
-        <form class="md-header__option" data-md-component="palette">
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
-    
-      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
-    
-      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-</form>
-      
-    
-    
-      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
-    
-    
-      <div class="md-header__option">
-  <div class="md-select">
-    
-    <button class="md-header__button md-icon" aria-label="Seleccionar idioma">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
-    </button>
-    <div class="md-select__inner">
-      <ul class="md-select__list">
-        
-          <li class="md-select__item">
-            <a href="../../../../../../blog/2025/12/28/schema-guided-reasoning-vllm/" hreflang="en" class="md-select__link">
-              English
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../de/blog/2025/12/28/schema-guided-reasoning-vllm/" hreflang="de" class="md-select__link">
-              Deutsch
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../ru/blog/2025/12/28/schema-guided-reasoning-vllm/" hreflang="ru" class="md-select__link">
-              Русский
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="./" hreflang="es" class="md-select__link">
-              Español
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../pt/blog/2025/12/28/schema-guided-reasoning-vllm/" hreflang="pt" class="md-select__link">
-              Português
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../fr/blog/2025/12/28/schema-guided-reasoning-vllm/" hreflang="fr" class="md-select__link">
-              Français
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../nl/blog/2025/12/28/schema-guided-reasoning-vllm/" hreflang="nl" class="md-select__link">
-              Nederlands
-            </a>
-          </li>
-        
-      </ul>
-    </div>
-  </div>
-</div>
-    
-    
-      
-      
-        <label class="md-header__button md-icon" for="__search">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        </label>
-        <div class="md-search" data-md-component="search" role="dialog">
-  <label class="md-search__overlay" for="__search"></label>
-  <div class="md-search__inner" role="search">
-    <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" aria-label="Búsqueda" placeholder="Búsqueda" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
-      <label class="md-search__icon md-icon" for="__search">
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-      </label>
-      <nav class="md-search__options" aria-label="Buscar">
-        
-        <button type="reset" class="md-search__icon md-icon" title="Limpiar" aria-label="Limpiar" tabindex="-1">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-        </button>
-      </nav>
-      
-    </form>
-    <div class="md-search__output">
-      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
-        <div class="md-search-result" data-md-component="search-result">
-          <div class="md-search-result__meta">
-            Inicializando búsqueda
-          </div>
-          <ol class="md-search-result__list" role="presentation"></ol>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-      
-    
-    
-  </nav>
-  
-    
-      
-<nav class="md-tabs" aria-label="Pestañas" data-md-component="tabs">
-  <div class="md-grid">
-    <ul class="md-tabs__list">
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../../" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Inicio
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Blog
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
-        <a href="../../../../fast-answers/" class="md-tabs__link">
-          
-  
-  
-    
-  
-  Respuestas rápidas
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../../about/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Acerca de
-
-      </a>
-    </li>
-  
-
-      
-    </ul>
-  </div>
-</nav>
-    
-  
-</header>
-    
-<script>
-  // Inject social icons into header after DOM loads
-  document.addEventListener("DOMContentLoaded", function () {
-    const header = document.querySelector(".md-header__inner");
-    if (header) {
-      const social = document.createElement("div");
-      social.className = "md-header__social";
-      social.innerHTML = `
-      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
-      </a>
-      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
-      </a>
-      <a href="https://www.tiktok.com/@edge.of.context" title="TikTok" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M448 209.9a210.1 210.1 0 0 1-122.8-39.2v178.7A162.6 162.6 0 1 1 185 188.3v89.9a74.6 74.6 0 1 0 52.2 71.2V0h88a121.2 121.2 0 0 0 1.9 22.2 122.2 122.2 0 0 0 53.9 80.2 121.4 121.4 0 0 0 67 20.1v87.4z"/></svg>
-      </a>
-      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
-      </a>
-    `;
-      header.appendChild(social);
-    }
-  });
-</script>
-
-    <div class="md-container" data-md-component="container">
-      
-      
-        
-      
-      <main class="md-main" data-md-component="main">
-        <div class="md-main__inner md-grid">
-          
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-
-  
-
-
-<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navegación" data-md-level="0">
-  <label class="md-nav__title" for="__drawer">
-    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    Edge of Context: Practical AI Engineering
-  </label>
-  
-  <ul class="md-nav__list" data-md-scrollfix>
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Inicio
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Blog
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-      
-        
-          
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <div class="md-nav__link md-nav__container">
-            <a href="../../../../fast-answers/" class="md-nav__link ">
-              
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Respuestas rápidas
-  
-
-    
-  </span>
-  
-  
-
-            </a>
-            
-              
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
-                <span class="md-nav__icon md-icon"></span>
-              </label>
-            
-          </div>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Respuestas rápidas
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ai-agent-frameworks/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Frameworks
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/rag-evaluation-tools/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    RAG Evaluation Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/local-llm-tools-macos/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Local LLM Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ocr-models-document-ai/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    OCR Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ner-models/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    NER Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/agent-security-patterns/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Security Patterns
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/search-ranking-stack/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Search Ranking Stack
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../../about/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Acerca de
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-  </ul>
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-<nav class="md-nav md-nav--secondary" aria-label="Tabla de contenidos">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Tabla de contenidos
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#que-es-el-razonamiento-guiado-por-esquemas" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ¿Qué es el razonamiento guiado por esquemas?
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="¿Qué es el razonamiento guiado por esquemas?">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#por-que-es-importante-sgr" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Por qué es importante SGR
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#sgr-vs-cadena-de-pensamiento-vs-ingenieria-de-prompts" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        SGR vs Cadena de pensamiento vs ingeniería de prompts
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="SGR vs Cadena de pensamiento vs ingeniería de prompts">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#ingenieria-de-prompts-persuasion-semantica" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Ingeniería de prompts: persuasión semántica
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#cadena-de-razonamiento-mejoramiento-en-el-razonamiento-mismo-problema-de-estructura" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cadena de razonamiento: mejoramiento en el razonamiento, mismo problema de estructura
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#sgr-cadena-estructurada-de-razonamiento" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        SGR: cadena estructurada de razonamiento
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#patrones-sgr" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Patrones SGR
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Patrones SGR">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#1-cascada-pasos-secuenciales-de-razonamiento" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1. Cascada: pasos secuenciales de razonamiento
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#3-ciclo-razonamiento-repetido-con-listas" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3. Ciclo: razonamiento repetido con listas
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#hacer-que-sgr-funcione-decodificacion-restringida" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Hacer que SGR funcione: decodificación restringida
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Hacer que SGR funcione: decodificación restringida">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#proveedores-en-la-nube-que-lo-soportan" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Proveedores en la nube que lo soportan
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#motores-de-inferencia-que-lo-soportan" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Motores de inferencia que lo soportan
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#por-que-este-articulo-se-centra-en-vllm-y-xgrammar" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Por qué este artículo se centra en vLLM y xgrammar
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#como-aplica-xgrammar-los-esquemas" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cómo aplica xgrammar los esquemas
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Cómo aplica xgrammar los esquemas">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#donde-tiene-lugar-el-enmascaramiento" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Dónde tiene lugar el enmascaramiento
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#dos-fases" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Dos fases
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Dos fases">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#fase-1-compilacion-de-la-gramatica-una-vez-por-esquema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Fase 1: compilación de la gramática, una vez por esquema
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#fase-2-generacion-de-mascaras-en-tiempo-de-ejecucion-para-cada-token" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Fase 2: generación de máscaras en tiempo de ejecución, para cada token
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#por-que-automatas-de-desplazamiento-hacia-abajo-y-no-expresiones-regulares" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ¿Por qué autómatas de desplazamiento hacia abajo y no expresiones regulares?
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#un-ejemplo-concreto-generacion-de-un-campo-de-tipo-float" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Un ejemplo concreto: generación de un campo de tipo float
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#por-que-un-sobrecoste-casi-nulo" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Por qué un sobrecoste casi nulo
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#implementacion-practica-con-vllm" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Implementación práctica con vLLM
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Implementación práctica con vLLM">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#estructura-del-proyecto" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Estructura del proyecto
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#paso-1-definir-los-esquemas" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Paso 1: definir los esquemas
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#paso-2-un-cliente-de-llm-que-activa-xgrammar" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Paso 2: un cliente de LLM que activa xgrammar
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#paso-3-orquestar-al-agente" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Paso 3: orquestar al agente
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#paso-4-ejecutar-vllm-con-xgrammar" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Paso 4: ejecutar vLLM con xgrammar
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#salida-de-ejemplo" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Salida de ejemplo
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#mejores-practicas" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Mejores prácticas
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Mejores prácticas">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#diseno-del-esquema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Diseño del esquema
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#configuracion-de-vllm" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Configuración de vLLM
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#consideraciones-de-produccion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Consideraciones de producción
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#conclusion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Conclusión
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#conclusiones-clave" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Conclusiones clave
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#referencias" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Referencias
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Referencias">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#marco-sgr-razonamiento-guiado-por-esquema-sgr-el-framework-original-de-rinat-abdullin-patrones-sgr-patrones-de-cascada-enrutamiento-y-ciclo" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Marco SGR Razonamiento guiado por esquema (SGR) — El framework original de Rinat Abdullin Patrones SGR — Patrones de cascada, enrutamiento y ciclo
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#xgrammar" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        xgrammar
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#vllm" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        vLLM
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#proyecto-de-demostracion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Proyecto de demostración
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-          
-              
-
-<div class="md-content md-content--post" data-md-component="content">
-  <div
-    class="md-sidebar md-sidebar--post"
-    data-md-component="sidebar"
-    data-md-type="navigation"
-  >
-    <div class="md-sidebar__scrollwrap">
-      <div class="md-sidebar__inner md-post">
-        <nav class="md-nav md-nav--primary">
-          <div class="md-post__back">
-            <div class="md-nav__title md-nav__container">
-              <a href="../../../../" class="md-nav__link">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-                <span class="md-ellipsis"> Regresar al índice </span>
-              </a>
-            </div>
-          </div>
-
-          
-          <ul class="md-post__meta md-nav__list">
-            <li class="md-nav__item md-nav__item--section">
-              <div class="md-post__title">
-                <span class="md-ellipsis"
-                  >Temas</span
-                >
-              </div>
-              <nav class="md-nav">
-                            
-                <div
-                  class="blog-category-section blog-category-section--active"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-agents"
-                  >
-                    <span class="blog-category-icon"
-                      >🦾</span
-                    >
-                    <span class="blog-category-name"
-                      >Agentes de IA</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/06/20/schema-guided-agent-memory/">Memoria de agentes de IA: estado tipado guiado por esquemas para sistemas de ejecución prolongada</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/06/10/agent-evals-traces-to-test-suites/">Evaluación de agentes de IA en producción: de registros a conjuntos de pruebas</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/05/26/ai-agent-runtime/">Entorno de ejecución de agentes de IA de larga duración en 2026: sesiones, entornos aislados, puntos de control y herramientas de gestión</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/04/20/ai-agent-security/">Seguridad de agentes de IA en 2026: medidas de control, permisos, entornos aislados y amenazas relacionadas con MCP</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/03/24/ai-agent-tool-use/">Uso de herramientas para agentes de IA en 2026: MCP, CLI, habilidades y ejecución de código</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/02/14/ai-agent-memory-architecture/">Arquitectura de memoria de agentes de IA en 2026: puntos de control, almacenes vectoriales y memoria basada en archivos</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/01/31/ai-agent-reasoning-loops/">Bucles de razonamiento de agentes de IA en 2026: ReAct vs ReWOO vs Planificar y ejecutar</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/01/11/enterprise-rag-challenge-agent-architectures/">Desafío Enterprise RAG 3 (ECR3): Arquitecturas de agentes de IA ganadoras</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post blog-category-post--active"
-                    >
-                      <a href="./">Razonamiento guiado por esquemas en vLLM: Salidas estructuradas con xgrammar y Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../10/20/domain-driven-design-ai-agents/">Diseño impulsado por dominios para agentes de IA: contextos delimitados, herramientas y reglas de negocio</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../10/05/context-engineering-ai-agents/">Ingeniería de contexto para agentes de IA: ventanas de contexto, memoria, herramientas y restricciones</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../06/10/mcp-server-tutorial-uv-fastmcp/">Tutorial de servidor MCP con uv y FastMCP: Crea un servidor FeatureStoreLite</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section blog-category-section--active"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#model-engineering"
-                  >
-                    <span class="blog-category-icon"
-                      >🤖</span
-                    >
-                    <span class="blog-category-name"
-                      >Ingeniería de modelos</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Cuantización de modelos en 2026: de los fundamentos a su implementación en producción</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/03/13/llm-engineering-guide/">Guía de ingeniería de LLM: 45 conceptos sobre inferencia, entrenamiento, arquitectura y operaciones</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/01/21/manifold-constrained-hyper-connections/">Hyper-conexiones restringidas por variedad (mHC): Explicación de la escala residual de DeepSeek</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/01/04/llm-fine-tuning-guide/">Guía de ajuste fino de LLM: LoRA, QLoRA, DoRA, Unsloth, Axolotl y despliegue</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post blog-category-post--active"
-                    >
-                      <a href="./">Razonamiento guiado por esquemas en vLLM: Salidas estructuradas con xgrammar y Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../10/22/lorax-serving-guide-lora-adapters-kubernetes/">Guía de despliegue de LoRAX: miles de adaptadores LoRA en Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/11/open-source-llm-formats/">Variantes de LLM de código abierto y formatos de archivo: Instruct, GGUF, GPTQ, AWQ y MoE</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/10/local-llms-on-macos/">LLMs locales en macOS: Ollama, LM Studio, llama.cpp, MLX y Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/04/scaling-llms-multi-gpu-multi-node/">Escalar modelos de lenguaje grandes: estrategias multi-GPU y multi-nodo que funcionan en la práctica</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-infrastructure"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >Infraestructura de IA</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Cuantización de modelos en 2026: de los fundamentos a su implementación en producción</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/02/21/modern-data-processing-engines/">Comparación de motores modernos de procesamiento de datos: Polars, DataFusion, Daft, Ray Data, Pandas y Spark</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../10/22/lorax-serving-guide-lora-adapters-kubernetes/">Guía de despliegue de LoRAX: miles de adaptadores LoRA en Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/06/mlops-vs-llmops/">MLOps frente a LLMOps: Infraestructura para modelos fundamentales y sistemas de LLM</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/04/scaling-llms-multi-gpu-multi-node/">Escalar modelos de lenguaje grandes: estrategias multi-GPU y multi-nodo que funcionan en la práctica</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#retrieval-and-language-systems"
-                  >
-                    <span class="blog-category-icon"
-                      >🔍</span
-                    >
-                    <span class="blog-category-name"
-                      >Sistemas de
-recuperación y lenguaje</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/05/10/rag-evaluation-metrics/">Evaluación de RAG: métricas para cada etapa de un sistema RAG en producción</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/04/02/ner-guide/">La guía definitiva sobre NER en 2026: codificadores, LLM y la arquitectura de producción de 3 niveles</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/03/04/ocr-guide/">La guía definitiva sobre OCR en 2026: desde pipelines hasta VLMs</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/02/08/search-ranking-stack/">La arquitectura de clasificación en búsquedas en 2026: BM25, embeddings, codificadores cruzados y reclasificación con LLM</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#developer-tooling"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >Herramientas de desarrollo</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../06/10/mcp-server-tutorial-uv-fastmcp/">Tutorial de servidor MCP con uv y FastMCP: Crea un servidor FeatureStoreLite</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/10/local-llms-on-macos/">LLMs locales en macOS: Ollama, LM Studio, llama.cpp, MLX y Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/10/stable-diffusion-macos-tools/">Stable Diffusion en macOS: Herramientas para dibujar, DiffusionBee, ComfyUI, A1111 y Fooocus</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/08/pyproject-toml-guide/">Guía de `pyproject.toml`: empaquetado de Python, dependencias y configuración de herramientas</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/07/zprofile-vs-zshrc/">Archivos de inicio de Zsh: `~/.zprofile` vs `~/.zshrc` en macOS y Linux</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/19/macbook-ai-engineering-setup/">Configuración del MacBook para ingeniería de IA: herramientas de macOS, Python, Docker y flujo de trabajo en la terminal</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/17/uv-python-on-macos/">UV en macOS: Gestión de versiones de Python, proyectos y herramientas</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                
-              </nav>
-            </li>
-          </ul>
-
-          
-        </nav>
-        
-      </div>
-    </div>
-  </div>
-  <article class="md-content__inner md-typeset">
-     
-  
-
-
-
-
-<!-- automated-translation-notice:start -->
-
-<div class="admonition info">
-<p class="admonition-title">Traducción automática</p>
-</div>
-<p>Este artículo se tradujo automáticamente a partir de la versión original en inglés.</p>
+<!DOCTYPE html><html lang="es"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Razonamiento guiado por esquemas en vLLM: Salidas estructuradas con xgrammar y Pydantic - Edge of Context: Practical AI Engineering</title><meta name="description" content="Cómo el razonamiento guiado por esquemas utiliza vLLM, xgrammar, esquemas de Pydantic y decodificación restringida para lograr que las salidas de los LLM sean estructuradas y fiables."><link rel="canonical" href="https://slavadubrov.github.io/es/blog/2025/12/28/schema-guided-reasoning-vllm/"><link rel="alternate" hreflang="de" href="https://slavadubrov.github.io/de/blog/2025/12/28/schema-guided-reasoning-vllm/"><link rel="alternate" hreflang="en" href="https://slavadubrov.github.io/blog/2025/12/28/schema-guided-reasoning-vllm/"><link rel="alternate" hreflang="es" href="https://slavadubrov.github.io/es/blog/2025/12/28/schema-guided-reasoning-vllm/"><link rel="alternate" hreflang="fr" href="https://slavadubrov.github.io/fr/blog/2025/12/28/schema-guided-reasoning-vllm/"><link rel="alternate" hreflang="nl" href="https://slavadubrov.github.io/nl/blog/2025/12/28/schema-guided-reasoning-vllm/"><link rel="alternate" hreflang="pt" href="https://slavadubrov.github.io/pt/blog/2025/12/28/schema-guided-reasoning-vllm/"><link rel="alternate" hreflang="ru" href="https://slavadubrov.github.io/ru/blog/2025/12/28/schema-guided-reasoning-vllm/"><link rel="alternate" hreflang="x-default" href="https://slavadubrov.github.io/blog/2025/12/28/schema-guided-reasoning-vllm/"><meta property="og:type" content="article"><meta property="og:title" content="Razonamiento guiado por esquemas en vLLM: Salidas estructuradas con xgrammar y Pydantic - Edge of Context: Practical AI Engineering"><meta property="og:description" content="Cómo el razonamiento guiado por esquemas utiliza vLLM, xgrammar, esquemas de Pydantic y decodificación restringida para lograr que las salidas de los LLM sean estructuradas y fiables."><meta property="og:url" content="https://slavadubrov.github.io/es/blog/2025/12/28/schema-guided-reasoning-vllm/"><meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Razonamiento guiado por esquemas en vLLM: Salidas estructuradas con xgrammar y Pydantic - Edge of Context: Practical AI Engineering"><meta name="twitter:description" content="Cómo el razonamiento guiado por esquemas utiliza vLLM, xgrammar, esquemas de Pydantic y decodificación restringida para lograr que las salidas de los LLM sean estructuradas y fiables."><meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta property="article:published_time" content="2025-12-28"><meta property="article:modified_time" content="2026-06-07"><link rel="icon" href="/assets/favicon-eoc.svg" type="image/svg+xml"><link href="/pagefind/pagefind-component-ui.css" rel="stylesheet"><script src="/pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Razonamiento guiado por esquemas en vLLM: Salidas estructuradas con xgrammar y Pydantic - Edge of Context: Practical AI Engineering","description":"Cómo el razonamiento guiado por esquemas utiliza vLLM, xgrammar, esquemas de Pydantic y decodificación restringida para lograr que las salidas de los LLM sean estructuradas y fiables.","url":"https://slavadubrov.github.io/es/blog/2025/12/28/schema-guided-reasoning-vllm/","image":"https://slavadubrov.github.io/assets/og-image.png","datePublished":"2025-12-28","dateModified":"2026-06-07","author":{"@type":"Person","name":"Viacheslav Dubrov"}}</script><link rel="stylesheet" href="/_astro/BaseLayout.DgRW7Vi7.css"></head> <body> <a class="skip-link" href="#main-content">Skip to content</a> <header class="site-header"> <a class="brand" data-home-link href="/es/" aria-label="Edge of Context home"> <img src="/assets/logo-eoc.svg" alt="" width="36" height="36"> <span>Edge of Context</span> </a> <nav aria-label="Primary navigation"> <ul> <li><a data-nav="home" href="/es/">Inicio</a></li><li><a data-nav="blog" href="/es/blog/">Blog</a></li><li><a data-nav="fastAnswers" href="/es/blog/fast-answers/">Respuestas rápidas</a></li><li><a data-nav="about" href="/es/about/">Acerca de</a></li> </ul> </nav> <div class="header-actions"> <pagefind-modal-trigger data-search-label="true">Buscar</pagefind-modal-trigger> <label class="locale-switcher"> <span class="visually-hidden">Idioma</span> <select id="locale-select"> <option value="/de/blog/2025/12/28/schema-guided-reasoning-vllm/">Deutsch</option><option value="/blog/2025/12/28/schema-guided-reasoning-vllm/">English</option><option value="/es/blog/2025/12/28/schema-guided-reasoning-vllm/" selected>Español</option><option value="/fr/blog/2025/12/28/schema-guided-reasoning-vllm/">Français</option><option value="/nl/blog/2025/12/28/schema-guided-reasoning-vllm/">Nederlands</option><option value="/pt/blog/2025/12/28/schema-guided-reasoning-vllm/">Português</option><option value="/ru/blog/2025/12/28/schema-guided-reasoning-vllm/">Русский</option> </select> </label> </div> </header> <main id="main-content" tabindex="-1">  <article class="prose" data-pagefind-body> <p class="article-meta"> <time datetime="2025-12-28">2025-12-28</time>  · Actualizado <time datetime="2026-06-07">2026-06-07</time> </p> <!-- automated-translation-notice:start -->
+<blockquote>
+<p>[!NOTE] Traducción automática
+Este artículo se tradujo automáticamente a partir de la versión original en inglés.</p>
+</blockquote>
 <!-- automated-translation-notice:end -->
-
 <h1 id="razonamiento-guiado-por-esquemas-en-vllm-resultados-estructurados-con-xgrammar-y-pydantic">Razonamiento guiado por esquemas en vLLM: resultados estructurados con xgrammar y Pydantic</h1>
 <p>Un bucle de intentos repetidos es, en realidad, una admisión de fracaso. Significa: “Esperaba que el modelo devolviera JSON válido, pero no lo hizo; por eso volveré a intentarlo”. La mayor parte del código de agentes basados en LLM con el que he trabajado depende en gran medida de estos intentos repetidos, y aun así, los resultados en formato JSON suelen estar corruptos con tanta frecuencia que alguien acaba creando una alerta para detectarlo.</p>
 <p>El Razonamiento guiado por esquemas (Schema-Guided Reasoning, SGR) omite este proceso de intentos repetidos al imponer el esquema a nivel de tokens. Se define la topología del razonamiento como un esquema Pydantic, y el motor de inferencia descarta cualquier token que pueda violar dicho esquema antes de realizar la muestreo. De esta manera, el resultado final es válido por diseño, y no gracias a intentos repetidos.</p>
 <!-- more -->
-
 <blockquote>
 <p><strong>TL;DR.</strong> SGR emplea decodificación restringida para ajustar la salida de un LLM a un esquema Pydantic que usted controla. Al combinarlo con el backend xgrammar de vLLM, se obtiene JSON válido en todo momento, con una sobrecarga de latencia prácticamente nula.</p>
 </blockquote>
-<hr />
-<h2 id="que-es-el-razonamiento-guiado-por-esquemas">¿Qué es el razonamiento guiado por esquemas?</h2>
+<hr>
+<h2 id="qué-es-el-razonamiento-guiado-por-esquemas">¿Qué es el razonamiento guiado por esquemas?</h2>
 <p>El razonamiento guiado por esquemas es una técnica que <a href="https://abdullin.com/schema-guided-reasoning/">Rinat Abdullin</a> Redactado en 2024. En lugar de permitir que el modelo complete el texto de forma libre (lo cual puede resultar inconsistente o ambiguo), se le proporciona una plantilla estricta que define:</p>
 <ul>
 <li>los pasos que debe seguir, de modo que no pueda omitir el análisis;</li>
@@ -1881,8 +20,8 @@ recuperación y lenguaje</span
 <li>dónde debe concentrar su atención, de forma que la profundidad del análisis sea adecuada donde realmente importa.</li>
 </ul>
 <p>Piénsalo como una lista de verificación cognitiva que el modelo debe cumplir.</p>
-<p><img alt="Resumen general de SGR" src="../../../../assets/2025-12-25-sgr-vllm/sgr_overview.svg" /></p>
-<h3 id="por-que-es-importante-sgr">Por qué es importante SGR</h3>
+<p><img src="/es/blog/assets/2025-12-25-sgr-vllm/sgr_overview.svg" alt="Resumen general de SGR"></p>
+<h3 id="por-qué-es-importante-sgr">Por qué es importante SGR</h3>
 <p>Al definir un esquema con campos como <code>churn_analysis</code>, <code>margin_math</code>, y <code>max_discount_percent</code>El modelo debe rellenarlos en orden; no puede pasar directamente a la decisión de descuento sin haber realizado primero el análisis correspondiente.</p>
 <p>Esto permite obtener:</p>
 <ul>
@@ -1892,156 +31,150 @@ recuperación y lenguaje</span
 <li>modelos más pequeños y viables, puesto que el esquema impone las reglas que de otro modo el modelo tendría que aprender por sí mismo</li>
 <li>un aumento en la precisión del 5-10% <a href="https://abdullin.com/schema-guided-reasoning/">comúnmente reportado</a> en cargas de trabajo de producción</li>
 </ul>
-<hr />
-<h2 id="sgr-vs-cadena-de-pensamiento-vs-ingenieria-de-prompts">SGR vs Cadena de pensamiento vs ingeniería de prompts</h2>
+<hr>
+<h2 id="sgr-vs-cadena-de-pensamiento-vs-ingeniería-de-prompts">SGR vs Cadena de pensamiento vs ingeniería de prompts</h2>
 <p>Los tres enfoques difieren principalmente en la intensidad con la que restringen al modelo.</p>
-<p><img alt="Comparación de SGR" src="../../../../assets/2025-12-25-sgr-vllm/sgr_comparison.svg" /></p>
-<table>
-<thead>
-<tr>
-<th>Característica</th>
-<th>Ingeniería de prompts</th>
-<th>Secuencia de razonamiento</th>
-<th>Razonamiento guiado por esquemas</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Estructura de salida</strong></td>
-<td>Texto variable</td>
-<td>Prosa libre</td>
-<td>JSON/Pydantic rígido</td>
-</tr>
-<tr>
-<td><strong>Mecanismo de control</strong></td>
-<td>Persuasión semántica (“Por favor, genere JSON”)</td>
-<td>Sugerencias heurísticas (“Pensemos paso a paso”)</td>
-<td>Decodificación restringida (basada en gramática)</td>
-</tr>
-<tr>
-<td><strong>Flujo de razonamiento</strong></td>
-<td></td>
-<td>El modelo determina</td>
-<td>El desarrollador determina la topología del esquema.</td>
-</tr>
-<tr>
-<td><strong>Auditablez</strong></td>
-<td>Bajo (requiere análisis)</td>
-<td>Bajo (requiere leer el texto)</td>
-<td>Alto (inspección a nivel de campo)</td>
-</tr>
-<tr>
-<td><strong>Integración</strong></td>
-<td>Difícil (análisis con regex)</td>
-<td>Difícil (formato variable)</td>
-<td>Trivial (deserialización de objetos nativos)</td>
-</tr>
-<tr>
-<td><strong>Tasa de errores</strong></td>
-<td>Alto (variabilidad de formato)</td>
-<td>Moderado (alucinación de formato)</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Requisitos del modelo</strong></td>
-<td>Fuerte capacidad de seguimiento de instrucciones</td>
-<td>Capacidad de razonamiento sólida</td>
-<td>Funciona también con modelos más pequeños.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="ingenieria-de-prompts-persuasion-semantica">Ingeniería de prompts: persuasión semántica</h3>
-<div class="highlight"><pre><span></span><code>Please analyze the customer data and output your response as valid JSON
-with the following structure: {&quot;discount&quot;: &lt;number&gt;, &quot;reason&quot;: &lt;string&gt;}
-Be careful with the formatting!
-</code></pre></div>
+<p><img src="/es/blog/assets/2025-12-25-sgr-vllm/sgr_comparison.svg" alt="Comparación de SGR"></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Característica</th><th>Ingeniería de prompts</th><th>Secuencia de razonamiento</th><th>Razonamiento guiado por esquemas</th></tr></thead><tbody><tr><td><strong>Estructura de salida</strong></td><td>Texto variable</td><td>Prosa libre</td><td>JSON/Pydantic rígido</td></tr><tr><td><strong>Mecanismo de control</strong></td><td>Persuasión semántica (“Por favor, genere JSON”)</td><td>Sugerencias heurísticas (“Pensemos paso a paso”)</td><td>Decodificación restringida (basada en gramática)</td></tr><tr><td><strong>Flujo de razonamiento</strong></td><td></td><td>El modelo determina</td><td>El desarrollador determina la topología del esquema.</td></tr><tr><td><strong>Auditablez</strong></td><td>Bajo (requiere análisis)</td><td>Bajo (requiere leer el texto)</td><td>Alto (inspección a nivel de campo)</td></tr><tr><td><strong>Integración</strong></td><td>Difícil (análisis con regex)</td><td>Difícil (formato variable)</td><td>Trivial (deserialización de objetos nativos)</td></tr><tr><td><strong>Tasa de errores</strong></td><td>Alto (variabilidad de formato)</td><td>Moderado (alucinación de formato)</td><td></td></tr><tr><td><strong>Requisitos del modelo</strong></td><td>Fuerte capacidad de seguimiento de instrucciones</td><td>Capacidad de razonamiento sólida</td><td>Funciona también con modelos más pequeños.</td></tr></tbody></table>
+<h3 id="ingeniería-de-prompts-persuasión-semántica">Ingeniería de prompts: persuasión semántica</h3>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="text"><code><span class="line"><span>Please analyze the customer data and output your response as valid JSON</span></span>
+<span class="line"><span>with the following structure: {"discount": &#x3C;number>, "reason": &#x3C;string>}</span></span>
+<span class="line"><span>Be careful with the formatting!</span></span></code></pre>
 <p>Esperas que la comprensión del modelo sobre “JSON de salida” supere su tendencia a adoptar un estilo conversacional. Una actualización del modelo, un cambio en la temperatura o un ejemplo de few-shot diferente pueden invalidar tu parser.</p>
 <h3 id="cadena-de-razonamiento-mejoramiento-en-el-razonamiento-mismo-problema-de-estructura">Cadena de razonamiento: mejoramiento en el razonamiento, mismo problema de estructura</h3>
-<div class="highlight"><pre><span></span><code>Let&#39;s think step by step:
-1. First, I&#39;ll analyze the customer&#39;s churn risk...
-2. Then I&#39;ll calculate the margin...
-3. Therefore, I recommend a 15% discount.
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="text"><code><span class="line"><span>Let's think step by step:</span></span>
+<span class="line"><span>1. First, I'll analyze the customer's churn risk...</span></span>
+<span class="line"><span>2. Then I'll calculate the margin...</span></span>
+<span class="line"><span>3. Therefore, I recommend a 15% discount.</span></span></code></pre>
 <p>El CoT mejora la precisión del razonamiento, pero empeora la estructuración. El resultado es un texto impredecible que resulta casi imposible de analizar de forma fiable. Por lo general, hay que realizar una segunda llamada al LLM solo para extraer los datos estructurados.</p>
 <h3 id="sgr-cadena-estructurada-de-razonamiento">SGR: cadena estructurada de razonamiento</h3>
 <p>SGR mantiene la intuición del CoT de que el razonamiento intermedio mejora la precisión. Simplemente formaliza los pasos:</p>
-<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">PricingLogic</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-    <span class="c1"># 1. Data Analysis (must complete before decision)</span>
-    <span class="n">churn_analysis</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Analyze churn_probability&quot;</span><span class="p">)</span>
-    <span class="n">financial_analysis</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Analyze cart_value and margin&quot;</span><span class="p">)</span>
-
-    <span class="c1"># 2. Math Enforcement (explicit calculation)</span>
-    <span class="n">margin_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Calculate: &#39;Cart $X * Y% = $Z&#39;&quot;</span><span class="p">)</span>
-
-    <span class="c1"># 3. Decision Constraint (bounded by prior analysis)</span>
-    <span class="n">max_discount_percent</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Max allowed discount&quot;</span><span class="p">)</span>
-
-    <span class="c1"># 4. Final Output</span>
-    <span class="n">offer_code</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">customer_message</span><span class="p">:</span> <span class="nb">str</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> PricingLogic</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">BaseModel</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#8B949E">    # 1. Data Analysis (must complete before decision)</span></span>
+<span class="line"><span style="color:#E6EDF3">    churn_analysis: </span><span style="color:#79C0FF">str</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> Field(</span><span style="color:#79C0FF">...</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">description</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"Analyze churn_probability"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">    financial_analysis: </span><span style="color:#79C0FF">str</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> Field(</span><span style="color:#79C0FF">...</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">description</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"Analyze cart_value and margin"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">    # 2. Math Enforcement (explicit calculation)</span></span>
+<span class="line"><span style="color:#E6EDF3">    margin_math: </span><span style="color:#79C0FF">str</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> Field(</span><span style="color:#79C0FF">...</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">description</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"Calculate: 'Cart $X * Y% = $Z'"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">    # 3. Decision Constraint (bounded by prior analysis)</span></span>
+<span class="line"><span style="color:#E6EDF3">    max_discount_percent: </span><span style="color:#79C0FF">float</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> Field(</span><span style="color:#79C0FF">...</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">description</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"Max allowed discount"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">    # 4. Final Output</span></span>
+<span class="line"><span style="color:#E6EDF3">    offer_code: </span><span style="color:#79C0FF">str</span></span>
+<span class="line"><span style="color:#E6EDF3">    customer_message: </span><span style="color:#79C0FF">str</span></span></code></pre>
 <p>El modelo no puede generar salida. <code>max_discount_percent</code> hasta que <code>churn_analysis</code>, <code>financial_analysis</code>, y <code>margin_math</code> Se llenan con los datos correspondientes. El esquema impone el orden de razonamiento.</p>
-<hr />
+<hr>
 <h2 id="patrones-sgr">Patrones SGR</h2>
 <p>SGR cuenta con tres patrones fundamentales que se combinan para formar flujos de trabajo más complejos.</p>
-<p><img alt="Patrones SGR" src="../../../../assets/2025-12-25-sgr-vllm/sgr_patterns.svg" /></p>
+<p><img src="/es/blog/assets/2025-12-25-sgr-vllm/sgr_patterns.svg" alt="Patrones SGR"></p>
 <h3 id="1-cascada-pasos-secuenciales-de-razonamiento">1. Cascada: pasos secuenciales de razonamiento</h3>
 <p>La cascada impone un orden específico para el razonamiento. Es necesario completar cada campo antes de pasar al siguiente.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">Annotated</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">annotated_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Ge</span><span class="p">,</span> <span class="n">Le</span>
-
-<span class="k">class</span><span class="w"> </span><span class="nc">CandidateEvaluation</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Evaluate a job candidate with enforced reasoning order.&quot;&quot;&quot;</span>
-
-    <span class="c1"># Step 1: Summarize (forces context awareness)</span>
-    <span class="n">brief_candidate_summary</span><span class="p">:</span> <span class="nb">str</span>
-
-    <span class="c1"># Step 2: Rate (bounded integer)</span>
-    <span class="n">rate_skill_match</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Ge</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">Le</span><span class="p">(</span><span class="mi">10</span><span class="p">)]</span>
-
-    <span class="c1"># Step 3: Decide (constrained choices)</span>
-    <span class="n">final_recommendation</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;hire&quot;</span><span class="p">,</span> <span class="s2">&quot;reject&quot;</span><span class="p">,</span> <span class="s2">&quot;hold&quot;</span><span class="p">]</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> pydantic </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> BaseModel</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> typing </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> Literal, Annotated</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> annotated_types </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> Ge, Le</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> CandidateEvaluation</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">BaseModel</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#A5D6FF">    """Evaluate a job candidate with enforced reasoning order."""</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">    # Step 1: Summarize (forces context awareness)</span></span>
+<span class="line"><span style="color:#E6EDF3">    brief_candidate_summary: </span><span style="color:#79C0FF">str</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">    # Step 2: Rate (bounded integer)</span></span>
+<span class="line"><span style="color:#E6EDF3">    rate_skill_match: Annotated[</span><span style="color:#79C0FF">int</span><span style="color:#E6EDF3">, Ge(</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">), Le(</span><span style="color:#79C0FF">10</span><span style="color:#E6EDF3">)]</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">    # Step 3: Decide (constrained choices)</span></span>
+<span class="line"><span style="color:#E6EDF3">    final_recommendation: Literal[</span><span style="color:#A5D6FF">"hire"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"reject"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"hold"</span><span style="color:#E6EDF3">]</span></span></code></pre>
 <p>Aplicaciones adecuadas: evaluación de candidatos, clasificación de documentos, análisis de cumplimiento normativo, diagnóstico médico. El modelo debe ser capaz de redactar. <code>brief_candidate_summary</code> Antes de poder evaluar, debe hacerlo primero; y antes de poder recomendar, debe haber realizado la evaluación. No existe atajo. <code>Union</code> Tipos.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">Union</span>
-
-<span class="k">class</span><span class="w"> </span><span class="nc">FeatureLookup</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Route to database lookup.&quot;&quot;&quot;</span>
-    <span class="n">rationale</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">tool_name</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;fetch_user_features&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;fetch_user_features&quot;</span>
-    <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span>
-
-<span class="k">class</span><span class="w"> </span><span class="nc">GeneralResponse</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Standard response for non-pricing queries.&quot;&quot;&quot;</span>
-    <span class="n">tool_name</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;respond&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;respond&quot;</span>
-    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
-
-<span class="k">class</span><span class="w"> </span><span class="nc">RouterSchema</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The model must pick exactly ONE branch.&quot;&quot;&quot;</span>
-    <span class="n">action</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">FeatureLookup</span><span class="p">,</span> <span class="n">GeneralResponse</span><span class="p">]</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> pydantic </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> BaseModel</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> typing </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> Literal, Union</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> FeatureLookup</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">BaseModel</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#A5D6FF">    """Route to database lookup."""</span></span>
+<span class="line"><span style="color:#E6EDF3">    rationale: </span><span style="color:#79C0FF">str</span></span>
+<span class="line"><span style="color:#E6EDF3">    tool_name: Literal[</span><span style="color:#A5D6FF">"fetch_user_features"</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> "fetch_user_features"</span></span>
+<span class="line"><span style="color:#E6EDF3">    user_id: </span><span style="color:#79C0FF">str</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> GeneralResponse</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">BaseModel</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#A5D6FF">    """Standard response for non-pricing queries."""</span></span>
+<span class="line"><span style="color:#E6EDF3">    tool_name: Literal[</span><span style="color:#A5D6FF">"respond"</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> "respond"</span></span>
+<span class="line"><span style="color:#E6EDF3">    content: </span><span style="color:#79C0FF">str</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> RouterSchema</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">BaseModel</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#A5D6FF">    """The model must pick exactly ONE branch."""</span></span>
+<span class="line"><span style="color:#E6EDF3">    action: Union[FeatureLookup, GeneralResponse]</span></span></code></pre>
 <p>Aplicaciones adecuadas: clasificación de intenciones, selección de herramientas, triaje de soporte técnico, despacho de múltiples agentes.</p>
 <p>El <code>Literal</code> discriminador<code>tool_name</code>) hace que el modelo elija una única rama y rellene únicamente los campos que esa rama requiere.</p>
-<hr />
+<hr>
 <h3 id="3-ciclo-razonamiento-repetido-con-listas">3. Ciclo: razonamiento repetido con listas</h3>
 <p>El ciclo obliga al modelo a generar varios elementos, estableciendo límites en su cantidad.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">Annotated</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">annotated_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">MinLen</span><span class="p">,</span> <span class="n">MaxLen</span>
-
-<span class="k">class</span><span class="w"> </span><span class="nc">RiskFactor</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-    <span class="n">explanation</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">severity</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;low&quot;</span><span class="p">,</span> <span class="s2">&quot;medium&quot;</span><span class="p">,</span> <span class="s2">&quot;high&quot;</span><span class="p">]</span>
-
-<span class="k">class</span><span class="w"> </span><span class="nc">RiskAssessment</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate 2-4 risk factors.&quot;&quot;&quot;</span>
-    <span class="n">factors</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">RiskFactor</span><span class="p">],</span> <span class="n">MinLen</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="n">MaxLen</span><span class="p">(</span><span class="mi">4</span><span class="p">)]</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> pydantic </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> BaseModel</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> typing </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> List, Literal, Annotated</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> annotated_types </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> MinLen, MaxLen</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> RiskFactor</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">BaseModel</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#E6EDF3">    explanation: </span><span style="color:#79C0FF">str</span></span>
+<span class="line"><span style="color:#E6EDF3">    severity: Literal[</span><span style="color:#A5D6FF">"low"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"medium"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"high"</span><span style="color:#E6EDF3">]</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> RiskAssessment</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">BaseModel</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#A5D6FF">    """Generate 2-4 risk factors."""</span></span>
+<span class="line"><span style="color:#E6EDF3">    factors: Annotated[List[RiskFactor], MinLen(</span><span style="color:#79C0FF">2</span><span style="color:#E6EDF3">), MaxLen(</span><span style="color:#79C0FF">4</span><span style="color:#E6EDF3">)]</span></span></code></pre>
 <p>Aplicaciones adecuadas: evaluación de riesgos, extracción de problemas, llamadas a herramientas en paralelo, planificación multietapa. <code>MinLen</code> y <code>MaxLen</code> El límite obliga a incluir al menos 2 y como máximo 4 elementos. Combinado con el enrutamiento, así es como se envía un lote de llamadas a herramientas de ancho fijo.</p>
-<hr />
-<h2 id="hacer-que-sgr-funcione-decodificacion-restringida">Hacer que SGR funcione: decodificación restringida</h2>
+<hr>
+<h2 id="hacer-que-sgr-funcione-decodificación-restringida">Hacer que SGR funcione: decodificación restringida</h2>
 <p>Los patrones anteriores son simplemente esquemas Pydantic. Lo que los hace vinculantes es la decodificación restringida (también conocida como salida estructurada).</p>
 <p>La decodificación restringida modifica el paso de generación de tokens. En lugar de permitir que el modelo elija libremente de su vocabulario, el motor aplica una máscara gramatical que bloquea los tokens que violarían el esquema. Esto ocurre en el motor de inferencia, no en el código de tu aplicación.</p>
 <blockquote>
@@ -2050,73 +183,73 @@ SGR no requiere “modelos de razonamiento” como o1 o DeepSeek-R1. Funciona pe
 </blockquote>
 <h3 id="proveedores-en-la-nube-que-lo-soportan">Proveedores en la nube que lo soportan</h3>
 <p>La mayoría de los proveedores modernos de LLM ofrecen salidas estructuradas a través de la decodificación restringida:</p>
-<table>
-<thead>
-<tr>
-<th>Proveedor</th>
-<th>Soporte técnico</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>OpenAI</strong></td>
-<td><a href="https://platform.openai.com/docs/guides/structured-outputs">Salidas estructuradas</a> (incluyendo Azure). <a href="https://abdullin.com/schema-guided-reasoning/">GPT-5 utiliza JSON Schema a través de llguidance</a></td>
-</tr>
-<tr>
-<td><strong>Google/Gemini</strong></td>
-<td><a href="https://ai.google.dev/gemini-api/docs/structured-output">JSON Schema</a> Soporte disponible a partir de noviembre de 2025 (Pydantic y Zod).</td>
-</tr>
-<tr>
-<td><strong>Mistral</strong></td>
-<td><a href="https://docs.mistral.ai/capabilities/structured-output/custom_structured_output/">Salida estructurada personalizada</a></td>
-</tr>
-<tr>
-<td><strong>Grok</strong></td>
-<td><a href="https://docs.x.ai/docs/guides/structured-outputs">Salidas estructuradas</a> para múltiples modelos</td>
-</tr>
-<tr>
-<td><strong>Fireworks AI</strong></td>
-<td><a href="https://docs.fireworks.ai/structured-responses/structured-response-formatting">JSON Schema</a></td>
-</tr>
-<tr>
-<td><strong>Cerebras</strong></td>
-<td><a href="https://inference-docs.cerebras.ai/capabilities/structured-outputs">Salidas estructuradas</a></td>
-</tr>
-<tr>
-<td><strong>OpenRouter</strong></td>
-<td>Depende del proveedor posterior; se mapea a JSON Schema.</td>
-</tr>
-</tbody>
-</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Proveedor</th><th>Soporte técnico</th></tr></thead><tbody><tr><td><strong>OpenAI</strong></td><td><a href="https://platform.openai.com/docs/guides/structured-outputs">Salidas estructuradas</a> (incluyendo Azure). <a href="https://abdullin.com/schema-guided-reasoning/">GPT-5 utiliza JSON Schema a través de llguidance</a></td></tr><tr><td><strong>Google/Gemini</strong></td><td><a href="https://ai.google.dev/gemini-api/docs/structured-output">JSON Schema</a> Soporte disponible a partir de noviembre de 2025 (Pydantic y Zod).</td></tr><tr><td><strong>Mistral</strong></td><td><a href="https://docs.mistral.ai/capabilities/structured-output/custom_structured_output/">Salida estructurada personalizada</a></td></tr><tr><td><strong>Grok</strong></td><td><a href="https://docs.x.ai/docs/guides/structured-outputs">Salidas estructuradas</a> para múltiples modelos</td></tr><tr><td><strong>Fireworks AI</strong></td><td><a href="https://docs.fireworks.ai/structured-responses/structured-response-formatting">JSON Schema</a></td></tr><tr><td><strong>Cerebras</strong></td><td><a href="https://inference-docs.cerebras.ai/capabilities/structured-outputs">Salidas estructuradas</a></td></tr><tr><td><strong>OpenRouter</strong></td><td>Depende del proveedor posterior; se mapea a JSON Schema.</td></tr></tbody></table>
 <h3 id="motores-de-inferencia-que-lo-soportan">Motores de inferencia que lo soportan</h3>
 <p>En el caso de los modelos autohospedados, todos los motores principales disponen de un backend de decodificación con limitaciones:</p>
-<table>
-<thead>
-<tr>
-<th>Motor</th>
-<th>Backend</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>vLLM</strong></td>
-<td><a href="https://github.com/mlc-ai/xgrammar">xgrammar</a> o <a href="https://github.com/guidance-ai/llguidance">orientación</a></td>
-</tr>
-<tr>
-<td><strong>SGLang</strong></td>
-<td><a href="https://github.com/dottxt-ai/outlines">Esquemas</a>, <a href="https://github.com/mlc-ai/xgrammar">XGrammar</a>, o <a href="https://github.com/guidance-ai/llguidance">orientación</a></td>
-</tr>
-<tr>
-<td><strong>TensorRT-LLM</strong></td>
-<td><a href="https://github.com/NVIDIA/TensorRT-LLM/blob/main/examples/llm-api/llm_guided_decoding.py">Decodificación guiada</a></td>
-</tr>
-<tr>
-<td><strong>Ollama</strong></td>
-<td><a href="https://ollama.com/blog/structured-outputs">Salidas estructuradas</a></td>
-</tr>
-</tbody>
-</table>
-<h3 id="por-que-este-articulo-se-centra-en-vllm-y-xgrammar">Por qué este artículo se centra en vLLM y xgrammar</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Motor</th><th>Backend</th></tr></thead><tbody><tr><td><strong>vLLM</strong></td><td><a href="https://github.com/mlc-ai/xgrammar">xgrammar</a> o <a href="https://github.com/guidance-ai/llguidance">orientación</a></td></tr><tr><td><strong>SGLang</strong></td><td><a href="https://github.com/dottxt-ai/outlines">Esquemas</a>, <a href="https://github.com/mlc-ai/xgrammar">XGrammar</a>, o <a href="https://github.com/guidance-ai/llguidance">orientación</a></td></tr><tr><td><strong>TensorRT-LLM</strong></td><td><a href="https://github.com/NVIDIA/TensorRT-LLM/blob/main/examples/llm-api/llm_guided_decoding.py">Decodificación guiada</a></td></tr><tr><td><strong>Ollama</strong></td><td><a href="https://ollama.com/blog/structured-outputs">Salidas estructuradas</a></td></tr></tbody></table>
+<h3 id="por-qué-este-artículo-se-centra-en-vllm-y-xgrammar">Por qué este artículo se centra en vLLM y xgrammar</h3>
 <p>Algunas razones:</p>
 <ul>
 <li>vLLM es el motor de inferencia de LLM de código abierto más ampliamente implementado, por lo que lo que desarrolles aquí se puede integrar con facilidad.</li>
@@ -2125,32 +258,29 @@ SGR no requiere “modelos de razonamiento” como o1 o DeepSeek-R1. Funciona pe
 <li>xgrammar gestiona esquemas anidados complejos, uniones y estructuras recursivas.</li>
 </ul>
 <p>La sección siguiente explica detalladamente cómo xgrammar aplica efectivamente un esquema a nivel de tokens.</p>
-<hr />
-<h2 id="como-aplica-xgrammar-los-esquemas">Cómo aplica xgrammar los esquemas</h2>
+<hr>
+<h2 id="cómo-aplica-xgrammar-los-esquemas">Cómo aplica xgrammar los esquemas</h2>
 <p>Esta parte es fundamental comprenderla con precisión, ya que afecta directamente a la forma en que se depuran y se ajustan los flujos de trabajo de SGR.</p>
-<p><img alt="Aplicación de reglas de xgrammar" src="../../../../assets/2025-12-25-sgr-vllm/xgrammar_enforcement.svg" /></p>
-<h3 id="donde-tiene-lugar-el-enmascaramiento">Dónde tiene lugar el enmascaramiento</h3>
+<p><img src="/es/blog/assets/2025-12-25-sgr-vllm/xgrammar_enforcement.svg" alt="Aplicación de reglas de xgrammar"></p>
+<h3 id="dónde-tiene-lugar-el-enmascaramiento">Dónde tiene lugar el enmascaramiento</h3>
 <p>xgrammar modifica los logits de salida después del paso forward del modelo y antes de la muestreo. No modifica al propio modelo; simplemente filtra qué tokens pueden ser seleccionados.</p>
 <p>Un bucle de inferencia estándar se ve así:</p>
-<div class="highlight"><pre><span></span><code>1. Input tokens → GPU Forward Pass → Logits (probability scores for all ~128K tokens)
-2. Logits → Sampling (temperature, top-p, etc.) → Next Token
-3. Repeat until done
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="text"><code><span class="line"><span>1. Input tokens → GPU Forward Pass → Logits (probability scores for all ~128K tokens)</span></span>
+<span class="line"><span>2. Logits → Sampling (temperature, top-p, etc.) → Next Token</span></span>
+<span class="line"><span>3. Repeat until done</span></span></code></pre>
 <p>xgrammar se colapsa entre los pasos 1 y 2:</p>
-<div class="highlight"><pre><span></span><code>1. Input tokens → GPU Forward Pass → Raw Logits
-2. Raw Logits → xgrammar Logits Processor → Masked Logits
-3. Masked Logits → Sampling → Next Token (guaranteed valid)
-4. Repeat until done
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="text"><code><span class="line"><span>1. Input tokens → GPU Forward Pass → Raw Logits</span></span>
+<span class="line"><span>2. Raw Logits → xgrammar Logits Processor → Masked Logits</span></span>
+<span class="line"><span>3. Masked Logits → Sampling → Next Token (guaranteed valid)</span></span>
+<span class="line"><span>4. Repeat until done</span></span></code></pre>
 <p>El modelo sigue calculando su distribución de probabilidad completa en la GPU. A continuación, xgrammar se ejecuta en la CPU y aplica una máscara de bits a esos logits antes de realizar el muestreo. Los tokens inválidos tienen sus logits establecidos en <code>-∞</code>, lo que hace que su probabilidad sea exactamente 0 tras aplicar softmax.</p>
 <h3 id="dos-fases">Dos fases</h3>
 <p>xgrammar divide el trabajo en tiempo de compilación y tiempo de ejecución, y es precisamente esto lo que le confiere rapidez.</p>
-<h4 id="fase-1-compilacion-de-la-gramatica-una-vez-por-esquema">Fase 1: compilación de la gramática, una vez por esquema</h4>
-<div class="highlight"><pre><span></span><code><span class="c1"># This happens once per schema</span>
-<span class="n">tokenizer_info</span> <span class="o">=</span> <span class="n">xgr</span><span class="o">.</span><span class="n">TokenizerInfo</span><span class="o">.</span><span class="n">from_huggingface</span><span class="p">(</span><span class="n">tokenizer</span><span class="p">)</span>
-<span class="n">grammar_compiler</span> <span class="o">=</span> <span class="n">xgr</span><span class="o">.</span><span class="n">GrammarCompiler</span><span class="p">(</span><span class="n">tokenizer_info</span><span class="p">)</span>
-<span class="n">compiled_grammar</span> <span class="o">=</span> <span class="n">grammar_compiler</span><span class="o">.</span><span class="n">compile_json_schema</span><span class="p">(</span><span class="n">schema_json</span><span class="p">)</span>
-</code></pre></div>
+<h4 id="fase-1-compilación-de-la-gramática-una-vez-por-esquema">Fase 1: compilación de la gramática, una vez por esquema</h4>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># This happens once per schema</span></span>
+<span class="line"><span style="color:#E6EDF3">tokenizer_info </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> xgr.TokenizerInfo.from_huggingface(tokenizer)</span></span>
+<span class="line"><span style="color:#E6EDF3">grammar_compiler </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> xgr.GrammarCompiler(tokenizer_info)</span></span>
+<span class="line"><span style="color:#E6EDF3">compiled_grammar </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> grammar_compiler.compile_json_schema(schema_json)</span></span></code></pre>
 <p>Durante la compilación, xgrammar:</p>
 <ol>
 <li>Convierte el JSON Schema en una gramática libre de contexto.</li>
@@ -2162,7 +292,7 @@ SGR no requiere “modelos de razonamiento” como o1 o DeepSeek-R1. Funciona pe
 <p>[!NOTA]
 Aproximadamente el 99 % de los tokens resultan ser independientes del contexto y terminan siendo cacheados.<a href="https://arxiv.org/abs/2411.15100">Artículo sobre XGrammar</a>). La mayoría de las comprobaciones de validez en tiempo de ejecución no son más que búsquedas en caché, y por eso xgrammar es rápido.</p>
 </blockquote>
-<h4 id="fase-2-generacion-de-mascaras-en-tiempo-de-ejecucion-para-cada-token">Fase 2: generación de máscaras en tiempo de ejecución, para cada token</h4>
+<h4 id="fase-2-generación-de-máscaras-en-tiempo-de-ejecución-para-cada-token">Fase 2: generación de máscaras en tiempo de ejecución, para cada token</h4>
 <p>En cada paso de generación:</p>
 <ol>
 <li>El <code>GrammarMatcher</code> registra la posición actual en la gramática.</li>
@@ -2170,19 +300,18 @@ Aproximadamente el 99 % de los tokens resultan ser independientes del contexto y
 <li>Ejecuta el PDA para verificar los tokens restantes que dependen del contexto.</li>
 <li>Los combina en una máscara de bits final y la aplica a los logits.</li>
 </ol>
-<h3 id="por-que-automatas-de-desplazamiento-hacia-abajo-y-no-expresiones-regulares">¿Por qué autómatas de desplazamiento hacia abajo y no expresiones regulares?</h3>
+<h3 id="por-qué-autómatas-de-desplazamiento-hacia-abajo-y-no-expresiones-regulares">¿Por qué autómatas de desplazamiento hacia abajo y no expresiones regulares?</h3>
 <p>Debido al anidamiento. Una expresión regular (una máquina de estados finitos) no puede coincidir de forma fiable con estructuras como:</p>
-<div class="highlight"><pre><span></span><code><span class="p">{</span><span class="w"> </span><span class="nt">&quot;user&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;profile&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;settings&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;theme&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;dark&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="json"><code><span class="line"><span style="color:#E6EDF3">{ </span><span style="color:#7EE787">"user"</span><span style="color:#E6EDF3">: { </span><span style="color:#7EE787">"profile"</span><span style="color:#E6EDF3">: { </span><span style="color:#7EE787">"settings"</span><span style="color:#E6EDF3">: { </span><span style="color:#7EE787">"theme"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"dark"</span><span style="color:#E6EDF3"> } } } }</span></span></code></pre>
 <p>La parte más complicada son los corchetes de cierre. <code>}}}</code>: es necesario recordar cuántos se han abierto. Un autómata de pila cuenta con una pila que permite hacer un seguimiento de esto, lo que le permite manejar profundidades de anidamiento arbitrarias. Por esa misma razón, xgrammar puede aplicar tipos de unión, objetos anidados y esquemas recursivos, áreas en las que los enfoques basados en expresiones regulares resultan insuficientes.</p>
-<h3 id="un-ejemplo-concreto-generacion-de-un-campo-de-tipo-float">Un ejemplo concreto: generación de un campo de tipo float</h3>
+<h3 id="un-ejemplo-concreto-generación-de-un-campo-de-tipo-float">Un ejemplo concreto: generación de un campo de tipo float</h3>
 <p>Cuando el modelo está generando <code>"max_discount_percent":</code>, xgrammar sabe a partir del esquema que un <code>float</code> Sigue a continuación. La máscara:</p>
 <ul>
-<li>permite (la probabilidad se mantiene sin cambios): <code>0</code>, <code>1</code>, <code>2</code>, ..., <code>9</code>, <code>.</code>, <code>-</code></li>
+<li>permite (la probabilidad se mantiene sin cambios): <code>0</code>, <code>1</code>, <code>2</code>, …, <code>9</code>, <code>.</code>, <code>-</code></li>
 <li>Bloques (probabilidad establecida en 0): <code>"</code>, <code>{</code>, <code>[</code>, <code>true</code>, <code>false</code>, <code>null</code>, y el resto del vocabulario de más de 128K palabras.</li>
 </ul>
 <p>La pasada forward podría haber asignado una alta probabilidad a la palabra. <code>"fifteen"</code>. Tras aplicar la máscara de xgrammar, ese token tiene una probabilidad de 0. El modelo debe generar dígitos.</p>
-<h3 id="por-que-un-sobrecoste-casi-nulo">Por qué un sobrecoste casi nulo</h3>
+<h3 id="por-qué-un-sobrecoste-casi-nulo">Por qué un sobrecoste casi nulo</h3>
 <p>Tres razones:</p>
 <ol>
 <li><strong>Ejecución paralela.</strong> El cálculo de la máscara en la CPU se superpone con el siguiente paso de propagación hacia adelante en la GPU. Mientras la GPU calcula los logit para el token N+1, la CPU calcula la máscara para el token N.</li>
@@ -2190,251 +319,245 @@ Aproximadamente el 99 % de los tokens resultan ser independientes del contexto y
 <li><strong>Implementación en C++.</strong> La ruta crítica está escrita en C++, no en Python, y la máscara se aplica directamente a los logit.</li>
 </ol>
 <p>En las pruebas de rendimiento, xgrammar muestra un sobrecoste insignificante, y la generación estructurada puede ser ocasionalmente más rápida que la generación sin restricciones, ya que el vocabulario restringido hace que el muestreo sea más económico.</p>
-<hr />
-<h2 id="implementacion-practica-con-vllm">Implementación práctica con vLLM</h2>
+<hr>
+<h2 id="implementación-práctica-con-vllm">Implementación práctica con vLLM</h2>
 <p>La referencia es el <a href="https://github.com/slavadubrov/sgr-discount-manager">sgr-gestor-de-descuentos</a> proyecto: una pequeña demostración que utiliza SGR para la fijación dinámica de precios.</p>
-<p><img alt="Flujo de trabajo del agente" src="../../../../assets/2025-12-25-sgr-vllm/agent_workflow.svg" /></p>
+<p><img src="/es/blog/assets/2025-12-25-sgr-vllm/agent_workflow.svg" alt="Flujo de trabajo del agente"></p>
 <h3 id="estructura-del-proyecto">Estructura del proyecto</h3>
-<div class="highlight"><pre><span></span><code>sgr/
-├── agent.py            # Main orchestration
-├── models/
-│   └── schemas.py      # Pydantic SGR schemas
-├── prompts/
-│   ├── routing.py      # Phase 1 prompts
-│   └── pricing.py      # Phase 3 prompts
-├── store/
-│   └── hybrid_store.py # Hot/Cold data retrieval
-└── utils/
-    └── llm_client.py   # LLM client wrapper with xgrammar
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="text"><code><span class="line"><span>sgr/</span></span>
+<span class="line"><span>├── agent.py            # Main orchestration</span></span>
+<span class="line"><span>├── models/</span></span>
+<span class="line"><span>│   └── schemas.py      # Pydantic SGR schemas</span></span>
+<span class="line"><span>├── prompts/</span></span>
+<span class="line"><span>│   ├── routing.py      # Phase 1 prompts</span></span>
+<span class="line"><span>│   └── pricing.py      # Phase 3 prompts</span></span>
+<span class="line"><span>├── store/</span></span>
+<span class="line"><span>│   └── hybrid_store.py # Hot/Cold data retrieval</span></span>
+<span class="line"><span>└── utils/</span></span>
+<span class="line"><span>    └── llm_client.py   # LLM client wrapper with xgrammar</span></span></code></pre>
 <h3 id="paso-1-definir-los-esquemas">Paso 1: definir los esquemas</h3>
-<div class="highlight"><pre><span></span><code><span class="c1"># sgr/models/schemas.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">Field</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">Union</span>
-
-
-<span class="c1"># --- Phase 1: Routing (Union for branching) ---</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">FeatureLookup</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Route to DB lookup if pricing context is needed.&quot;&quot;&quot;</span>
-    <span class="n">rationale</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">tool_name</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;fetch_user_features&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;fetch_user_features&quot;</span>
-    <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">GeneralResponse</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Standard response for non-pricing queries.&quot;&quot;&quot;</span>
-    <span class="n">tool_name</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;respond&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;respond&quot;</span>
-    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">RouterSchema</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-    <span class="n">action</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">FeatureLookup</span><span class="p">,</span> <span class="n">GeneralResponse</span><span class="p">]</span>
-
-
-<span class="c1"># --- Phase 2: Pricing Logic (Cascade for sequential reasoning) ---</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">PricingLogic</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Strict reasoning topology for dynamic pricing.</span>
-<span class="sd">    Fields are ordered to enforce the analysis→decision flow.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># 1. Data Analysis (Reflection)</span>
-    <span class="n">churn_analysis</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="o">...</span><span class="p">,</span>
-        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Analyze churn_probability (High &gt; 0.7).&quot;</span><span class="p">)</span>
-    <span class="n">financial_analysis</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="o">...</span><span class="p">,</span>
-        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Analyze cart_value and profit_margin.&quot;</span><span class="p">)</span>
-
-    <span class="c1"># 2. Hard Math Enforcement</span>
-    <span class="n">margin_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="o">...</span><span class="p">,</span>
-        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Calculate absolute profit: &#39;Cart $200 * 0.20 Margin = $40&#39;.&quot;</span><span class="p">)</span>
-
-    <span class="c1"># 3. The Decision Constraint</span>
-    <span class="n">max_discount_percent</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="o">...</span><span class="p">,</span>
-        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Max allowed discount %. NEVER exceed margin.&quot;</span><span class="p">)</span>
-
-    <span class="c1"># 4. Final Output</span>
-    <span class="n">offer_code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Generated code (e.g. SAVE20).&quot;</span><span class="p">)</span>
-    <span class="n">customer_message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;The final polite offer text.&quot;</span><span class="p">)</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># sgr/models/schemas.py</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> pydantic </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> BaseModel, Field</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> typing </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> Literal, Union</span></span>
+<span class="line"></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># --- Phase 1: Routing (Union for branching) ---</span></span>
+<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> FeatureLookup</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">BaseModel</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#A5D6FF">    """Route to DB lookup if pricing context is needed."""</span></span>
+<span class="line"><span style="color:#E6EDF3">    rationale: </span><span style="color:#79C0FF">str</span></span>
+<span class="line"><span style="color:#E6EDF3">    tool_name: Literal[</span><span style="color:#A5D6FF">"fetch_user_features"</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> "fetch_user_features"</span></span>
+<span class="line"><span style="color:#E6EDF3">    user_id: </span><span style="color:#79C0FF">str</span></span>
+<span class="line"></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> GeneralResponse</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">BaseModel</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#A5D6FF">    """Standard response for non-pricing queries."""</span></span>
+<span class="line"><span style="color:#E6EDF3">    tool_name: Literal[</span><span style="color:#A5D6FF">"respond"</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> "respond"</span></span>
+<span class="line"><span style="color:#E6EDF3">    content: </span><span style="color:#79C0FF">str</span></span>
+<span class="line"></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> RouterSchema</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">BaseModel</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#E6EDF3">    action: Union[FeatureLookup, GeneralResponse]</span></span>
+<span class="line"></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># --- Phase 2: Pricing Logic (Cascade for sequential reasoning) ---</span></span>
+<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> PricingLogic</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">BaseModel</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#A5D6FF">    """</span></span>
+<span class="line"><span style="color:#A5D6FF">    Strict reasoning topology for dynamic pricing.</span></span>
+<span class="line"><span style="color:#A5D6FF">    Fields are ordered to enforce the analysis→decision flow.</span></span>
+<span class="line"><span style="color:#A5D6FF">    """</span></span>
+<span class="line"><span style="color:#8B949E">    # 1. Data Analysis (Reflection)</span></span>
+<span class="line"><span style="color:#E6EDF3">    churn_analysis: </span><span style="color:#79C0FF">str</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> Field(</span><span style="color:#79C0FF">...</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#FFA657">        description</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"Analyze churn_probability (High > 0.7)."</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">    financial_analysis: </span><span style="color:#79C0FF">str</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> Field(</span><span style="color:#79C0FF">...</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#FFA657">        description</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"Analyze cart_value and profit_margin."</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">    # 2. Hard Math Enforcement</span></span>
+<span class="line"><span style="color:#E6EDF3">    margin_math: </span><span style="color:#79C0FF">str</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> Field(</span><span style="color:#79C0FF">...</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#FFA657">        description</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"Calculate absolute profit: 'Cart $200 * 0.20 Margin = $40'."</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">    # 3. The Decision Constraint</span></span>
+<span class="line"><span style="color:#E6EDF3">    max_discount_percent: </span><span style="color:#79C0FF">float</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> Field(</span><span style="color:#79C0FF">...</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#FFA657">        description</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"Max allowed discount %. NEVER exceed margin."</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">    # 4. Final Output</span></span>
+<span class="line"><span style="color:#E6EDF3">    offer_code: </span><span style="color:#79C0FF">str</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> Field(</span><span style="color:#79C0FF">...</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">description</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"Generated code (e.g. SAVE20)."</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">    customer_message: </span><span style="color:#79C0FF">str</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> Field(</span><span style="color:#79C0FF">...</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">description</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"The final polite offer text."</span><span style="color:#E6EDF3">)</span></span></code></pre>
 <h3 id="paso-2-un-cliente-de-llm-que-activa-xgrammar">Paso 2: un cliente de LLM que activa xgrammar</h3>
-<div class="highlight"><pre><span></span><code><span class="c1"># sgr/utils/llm_client.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">openai</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenAI</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypeVar</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-
-<span class="n">T</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">&quot;T&quot;</span><span class="p">,</span> <span class="n">bound</span><span class="o">=</span><span class="n">BaseModel</span><span class="p">)</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">LLMClient</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Wrapper for vLLM with xgrammar-enforced structured generation.&quot;&quot;&quot;</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;http://localhost:8000/v1&quot;</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">client</span> <span class="o">=</span> <span class="n">OpenAI</span><span class="p">(</span><span class="n">base_url</span><span class="o">=</span><span class="n">base_url</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;EMPTY&quot;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_available_model</span><span class="p">()</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_available_model</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Auto-detect the model running on vLLM server.&quot;&quot;&quot;</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">models</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">list</span><span class="p">()</span>
-            <span class="k">if</span> <span class="n">models</span><span class="o">.</span><span class="n">data</span><span class="p">:</span>
-                <span class="k">return</span> <span class="n">models</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">id</span>
-        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-            <span class="k">pass</span>
-        <span class="k">return</span> <span class="s2">&quot;Qwen/Qwen2.5-7B-Instruct&quot;</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">run_sgr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">messages</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">schema_class</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">T</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Run inference with Schema-Guided Response constraints.</span>
-
-<span class="sd">        Uses vLLM&#39;s guided_json with xgrammar backend to enforce</span>
-<span class="sd">        strict schema constraints at the token generation level.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">schema_dict</span> <span class="o">=</span> <span class="n">schema_class</span><span class="o">.</span><span class="n">model_json_schema</span><span class="p">()</span>
-
-        <span class="c1"># Enhance system message with schema for model guidance</span>
-        <span class="n">enhanced_messages</span> <span class="o">=</span> <span class="n">messages</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-        <span class="k">if</span> <span class="n">enhanced_messages</span> <span class="ow">and</span> <span class="n">enhanced_messages</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s2">&quot;role&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;system&quot;</span><span class="p">:</span>
-            <span class="n">schema_json</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">schema_dict</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
-            <span class="n">enhanced_messages</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-                <span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;system&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="p">(</span>
-                    <span class="n">enhanced_messages</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s2">&quot;content&quot;</span><span class="p">]</span>
-                    <span class="o">+</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">Respond with JSON matching this schema:</span><span class="se">\n</span><span class="si">{</span><span class="n">schema_json</span><span class="si">}</span><span class="s2">&quot;</span>
-                <span class="p">),</span>
-            <span class="p">}</span>
-
-        <span class="c1"># vLLM&#39;s guided_json with the xgrammar backend</span>
-        <span class="n">completion</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
-            <span class="n">model</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span>
-            <span class="n">messages</span><span class="o">=</span><span class="n">enhanced_messages</span><span class="p">,</span>
-            <span class="n">temperature</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>  <span class="c1"># Low temp for deterministic reasoning</span>
-            <span class="n">extra_body</span><span class="o">=</span><span class="p">{</span>
-                <span class="s2">&quot;guided_json&quot;</span><span class="p">:</span> <span class="n">schema_dict</span><span class="p">,</span>  <span class="c1"># Pydantic schema as dict</span>
-                <span class="s2">&quot;guided_decoding_backend&quot;</span><span class="p">:</span> <span class="s2">&quot;xgrammar&quot;</span><span class="p">,</span>  <span class="c1"># Hardware-enforced</span>
-            <span class="p">},</span>
-        <span class="p">)</span>
-
-        <span class="n">raw_response</span> <span class="o">=</span> <span class="n">completion</span><span class="o">.</span><span class="n">choices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">message</span><span class="o">.</span><span class="n">content</span>
-        <span class="k">return</span> <span class="n">schema_class</span><span class="o">.</span><span class="n">model_validate_json</span><span class="p">(</span><span class="n">raw_response</span><span class="p">)</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># sgr/utils/llm_client.py</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> openai </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> OpenAI</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> pydantic </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> BaseModel</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> typing </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> TypeVar</span></span>
+<span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> json</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">T </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> TypeVar(</span><span style="color:#A5D6FF">"T"</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">bound</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">BaseModel)</span></span>
+<span class="line"></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> LLMClient</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#A5D6FF">    """Wrapper for vLLM with xgrammar-enforced structured generation."""</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    def</span><span style="color:#79C0FF"> __init__</span><span style="color:#E6EDF3">(self, base_url: </span><span style="color:#79C0FF">str</span><span style="color:#FF7B72"> =</span><span style="color:#A5D6FF"> "http://localhost:8000/v1"</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#79C0FF">        self</span><span style="color:#E6EDF3">.client </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> OpenAI(</span><span style="color:#FFA657">base_url</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">base_url, </span><span style="color:#FFA657">api_key</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"EMPTY"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#79C0FF">        self</span><span style="color:#E6EDF3">.model </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> self</span><span style="color:#E6EDF3">._get_available_model()</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    def</span><span style="color:#D2A8FF"> _get_available_model</span><span style="color:#E6EDF3">(self) -> </span><span style="color:#79C0FF">str</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#A5D6FF">        """Auto-detect the model running on vLLM server."""</span></span>
+<span class="line"><span style="color:#FF7B72">        try</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#E6EDF3">            models </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> self</span><span style="color:#E6EDF3">.client.models.list()</span></span>
+<span class="line"><span style="color:#FF7B72">            if</span><span style="color:#E6EDF3"> models.data:</span></span>
+<span class="line"><span style="color:#FF7B72">                return</span><span style="color:#E6EDF3"> models.data[</span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">].id</span></span>
+<span class="line"><span style="color:#FF7B72">        except</span><span style="color:#79C0FF"> Exception</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#FF7B72">            pass</span></span>
+<span class="line"><span style="color:#FF7B72">        return</span><span style="color:#A5D6FF"> "Qwen/Qwen2.5-7B-Instruct"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    def</span><span style="color:#D2A8FF"> run_sgr</span><span style="color:#E6EDF3">(self, messages: list[</span><span style="color:#79C0FF">dict</span><span style="color:#E6EDF3">], schema_class: type[T]) -> T:</span></span>
+<span class="line"><span style="color:#A5D6FF">        """Run inference with Schema-Guided Response constraints.</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#A5D6FF">        Uses vLLM's guided_json with xgrammar backend to enforce</span></span>
+<span class="line"><span style="color:#A5D6FF">        strict schema constraints at the token generation level.</span></span>
+<span class="line"><span style="color:#A5D6FF">        """</span></span>
+<span class="line"><span style="color:#E6EDF3">        schema_dict </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> schema_class.model_json_schema()</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">        # Enhance system message with schema for model guidance</span></span>
+<span class="line"><span style="color:#E6EDF3">        enhanced_messages </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> messages.copy()</span></span>
+<span class="line"><span style="color:#FF7B72">        if</span><span style="color:#E6EDF3"> enhanced_messages </span><span style="color:#FF7B72">and</span><span style="color:#E6EDF3"> enhanced_messages[</span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">][</span><span style="color:#A5D6FF">"role"</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">==</span><span style="color:#A5D6FF"> "system"</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#E6EDF3">            schema_json </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> json.dumps(schema_dict, </span><span style="color:#FFA657">indent</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">2</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">            enhanced_messages[</span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#A5D6FF">                "role"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"system"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#A5D6FF">                "content"</span><span style="color:#E6EDF3">: (</span></span>
+<span class="line"><span style="color:#E6EDF3">                    enhanced_messages[</span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">][</span><span style="color:#A5D6FF">"content"</span><span style="color:#E6EDF3">]</span></span>
+<span class="line"><span style="color:#FF7B72">                    +</span><span style="color:#FF7B72"> f</span><span style="color:#A5D6FF">"</span><span style="color:#FF7B72">\n\n</span><span style="color:#A5D6FF">Respond with JSON matching this schema:</span><span style="color:#FF7B72">\n{</span><span style="color:#E6EDF3">schema_json</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">"</span></span>
+<span class="line"><span style="color:#E6EDF3">                ),</span></span>
+<span class="line"><span style="color:#E6EDF3">            }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">        # vLLM's guided_json with the xgrammar backend</span></span>
+<span class="line"><span style="color:#E6EDF3">        completion </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> self</span><span style="color:#E6EDF3">.client.chat.completions.create(</span></span>
+<span class="line"><span style="color:#FFA657">            model</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">self</span><span style="color:#E6EDF3">.model,</span></span>
+<span class="line"><span style="color:#FFA657">            messages</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">enhanced_messages,</span></span>
+<span class="line"><span style="color:#FFA657">            temperature</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">0.1</span><span style="color:#E6EDF3">,  </span><span style="color:#8B949E"># Low temp for deterministic reasoning</span></span>
+<span class="line"><span style="color:#FFA657">            extra_body</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">{</span></span>
+<span class="line"><span style="color:#A5D6FF">                "guided_json"</span><span style="color:#E6EDF3">: schema_dict,  </span><span style="color:#8B949E"># Pydantic schema as dict</span></span>
+<span class="line"><span style="color:#A5D6FF">                "guided_decoding_backend"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"xgrammar"</span><span style="color:#E6EDF3">,  </span><span style="color:#8B949E"># Hardware-enforced</span></span>
+<span class="line"><span style="color:#E6EDF3">            },</span></span>
+<span class="line"><span style="color:#E6EDF3">        )</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">        raw_response </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> completion.choices[</span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">].message.content</span></span>
+<span class="line"><span style="color:#FF7B72">        return</span><span style="color:#E6EDF3"> schema_class.model_validate_json(raw_response)</span></span></code></pre>
 <blockquote>
-<p>[!NOTA] &gt; <code>guided_json</code> acepta un diccionario JSON Schema. Con <code>guided_decoding_backend: "xgrammar"</code>, el LLM solo puede generar tokens que formen JSON válido y que se ajuste a su esquema.</p>
+<p>[!NOTA] > <code>guided_json</code> acepta un diccionario JSON Schema. Con <code>guided_decoding_backend: "xgrammar"</code>, el LLM solo puede generar tokens que formen JSON válido y que se ajuste a su esquema.</p>
 </blockquote>
 <h3 id="paso-3-orquestar-al-agente">Paso 3: orquestar al agente</h3>
-<div class="highlight"><pre><span></span><code><span class="c1"># sgr/agent.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.models.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">PricingLogic</span><span class="p">,</span> <span class="n">RouterSchema</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.prompts.routing</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_routing_prompt</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.prompts.pricing</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_pricing_context_prompt</span><span class="p">,</span> <span class="n">ASSISTANT_FETCH_MESSAGE</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.store.hybrid_store</span><span class="w"> </span><span class="kn">import</span> <span class="n">HybridFeatureStore</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.utils.llm_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMClient</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">pricing_agent</span><span class="p">(</span><span class="n">user_query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Process a pricing query with three-phase SGR workflow.&quot;&quot;&quot;</span>
-
-    <span class="n">llm</span> <span class="o">=</span> <span class="n">LLMClient</span><span class="p">()</span>
-    <span class="n">feature_store</span> <span class="o">=</span> <span class="n">HybridFeatureStore</span><span class="p">()</span>
-
-    <span class="c1"># Build conversation history</span>
-    <span class="n">history</span> <span class="o">=</span> <span class="p">[</span>
-        <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;system&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">build_routing_prompt</span><span class="p">(</span><span class="n">user_id</span><span class="p">)},</span>
-        <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">user_query</span><span class="p">},</span>
-    <span class="p">]</span>
-
-    <span class="c1"># --- Phase 1: Routing (Uses RouterSchema) ---</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;🤖 Processing: &#39;</span><span class="si">{</span><span class="n">user_query</span><span class="si">}</span><span class="s2">&#39; for </span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-    <span class="n">decision</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">run_sgr</span><span class="p">(</span><span class="n">history</span><span class="p">,</span> <span class="n">RouterSchema</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;📍 Routing decision: </span><span class="si">{</span><span class="n">decision</span><span class="o">.</span><span class="n">action</span><span class="o">.</span><span class="n">tool_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="n">decision</span><span class="o">.</span><span class="n">action</span><span class="o">.</span><span class="n">tool_name</span> <span class="o">==</span> <span class="s2">&quot;respond&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">decision</span><span class="o">.</span><span class="n">action</span><span class="o">.</span><span class="n">content</span>
-
-    <span class="c1"># --- Phase 2: Context Retrieval ---</span>
-    <span class="k">if</span> <span class="n">decision</span><span class="o">.</span><span class="n">action</span><span class="o">.</span><span class="n">tool_name</span> <span class="o">==</span> <span class="s2">&quot;fetch_user_features&quot;</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;🔍 Fetching features for </span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">...&quot;</span><span class="p">)</span>
-        <span class="n">context</span> <span class="o">=</span> <span class="n">feature_store</span><span class="o">.</span><span class="n">get_user_context</span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span>
-
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">context</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s2">&quot;Error: User profile not found.&quot;</span>
-
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;   [Data] LTV: $</span><span class="si">{</span><span class="n">context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;user_ltv&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2"> | &quot;</span>
-              <span class="sa">f</span><span class="s2">&quot;Margin: </span><span class="si">{</span><span class="n">context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;cart_profit_margin&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="si">}</span><span class="s2">%&quot;</span><span class="p">)</span>
-
-        <span class="c1"># Inject context into conversation</span>
-        <span class="n">history</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;assistant&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">ASSISTANT_FETCH_MESSAGE</span><span class="p">})</span>
-        <span class="n">history</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-            <span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">build_pricing_context_prompt</span><span class="p">(</span>
-                <span class="n">churn_prob</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;churn_probability&quot;</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span>
-                <span class="n">cart_val</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;current_cart_value&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">),</span>
-                <span class="n">margin</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;cart_profit_margin&quot;</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">),</span>
-                <span class="n">user_ltv</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;user_ltv&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
-            <span class="p">),</span>
-        <span class="p">})</span>
-
-        <span class="c1"># --- Phase 3: SGR Logic Execution (Uses PricingLogic) ---</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;🧠 Calculating Offer (Schema Enforced)...&quot;</span><span class="p">)</span>
-        <span class="n">offer</span> <span class="o">=</span> <span class="n">llm</span><span class="o">.</span><span class="n">run_sgr</span><span class="p">(</span><span class="n">history</span><span class="p">,</span> <span class="n">PricingLogic</span><span class="p">)</span>
-
-        <span class="c1"># Audit log — the SGR benefit: explicit reasoning traces</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;   [Audit] Math: </span><span class="si">{</span><span class="n">offer</span><span class="o">.</span><span class="n">margin_math</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;   [Audit] Max Allowed: </span><span class="si">{</span><span class="n">offer</span><span class="o">.</span><span class="n">max_discount_percent</span><span class="si">}</span><span class="s2">%&quot;</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">offer</span><span class="o">.</span><span class="n">customer_message</span>
-
-    <span class="k">return</span> <span class="s2">&quot;I&#39;m sorry, I couldn&#39;t process your request.&quot;</span>
-
-
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-    <span class="n">response</span> <span class="o">=</span> <span class="n">pricing_agent</span><span class="p">(</span><span class="s2">&quot;I want a discount or I&#39;m leaving!&quot;</span><span class="p">,</span> <span class="s2">&quot;user_102&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">💬 Final Reply: </span><span class="si">{</span><span class="n">response</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># sgr/agent.py</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> .models.schemas </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> PricingLogic, RouterSchema</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> .prompts.routing </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> build_routing_prompt</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> .prompts.pricing </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> build_pricing_context_prompt, </span><span style="color:#79C0FF">ASSISTANT_FETCH_MESSAGE</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> .store.hybrid_store </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> HybridFeatureStore</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> .utils.llm_client </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> LLMClient</span></span>
+<span class="line"></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">def</span><span style="color:#D2A8FF"> pricing_agent</span><span style="color:#E6EDF3">(user_query: </span><span style="color:#79C0FF">str</span><span style="color:#E6EDF3">, user_id: </span><span style="color:#79C0FF">str</span><span style="color:#E6EDF3">) -> </span><span style="color:#79C0FF">str</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#A5D6FF">    """Process a pricing query with three-phase SGR workflow."""</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">    llm </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> LLMClient()</span></span>
+<span class="line"><span style="color:#E6EDF3">    feature_store </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> HybridFeatureStore()</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">    # Build conversation history</span></span>
+<span class="line"><span style="color:#E6EDF3">    history </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> [</span></span>
+<span class="line"><span style="color:#E6EDF3">        {</span><span style="color:#A5D6FF">"role"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"system"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"content"</span><span style="color:#E6EDF3">: build_routing_prompt(user_id)},</span></span>
+<span class="line"><span style="color:#E6EDF3">        {</span><span style="color:#A5D6FF">"role"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"user"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"content"</span><span style="color:#E6EDF3">: user_query},</span></span>
+<span class="line"><span style="color:#E6EDF3">    ]</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">    # --- Phase 1: Routing (Uses RouterSchema) ---</span></span>
+<span class="line"><span style="color:#79C0FF">    print</span><span style="color:#E6EDF3">(</span><span style="color:#FF7B72">f</span><span style="color:#A5D6FF">"🤖 Processing: '</span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">user_query</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">' for </span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">user_id</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">    decision </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> llm.run_sgr(history, RouterSchema)</span></span>
+<span class="line"><span style="color:#79C0FF">    print</span><span style="color:#E6EDF3">(</span><span style="color:#FF7B72">f</span><span style="color:#A5D6FF">"📍 Routing decision: </span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">decision.action.tool_name</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    if</span><span style="color:#E6EDF3"> decision.action.tool_name </span><span style="color:#FF7B72">==</span><span style="color:#A5D6FF"> "respond"</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#FF7B72">        return</span><span style="color:#E6EDF3"> decision.action.content</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">    # --- Phase 2: Context Retrieval ---</span></span>
+<span class="line"><span style="color:#FF7B72">    if</span><span style="color:#E6EDF3"> decision.action.tool_name </span><span style="color:#FF7B72">==</span><span style="color:#A5D6FF"> "fetch_user_features"</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#79C0FF">        print</span><span style="color:#E6EDF3">(</span><span style="color:#FF7B72">f</span><span style="color:#A5D6FF">"🔍 Fetching features for </span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">user_id</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">..."</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">        context </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> feature_store.get_user_context(user_id)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">        if</span><span style="color:#FF7B72"> not</span><span style="color:#E6EDF3"> context:</span></span>
+<span class="line"><span style="color:#FF7B72">            return</span><span style="color:#A5D6FF"> "Error: User profile not found."</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#79C0FF">        print</span><span style="color:#E6EDF3">(</span><span style="color:#FF7B72">f</span><span style="color:#A5D6FF">"   [Data] LTV: $</span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">context.get(</span><span style="color:#A5D6FF">'user_ltv'</span><span style="color:#E6EDF3">)</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF"> | "</span></span>
+<span class="line"><span style="color:#FF7B72">              f</span><span style="color:#A5D6FF">"Margin: </span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">context.get(</span><span style="color:#A5D6FF">'cart_profit_margin'</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">*</span><span style="color:#79C0FF"> 100</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">%"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">        # Inject context into conversation</span></span>
+<span class="line"><span style="color:#E6EDF3">        history.append({</span><span style="color:#A5D6FF">"role"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"assistant"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"content"</span><span style="color:#E6EDF3">: </span><span style="color:#79C0FF">ASSISTANT_FETCH_MESSAGE</span><span style="color:#E6EDF3">})</span></span>
+<span class="line"><span style="color:#E6EDF3">        history.append({</span></span>
+<span class="line"><span style="color:#A5D6FF">            "role"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"user"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#A5D6FF">            "content"</span><span style="color:#E6EDF3">: build_pricing_context_prompt(</span></span>
+<span class="line"><span style="color:#FFA657">                churn_prob</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">context.get(</span><span style="color:#A5D6FF">"churn_probability"</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">0.5</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#FFA657">                cart_val</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">context.get(</span><span style="color:#A5D6FF">"current_cart_value"</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">100</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#FFA657">                margin</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">context.get(</span><span style="color:#A5D6FF">"cart_profit_margin"</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">0.2</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#FFA657">                user_ltv</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">context.get(</span><span style="color:#A5D6FF">"user_ltv"</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#E6EDF3">            ),</span></span>
+<span class="line"><span style="color:#E6EDF3">        })</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">        # --- Phase 3: SGR Logic Execution (Uses PricingLogic) ---</span></span>
+<span class="line"><span style="color:#79C0FF">        print</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"🧠 Calculating Offer (Schema Enforced)..."</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">        offer </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> llm.run_sgr(history, PricingLogic)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">        # Audit log — the SGR benefit: explicit reasoning traces</span></span>
+<span class="line"><span style="color:#79C0FF">        print</span><span style="color:#E6EDF3">(</span><span style="color:#FF7B72">f</span><span style="color:#A5D6FF">"   [Audit] Math: </span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">offer.margin_math</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#79C0FF">        print</span><span style="color:#E6EDF3">(</span><span style="color:#FF7B72">f</span><span style="color:#A5D6FF">"   [Audit] Max Allowed: </span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">offer.max_discount_percent</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">%"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">        return</span><span style="color:#E6EDF3"> offer.customer_message</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#A5D6FF"> "I'm sorry, I couldn't process your request."</span></span>
+<span class="line"></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">if</span><span style="color:#79C0FF"> __name__</span><span style="color:#FF7B72"> ==</span><span style="color:#A5D6FF"> "__main__"</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#E6EDF3">    response </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> pricing_agent(</span><span style="color:#A5D6FF">"I want a discount or I'm leaving!"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"user_102"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#79C0FF">    print</span><span style="color:#E6EDF3">(</span><span style="color:#FF7B72">f</span><span style="color:#A5D6FF">"</span><span style="color:#FF7B72">\n</span><span style="color:#A5D6FF">💬 Final Reply: </span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">response</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">"</span><span style="color:#E6EDF3">)</span></span></code></pre>
 <h3 id="paso-4-ejecutar-vllm-con-xgrammar">Paso 4: ejecutar vLLM con xgrammar</h3>
-<div class="highlight"><pre><span></span><code><span class="c1"># Start vLLM server with xgrammar backend (default in recent versions)</span>
-python<span class="w"> </span>-m<span class="w"> </span>vllm.entrypoints.openai.api_server<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--model<span class="w"> </span>Qwen/Qwen2.5-7B-Instruct<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--port<span class="w"> </span><span class="m">8000</span>
-
-<span class="c1"># Run the agent</span>
-uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>sgr.agent
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#8B949E"># Start vLLM server with xgrammar backend (default in recent versions)</span></span>
+<span class="line"><span style="color:#FFA657">python</span><span style="color:#79C0FF"> -m</span><span style="color:#A5D6FF"> vllm.entrypoints.openai.api_server</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#79C0FF">    --model</span><span style="color:#A5D6FF"> Qwen/Qwen2.5-7B-Instruct</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#79C0FF">    --port</span><span style="color:#79C0FF"> 8000</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Run the agent</span></span>
+<span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> run</span><span style="color:#A5D6FF"> python</span><span style="color:#79C0FF"> -m</span><span style="color:#A5D6FF"> sgr.agent</span></span></code></pre>
 <h3 id="salida-de-ejemplo">Salida de ejemplo</h3>
-<div class="highlight"><pre><span></span><code>🤖 Processing: &#39;I want a discount or I&#39;m leaving!&#39; for user_102
-📍 Routing decision: fetch_user_features
-🔍 Fetching features for user_102...
-   [Data] LTV: $1,500 | Margin: 20%
-🧠 Calculating Offer (Schema Enforced)...
-   [Audit] Math: Cart $200 * 0.20 Margin = $40
-   [Audit] Max Allowed: 15.0%
-
-💬 Final Reply: We value your loyalty! Here&#39;s a special 15% discount
-   with code SAVE15. This reflects our appreciation for your continued
-   business with us.
-</code></pre></div>
-<p>El registro de auditoría muestra el funcionamiento real del modelo: calculó el margen (40 $ en un carrito de 200 $ con un 20 % de comisión) y estableció un límite para el descuento, de modo que la oferta se mantuviera dentro de los requisitos de rentabilidad.</p>
-<hr />
-<h2 id="mejores-practicas">Mejores prácticas</h2>
-<h3 id="diseno-del-esquema">Diseño del esquema</h3>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="text"><code><span class="line"><span>🤖 Processing: 'I want a discount or I'm leaving!' for user_102</span></span>
+<span class="line"><span>📍 Routing decision: fetch_user_features</span></span>
+<span class="line"><span>🔍 Fetching features for user_102...</span></span>
+<span class="line"><span>   [Data] LTV: $1,500 | Margin: 20%</span></span>
+<span class="line"><span>🧠 Calculating Offer (Schema Enforced)...</span></span>
+<span class="line"><span>   [Audit] Math: Cart $200 * 0.20 Margin = $40</span></span>
+<span class="line"><span>   [Audit] Max Allowed: 15.0%</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>💬 Final Reply: We value your loyalty! Here's a special 15% discount</span></span>
+<span class="line"><span>   with code SAVE15. This reflects our appreciation for your continued</span></span>
+<span class="line"><span>   business with us.</span></span></code></pre>
+<p>El registro de auditoría muestra el funcionamiento real del modelo: calculó el margen (40 <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>e</mi><mi>n</mi><mi>u</mi><mi>n</mi><mi>c</mi><mi>a</mi><mi>r</mi><mi>r</mi><mi>i</mi><mi>t</mi><mi>o</mi><mi>d</mi><mi>e</mi><mn>200</mn><mtext> </mtext></mrow><annotation encoding="application/x-tex"> en un carrito de 200 </annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">e</span><span class="mord mathnormal">n</span><span class="mord mathnormal">u</span><span class="mord mathnormal">n</span><span class="mord mathnormal">c</span><span class="mord mathnormal">a</span><span class="mord mathnormal" style="margin-right:0.0278em;">r</span><span class="mord mathnormal" style="margin-right:0.0278em;">r</span><span class="mord mathnormal">i</span><span class="mord mathnormal">t</span><span class="mord mathnormal">o</span><span class="mord mathnormal">d</span><span class="mord mathnormal">e</span><span class="mord">200 </span></span></span></span> con un 20 % de comisión) y estableció un límite para el descuento, de modo que la oferta se mantuviera dentro de los requisitos de rentabilidad.</p>
+<hr>
+<h2 id="mejores-prácticas">Mejores prácticas</h2>
+<h3 id="diseño-del-esquema">Diseño del esquema</h3>
 <ol>
 <li>Ordenar los campos según el flujo de razonamiento. Los campos de análisis deben ir antes que los campos de decisión.</li>
 <li>Escribir descripciones descriptivas. <code>Field</code> Descripciones. Guian la atención del modelo tanto como el nombre del campo.</li>
 <li>Restringir con <code>Literal</code> y <code>Annotated</code>. Utilizar <code>Literal["a", "b"]</code> para enums y <code>Annotated[int, Ge(1), Le(10)]</code> Para los límites de validez.</li>
 <li>Mantenga los esquemas enfocados: un esquema por fase de razonamiento, y luego compóngalos mediante múltiples llamadas.</li>
 </ol>
-<h3 id="configuracion-de-vllm">Configuración de vLLM</h3>
+<h3 id="configuración-de-vllm">Configuración de vLLM</h3>
 <ol>
 <li>Utilice una temperatura baja (0.1-0.3) para lograr un razonamiento determinista.</li>
 <li>Deje que xgrammar se encargue de la estructura; no intente imponer instrucciones de formato en el prompt.</li>
 <li>Vigile el uso de tokens. SGR suele utilizar menos tokens que CoT, ya que no genera texto prolijo.</li>
 </ol>
-<h3 id="consideraciones-de-produccion">Consideraciones de producción</h3>
+<h3 id="consideraciones-de-producción">Consideraciones de producción</h3>
 <ol>
 <li>Versione sus esquemas de la misma manera que versiona las APIs.</li>
 <li>Incluso con SGR, los errores de red y del servidor siguen requiriendo un manejo adecuado.</li>
 <li>Registre las salidas brutas de SGR con el fin de garantizar el cumplimiento normativo y facilitar la depuración.</li>
 <li>Pruebe con casos límite para asegurarse de que el esquema sea válido en los extremos.</li>
 </ol>
-<hr />
-<h2 id="conclusion">Conclusión</h2>
+<hr>
+<h2 id="conclusión">Conclusión</h2>
 <p>SGR es lo que permite pasar de un sistema que “funciona en una demostración” a uno que “funciona en producción”. Defina la topología de razonamiento en Pydantic, deje que xgrammar la aplique en el momento de la decodificación, y el resultado será:</p>
 <ul>
 <li>siempre válido, sin bucles de intentos repetidos ni fallos de análisis</li>
@@ -2443,7 +566,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 <li>más económico en términos de recursos, puesto que se emplean menos tokens, menos intentos y modelos más reducidos</li>
 </ul>
 <p>El <a href="https://github.com/slavadubrov/sgr-discount-manager">sgr-gestor-de-descuentos</a> Prueba los ejemplos de código de esta publicación conectándolos a un servidor vLLM real. Clona el proyecto y comienza a adaptar los esquemas a tu propio flujo de trabajo.</p>
-<hr />
+<hr>
 <h2 id="conclusiones-clave">Conclusiones clave</h2>
 <ol>
 <li>El razonamiento guiado por esquemas hace que la topología del razonamiento sea explícita, en lugar de depender de que el modelo siga instrucciones escritas en prosa.</li>
@@ -2452,7 +575,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 <li>Utiliza SGR cuando el código posterior depende de una estructura definida, y no cuando el resultado esperado es texto en prosa sin formato fijo.</li>
 </ol>
 <h2 id="referencias">Referencias</h2>
-<h3 id="marco-sgr-razonamiento-guiado-por-esquema-sgr-el-framework-original-de-rinat-abdullin-patrones-sgr-patrones-de-cascada-enrutamiento-y-ciclo">Marco SGR <a href="https://abdullin.com/schema-guided-reasoning/">Razonamiento guiado por esquema (SGR)</a> — El framework original de Rinat Abdullin <a href="https://abdullin.com/schema-guided-reasoning/patterns">Patrones SGR</a> — Patrones de cascada, enrutamiento y ciclo</h3>
+<h3 id="marco-sgr-razonamiento-guiado-por-esquema-sgr--el-framework-original-de-rinat-abdullin-patrones-sgr--patrones-de-cascada-enrutamiento-y-ciclo">Marco SGR <a href="https://abdullin.com/schema-guided-reasoning/">Razonamiento guiado por esquema (SGR)</a> — El framework original de Rinat Abdullin <a href="https://abdullin.com/schema-guided-reasoning/patterns">Patrones SGR</a> — Patrones de cascada, enrutamiento y ciclo</h3>
 <h3 id="xgrammar">xgrammar</h3>
 <ul>
 <li><a href="https://arxiv.org/abs/2411.15100">XGrammar: Motor de generación estructurada flexible y eficiente para modelos de lenguaje grande</a> — Yixin Dong y colaboradores, arXiv:2411.15100 (artículo técnico con pruebas de rendimiento) <a href="https://github.com/mlc-ai/xgrammar">xgrammar en GitHub</a> — Biblioteca de generación estructurada rápida y flexible <a href="https://xgrammar.mlc.ai/docs/">Documentación de xgrammar</a> — Documentación oficial con guía de inicio rápido <a href="https://xgrammar.mlc.ai/docs/start/quick_start">xgrammar: Guía de inicio rápido</a> — Introducción a xgrammar</li>
@@ -2462,123 +585,25 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 <ul>
 <li><a href="https://docs.vllm.ai/en/latest/features/structured_outputs.html">vLLM: Salidas Estructuradas</a> — Documentación oficial</li>
 </ul>
-<h3 id="proyecto-de-demostracion">Proyecto de demostración</h3>
+<h3 id="proyecto-de-demostración">Proyecto de demostración</h3>
 <ul>
 <li><a href="https://github.com/slavadubrov/sgr-discount-manager">sgr-gestor-de-descuentos</a> — Demo en funcionamiento con todos los ejemplos de código de esta publicación</li>
-</ul>
-
-
-
-
-
-
-
-  
-  
-
-
-
-  
-
-
-  
-
-
- 
-  </article>
-</div>
-
-          
-<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
-        </div>
-        
-      </main>
-      
-        <footer class="md-footer">
-  
-  <div class="md-footer-meta md-typeset">
-    <div class="md-footer-meta__inner md-grid">
-      <div class="md-copyright">
-  
-  
-    Made with
-    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
-      Material for MkDocs
-    </a>
-  
-</div>
-      
-        
-<div class="md-social">
-  
-    
-    
-    
-    
-    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://www.tiktok.com/@edge.of.context" target="_blank" rel="noopener" title="TikTok" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M448.5 209.9c-44 .1-87-13.6-122.8-39.2v178.7c0 33.1-10.1 65.4-29 92.6s-45.6 48-76.6 59.6-64.8 13.5-96.9 5.3-60.9-25.9-82.7-50.8-35.3-56-39-88.9 2.9-66.1 18.6-95.2 40-52.7 69.6-67.7 62.9-20.5 95.7-16v89.9c-15-4.7-31.1-4.6-46 .4s-27.9 14.6-37 27.3-14 28.1-13.9 43.9 5.2 31 14.5 43.7 22.4 22.1 37.4 26.9 31.1 4.8 46-.1 28-14.4 37.2-27.1 14.2-28.1 14.2-43.8V0h88c-.1 7.4.6 14.9 1.9 22.2 3.1 16.3 9.4 31.9 18.7 45.7s21.3 25.6 35.2 34.6c19.9 13.1 43.2 20.1 67 20.1V210z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
-    </a>
-  
-</div>
-      
-    </div>
-  </div>
-</footer>
-      
-    </div>
-    <div class="md-dialog" data-md-component="dialog">
-      <div class="md-dialog__inner md-typeset"></div>
-    </div>
-    
-    
-    
-      
-      
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copiado al portapapeles", "clipboard.copy": "Copiar al portapapeles", "search.result.more.one": "1 m\u00e1s en esta p\u00e1gina", "search.result.more.other": "# m\u00e1s en esta p\u00e1gina", "search.result.none": "No se encontraron documentos", "search.result.one": "1 documento encontrado", "search.result.other": "# documentos encontrados", "search.result.placeholder": "Teclee para comenzar b\u00fasqueda", "search.result.term.missing": "Falta", "select.version": "Seleccionar versi\u00f3n"}, "version": null}</script>
-    
-    
-      <script src="../../../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-      
-        <script src="../../../../../../javascripts/mermaid-init.js"></script>
-      
-        <script src="../../../../../../javascripts/mathjax.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
-      
-    
-  </body>
-</html>
+</ul> </article>  </main> <footer class="site-footer"> <p data-footer-tagline>Ingeniería práctica de IA por Slava Dubrov.</p> <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>
+      document.querySelector("#locale-select")?.addEventListener("change", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLSelectElement && target.value) location.assign(target.value);
+      });
+      document.querySelectorAll("pre").forEach((pre) => {
+        if (pre.closest(".mermaid-diagram")) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-code";
+        button.textContent = "Copy";
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(pre.textContent || "");
+          button.textContent = "Copied";
+          setTimeout(() => { button.textContent = "Copy"; }, 1500);
+        });
+        pre.append(button);
+      });
+    </script> </body> </html>

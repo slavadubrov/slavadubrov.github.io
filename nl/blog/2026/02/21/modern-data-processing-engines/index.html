@@ -1,1934 +1,269 @@
-
-<!doctype html>
-<html lang="nl" class="no-js">
-  <head>
-    
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1">
-      
-        <meta name="description" content="Benchmarks die Polars, DataFusion, Daft, Ray Data, Pandas en Spark vergelijken bij tabulaire en multimodale werklasten, inclusief code en beslissingsregels.">
-      
-      
-        <meta name="author" content="Viacheslav Dubrov">
-      
-      
-        <link rel="canonical" href="https://slavadubrov.github.io/nl/blog/2026/02/21/modern-data-processing-engines/">
-      
-      
-      
-      
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/blog/2026/02/21/modern-data-processing-engines/" hreflang="en">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/de/blog/2026/02/21/modern-data-processing-engines/" hreflang="de">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/ru/blog/2026/02/21/modern-data-processing-engines/" hreflang="ru">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/es/blog/2026/02/21/modern-data-processing-engines/" hreflang="es">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/pt/blog/2026/02/21/modern-data-processing-engines/" hreflang="pt">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/fr/blog/2026/02/21/modern-data-processing-engines/" hreflang="fr">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/nl/blog/2026/02/21/modern-data-processing-engines/" hreflang="nl">
-        
-      
-      
-        <link rel="alternate" type="application/rss+xml" title="RSS feed" href="../../../../../../feed_rss_created.xml">
-        <link rel="alternate" type="application/rss+xml" title="RSS feed met geüpdatet inhoud" href="../../../../../../feed_rss_updated.xml">
-      
-      <link rel="icon" href="../../../../../../assets/favicon-eoc.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.6">
-    
-    
-      
-        <title>Vergelijking van moderne dataverwerkingsmachines: Polars, DataFusion, Daft, Ray Data, Pandas en Spark - Edge of Context: Practical AI Engineering</title>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../../assets/stylesheets/main.484c7ddc.min.css">
-      
-        
-        <link rel="stylesheet" href="../../../../../../assets/stylesheets/palette.ab4e12ef.min.css">
-      
-      
-
-
-    
-    
-      
-    
-    
-      
-        
-        
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
-        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../../assets/brand.css">
-    
-      <link rel="stylesheet" href="../../../../../../assets/blog-sidebar.css">
-    
-      <link rel="stylesheet" href="../../../../../../assets/blog-index.css">
-    
-    <script>__md_scope=new URL("../../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
-    
-      
-  
-
-
-  
-  
-
-<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-T51K83ENZ5"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-T51K83ENZ5",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
-  
-    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
-  
-
-    
-        
-
-   
-     
-<!-- Open Graph -->
-<meta property="og:title" content="Vergelijking van moderne dataverwerkingsmachines: Polars, DataFusion, Daft, Ray Data, Pandas en Spark" />
-<meta property="og:description" content="Benchmarks die Polars, DataFusion, Daft, Ray Data, Pandas en Spark vergelijken bij tabulaire en multimodale werklasten, inclusief code en beslissingsregels." />
-<meta property="og:url" content="https://slavadubrov.github.io/nl/blog/2026/02/21/modern-data-processing-engines/" />
-<meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
-<meta
-  property="og:type"
-  content="article"
-/>
-<meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png" />
-<!-- Twitter Card -->
-<meta
-  name="twitter:card"
-  content="summary"
-/>
-<meta name="twitter:title" content="Vergelijking van moderne dataverwerkingsmachines: Polars, DataFusion, Daft, Ray Data, Pandas en Spark" />
-<meta name="twitter:description" content="Benchmarks die Polars, DataFusion, Daft, Ray Data, Pandas en Spark vergelijken bij tabulaire en multimodale werklasten, inclusief code en beslissingsregels." />
-<meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png" />
-<!-- Site identity schema -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Person",
-        "@id": "https://slavadubrov.github.io/#person",
-        "name": "Viacheslav Dubrov",
-        "alternateName": "Slava Dubrov",
-        "url": "https://slavadubrov.github.io/about/",
-        "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-      },
-      {
-        "@type": "WebSite",
-        "@id": "https://slavadubrov.github.io/#website",
-        "name": "Edge of Context: Practical AI Engineering",
-        "alternateName": "Edge of Context",
-        "url": "https://slavadubrov.github.io/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "nl",
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        }
-      },
-      {
-        "@type": "Blog",
-        "@id": "https://slavadubrov.github.io/#blog",
-        "name": "Edge of Context: Practical AI Engineering",
-        "url": "https://slavadubrov.github.io/blog/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "nl",
-        "author": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "isPartOf": {
-          "@id": "https://slavadubrov.github.io/#website"
-        }
-      }
-    ]
-  }
-</script>
-
-<script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      "itemListElement": [
-        {
-          "@type": "ListItem",
-          "position": 1,
-          "name": "Edge of Context: Practical AI Engineering",
-          "item": "https://slavadubrov.github.io/"
-        },
-        {
-          "@type": "ListItem",
-          "position": 2,
-          "name": "Vergelijking van moderne dataverwerkingsmachines: Polars, DataFusion, Daft, Ray Data, Pandas en Spark",
-          "item": "https://slavadubrov.github.io/nl/blog/2026/02/21/modern-data-processing-engines/"
-        }
-  
-      ]
-    }
-</script>
- 
-<style>
-  /* Header social icons */
-  .md-header__social {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-left: 0.5rem;
-  }
-  .md-header__social a {
-    color: var(--md-primary-bg-color);
-    opacity: 0.7;
-    transition: opacity 0.2s;
-  }
-  .md-header__social a:hover {
-    opacity: 1;
-  }
-  .md-header__social svg {
-    width: 1.2rem;
-    height: 1.2rem;
-    fill: currentColor;
-  }
-  /* Adjust search to make room for social icons */
-  .md-search {
-    margin-right: 0;
-  }
-</style>
-
-<!-- Article-specific Open Graph -->
-       
-<meta property="article:published_time" content="2026-02-21" />
- 
-<meta property="article:modified_time" content="2026-05-31" />
- 
-<meta property="article:author" content="Viacheslav Dubrov" />
-  
-<meta property="article:tag" content="AI Infrastructure" />
- 
-<!-- Schema.org JSON-LD -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    "@id": "https://slavadubrov.github.io/nl/blog/2026/02/21/modern-data-processing-engines/#blogposting",
-    "headline": "Vergelijking van moderne dataverwerkingsmachines: Polars, DataFusion, Daft, Ray Data, Pandas en Spark",
-    "description": "Benchmarks die Polars, DataFusion, Daft, Ray Data, Pandas en Spark vergelijken bij tabulaire en multimodale werklasten, inclusief code en beslissingsregels.",
-    "url": "https://slavadubrov.github.io/nl/blog/2026/02/21/modern-data-processing-engines/",
-    "image": "https://slavadubrov.github.io/assets/og-image.png",
-    "inLanguage": "nl",
-    "mainEntityOfPage": {
-      "@type": "WebPage",
-      "@id": "https://slavadubrov.github.io/nl/blog/2026/02/21/modern-data-processing-engines/"
-    },
-    "datePublished": "2026-02-21",
-    "dateModified": "2026-05-31",
-    "author": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "publisher": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "isPartOf": {
-      "@type": "Blog",
-      "@id": "https://slavadubrov.github.io/#blog",
-      "name": "Edge of Context: Practical AI Engineering",
-      "url": "https://slavadubrov.github.io/"
-    },
-    "keywords": "AI Infrastructure"
-  }
-</script>
-
-  
-<link rel="alternate" href="https://slavadubrov.github.io/blog/2026/02/21/modern-data-processing-engines/" hreflang="x-default">
-</head>
-  
-  
-    
-    
-      
-    
-    
-    
-    
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
-  
-    
-    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
-    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
-    <label class="md-overlay" for="__drawer"></label>
-    <div data-md-component="skip">
-      
-        
-        <a href="#vergelijking-van-moderne-dataverwerkingseenheden-polars-datafusion-daft-ray-data-pandas-en-spark" class="md-skip">
-          Ga naar inhoud
-        </a>
-      
-    </div>
-    <div data-md-component="announce">
-      
-    </div>
-    
-     
-      
-
-  
-
-<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
-  <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    <label class="md-header__button md-icon" for="__drawer">
-      
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
-    </label>
-    <div class="md-header__title" data-md-component="header-title">
-      <div class="md-header__ellipsis">
-        <div class="md-header__topic">
-          <span class="md-ellipsis">
-            Edge of Context: Practical AI Engineering
-          </span>
-        </div>
-        <div class="md-header__topic" data-md-component="header-topic">
-          <span class="md-ellipsis">
-            
-              Vergelijking van moderne dataverwerkingsmachines: Polars, DataFusion, Daft, Ray Data, Pandas en Spark
-            
-          </span>
-        </div>
-      </div>
-    </div>
-    
-      
-        <form class="md-header__option" data-md-component="palette">
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
-    
-      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
-    
-      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-</form>
-      
-    
-    
-      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
-    
-    
-      <div class="md-header__option">
-  <div class="md-select">
-    
-    <button class="md-header__button md-icon" aria-label="Selecteer taal">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
-    </button>
-    <div class="md-select__inner">
-      <ul class="md-select__list">
-        
-          <li class="md-select__item">
-            <a href="../../../../../../blog/2026/02/21/modern-data-processing-engines/" hreflang="en" class="md-select__link">
-              English
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../de/blog/2026/02/21/modern-data-processing-engines/" hreflang="de" class="md-select__link">
-              Deutsch
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../ru/blog/2026/02/21/modern-data-processing-engines/" hreflang="ru" class="md-select__link">
-              Русский
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../es/blog/2026/02/21/modern-data-processing-engines/" hreflang="es" class="md-select__link">
-              Español
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../pt/blog/2026/02/21/modern-data-processing-engines/" hreflang="pt" class="md-select__link">
-              Português
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../fr/blog/2026/02/21/modern-data-processing-engines/" hreflang="fr" class="md-select__link">
-              Français
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="./" hreflang="nl" class="md-select__link">
-              Nederlands
-            </a>
-          </li>
-        
-      </ul>
-    </div>
-  </div>
-</div>
-    
-    
-      
-      
-        <label class="md-header__button md-icon" for="__search">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        </label>
-        <div class="md-search" data-md-component="search" role="dialog">
-  <label class="md-search__overlay" for="__search"></label>
-  <div class="md-search__inner" role="search">
-    <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" aria-label="Zoeken" placeholder="Zoeken" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
-      <label class="md-search__icon md-icon" for="__search">
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-      </label>
-      <nav class="md-search__options" aria-label="Zoeken">
-        
-        <button type="reset" class="md-search__icon md-icon" title="Leegmaken" aria-label="Leegmaken" tabindex="-1">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-        </button>
-      </nav>
-      
-    </form>
-    <div class="md-search__output">
-      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
-        <div class="md-search-result" data-md-component="search-result">
-          <div class="md-search-result__meta">
-            Zoeken initialiseren
-          </div>
-          <ol class="md-search-result__list" role="presentation"></ol>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-      
-    
-    
-  </nav>
-  
-    
-      
-<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
-  <div class="md-grid">
-    <ul class="md-tabs__list">
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../../" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Start
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Blog
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
-        <a href="../../../../fast-answers/" class="md-tabs__link">
-          
-  
-  
-    
-  
-  Snelle antwoorden
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../../about/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Over
-
-      </a>
-    </li>
-  
-
-      
-    </ul>
-  </div>
-</nav>
-    
-  
-</header>
-    
-<script>
-  // Inject social icons into header after DOM loads
-  document.addEventListener("DOMContentLoaded", function () {
-    const header = document.querySelector(".md-header__inner");
-    if (header) {
-      const social = document.createElement("div");
-      social.className = "md-header__social";
-      social.innerHTML = `
-      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
-      </a>
-      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
-      </a>
-      <a href="https://www.tiktok.com/@edge.of.context" title="TikTok" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M448 209.9a210.1 210.1 0 0 1-122.8-39.2v178.7A162.6 162.6 0 1 1 185 188.3v89.9a74.6 74.6 0 1 0 52.2 71.2V0h88a121.2 121.2 0 0 0 1.9 22.2 122.2 122.2 0 0 0 53.9 80.2 121.4 121.4 0 0 0 67 20.1v87.4z"/></svg>
-      </a>
-      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
-      </a>
-    `;
-      header.appendChild(social);
-    }
-  });
-</script>
-
-    <div class="md-container" data-md-component="container">
-      
-      
-        
-      
-      <main class="md-main" data-md-component="main">
-        <div class="md-main__inner md-grid">
-          
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-
-  
-
-
-<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigatie" data-md-level="0">
-  <label class="md-nav__title" for="__drawer">
-    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    Edge of Context: Practical AI Engineering
-  </label>
-  
-  <ul class="md-nav__list" data-md-scrollfix>
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Start
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Blog
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-      
-        
-          
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <div class="md-nav__link md-nav__container">
-            <a href="../../../../fast-answers/" class="md-nav__link ">
-              
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Snelle antwoorden
-  
-
-    
-  </span>
-  
-  
-
-            </a>
-            
-              
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
-                <span class="md-nav__icon md-icon"></span>
-              </label>
-            
-          </div>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Snelle antwoorden
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ai-agent-frameworks/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Frameworks
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/rag-evaluation-tools/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    RAG Evaluation Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/local-llm-tools-macos/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Local LLM Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ocr-models-document-ai/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    OCR Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ner-models/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    NER Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/agent-security-patterns/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Security Patterns
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/search-ranking-stack/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Search Ranking Stack
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../../about/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Over
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-  </ul>
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-<nav class="md-nav md-nav--secondary" aria-label="Inhoudsopgave">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Inhoudsopgave
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#typen-dataverwerkingswerklasten" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Typen dataverwerkingswerklasten
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#deel-1-verwerking-op-een-node" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deel 1: Verwerking op één node
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Deel 1: Verwerking op één node">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#polars-verwerking-van-tabellair-data" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Polars: Verwerking van tabellair data
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#apache-datafusion-een-uitbreidbare-query-engine" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Apache DataFusion: Een uitbreidbare query-engine
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#daft-multimodale-gegevensverwerking" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Daft: Multimodale gegevensverwerking
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#benchmark-prestaties-op-een-node" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Benchmark: Prestaties op één node
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#deel-2-omgaan-met-multimodale-gegevens" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deel 2: Omgaan met multimodale gegevens
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Deel 2: Omgaan met multimodale gegevens">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#pipelined-uitvoering-en-gpu-utilisatie" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Pipelined uitvoering en GPU-utilisatie
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#benchmark-afbeeldingsverwerking" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Benchmark: Afbeeldingsverwerking
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#deel-3-gedeeld-verwerken" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deel 3: Gedeeld verwerken
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Deel 3: Gedeeld verwerken">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#apache-spark" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Apache Spark
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ray-data-gpu-gebruik" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Ray Data: GPU-gebruik
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#gedeeld-head-to-head" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Gedeeld head-to-head
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#deel-4-de-rol-van-rust-en-arrow" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deel 4: De rol van Rust en Arrow
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Deel 4: De rol van Rust en Arrow">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#samenvatting-van-toepassingsgebieden-van-de-engines" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Samenvatting van toepassingsgebieden van de engines
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#diagonale-schaling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Diagonale schaling
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#probeer-het-zelf" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Probeer het zelf
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#belangrijkste-conclusies" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Belangrijkste conclusies
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#referenties" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Referenties
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Referenties">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#benchmarks-en-prestatiegegevens" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Benchmarks en prestatiegegevens
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#motoren-en-frameworks" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Motoren en frameworks
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#architectuur-en-ecosysteem" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Architectuur en ecosysteem
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#demo-repository" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Demo-repository
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-          
-              
-
-<div class="md-content md-content--post" data-md-component="content">
-  <div
-    class="md-sidebar md-sidebar--post"
-    data-md-component="sidebar"
-    data-md-type="navigation"
-  >
-    <div class="md-sidebar__scrollwrap">
-      <div class="md-sidebar__inner md-post">
-        <nav class="md-nav md-nav--primary">
-          <div class="md-post__back">
-            <div class="md-nav__title md-nav__container">
-              <a href="../../../../" class="md-nav__link">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-                <span class="md-ellipsis"> Terug naar de inhoudsopgave </span>
-              </a>
-            </div>
-          </div>
-
-          
-          <ul class="md-post__meta md-nav__list">
-            <li class="md-nav__item md-nav__item--section">
-              <div class="md-post__title">
-                <span class="md-ellipsis"
-                  >Onderwerpen</span
-                >
-              </div>
-              <nav class="md-nav">
-                          
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-agents"
-                  >
-                    <span class="blog-category-icon"
-                      >🦾</span
-                    >
-                    <span class="blog-category-name"
-                      >AI-agenten</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../06/20/schema-guided-agent-memory/">Gedächtnis van AI-agenten: schema-gestuurde getypeerde toestand voor langlopende systemen</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../06/10/agent-evals-traces-to-test-suites/">Beoordeling van AI-agenten in productieomgevingen: van trace-gegevens tot testsets</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/26/ai-agent-runtime/">Lange-lopende AI-agent runtime in 2026: sessies, sandboxen, checkpoints en harnesses</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/20/ai-agent-security/">Beveiliging van AI-agenten in 2026: beperkende maatregelen, toestemmingen, sandboxomgevingen en MCP-bedreigingen</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../03/24/ai-agent-tool-use/">Gebruik van AI-agenthulpmiddelen in 2026: MCP, CLI, Skills en codeuitvoering</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../14/ai-agent-memory-architecture/">AI-agentgeheugenarchitectuur in 2026: checkpoints, vectoropslag en bestandsgebaseerd geheugen</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../01/31/ai-agent-reasoning-loops/">Redeneerlusjes van AI-agenten in 2026: ReAct versus ReWOO versus Plan-en-uitvoeren</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../01/11/enterprise-rag-challenge-agent-architectures/">Enterprise RAG Challenge 3 (ECR3): Succesvolle architecturen voor AI-agenten</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/12/28/schema-guided-reasoning-vllm/">Schema-geleid redeneren op vLLM: Gestructureerde uitvoer met xgrammar en Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/20/domain-driven-design-ai-agents/">Domein-gestuurd ontwerp voor AI-agenten: Begrensde contexten, hulpmiddelen en bedrijfsregels</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/05/context-engineering-ai-agents/">Context engineering voor AI-agenten: contextvensters, geheugen, hulpmiddelen en beperkende maatregelen</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/06/10/mcp-server-tutorial-uv-fastmcp/">Tutorial voor MCP-server met uv en FastMCP: Bouw een FeatureStoreLite-server</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#model-engineering"
-                  >
-                    <span class="blog-category-icon"
-                      >🤖</span
-                    >
-                    <span class="blog-category-name"
-                      >Modelengineering</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Modelkwantificatie in 2026: van fundamenten tot productiegebruik</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../03/13/llm-engineering-guide/">GGML-engineeringsgids: 45 concepten voor inferentie, training, architectuur en operationele beheersing</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../01/21/manifold-constrained-hyper-connections/">Manifolds-beperkte hyperverbindingen (mHC): Uitleg van DeepSeek Residual Scaling</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../01/04/llm-fine-tuning-guide/">Gids voor fine-tuning van LLM’s: LoRA, QLoRA, DoRA, Unsloth, Axolotl en implementatie</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/12/28/schema-guided-reasoning-vllm/">Schema-geleid redeneren op vLLM: Gestructureerde uitvoer met xgrammar en Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">LoRAX-beheergids: Duizenden LoRA-adapters op Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/11/open-source-llm-formats/">Open-source varianten en bestandsformaten van LLM’s: Instruct, GGUF, GPTQ, AWQ en MoE</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/10/local-llms-on-macos/">Lokale LLM’s op macOS: Ollama, LM Studio, llama.cpp, MLX en Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/04/scaling-llms-multi-gpu-multi-node/">Schaalbaarheid van grote taalmodellen: multi-GPU- en multi-node-strategieën die in de praktijk werken</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section blog-category-section--active"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-infrastructure"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >AI-infrastructuur</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Modelkwantificatie in 2026: van fundamenten tot productiegebruik</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post blog-category-post--active"
-                    >
-                      <a href="./">Vergelijking van moderne dataverwerkingsmachines: Polars, DataFusion, Daft, Ray Data, Pandas en Spark</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">LoRAX-beheergids: Duizenden LoRA-adapters op Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/06/mlops-vs-llmops/">MLOps versus LLMOps: Infrastructuur voor foundation models en LLM-systemen</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/04/scaling-llms-multi-gpu-multi-node/">Schaalbaarheid van grote taalmodellen: multi-GPU- en multi-node-strategieën die in de praktijk werken</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#retrieval-and-language-systems"
-                  >
-                    <span class="blog-category-icon"
-                      >🔍</span
-                    >
-                    <span class="blog-category-name"
-                      >Zoek- en taalsystemen</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/10/rag-evaluation-metrics/">Evaluatie van RAG: Metrieken voor elke fase van een productiesysteem voor RAG</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/02/ner-guide/">Het definitieve handboek over NER in 2026: encoders, LLM’s en de drie-laagse productiearchitectuur</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../03/04/ocr-guide/">Het definitieve handboek over OCR in 2026: van pipelines tot VLM’s</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../08/search-ranking-stack/">Search Ranking Stack in 2026: BM25, Embeddings, Cross-Encoders en LLM Reranking</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#developer-tooling"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >Ontwikkelaarstools</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/06/10/mcp-server-tutorial-uv-fastmcp/">Tutorial voor MCP-server met uv en FastMCP: Bouw een FeatureStoreLite-server</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/10/local-llms-on-macos/">Lokale LLM’s op macOS: Ollama, LM Studio, llama.cpp, MLX en Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/10/stable-diffusion-macos-tools/">Stable Diffusion op macOS: Tools voor tekenen, DiffusionBee, ComfyUI, A1111 en Fooocus</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/08/pyproject-toml-guide/">Gids voor `pyproject.toml`: pakketbouw in Python, afhankelijkheden en configuratie van tools</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/07/zprofile-vs-zshrc/">Zsh-startbestanden: `~/.zprofile` versus `~/.zshrc` op macOS en Linux</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/04/19/macbook-ai-engineering-setup/">Instellingen van een MacBook voor AI-engineering: macOS-hulpmiddelen, Python, Docker en workflow in de terminal</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/04/17/uv-python-on-macos/">UV op macOS: Beheer van Python-versies, projecten en tools</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                
-              </nav>
-            </li>
-          </ul>
-
-          
-        </nav>
-        
-      </div>
-    </div>
-  </div>
-  <article class="md-content__inner md-typeset">
-     
-  
-
-
-
-
-<!-- automated-translation-notice:start -->
-
-<div class="admonition info">
-<p class="admonition-title">Automatische vertaling</p>
-</div>
-<p>Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p>
+<!DOCTYPE html><html lang="nl"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Vergelijking van moderne dataverwerkingsmachines: Polars, DataFusion, Daft, Ray Data, Pandas en Spark - Edge of Context: Practical AI Engineering</title><meta name="description" content="Benchmarks die Polars, DataFusion, Daft, Ray Data, Pandas en Spark vergelijken bij tabulaire en multimodale werklasten, inclusief code en beslissingsregels."><link rel="canonical" href="https://slavadubrov.github.io/nl/blog/2026/02/21/modern-data-processing-engines/"><link rel="alternate" hreflang="de" href="https://slavadubrov.github.io/de/blog/2026/02/21/modern-data-processing-engines/"><link rel="alternate" hreflang="en" href="https://slavadubrov.github.io/blog/2026/02/21/modern-data-processing-engines/"><link rel="alternate" hreflang="es" href="https://slavadubrov.github.io/es/blog/2026/02/21/modern-data-processing-engines/"><link rel="alternate" hreflang="fr" href="https://slavadubrov.github.io/fr/blog/2026/02/21/modern-data-processing-engines/"><link rel="alternate" hreflang="nl" href="https://slavadubrov.github.io/nl/blog/2026/02/21/modern-data-processing-engines/"><link rel="alternate" hreflang="pt" href="https://slavadubrov.github.io/pt/blog/2026/02/21/modern-data-processing-engines/"><link rel="alternate" hreflang="ru" href="https://slavadubrov.github.io/ru/blog/2026/02/21/modern-data-processing-engines/"><link rel="alternate" hreflang="x-default" href="https://slavadubrov.github.io/blog/2026/02/21/modern-data-processing-engines/"><meta property="og:type" content="article"><meta property="og:title" content="Vergelijking van moderne dataverwerkingsmachines: Polars, DataFusion, Daft, Ray Data, Pandas en Spark - Edge of Context: Practical AI Engineering"><meta property="og:description" content="Benchmarks die Polars, DataFusion, Daft, Ray Data, Pandas en Spark vergelijken bij tabulaire en multimodale werklasten, inclusief code en beslissingsregels."><meta property="og:url" content="https://slavadubrov.github.io/nl/blog/2026/02/21/modern-data-processing-engines/"><meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Vergelijking van moderne dataverwerkingsmachines: Polars, DataFusion, Daft, Ray Data, Pandas en Spark - Edge of Context: Practical AI Engineering"><meta name="twitter:description" content="Benchmarks die Polars, DataFusion, Daft, Ray Data, Pandas en Spark vergelijken bij tabulaire en multimodale werklasten, inclusief code en beslissingsregels."><meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta property="article:published_time" content="2026-02-21"><meta property="article:modified_time" content="2026-05-31"><link rel="icon" href="/assets/favicon-eoc.svg" type="image/svg+xml"><link href="/pagefind/pagefind-component-ui.css" rel="stylesheet"><script src="/pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Vergelijking van moderne dataverwerkingsmachines: Polars, DataFusion, Daft, Ray Data, Pandas en Spark - Edge of Context: Practical AI Engineering","description":"Benchmarks die Polars, DataFusion, Daft, Ray Data, Pandas en Spark vergelijken bij tabulaire en multimodale werklasten, inclusief code en beslissingsregels.","url":"https://slavadubrov.github.io/nl/blog/2026/02/21/modern-data-processing-engines/","image":"https://slavadubrov.github.io/assets/og-image.png","datePublished":"2026-02-21","dateModified":"2026-05-31","author":{"@type":"Person","name":"Viacheslav Dubrov"}}</script><link rel="stylesheet" href="/_astro/BaseLayout.DgRW7Vi7.css"></head> <body> <a class="skip-link" href="#main-content">Skip to content</a> <header class="site-header"> <a class="brand" data-home-link href="/nl/" aria-label="Edge of Context home"> <img src="/assets/logo-eoc.svg" alt="" width="36" height="36"> <span>Edge of Context</span> </a> <nav aria-label="Primary navigation"> <ul> <li><a data-nav="home" href="/nl/">Start</a></li><li><a data-nav="blog" href="/nl/blog/">Blog</a></li><li><a data-nav="fastAnswers" href="/nl/blog/fast-answers/">Korte antwoorden</a></li><li><a data-nav="about" href="/nl/about/">Over</a></li> </ul> </nav> <div class="header-actions"> <pagefind-modal-trigger data-search-label="true">Zoeken</pagefind-modal-trigger> <label class="locale-switcher"> <span class="visually-hidden">Taal</span> <select id="locale-select"> <option value="/de/blog/2026/02/21/modern-data-processing-engines/">Deutsch</option><option value="/blog/2026/02/21/modern-data-processing-engines/">English</option><option value="/es/blog/2026/02/21/modern-data-processing-engines/">Español</option><option value="/fr/blog/2026/02/21/modern-data-processing-engines/">Français</option><option value="/nl/blog/2026/02/21/modern-data-processing-engines/" selected>Nederlands</option><option value="/pt/blog/2026/02/21/modern-data-processing-engines/">Português</option><option value="/ru/blog/2026/02/21/modern-data-processing-engines/">Русский</option> </select> </label> </div> </header> <main id="main-content" tabindex="-1">  <article class="prose" data-pagefind-body> <p class="article-meta"> <time datetime="2026-02-21">2026-02-21</time>  · Bijgewerkt <time datetime="2026-05-31">2026-05-31</time> </p> <!-- automated-translation-notice:start -->
+<blockquote>
+<p>[!NOTE] Automatische vertaling
+Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p>
+</blockquote>
 <!-- automated-translation-notice:end -->
-
 <h1 id="vergelijking-van-moderne-dataverwerkingseenheden-polars-datafusion-daft-ray-data-pandas-en-spark">Vergelijking van moderne dataverwerkingseenheden: Polars, DataFusion, Daft, Ray Data, Pandas en Spark</h1>
 <p>Jarenlang werd tabulaire verwerking in geheugen uitgevoerd door <strong>Pandas</strong>, terwijl <strong>Apache Spark</strong> verantwoordelijk was voor gedistribueerde verwerking. Deze indeling werkte goed zolang de gegevens gestructureerd waren.</p>
 <p>Tegenwoordig zijn werklasten echter niet altijd gestructureerd. Pipelines voor afbeeldingen, audio en video staan nu naast de tabulaire pipelines, en wanneer GPU-inferentie wordt gebruikt, worden de garbage collection van de JVM en de GIL van Python geen irritaties meer, maar vormen ze juist een bottleneck. Dit is een belangrijke reden waarom er een nieuwe generatie engineën is ontstaan die zijn gebouwd op <strong>Rust</strong> en <strong>Apache Arrow</strong>.</p>
 <p>In het afgelopen jaar heb ik de meeste van mijn single-node-pipelines overgezet naar Polars, en ik wilde graag zien hoe het daadwerkelijk presteert ten opzichte van de andere nieuwe engineën. Daarom heb ik Polars, DataFusion, Daft, Ray Data en Spark getest op echte datasets — taxiritdata uit NYC voor de tabulaire gegevens en Food-101-afbeeldingen voor de multimodale gegevens.</p>
 <p>Alle code bevindt zich in de <a href="https://github.com/slavadubrov/engine-comparison-demo">repository engine-comparison-demo</a>. Kloon het en voer de benchmarks uit op uw eigen hardware — uw resultaten zullen verschillen van de mijne, en dat is precies het doel.</p>
 <!-- more -->
-
 <p><strong>TL;DR</strong>: Op de voor marketing geschikte benchmarks behalen Rust-native engines een versnelling van 94 keer ten opzichte van Pandas op één node. Bij echte werklasten zie je een iets minder grote, maar wel consistente verbetering – zowel Polars als DataFusion vormen goede standaardopties. Voor multimodale pipelines werken gepipelde engines zoals Ray Data en Daft tot 18 keer sneller dan Spark, omdat ze de GPUs daadwerkelijk bezig houden. Er is geen algemeen winnaar; de juiste keuze hangt af van je gegevens, schaal en of GPUs worden gebruikt.</p>
-<hr />
+<hr>
 <h2 id="typen-dataverwerkingswerklasten">Typen dataverwerkingswerklasten</h2>
 <p>Engines zijn gespecialiseerd, dus de eerste vraag die beantwoord moet worden, is wat voor type werklast je eigenlijk hebt. De grootste indeling is tussen gestructureerde en multimodale data.</p>
-<p><img alt="Twee werelden van data: gestructureerd versus multimodaal" src="../../../../assets/2026-02-21-compute-engines/data-bifurcation.svg" /></p>
+<p><img src="/nl/blog/assets/2026-02-21-compute-engines/data-bifurcation.svg" alt="Twee werelden van data: gestructureerd versus multimodaal"></p>
 <p><strong>Gestructureerde/tabulaire gegevens.</strong> Filteren, aggregeren, koppelen. Afhankelijk van de CPU, meestal in geheugen. Een groot deel van deze werkzaamheden wordt uitgevoerd op gedistribueerde clusters die oorspronkelijk helemaal niet gedistribueerd hoefden te worden — ongeveer <a href="https://pola.rs/posts/polars-cloud-what-we-are-building/">90% van de query’s verwerkt minder dan 1 TB aan gegevens</a>, wat tegenwoordig gemakkelijk op één enkele machine kan draaien.</p>
 <p><strong>Multimodale AI.</strong> Afbeeldingen, audio, video. Op het gebied van inferentie is de GPU cruciaal, maar het voorverwerken met de CPU is vaak de beperkende factor. Dieplerenmodellen verwerken gegevens sneller dan CPUs ze kunnen decoderen, dus op een standaard <code>g6.xlarge</code> (4 CPUs per GPU): de benutting van de GPU daalt onder de 20%. De hele pipeline wordt uiteindelijk beperkt door de snelheid waarmee gegevens aan de GPU kunnen worden toegevoegd.</p>
 <p>De nieuwe engines richten zich op beide aspecten. Rust zorgt voor snelheid, Arrow maakt zero-copy-data‑deling tussen processen mogelijk, en stream‑uitvoering stelt ze in staat om datasets te verwerken die groter zijn dan de RAM.</p>
-<hr />
-<h2 id="deel-1-verwerking-op-een-node">Deel 1: Verwerking op één node</h2>
+<hr>
+<h2 id="deel-1-verwerking-op-één-node">Deel 1: Verwerking op één node</h2>
 <p>Het bottleneck van Pandas is geen bug, maar eerder het ontwerp. Pandas laadt bestanden gretig in de RAM, kopieert tussentijdse gegevens bij bijna elke operatie, en blijft vanwege de GIL beperkt tot één thread. In de <a href="https://pola.rs/posts/benchmarks/">PDS-H benchmarktests</a> Bij een schaalfactor van 10 duurt het voor Pandas ongeveer <strong>365 seconden</strong> om een standaardset aan queries af te ronden. De streamengine van Polars voltooit dezelfde taak in <strong>3,89 seconden</strong> — ongeveer <strong>94 keer sneller</strong>.</p>
-<p><img alt="Eager uitvoering versus Lazy uitvoering" src="../../../../assets/2026-02-21-compute-engines/eager-vs-lazy.svg" /></p>
+<p><img src="/nl/blog/assets/2026-02-21-compute-engines/eager-vs-lazy.svg" alt="Eager uitvoering versus Lazy uitvoering"></p>
 <h3 id="polars-verwerking-van-tabellair-data">Polars: Verwerking van tabellair data</h3>
 <p><a href="https://github.com/pola-rs/polars">Polars</a> heeft Pandas vervangen als standaard voor serieuze lokale ETL-processen bij veel teams met wie ik heb gesproken. Het is geschreven in Rust en maakt gebruik van <strong>lazige uitvoering</strong>: in plaats van elke regel zodra deze binnenkomt te verwerken, wordt eerst een queryplan opgesteld, geoptimaliseerd (predicate pushdown, projection pruning, column pruning), waarna de uitvoering in stromende batches over alle CPU-kernen plaatsvindt.</p>
 <p>De kloof wordt groter naarmate de hoeveelheid gegevens toeneemt. Bij <a href="https://pola.rs/posts/benchmarks/">Schaalfactor 100 (~100 GB)</a>, De streamengine van Polars voltooide de verwerking in 23,94 seconden, vergeleken met 152,27 seconden voor diens eigen in-memory engine — ongeveer <strong>6 keer sneller</strong>, zelfs bij gegevens die groter zijn dan het RAM-geheugen.</p>
 <p>Vanuit <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/engine_comparison_examples.ipynb"><code>engine_comparison_examples.ipynb</code></a>:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
-
-<span class="c1"># scan_parquet reads only the schema — no data loaded yet</span>
-<span class="n">q</span> <span class="o">=</span> <span class="p">(</span>
-    <span class="n">pl</span><span class="o">.</span><span class="n">scan_parquet</span><span class="p">(</span><span class="s2">&quot;yellow_tripdata_2024-01.parquet&quot;</span><span class="p">)</span>
-    <span class="o">.</span><span class="n">filter</span><span class="p">(</span>
-        <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;trip_distance&quot;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">5.0</span><span class="p">)</span>
-        <span class="o">&amp;</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;total_amount&quot;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">30.0</span><span class="p">)</span>
-    <span class="p">)</span>
-    <span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">&quot;payment_type&quot;</span><span class="p">)</span>
-    <span class="o">.</span><span class="n">agg</span><span class="p">(</span>
-        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;total_amount&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;avg_fare&quot;</span><span class="p">),</span>
-        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;trip_distance&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;avg_distance&quot;</span><span class="p">),</span>
-        <span class="n">pl</span><span class="o">.</span><span class="n">len</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;trip_count&quot;</span><span class="p">),</span>
-    <span class="p">)</span>
-<span class="p">)</span>
-
-<span class="c1"># The entire plan is optimized and executed here, in parallel</span>
-<span class="n">result</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> polars </span><span style="color:#FF7B72">as</span><span style="color:#E6EDF3"> pl</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># scan_parquet reads only the schema — no data loaded yet</span></span>
+<span class="line"><span style="color:#E6EDF3">q </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> (</span></span>
+<span class="line"><span style="color:#E6EDF3">    pl.scan_parquet(</span><span style="color:#A5D6FF">"yellow_tripdata_2024-01.parquet"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">    .filter(</span></span>
+<span class="line"><span style="color:#E6EDF3">        (pl.col(</span><span style="color:#A5D6FF">"trip_distance"</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">></span><span style="color:#79C0FF"> 5.0</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#FF7B72">        &#x26;</span><span style="color:#E6EDF3"> (pl.col(</span><span style="color:#A5D6FF">"total_amount"</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">></span><span style="color:#79C0FF"> 30.0</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">    )</span></span>
+<span class="line"><span style="color:#E6EDF3">    .group_by(</span><span style="color:#A5D6FF">"payment_type"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">    .agg(</span></span>
+<span class="line"><span style="color:#E6EDF3">        pl.col(</span><span style="color:#A5D6FF">"total_amount"</span><span style="color:#E6EDF3">).mean().alias(</span><span style="color:#A5D6FF">"avg_fare"</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#E6EDF3">        pl.col(</span><span style="color:#A5D6FF">"trip_distance"</span><span style="color:#E6EDF3">).mean().alias(</span><span style="color:#A5D6FF">"avg_distance"</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#E6EDF3">        pl.len().alias(</span><span style="color:#A5D6FF">"trip_count"</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#E6EDF3">    )</span></span>
+<span class="line"><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># The entire plan is optimized and executed here, in parallel</span></span>
+<span class="line"><span style="color:#E6EDF3">result </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> q.collect()</span></span></code></pre>
 <p>Het verschil met Pandas ligt niet in de API, maar in de architectuur. Polars bouwt eerst het plan op en optimaliseert de hele pipeline voordat er contact wordt gemaakt met de gegevens. <code>filter</code> wordt doorgegeven aan de Parquet-lezer, waardoor hele rijgroepen worden overgeslagen. Alleen de kolommen die in de query worden verwezen naar, worden van de schijf gehaald. Pandas kan dit niet — elke regel wordt uitgevoerd zodra deze is geanalyseerd en tussentijdse kopieën belanden overal.</p>
 <h3 id="apache-datafusion-een-uitbreidbare-query-engine">Apache DataFusion: Een uitbreidbare query-engine</h3>
 <p>Terwijl Polars een bibliotheek is die je rechtstreeks gebruikt, <a href="https://datafusion.apache.org/">DataFusion</a> is de engine waarop andere engines worden gebouwd. Het zorgt voor de stroomvoorziening <a href="https://www.influxdata.com/glossary/apache-datafusion/">InfluxDB 3.0</a>, <a href="https://github.com/GreptimeTeam/greptimedb">GreptimeDB</a>, en die van Apple <a href="https://github.com/apache/datafusion-comet">Comet Spark-versneller</a>.</p>
 <p>In november 2024 werd DataFusion de <a href="https://datafusion.apache.org/blog/2024/11/18/datafusion-fastest-single-node-parquet-clickbench/">De snelste enkelvoudige node-engine voor het queryen van Parquet-bestanden in ClickBench</a>, voorop vergeleken met DuckDB, chDB en ClickHouse op dezelfde hardware. Het Embucket-team voerde later tests uit <a href="https://embucket.com/blog/running_tpc_h_1000_on_apache_data_fusion">TPC-H met een schaalfactor van 1000 (~1 TB) op één enkele node</a> Daarnaast is dit een nuttig getal om in gedachten te houden wanneer iemand zegt dat hij of zij een cluster nodig heeft. <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/engine_comparison_examples.ipynb"><code>engine_comparison_examples.ipynb</code></a>:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datafusion</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionContext</span>
-
-<span class="n">ctx</span> <span class="o">=</span> <span class="n">SessionContext</span><span class="p">()</span>
-<span class="n">ctx</span><span class="o">.</span><span class="n">register_parquet</span><span class="p">(</span><span class="s2">&quot;taxi&quot;</span><span class="p">,</span> <span class="s2">&quot;yellow_tripdata_2024-01.parquet&quot;</span><span class="p">)</span>
-
-<span class="c1"># SQL executed directly against Parquet — no intermediate copies</span>
-<span class="n">df</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">sql</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span>
-<span class="s2">    SELECT payment_type,</span>
-<span class="s2">           COUNT(*)           AS trip_count,</span>
-<span class="s2">           AVG(trip_distance) AS avg_distance,</span>
-<span class="s2">           AVG(total_amount)  AS avg_fare</span>
-<span class="s2">    FROM taxi</span>
-<span class="s2">    WHERE trip_distance &gt; 5.0 AND total_amount &gt; 30.0</span>
-<span class="s2">    GROUP BY payment_type</span>
-<span class="s2">    ORDER BY trip_count DESC</span>
-<span class="s2">&quot;&quot;&quot;</span><span class="p">)</span>
-<span class="n">result</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> datafusion </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> SessionContext</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">ctx </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> SessionContext()</span></span>
+<span class="line"><span style="color:#E6EDF3">ctx.register_parquet(</span><span style="color:#A5D6FF">"taxi"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"yellow_tripdata_2024-01.parquet"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># SQL executed directly against Parquet — no intermediate copies</span></span>
+<span class="line"><span style="color:#E6EDF3">df </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> ctx.sql(</span><span style="color:#A5D6FF">"""</span></span>
+<span class="line"><span style="color:#A5D6FF">    SELECT payment_type,</span></span>
+<span class="line"><span style="color:#A5D6FF">           COUNT(*)           AS trip_count,</span></span>
+<span class="line"><span style="color:#A5D6FF">           AVG(trip_distance) AS avg_distance,</span></span>
+<span class="line"><span style="color:#A5D6FF">           AVG(total_amount)  AS avg_fare</span></span>
+<span class="line"><span style="color:#A5D6FF">    FROM taxi</span></span>
+<span class="line"><span style="color:#A5D6FF">    WHERE trip_distance > 5.0 AND total_amount > 30.0</span></span>
+<span class="line"><span style="color:#A5D6FF">    GROUP BY payment_type</span></span>
+<span class="line"><span style="color:#A5D6FF">    ORDER BY trip_count DESC</span></span>
+<span class="line"><span style="color:#A5D6FF">"""</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">result </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> df.to_pandas()</span></span></code></pre>
 <p>De sterke kant van DataFusion is zijn <a href="https://datafusion.apache.org/library-user-guide/">moduleerbaarheid</a>. De extensie-API’s omvatten aangepaste catalogi, tabelproviders, optimalisatierules en uitvoeringsplannen; daardoor komen ze altijd naar voren wanneer iemand een aangepaste dataplatform bouwt of een query-engine in zijn eigen product integreert.</p>
 <h3 id="daft-multimodale-gegevensverwerking">Daft: Multimodale gegevensverwerking</h3>
 <p><a href="https://github.com/Eventual-Inc/Daft">Idioot</a> het is degene die multimodale gegevens serieus neemt. Afbeeldingen, audio, video en embeddings – dit zijn echte typen in de DataFrame, geen ondoorzichtige bytes. Pandas behandelt een afbeelding als een bytearray, Spark serialiseert deze via de JVM, maar Daft beschikt over native Rust-expressies voor het decoderen van afbeeldingen, het ophalen van URLs en het genereren van tensors, zonder dat er een Python-lus tussen zit. <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/engine_comparison_examples.ipynb"><code>engine_comparison_examples.ipynb</code></a>:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">daft</span>
-
-<span class="n">df</span> <span class="o">=</span> <span class="n">daft</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="s2">&quot;yellow_tripdata_2024-01.parquet&quot;</span><span class="p">)</span>
-
-<span class="n">result</span> <span class="o">=</span> <span class="p">(</span>
-    <span class="n">df</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
-        <span class="p">(</span><span class="n">daft</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;trip_distance&quot;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">5.0</span><span class="p">)</span>
-        <span class="o">&amp;</span> <span class="p">(</span><span class="n">daft</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;total_amount&quot;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">30.0</span><span class="p">)</span>
-    <span class="p">)</span>
-    <span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;payment_type&quot;</span><span class="p">)</span>
-    <span class="o">.</span><span class="n">agg</span><span class="p">(</span>
-        <span class="n">daft</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;total_amount&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;avg_fare&quot;</span><span class="p">),</span>
-        <span class="n">daft</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;trip_distance&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;avg_distance&quot;</span><span class="p">),</span>
-        <span class="n">daft</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;trip_distance&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;trip_count&quot;</span><span class="p">),</span>
-    <span class="p">)</span>
-    <span class="o">.</span><span class="n">collect</span><span class="p">()</span>
-<span class="p">)</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> daft</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">df </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> daft.read_parquet(</span><span style="color:#A5D6FF">"yellow_tripdata_2024-01.parquet"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">result </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> (</span></span>
+<span class="line"><span style="color:#E6EDF3">    df.where(</span></span>
+<span class="line"><span style="color:#E6EDF3">        (daft.col(</span><span style="color:#A5D6FF">"trip_distance"</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">></span><span style="color:#79C0FF"> 5.0</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#FF7B72">        &#x26;</span><span style="color:#E6EDF3"> (daft.col(</span><span style="color:#A5D6FF">"total_amount"</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">></span><span style="color:#79C0FF"> 30.0</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">    )</span></span>
+<span class="line"><span style="color:#E6EDF3">    .groupby(</span><span style="color:#A5D6FF">"payment_type"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">    .agg(</span></span>
+<span class="line"><span style="color:#E6EDF3">        daft.col(</span><span style="color:#A5D6FF">"total_amount"</span><span style="color:#E6EDF3">).mean().alias(</span><span style="color:#A5D6FF">"avg_fare"</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#E6EDF3">        daft.col(</span><span style="color:#A5D6FF">"trip_distance"</span><span style="color:#E6EDF3">).mean().alias(</span><span style="color:#A5D6FF">"avg_distance"</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#E6EDF3">        daft.col(</span><span style="color:#A5D6FF">"trip_distance"</span><span style="color:#E6EDF3">).count().alias(</span><span style="color:#A5D6FF">"trip_count"</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#E6EDF3">    )</span></span>
+<span class="line"><span style="color:#E6EDF3">    .collect()</span></span>
+<span class="line"><span style="color:#E6EDF3">)</span></span></code></pre>
 <p>De API zal vertrouwd aanvoelen als je kennis hebt van Pandas, maar de engine is dezelfde Rust + Arrow-stack die je ook vindt in Polars en DataFusion. Daft komt echt van pas wanneer de “rows” in je DataFrame bestaan uit afbeeldingen, PDF’s of tensors.</p>
-<h3 id="benchmark-prestaties-op-een-node">Benchmark: Prestaties op één node</h3>
+<h3 id="benchmark-prestaties-op-één-node">Benchmark: Prestaties op één node</h3>
 <p>Ik heb alle vier de engines, plus het native Rust via Polars-rs, getest op ongeveer 41 miljoen <a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page">NYC-gele taxiritten</a> voor het hele jaar 2024. De volledige resultaten staan in de <a href="https://github.com/slavadubrov/engine-comparison-demo">demo-repo</a>:</p>
-<p><img alt="Resultaten van de benchmark: prestaties op één node" src="../../../../assets/2026-02-21-compute-engines/benchmark-results.svg" /></p>
+<p><img src="/nl/blog/assets/2026-02-21-compute-engines/benchmark-results.svg" alt="Resultaten van de benchmark: prestaties op één node"></p>
 <p>Op deze grootte (~660 MB Parquet) werkt elke moderne engine zeer snel. Het cijfer van 94x voor Polars ten opzichte van Pandas komt voort uit PDS-H, een synthetische analytische benchmark — bij mijn werkload met 41 miljoen rijen zag ik inderdaad een consistente verbetering ten opzichte van Pandas, maar zeker niet 94x. Het interessantere resultaat is dat Polars, DataFusion, Daft en pure Rust via Polars-rs op deze werkload allemaal rond dezelfde prestatieniveaus liggen. DataFusion heeft een lichte voorsprong wat betreft de totale verwerkingstijd. Polars is het gemakkelijkst om mee te werken en een solide alomtegenwoordige optie.</p>
-<hr />
+<hr>
 <h2 id="deel-2-omgaan-met-multimodale-gegevens">Deel 2: Omgaan met multimodale gegevens</h2>
 <p>Tabulaire ETL-procedures verkleinen meestal de hoeveelheid gegevens: filteren, aggregeren en minder opslaan dan er gelezen wordt. Multimodale AI-pipelines doen juist het tegenovergestelde. Eén document kan zich opdelen in tientallen tekstfragmenten en embeddingsvectoren.</p>
 <p>Spark behandelt afbeeldingen en audio als binaire blobs. Om ermee te werken in Python moet men eerst vanuit de JVM naar Python gaan via Py4J, vervolgens verwerking uitvoeren met Pillow of OpenCV, en daarna opnieuw serialiseren. Deze heen-en-weerbeweging neemt een groot deel in beslag van de totale verwerkingstijd bij veel echte werkloads.</p>
 <h3 id="pipelined-uitvoering-en-gpu-utilisatie">Pipelined uitvoering en GPU-utilisatie</h3>
 <p>Spark paralleliseert de partitions over meerdere cores, maar het nadeel zit hem in zijn <strong>op stadia gebaseerde (bulk-synchrone) uitvoeringsmodel</strong>. Binnen één enkele taak worden alle stappen (downloaden, decoderen, classificeren) sequentieel uitgevoerd op één core, zonder sprake te zijn van asynchrone overlappende processen. Bovendien moet elke taak binnen een stadium voltooid zijn voordat het volgende stadium kan beginnen. GPUs blijven onbenut terwijl CPUs de gegevens voorverwerken; CPUs blijven onbenut terwijl GPUs inferentie uitvoeren. Elk stadium genereert zijn eigen uitvoer al voordat het volgende stadium start, waardoor er bovendien nog eens druk op het geheugen komt te staan.</p>
-<p><img alt="Model voor gepipelde uitvoering" src="../../../../assets/2026-02-21-compute-engines/pipelined-execution.svg" /></p>
+<p><img src="/nl/blog/assets/2026-02-21-compute-engines/pipelined-execution.svg" alt="Model voor gepipelde uitvoering"></p>
 <p><strong>Gepipelde uitvoering</strong> is de alternatieve aanpak. In plaats van de verschillende stappen achter elkaar uit te voeren, overlapt de engine I/O-opdrachten, CPU-verwerking en GPU-inferentie, zodat alleen het langzaamste onderdeel op een gegeven moment moet wachten.</p>
 <h3 id="benchmark-afbeeldingsverwerking">Benchmark: Afbeeldingsverwerking</h3>
 <p>Ik heb de afbeeldingsverwerking getest met 500 echte fotografische afbeeldingen uit de <a href="https://huggingface.co/datasets/ethz/food101">Food-101-dataset</a>. Resultaten uit de <a href="https://github.com/slavadubrov/engine-comparison-demo">demo-repo</a>:</p>
-<p><img alt="Resultaten van de benchmark: prestaties in multimodale omgevingen" src="../../../../assets/2026-02-21-compute-engines/multimodal-benchmark-results.svg" /></p>
+<p><img src="/nl/blog/assets/2026-02-21-compute-engines/multimodal-benchmark-results.svg" alt="Resultaten van de benchmark: prestaties in multimodale omgevingen"></p>
 <p>Polars en DataFusion verschijnen hier niet omdat ze geen geïntegreerde afbeeldingsoperaties hebben — voor afbeeldingsverwerking moet men terugvallen op sequentiële Python-code, waardoor een eerlijke vergelijking niet mogelijk is. De cijfers zijn duidelijk: de geïntegreerde Rust-afbeeldingsoperaties van Daft zijn 3,6x sneller dan Pandas + Pillow, en puur Rust is 4,2x sneller dan Pandas in het hele proces.</p>
-<hr />
+<hr>
 <h2 id="deel-3-gedeeld-verwerken">Deel 3: Gedeeld verwerken</h2>
 <p>Zodra één enkele machine niet voldoende is, moet je beslissen hoe je de werklast verdeelt. Hier beginnen de architectonische verschillen tussen de verschillende engines echt van belang te worden.</p>
 <h3 id="apache-spark">Apache Spark</h3>
 <p>Spark blijft mijn eerste keuze wanneer het gaat om tabulaire ETL-opdrachten op petabyte-schaal waarbij er veel ge Shuffle-operaties nodig zijn. De fouttolerantie dankzij RDD-lineage werkt goed, het ecosysteem is enorm (Databricks, EMR), en multi-TB joins zijn een bekend fenomeen. Bij AI-workloads daalt de prestatie echter sterk. Taken worden gepland op JVM-executoren die geen kennis hebben van GPUs, waardoor deze nutteloos blijven staan terwijl er CPU-preprocessing plaatsvindt. <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/distributed_spark.ipynb"><code>distributed_spark.ipynb</code></a>:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pyspark.sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">SparkSession</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pyspark.sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">functions</span> <span class="k">as</span> <span class="n">F</span>
-
-<span class="n">spark</span> <span class="o">=</span> <span class="n">SparkSession</span><span class="o">.</span><span class="n">builder</span> \
-    <span class="o">.</span><span class="n">appName</span><span class="p">(</span><span class="s2">&quot;TaxiETL&quot;</span><span class="p">)</span> \
-    <span class="o">.</span><span class="n">config</span><span class="p">(</span><span class="s2">&quot;spark.sql.adaptive.enabled&quot;</span><span class="p">,</span> <span class="s2">&quot;true&quot;</span><span class="p">)</span> \
-    <span class="o">.</span><span class="n">getOrCreate</span><span class="p">()</span>
-
-<span class="n">orders</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">read</span><span class="o">.</span><span class="n">parquet</span><span class="p">(</span><span class="s2">&quot;s3a://lake/taxi/*.parquet&quot;</span><span class="p">)</span>
-<span class="n">zones</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">read</span><span class="o">.</span><span class="n">csv</span><span class="p">(</span><span class="s2">&quot;s3a://lake/taxi_zones.csv&quot;</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-
-<span class="c1"># Spark excels at this: joining massive tables with a shuffle</span>
-<span class="n">result</span> <span class="o">=</span> <span class="p">(</span>
-    <span class="n">orders</span>
-    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;trip_distance&quot;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">5.0</span><span class="p">)</span>
-    <span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">zones</span><span class="p">,</span> <span class="n">orders</span><span class="o">.</span><span class="n">PULocationID</span> <span class="o">==</span> <span class="n">zones</span><span class="o">.</span><span class="n">LocationID</span><span class="p">,</span> <span class="s2">&quot;inner&quot;</span><span class="p">)</span>
-    <span class="o">.</span><span class="n">groupBy</span><span class="p">(</span><span class="s2">&quot;Borough&quot;</span><span class="p">)</span>
-    <span class="o">.</span><span class="n">agg</span><span class="p">(</span>
-        <span class="n">F</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="s2">&quot;total_amount&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;total_revenue&quot;</span><span class="p">),</span>
-        <span class="n">F</span><span class="o">.</span><span class="n">avg</span><span class="p">(</span><span class="s2">&quot;total_amount&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;avg_fare&quot;</span><span class="p">),</span>
-    <span class="p">)</span>
-    <span class="o">.</span><span class="n">orderBy</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">desc</span><span class="p">(</span><span class="s2">&quot;total_revenue&quot;</span><span class="p">))</span>
-<span class="p">)</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> pyspark.sql </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> SparkSession</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> pyspark.sql </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> functions </span><span style="color:#FF7B72">as</span><span style="color:#E6EDF3"> F</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">spark </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> SparkSession.builder \</span></span>
+<span class="line"><span style="color:#E6EDF3">    .appName(</span><span style="color:#A5D6FF">"TaxiETL"</span><span style="color:#E6EDF3">) \</span></span>
+<span class="line"><span style="color:#E6EDF3">    .config(</span><span style="color:#A5D6FF">"spark.sql.adaptive.enabled"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"true"</span><span style="color:#E6EDF3">) \</span></span>
+<span class="line"><span style="color:#E6EDF3">    .getOrCreate()</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">orders </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> spark.read.parquet(</span><span style="color:#A5D6FF">"s3a://lake/taxi/*.parquet"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">zones </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> spark.read.csv(</span><span style="color:#A5D6FF">"s3a://lake/taxi_zones.csv"</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">header</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">True</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Spark excels at this: joining massive tables with a shuffle</span></span>
+<span class="line"><span style="color:#E6EDF3">result </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> (</span></span>
+<span class="line"><span style="color:#E6EDF3">    orders</span></span>
+<span class="line"><span style="color:#E6EDF3">    .filter(F.col(</span><span style="color:#A5D6FF">"trip_distance"</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">></span><span style="color:#79C0FF"> 5.0</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">    .join(zones, orders.PULocationID </span><span style="color:#FF7B72">==</span><span style="color:#E6EDF3"> zones.LocationID, </span><span style="color:#A5D6FF">"inner"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">    .groupBy(</span><span style="color:#A5D6FF">"Borough"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">    .agg(</span></span>
+<span class="line"><span style="color:#E6EDF3">        F.sum(</span><span style="color:#A5D6FF">"total_amount"</span><span style="color:#E6EDF3">).alias(</span><span style="color:#A5D6FF">"total_revenue"</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#E6EDF3">        F.avg(</span><span style="color:#A5D6FF">"total_amount"</span><span style="color:#E6EDF3">).alias(</span><span style="color:#A5D6FF">"avg_fare"</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#E6EDF3">    )</span></span>
+<span class="line"><span style="color:#E6EDF3">    .orderBy(F.desc(</span><span style="color:#A5D6FF">"total_revenue"</span><span style="color:#E6EDF3">))</span></span>
+<span class="line"><span style="color:#E6EDF3">)</span></span></code></pre>
 <h3 id="ray-data-gpu-gebruik">Ray Data: GPU-gebruik</h3>
 <p><a href="https://www.ray.io/">Ray Data</a> is ontworpen rondom AI-workloads. In plaats van de stage-barrières van Spark maakt het gebruik van een <a href="https://docs.ray.io/en/latest/data/data-internals.html">streammodel</a> dat de GPUs van stroom voorziet. De functie die dit mogelijk maakt, is <strong>gemengde resourcenscheduling</strong>: je kunt aangeven dat één actor “1 GPU, 4 CPUs” wil en een andere alleen CPUs, waarna Ray de rest regelt.</p>
 <p>Amazon meldt dat er besparing wordt behaald <a href="https://aws.amazon.com/blogs/opensource/amazons-exabyte-scale-migration-from-apache-spark-to-ray-on-amazon-ec2/">meer dan 120 miljoen dollar per jaar</a> door specifieke werklasten van Spark naar Ray te verplaatsen. Hun PoC-cijfers lieten een kostenefficiëntie zien die 91% beter was en een hoeveelheid gegevens per uur die 13x hoger lag; in de productieomgeving bedroeg de kostenefficiëntie per GiB aan S3-invoer 82% beter.</p>
 <p>Van <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/distributed_ray.ipynb"><code>distributed_ray.ipynb</code></a>:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">ray</span>
-
-<span class="n">ray</span><span class="o">.</span><span class="n">init</span><span class="p">()</span>
-
-<span class="n">ds</span> <span class="o">=</span> <span class="n">ray</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">read_images</span><span class="p">(</span><span class="s2">&quot;s3://my-bucket/food101/&quot;</span><span class="p">)</span>
-
-<span class="k">class</span><span class="w"> </span><span class="nc">ImageClassifier</span><span class="p">:</span>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">torchvision.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">resnet18</span><span class="p">,</span> <span class="n">ResNet18_Weights</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">resnet18</span><span class="p">(</span><span class="n">weights</span><span class="o">=</span><span class="n">ResNet18_Weights</span><span class="o">.</span><span class="n">DEFAULT</span><span class="p">)</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">preprocess</span> <span class="o">=</span> <span class="n">ResNet18_Weights</span><span class="o">.</span><span class="n">DEFAULT</span><span class="o">.</span><span class="n">transforms</span><span class="p">()</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch</span><span class="p">):</span>
-        <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-        <span class="n">tensors</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">preprocess</span><span class="p">(</span><span class="n">img</span><span class="p">)</span> <span class="k">for</span> <span class="n">img</span> <span class="ow">in</span> <span class="n">batch</span><span class="p">[</span><span class="s2">&quot;image&quot;</span><span class="p">]</span>
-        <span class="p">])</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
-        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
-            <span class="n">preds</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">tensors</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">{</span>
-            <span class="s2">&quot;prediction&quot;</span><span class="p">:</span> <span class="n">preds</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span>
-            <span class="s2">&quot;confidence&quot;</span><span class="p">:</span> <span class="n">preds</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span>
-        <span class="p">}</span>
-
-<span class="c1"># ActorPoolStrategy creates persistent GPU workers</span>
-<span class="n">predictions</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">map_batches</span><span class="p">(</span>
-    <span class="n">ImageClassifier</span><span class="p">,</span>
-    <span class="n">compute</span><span class="o">=</span><span class="n">ray</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ActorPoolStrategy</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="mi">4</span><span class="p">),</span>
-    <span class="n">num_gpus</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-    <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
-<span class="p">)</span>
-<span class="n">predictions</span><span class="o">.</span><span class="n">write_parquet</span><span class="p">(</span><span class="s2">&quot;s3://output/predictions/&quot;</span><span class="p">)</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> ray</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">ray.init()</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">ds </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> ray.data.read_images(</span><span style="color:#A5D6FF">"s3://my-bucket/food101/"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> ImageClassifier</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#FF7B72">    def</span><span style="color:#79C0FF"> __init__</span><span style="color:#E6EDF3">(self):</span></span>
+<span class="line"><span style="color:#FF7B72">        import</span><span style="color:#E6EDF3"> torch</span></span>
+<span class="line"><span style="color:#FF7B72">        from</span><span style="color:#E6EDF3"> torchvision.models </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> resnet18, ResNet18_Weights</span></span>
+<span class="line"><span style="color:#79C0FF">        self</span><span style="color:#E6EDF3">.model </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> resnet18(</span><span style="color:#FFA657">weights</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">ResNet18_Weights.</span><span style="color:#79C0FF">DEFAULT</span><span style="color:#E6EDF3">).cuda()</span></span>
+<span class="line"><span style="color:#79C0FF">        self</span><span style="color:#E6EDF3">.model.eval()</span></span>
+<span class="line"><span style="color:#79C0FF">        self</span><span style="color:#E6EDF3">.preprocess </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> ResNet18_Weights.</span><span style="color:#79C0FF">DEFAULT</span><span style="color:#E6EDF3">.transforms()</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    def</span><span style="color:#79C0FF"> __call__</span><span style="color:#E6EDF3">(self, batch):</span></span>
+<span class="line"><span style="color:#FF7B72">        import</span><span style="color:#E6EDF3"> torch</span></span>
+<span class="line"><span style="color:#E6EDF3">        tensors </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> torch.stack([</span></span>
+<span class="line"><span style="color:#79C0FF">            self</span><span style="color:#E6EDF3">.preprocess(img) </span><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> img </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> batch[</span><span style="color:#A5D6FF">"image"</span><span style="color:#E6EDF3">]</span></span>
+<span class="line"><span style="color:#E6EDF3">        ]).cuda()</span></span>
+<span class="line"><span style="color:#FF7B72">        with</span><span style="color:#E6EDF3"> torch.no_grad():</span></span>
+<span class="line"><span style="color:#E6EDF3">            preds </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> self</span><span style="color:#E6EDF3">.model(tensors)</span></span>
+<span class="line"><span style="color:#FF7B72">        return</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#A5D6FF">            "prediction"</span><span style="color:#E6EDF3">: preds.argmax(</span><span style="color:#FFA657">dim</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">).cpu().numpy(),</span></span>
+<span class="line"><span style="color:#A5D6FF">            "confidence"</span><span style="color:#E6EDF3">: preds.max(</span><span style="color:#FFA657">dim</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">).values.cpu().numpy(),</span></span>
+<span class="line"><span style="color:#E6EDF3">        }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># ActorPoolStrategy creates persistent GPU workers</span></span>
+<span class="line"><span style="color:#E6EDF3">predictions </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> ds.map_batches(</span></span>
+<span class="line"><span style="color:#E6EDF3">    ImageClassifier,</span></span>
+<span class="line"><span style="color:#FFA657">    compute</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">ray.data.ActorPoolStrategy(</span><span style="color:#FFA657">size</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">4</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#FFA657">    num_gpus</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#FFA657">    batch_size</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">64</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">predictions.write_parquet(</span><span style="color:#A5D6FF">"s3://output/predictions/"</span><span style="color:#E6EDF3">)</span></span></code></pre>
 <p>Een detail dat het waard is om te weten: naarmate er meer CPUs per GPU worden toegevoegd, schaalt Ray Data mee, terwijl andere engines op hun niveau blijven steken. In <a href="https://www.anyscale.com/blog/ray-data-daft-benchmarking-multimodal-ai-workloads">De benchmarks van Anyscale</a>, door over te gaan van een verhouding van 4:1 naar 32:1 tussen CPU en GPU, werd er een drievoudige versnelling behaald bij het voorspellen van afbeeldingen, omdat de CPU-processoren eindelijk gelijk opgingen met de GPU. <a href="https://www.daft.ai/blog/introducing-flotilla-simplifying-multimodal-data-processing-at-scale">Motor van de vloot</a>: één <strong>Swordfish</strong>-werksterker per node, waarbij Flotilla bovenop zit en de planning op clusterniveau verzorgt. Swordfish handelt de lokale uitvoering in Rust en de I/O-pijpleidingen af door middel van streamen in kleine batches, zodat elke node bezig blijft zonder te hoeven wachten op het volgende stadium.</p>
 <p>Bij vier multimodale werklasten leverde Daft met Flotilla resultaten op <a href="https://www.daft.ai/blog/benchmarks-for-multimodal-ai-workloads">2–18 keer sneller dan Spark</a>. Bij de zwaarste taak (video-objectdetectie met YOLO11n) duurde Spark meer dan 3,5 uur, terwijl Daft de taak in minder dan 12 minuten afhandelde — een verschil van 18 keer, voornamelijk omdat Spark die tijd besteedt aan serialisatie en stage-barrières.</p>
 <p>Eén voorzorgsmaatregel: Anyscale, het bedrijf achter Ray, heeft gepubliceerd <a href="https://www.anyscale.com/blog/ray-data-daft-benchmarking-multimodal-ai-workloads">hun eigen benchmarks</a> Er wordt getoond hoe Ray Data de kloof verkleint of zelfs wegneemt op instellingen met hoge CPU-belasting door middel van handmatige afstemming. Op dit moment wisselen deze twee methoden elk kwartaal van rol. <a href="https://github.com/slavadubrov/engine-comparison-demo/blob/main/notebook/distributed_daft.ipynb"><code>distributed_daft.ipynb</code></a>:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">daft</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">daft</span><span class="w"> </span><span class="kn">import</span> <span class="n">col</span>
-
-<span class="c1"># Daft&#39;s Flotilla engine distributes work across the cluster</span>
-<span class="n">df</span> <span class="o">=</span> <span class="n">daft</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="s2">&quot;s3://data-lake/pdf_metadata/*.parquet&quot;</span><span class="p">)</span>
-
-<span class="c1"># Download PDFs — Daft parallelizes downloads in Rust</span>
-<span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">with_column</span><span class="p">(</span><span class="s2">&quot;pdf_bytes&quot;</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">&quot;pdf_url&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">url</span><span class="o">.</span><span class="n">download</span><span class="p">())</span>
-
-<span class="c1"># Define a GPU UDF for embedding generation</span>
-<span class="nd">@daft</span><span class="o">.</span><span class="n">udf</span><span class="p">(</span><span class="n">return_dtype</span><span class="o">=</span><span class="n">daft</span><span class="o">.</span><span class="n">DataType</span><span class="o">.</span><span class="n">list</span><span class="p">(</span><span class="n">daft</span><span class="o">.</span><span class="n">DataType</span><span class="o">.</span><span class="n">float32</span><span class="p">()))</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">TextEmbedder</span><span class="p">:</span>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">sentence_transformers</span><span class="w"> </span><span class="kn">import</span> <span class="n">SentenceTransformer</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">SentenceTransformer</span><span class="p">(</span><span class="s2">&quot;all-MiniLM-L6-v2&quot;</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text_col</span><span class="p">):</span>
-        <span class="n">texts</span> <span class="o">=</span> <span class="n">text_col</span><span class="o">.</span><span class="n">to_pylist</span><span class="p">()</span>
-        <span class="n">embeddings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">texts</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">emb</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">for</span> <span class="n">emb</span> <span class="ow">in</span> <span class="n">embeddings</span><span class="p">]</span>
-
-<span class="c1"># Daft schedules CPU downloads and GPU embeddings simultaneously</span>
-<span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">with_column</span><span class="p">(</span><span class="s2">&quot;embedding&quot;</span><span class="p">,</span> <span class="n">TextEmbedder</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;text&quot;</span><span class="p">)))</span>
-<span class="n">df</span><span class="o">.</span><span class="n">write_parquet</span><span class="p">(</span><span class="s2">&quot;s3://output/embeddings/&quot;</span><span class="p">)</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> daft</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> daft </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> col</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Daft's Flotilla engine distributes work across the cluster</span></span>
+<span class="line"><span style="color:#E6EDF3">df </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> daft.read_parquet(</span><span style="color:#A5D6FF">"s3://data-lake/pdf_metadata/*.parquet"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Download PDFs — Daft parallelizes downloads in Rust</span></span>
+<span class="line"><span style="color:#E6EDF3">df </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> df.with_column(</span><span style="color:#A5D6FF">"pdf_bytes"</span><span style="color:#E6EDF3">, col(</span><span style="color:#A5D6FF">"pdf_url"</span><span style="color:#E6EDF3">).url.download())</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Define a GPU UDF for embedding generation</span></span>
+<span class="line"><span style="color:#D2A8FF">@daft.udf</span><span style="color:#E6EDF3">(</span><span style="color:#FFA657">return_dtype</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">daft.DataType.list(daft.DataType.float32()))</span></span>
+<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> TextEmbedder</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#FF7B72">    def</span><span style="color:#79C0FF"> __init__</span><span style="color:#E6EDF3">(self):</span></span>
+<span class="line"><span style="color:#FF7B72">        from</span><span style="color:#E6EDF3"> sentence_transformers </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> SentenceTransformer</span></span>
+<span class="line"><span style="color:#79C0FF">        self</span><span style="color:#E6EDF3">.model </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> SentenceTransformer(</span><span style="color:#A5D6FF">"all-MiniLM-L6-v2"</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">device</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"cuda"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    def</span><span style="color:#79C0FF"> __call__</span><span style="color:#E6EDF3">(self, text_col):</span></span>
+<span class="line"><span style="color:#E6EDF3">        texts </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> text_col.to_pylist()</span></span>
+<span class="line"><span style="color:#E6EDF3">        embeddings </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> self</span><span style="color:#E6EDF3">.model.encode(texts, </span><span style="color:#FFA657">batch_size</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">32</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#FF7B72">        return</span><span style="color:#E6EDF3"> [emb.tolist() </span><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> emb </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> embeddings]</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Daft schedules CPU downloads and GPU embeddings simultaneously</span></span>
+<span class="line"><span style="color:#E6EDF3">df </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> df.with_column(</span><span style="color:#A5D6FF">"embedding"</span><span style="color:#E6EDF3">, TextEmbedder(col(</span><span style="color:#A5D6FF">"text"</span><span style="color:#E6EDF3">)))</span></span>
+<span class="line"><span style="color:#E6EDF3">df.write_parquet(</span><span style="color:#A5D6FF">"s3://output/embeddings/"</span><span style="color:#E6EDF3">)</span></span></code></pre>
 <h3 id="gedeeld-head-to-head">Gedeeld head-to-head</h3>
-<table>
-<thead>
-<tr>
-<th>Functie</th>
-<th>Spark</th>
-<th>Ray Data</th>
-<th></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Uitvoermodel</strong></td>
-<td>Taak-per-core, gebaseerd op partities</td>
-<td>Streamingtaken en actoren</td>
-<td>Zwaardvis per node, stromende batches</td>
-</tr>
-<tr>
-<td><strong>Sterktepunten</strong></td>
-<td>Grote schaal SQL/ETL, fouttolerantie</td>
-<td>Heterogene rekenkracht, verzadiging van GPU’s</td>
-<td>Multimodale pijplijnen met beperkte geheugengebruik</td>
-</tr>
-<tr>
-<td><strong>GPU-gebruik</strong></td>
-<td>Slecht (fasegebonden, geen overlapping van CPU/GPU)</td>
-<td>Uitstekend (expliciete toewijzing van resources)</td>
-<td>Uitstekend (asynchrone I/O-berekeningspipelining)</td>
-</tr>
-<tr>
-<td><strong>Afstemkosten</strong></td>
-<td>Hogelijk (geheugen van de uitvoerder, cores, partities)</td>
-<td>Middelgroot (batchgrootte, objectopslag)</td>
-<td>Laag (de motor beheert de resources)</td>
-</tr>
-<tr>
-<td><strong>Ideaal voor</strong></td>
-<td>Petabyte-tabellair ETL</td>
-<td>Training/inferentie met een combinatie van CPU+GPU</td>
-<td>Multimodale dataloading voor PyTorch</td>
-</tr>
-</tbody>
-</table>
-<hr />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Functie</th><th>Spark</th><th>Ray Data</th><th></th></tr></thead><tbody><tr><td><strong>Uitvoermodel</strong></td><td>Taak-per-core, gebaseerd op partities</td><td>Streamingtaken en actoren</td><td>Zwaardvis per node, stromende batches</td></tr><tr><td><strong>Sterktepunten</strong></td><td>Grote schaal SQL/ETL, fouttolerantie</td><td>Heterogene rekenkracht, verzadiging van GPU’s</td><td>Multimodale pijplijnen met beperkte geheugengebruik</td></tr><tr><td><strong>GPU-gebruik</strong></td><td>Slecht (fasegebonden, geen overlapping van CPU/GPU)</td><td>Uitstekend (expliciete toewijzing van resources)</td><td>Uitstekend (asynchrone I/O-berekeningspipelining)</td></tr><tr><td><strong>Afstemkosten</strong></td><td>Hogelijk (geheugen van de uitvoerder, cores, partities)</td><td>Middelgroot (batchgrootte, objectopslag)</td><td>Laag (de motor beheert de resources)</td></tr><tr><td><strong>Ideaal voor</strong></td><td>Petabyte-tabellair ETL</td><td>Training/inferentie met een combinatie van CPU+GPU</td><td>Multimodale dataloading voor PyTorch</td></tr></tbody></table>
+<hr>
 <h2 id="deel-4-de-rol-van-rust-en-arrow">Deel 4: De rol van Rust en Arrow</h2>
 <p>Onder het perspectief van de concurrentie is de convergentie het interessantere verhaal. Polars, Daft, DataFusion en de kern van Ray delen allemaal dezelfde basis: <a href="https://arrow.apache.org/">Apache Arrow</a> Voor het in-memory formaat en Rust voor de parallelle uitvoering.</p>
-<p><img alt="Convergentie van Rust en Arrow" src="../../../../assets/2026-02-21-compute-engines/rust-arrow-convergence.svg" /></p>
+<p><img src="/nl/blog/assets/2026-02-21-compute-engines/rust-arrow-convergence.svg" alt="Convergentie van Rust en Arrow"></p>
 <p>Dat is niet zomaar architectonische netheid. De <a href="https://arrow.apache.org/docs/format/CDataInterface/PyCapsuleInterface.html">Arrow PyCapsule-interface</a> (<code>__arrow_c_stream__</code> Het protocol maakt het mogelijk om gegevens zonder serialisatie tussen engines uit te wisselen: voer berekeningen uit in DataFusion en stuur het resultaat kosteloos door naar Polars of PyArrow; voer multimodale voorverwerking uit in Daft en voeg de Arrow-batches rechtstreeks toe aan een PyTorch DataLoader.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datafusion</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionContext</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
-
-<span class="c1"># Compute in DataFusion (Rust-native execution)</span>
-<span class="n">ctx</span> <span class="o">=</span> <span class="n">SessionContext</span><span class="p">()</span>
-<span class="n">ctx</span><span class="o">.</span><span class="n">register_parquet</span><span class="p">(</span><span class="s2">&quot;events&quot;</span><span class="p">,</span> <span class="s2">&quot;events.parquet&quot;</span><span class="p">)</span>
-<span class="n">df</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">sql</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span>
-<span class="s2">    SELECT user_id, COUNT(*) as event_count</span>
-<span class="s2">    FROM events WHERE event_type = &#39;purchase&#39;</span>
-<span class="s2">    GROUP BY user_id HAVING COUNT(*) &gt; 5</span>
-<span class="s2">&quot;&quot;&quot;</span><span class="p">)</span>
-
-<span class="c1"># Zero-copy conversion to Arrow, then to Polars</span>
-<span class="n">arrow_table</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">to_arrow_table</span><span class="p">()</span>
-<span class="n">df_polars</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">from_arrow</span><span class="p">(</span><span class="n">arrow_table</span><span class="p">)</span>
-
-<span class="c1"># Continue analysis in Polars</span>
-<span class="n">result</span> <span class="o">=</span> <span class="n">df_polars</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
-    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;event_count&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">rank</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;rank&quot;</span><span class="p">)</span>
-<span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">&quot;rank&quot;</span><span class="p">)</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> datafusion </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> SessionContext</span></span>
+<span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> polars </span><span style="color:#FF7B72">as</span><span style="color:#E6EDF3"> pl</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Compute in DataFusion (Rust-native execution)</span></span>
+<span class="line"><span style="color:#E6EDF3">ctx </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> SessionContext()</span></span>
+<span class="line"><span style="color:#E6EDF3">ctx.register_parquet(</span><span style="color:#A5D6FF">"events"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"events.parquet"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">df </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> ctx.sql(</span><span style="color:#A5D6FF">"""</span></span>
+<span class="line"><span style="color:#A5D6FF">    SELECT user_id, COUNT(*) as event_count</span></span>
+<span class="line"><span style="color:#A5D6FF">    FROM events WHERE event_type = 'purchase'</span></span>
+<span class="line"><span style="color:#A5D6FF">    GROUP BY user_id HAVING COUNT(*) > 5</span></span>
+<span class="line"><span style="color:#A5D6FF">"""</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Zero-copy conversion to Arrow, then to Polars</span></span>
+<span class="line"><span style="color:#E6EDF3">arrow_table </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> df.to_arrow_table()</span></span>
+<span class="line"><span style="color:#E6EDF3">df_polars </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> pl.from_arrow(arrow_table)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Continue analysis in Polars</span></span>
+<span class="line"><span style="color:#E6EDF3">result </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> df_polars.with_columns(</span></span>
+<span class="line"><span style="color:#E6EDF3">    pl.col(</span><span style="color:#A5D6FF">"event_count"</span><span style="color:#E6EDF3">).rank().alias(</span><span style="color:#A5D6FF">"rank"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">).sort(</span><span style="color:#A5D6FF">"rank"</span><span style="color:#E6EDF3">)</span></span></code></pre>
 <p>Waarom dan Rust in plaats van de JVM?</p>
 <ol>
 <li>
@@ -1942,72 +277,71 @@
 </li>
 </ol>
 <p>In combinatie met de kolommatige geheugenindeling van Arrow verdwijnt ook het serialisatie‑probleem dat tot 30% van de CPU-cycli kan verbruiken in legacy JVM‑stacks.</p>
-<p><img alt="Het coëxistentiemodel: meermotorige pipeline" src="../../../../assets/2026-02-21-compute-engines/coexistence-relay.svg" /></p>
+<p><img src="/nl/blog/assets/2026-02-21-compute-engines/coexistence-relay.svg" alt="Het coëxistentiemodel: meermotorige pipeline"></p>
 <p>In productie ziet dit er meestal uit als een relay. Ruwe gegevens in een data lake worden gereinigd en met behulp van <strong>Spark</strong> (of <strong>Dask</strong> als je team alleen Python gebruikt) samengevoegd tot Parquet- of Delta-tabellen. Deze tabellen gaan vervolgens naar <strong>Ray Data</strong> of <strong>Daft</strong> voor de laatste stap – GPU-inferentie, generatie van embeddings en multimodale transformaties – taken waarvoor Spark oorspronkelijk niet is ontworpen. Voor ad-hoc-analyse en lokale ontwikkeling bieden <strong>Polars</strong> en <strong>DuckDB</strong> onmiddellijk feedback zonder dat er een cluster hoeft te worden opgestart.</p>
 <p>Wat deze samenstelling mogelijk maakt, zijn <strong>open formaten</strong>: Parquet, Delta, Iceberg en Arrow. Elke engine in de stack leest en schrijft deze formaten op natieve manier, zodat de overdracht tussen verschillende stappen slechts een kwestie is van een bestandsnaam.</p>
 <h3 id="samenvatting-van-toepassingsgebieden-van-de-engines">Samenvatting van toepassingsgebieden van de engines</h3>
-<p><img alt="Matrix voor selectie van motoren" src="../../../../assets/2026-02-21-compute-engines/engine-selection.svg" /></p>
-<table>
-<thead>
-<tr>
-<th>Taak</th>
-<th>Aanbevolen tool</th>
-<th>Afweging</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Ad-hoc analyse op een laptop</td>
-<td><strong>Polars</strong> / <strong>DuckDB</strong></td>
-<td>Snelheid &gt; Schaal</td>
-</tr>
-<tr>
-<td>Grote schaal SQL ETL (petabyte)</td>
-<td><strong>Apache Spark</strong></td>
-<td>Betrouwbaarheid &gt; Snelheid</td>
-</tr>
-<tr>
-<td>Python-gebonden schaling</td>
-<td><strong>Dask</strong></td>
-<td>Eenvoud &gt; Optimalisatie</td>
-</tr>
-<tr>
-<td>Training van LLM’s / computervisie</td>
-<td><strong>Ray Data</strong></td>
-<td>GPU-gebruik &gt; ETL-functies</td>
-</tr>
-<tr>
-<td>Laden van multimodale gegevens</td>
-<td><strong>Onzinnig</strong></td>
-<td>Ontwikkelaarsexperiëntie &gt; Ecosysteem</td>
-</tr>
-<tr>
-<td>Het bouwen van aangepaste query-engineën</td>
-<td><strong>DataFusion</strong></td>
-<td>Uitbreidbaarheid &gt; Ingebouwde functies</td>
-</tr>
-</tbody>
-</table>
+<p><img src="/nl/blog/assets/2026-02-21-compute-engines/engine-selection.svg" alt="Matrix voor selectie van motoren"></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Taak</th><th>Aanbevolen tool</th><th>Afweging</th></tr></thead><tbody><tr><td>Ad-hoc analyse op een laptop</td><td><strong>Polars</strong> / <strong>DuckDB</strong></td><td>Snelheid > Schaal</td></tr><tr><td>Grote schaal SQL ETL (petabyte)</td><td><strong>Apache Spark</strong></td><td>Betrouwbaarheid > Snelheid</td></tr><tr><td>Python-gebonden schaling</td><td><strong>Dask</strong></td><td>Eenvoud > Optimalisatie</td></tr><tr><td>Training van LLM’s / computervisie</td><td><strong>Ray Data</strong></td><td>GPU-gebruik > ETL-functies</td></tr><tr><td>Laden van multimodale gegevens</td><td><strong>Onzinnig</strong></td><td>Ontwikkelaarsexperiëntie > Ecosysteem</td></tr><tr><td>Het bouwen van aangepaste query-engineën</td><td><strong>DataFusion</strong></td><td>Uitbreidbaarheid > Ingebouwde functies</td></tr></tbody></table>
 <h3 id="diagonale-schaling">Diagonale schaling</h3>
 <p>Lang was de keuze tussen schaalvergroting (een grotere machine) of schaaluitbreiding (meer machines). <a href="https://pola.rs/posts/polars-cloud-what-we-are-building/">Polars Cloud</a> er wordt iets gedaan dat zich ergens daartussen bevindt, en dat wordt <strong>diagonaal schalen</strong> genoemd: men schaalt horizontaal terwijl er gegevens uit de cloudopslag worden gelezen om de I/O-optimalisatie te bereiken, waarna het systeem samenvalt tot één grote node zodra filters en aggregaties de hoeveelheid gegevens hebben verminderd, waardoor het gehele proces van gedistribueerd shuffelen wordt vermeden.</p>
 <p>Het tegenintuïtieve aspect is dat een grotere, duurdere instans uiteindelijk <em>goedkoper per taak</em> kan uitvallen, omdat deze de GPU-utilisatie hoog genoeg brengt zodat de totale uitvoeringstijd sneller afneemt dan de uurprijs stijgt.</p>
-<hr />
+<hr>
 <h2 id="probeer-het-zelf">Probeer het zelf</h2>
 <p>De <a href="https://github.com/slavadubrov/engine-comparison-demo">demo-repository voor de companion</a> bevat alles wat je nodig hebt om deze benchmarks na te bootsen:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># Install dependencies</span>
-uv<span class="w"> </span>sync
-
-<span class="c1"># Run the tabular benchmark (~2.9M NYC taxi trips)</span>
-uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>engine_comparison.benchmarks.tabular
-
-<span class="c1"># Run the multimodal benchmark (500 real food photos)</span>
-uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>engine_comparison.benchmarks.multimodal
-
-<span class="c1"># Run native Rust benchmarks (Polars-rs + image crate)</span>
-<span class="nb">cd</span><span class="w"> </span>rust_benchmark<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cargo<span class="w"> </span>run<span class="w"> </span>--release<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#8B949E"># Install dependencies</span></span>
+<span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> sync</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Run the tabular benchmark (~2.9M NYC taxi trips)</span></span>
+<span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> run</span><span style="color:#A5D6FF"> python</span><span style="color:#79C0FF"> -m</span><span style="color:#A5D6FF"> engine_comparison.benchmarks.tabular</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Run the multimodal benchmark (500 real food photos)</span></span>
+<span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> run</span><span style="color:#A5D6FF"> python</span><span style="color:#79C0FF"> -m</span><span style="color:#A5D6FF"> engine_comparison.benchmarks.multimodal</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Run native Rust benchmarks (Polars-rs + image crate)</span></span>
+<span class="line"><span style="color:#79C0FF">cd</span><span style="color:#A5D6FF"> rust_benchmark</span><span style="color:#E6EDF3"> &#x26;&#x26; </span><span style="color:#FFA657">cargo</span><span style="color:#A5D6FF"> run</span><span style="color:#79C0FF"> --release</span><span style="color:#E6EDF3"> &#x26;&#x26; </span><span style="color:#79C0FF">cd</span><span style="color:#A5D6FF"> ..</span></span></code></pre>
 <p>Het repository bevat ook notebooks voor naast elkaar geplaatste API-vergelijkingen en Docker Compose-configuraties voor lokale, gedistribueerde uitvoeringen van Spark, Ray en Daft.</p>
-<hr />
+<hr>
 <h2 id="belangrijkste-conclusies">Belangrijkste conclusies</h2>
 <ol>
 <li>
@@ -2027,7 +361,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 </li>
 </ol>
 <p>Als je niet weet waar je moet beginnen: gebruik Polars op één machine, en vervolgens Daft of Ray Data wanneer GPUs worden gebruikt. Spark alleen wanneer je daadwerkelijk met petabytes te maken hebt.</p>
-<hr />
+<hr>
 <h2 id="referenties">Referenties</h2>
 <h3 id="benchmarks-en-prestatiegegevens">Benchmarks en prestatiegegevens</h3>
 <ul>
@@ -2047,120 +381,22 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 <h3 id="demo-repository">Demo-repository</h3>
 <ul>
 <li><a href="https://github.com/slavadubrov/engine-comparison-demo">Engine-vergelijking-demo</a> - Bijbehorende code voor dit artikel: benchmarks, notebooks en Docker Compose voor Spark/Ray/Daft <a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page">Logboeken van NYC-taxiritten</a> - Gegevens van gele taxi’s van de NYC TLC (Parquet, ~2,9 miljoen rijen per maand) <a href="https://huggingface.co/datasets/ethz/food101">Dataset Food-101</a> - 101K voedselafbeeldingen van ETH Zurich (Bossard et al., ECCV 2014)</li>
-</ul>
-
-
-
-
-
-
-
-  
-  
-
-
-
-  
-
-
-  
-
-
- 
-  </article>
-</div>
-
-          
-<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
-        </div>
-        
-      </main>
-      
-        <footer class="md-footer">
-  
-  <div class="md-footer-meta md-typeset">
-    <div class="md-footer-meta__inner md-grid">
-      <div class="md-copyright">
-  
-  
-    Made with
-    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
-      Material for MkDocs
-    </a>
-  
-</div>
-      
-        
-<div class="md-social">
-  
-    
-    
-    
-    
-    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://www.tiktok.com/@edge.of.context" target="_blank" rel="noopener" title="TikTok" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M448.5 209.9c-44 .1-87-13.6-122.8-39.2v178.7c0 33.1-10.1 65.4-29 92.6s-45.6 48-76.6 59.6-64.8 13.5-96.9 5.3-60.9-25.9-82.7-50.8-35.3-56-39-88.9 2.9-66.1 18.6-95.2 40-52.7 69.6-67.7 62.9-20.5 95.7-16v89.9c-15-4.7-31.1-4.6-46 .4s-27.9 14.6-37 27.3-14 28.1-13.9 43.9 5.2 31 14.5 43.7 22.4 22.1 37.4 26.9 31.1 4.8 46-.1 28-14.4 37.2-27.1 14.2-28.1 14.2-43.8V0h88c-.1 7.4.6 14.9 1.9 22.2 3.1 16.3 9.4 31.9 18.7 45.7s21.3 25.6 35.2 34.6c19.9 13.1 43.2 20.1 67 20.1V210z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
-    </a>
-  
-</div>
-      
-    </div>
-  </div>
-</footer>
-      
-    </div>
-    <div class="md-dialog" data-md-component="dialog">
-      <div class="md-dialog__inner md-typeset"></div>
-    </div>
-    
-    
-    
-      
-      
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Gekopieerd naar klembord", "clipboard.copy": "Kopi\u00ebren naar klembord", "search.result.more.one": "1 extra overeenkomst op deze pagina", "search.result.more.other": "# extra overeenkomsten op deze pagina", "search.result.none": "Geen overeenkomende documenten", "search.result.one": "1 overeenkomende document", "search.result.other": "# overeenkomende documenten", "search.result.placeholder": "Typ om te beginnen met zoeken", "search.result.term.missing": "Ontbreekt", "select.version": "Selecteer versie"}, "version": null}</script>
-    
-    
-      <script src="../../../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-      
-        <script src="../../../../../../javascripts/mermaid-init.js"></script>
-      
-        <script src="../../../../../../javascripts/mathjax.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
-      
-    
-  </body>
-</html>
+</ul> </article>  </main> <footer class="site-footer"> <p data-footer-tagline>Praktische AI-engineering door Slava Dubrov.</p> <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>
+      document.querySelector("#locale-select")?.addEventListener("change", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLSelectElement && target.value) location.assign(target.value);
+      });
+      document.querySelectorAll("pre").forEach((pre) => {
+        if (pre.closest(".mermaid-diagram")) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-code";
+        button.textContent = "Copy";
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(pre.textContent || "");
+          button.textContent = "Copied";
+          setTimeout(() => { button.textContent = "Copy"; }, 1500);
+        });
+        pre.append(button);
+      });
+    </script> </body> </html>

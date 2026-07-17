@@ -1,1794 +1,121 @@
-
-<!doctype html>
-<html lang="en" class="no-js">
-  <head>
-    
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1">
-      
-        <meta name="description" content="A technical walkthrough of DeepSeek's Manifold-Constrained Hyper-Connections (mHC), residual stream width scaling, Sinkhorn routing, and training stability.">
-      
-      
-        <meta name="author" content="Viacheslav Dubrov">
-      
-      
-        <link rel="canonical" href="https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/">
-      
-      
-      
-      
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="en">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/de/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="de">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/ru/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="ru">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/es/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="es">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/pt/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="pt">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/fr/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="fr">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/nl/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="nl">
-        
-      
-      
-        <link rel="alternate" type="application/rss+xml" title="RSS feed" href="../../../../../feed_rss_created.xml">
-        <link rel="alternate" type="application/rss+xml" title="RSS feed of updated content" href="../../../../../feed_rss_updated.xml">
-      
-      <link rel="icon" href="../../../../../assets/favicon-eoc.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.6">
-    
-    
-      
-        <title>Manifold-Constrained Hyper-Connections (mHC): DeepSeek Residual Scaling Explained - Edge of Context: Practical AI Engineering</title>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.484c7ddc.min.css">
-      
-        
-        <link rel="stylesheet" href="../../../../../assets/stylesheets/palette.ab4e12ef.min.css">
-      
-      
-
-
-    
-    
-      
-    
-    
-      
-        
-        
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
-        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../assets/brand.css">
-    
-      <link rel="stylesheet" href="../../../../../assets/blog-sidebar.css">
-    
-      <link rel="stylesheet" href="../../../../../assets/blog-index.css">
-    
-    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
-    
-      
-  
-
-
-  
-  
-
-<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-T51K83ENZ5"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-T51K83ENZ5",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
-  
-    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
-  
-
-    
-        
-
-   
-     
-<!-- Open Graph -->
-<meta property="og:title" content="Manifold-Constrained Hyper-Connections (mHC): DeepSeek Residual Scaling Explained" />
-<meta property="og:description" content="A technical walkthrough of DeepSeek's Manifold-Constrained Hyper-Connections (mHC), residual stream width scaling, Sinkhorn routing, and training stability." />
-<meta property="og:url" content="https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/" />
-<meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
-<meta
-  property="og:type"
-  content="article"
-/>
-<meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png" />
-<!-- Twitter Card -->
-<meta
-  name="twitter:card"
-  content="summary"
-/>
-<meta name="twitter:title" content="Manifold-Constrained Hyper-Connections (mHC): DeepSeek Residual Scaling Explained" />
-<meta name="twitter:description" content="A technical walkthrough of DeepSeek's Manifold-Constrained Hyper-Connections (mHC), residual stream width scaling, Sinkhorn routing, and training stability." />
-<meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png" />
-<!-- Site identity schema -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Person",
-        "@id": "https://slavadubrov.github.io/#person",
-        "name": "Viacheslav Dubrov",
-        "alternateName": "Slava Dubrov",
-        "url": "https://slavadubrov.github.io/about/",
-        "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-      },
-      {
-        "@type": "WebSite",
-        "@id": "https://slavadubrov.github.io/#website",
-        "name": "Edge of Context: Practical AI Engineering",
-        "alternateName": "Edge of Context",
-        "url": "https://slavadubrov.github.io/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "en",
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        }
-      },
-      {
-        "@type": "Blog",
-        "@id": "https://slavadubrov.github.io/#blog",
-        "name": "Edge of Context: Practical AI Engineering",
-        "url": "https://slavadubrov.github.io/blog/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "en",
-        "author": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "isPartOf": {
-          "@id": "https://slavadubrov.github.io/#website"
-        }
-      }
-    ]
-  }
-</script>
-
-<script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      "itemListElement": [
-        {
-          "@type": "ListItem",
-          "position": 1,
-          "name": "Edge of Context: Practical AI Engineering",
-          "item": "https://slavadubrov.github.io/"
-        },
-        {
-          "@type": "ListItem",
-          "position": 2,
-          "name": "Blog",
-          "item": "https://slavadubrov.github.io/blog/"
-        },
-        {
-          "@type": "ListItem",
-          "position": 3,
-          "name": "Manifold-Constrained Hyper-Connections (mHC): DeepSeek Residual Scaling Explained",
-          "item": "https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/"
-        }
-  
-      ]
-    }
-</script>
- 
-<style>
-  /* Header social icons */
-  .md-header__social {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-left: 0.5rem;
-  }
-  .md-header__social a {
-    color: var(--md-primary-bg-color);
-    opacity: 0.7;
-    transition: opacity 0.2s;
-  }
-  .md-header__social a:hover {
-    opacity: 1;
-  }
-  .md-header__social svg {
-    width: 1.2rem;
-    height: 1.2rem;
-    fill: currentColor;
-  }
-  /* Adjust search to make room for social icons */
-  .md-search {
-    margin-right: 0;
-  }
-</style>
-
-<!-- Article-specific Open Graph -->
-       
-<meta property="article:published_time" content="2026-01-21" />
- 
-<meta property="article:modified_time" content="2026-07-15" />
- 
-<meta property="article:author" content="Viacheslav Dubrov" />
-  
-<meta property="article:tag" content="Model Engineering" />
- 
-<!-- Schema.org JSON-LD -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    "@id": "https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/#blogposting",
-    "headline": "Manifold-Constrained Hyper-Connections (mHC): DeepSeek Residual Scaling Explained",
-    "description": "A technical walkthrough of DeepSeek\u0027s Manifold-Constrained Hyper-Connections (mHC), residual stream width scaling, Sinkhorn routing, and training stability.",
-    "url": "https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/",
-    "image": "https://slavadubrov.github.io/assets/og-image.png",
-    "inLanguage": "en",
-    "mainEntityOfPage": {
-      "@type": "WebPage",
-      "@id": "https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/"
-    },
-    "datePublished": "2026-01-21",
-    "dateModified": "2026-07-15",
-    "author": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "publisher": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "isPartOf": {
-      "@type": "Blog",
-      "@id": "https://slavadubrov.github.io/#blog",
-      "name": "Edge of Context: Practical AI Engineering",
-      "url": "https://slavadubrov.github.io/"
-    },
-    "keywords": "Model Engineering"
-  }
-</script>
-
-  
-<link rel="alternate" href="https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="x-default">
-</head>
-  
-  
-    
-    
-      
-    
-    
-    
-    
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
-  
-    
-    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
-    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
-    <label class="md-overlay" for="__drawer"></label>
-    <div data-md-component="skip">
-      
-        
-        <a href="#manifold-constrained-hyper-connections-mhc-deepseek-residual-scaling-explained" class="md-skip">
-          Skip to content
-        </a>
-      
-    </div>
-    <div data-md-component="announce">
-      
-    </div>
-    
-     
-      
-
-  
-
-<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
-  <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../../../.." title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    <label class="md-header__button md-icon" for="__drawer">
-      
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
-    </label>
-    <div class="md-header__title" data-md-component="header-title">
-      <div class="md-header__ellipsis">
-        <div class="md-header__topic">
-          <span class="md-ellipsis">
-            Edge of Context: Practical AI Engineering
-          </span>
-        </div>
-        <div class="md-header__topic" data-md-component="header-topic">
-          <span class="md-ellipsis">
-            
-              Manifold-Constrained Hyper-Connections (mHC): DeepSeek Residual Scaling Explained
-            
-          </span>
-        </div>
-      </div>
-    </div>
-    
-      
-        <form class="md-header__option" data-md-component="palette">
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
-    
-      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
-    
-      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-</form>
-      
-    
-    
-      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
-    
-    
-      <div class="md-header__option">
-  <div class="md-select">
-    
-    <button class="md-header__button md-icon" aria-label="Select language">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
-    </button>
-    <div class="md-select__inner">
-      <ul class="md-select__list">
-        
-          <li class="md-select__item">
-            <a href="./" hreflang="en" class="md-select__link">
-              English
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../de/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="de" class="md-select__link">
-              Deutsch
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../ru/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="ru" class="md-select__link">
-              Русский
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../es/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="es" class="md-select__link">
-              Español
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../pt/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="pt" class="md-select__link">
-              Português
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../fr/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="fr" class="md-select__link">
-              Français
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../nl/blog/2026/01/21/manifold-constrained-hyper-connections/" hreflang="nl" class="md-select__link">
-              Nederlands
-            </a>
-          </li>
-        
-      </ul>
-    </div>
-  </div>
-</div>
-    
-    
-      
-      
-        <label class="md-header__button md-icon" for="__search">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        </label>
-        <div class="md-search" data-md-component="search" role="dialog">
-  <label class="md-search__overlay" for="__search"></label>
-  <div class="md-search__inner" role="search">
-    <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
-      <label class="md-search__icon md-icon" for="__search">
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-      </label>
-      <nav class="md-search__options" aria-label="Search">
-        
-        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-        </button>
-      </nav>
-      
-    </form>
-    <div class="md-search__output">
-      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
-        <div class="md-search-result" data-md-component="search-result">
-          <div class="md-search-result__meta">
-            Initializing search
-          </div>
-          <ol class="md-search-result__list" role="presentation"></ol>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-      
-    
-    
-  </nav>
-  
-    
-      
-<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
-  <div class="md-grid">
-    <ul class="md-tabs__list">
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../.." class="md-tabs__link">
-        
-  
-  
-    
-  
-  Home
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Blog
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
-        <a href="../../../../fast-answers/" class="md-tabs__link">
-          
-  
-  
-    
-  
-  Fast Answers
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../../about/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  About
-
-      </a>
-    </li>
-  
-
-      
-    </ul>
-  </div>
-</nav>
-    
-  
-</header>
-    
-<script>
-  // Inject social icons into header after DOM loads
-  document.addEventListener("DOMContentLoaded", function () {
-    const header = document.querySelector(".md-header__inner");
-    if (header) {
-      const social = document.createElement("div");
-      social.className = "md-header__social";
-      social.innerHTML = `
-      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
-      </a>
-      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
-      </a>
-      <a href="https://www.tiktok.com/@edge.of.context" title="TikTok" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M448 209.9a210.1 210.1 0 0 1-122.8-39.2v178.7A162.6 162.6 0 1 1 185 188.3v89.9a74.6 74.6 0 1 0 52.2 71.2V0h88a121.2 121.2 0 0 0 1.9 22.2 122.2 122.2 0 0 0 53.9 80.2 121.4 121.4 0 0 0 67 20.1v87.4z"/></svg>
-      </a>
-      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
-      </a>
-    `;
-      header.appendChild(social);
-    }
-  });
-</script>
-
-    <div class="md-container" data-md-component="container">
-      
-      
-        
-      
-      <main class="md-main" data-md-component="main">
-        <div class="md-main__inner md-grid">
-          
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-
-  
-
-
-<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
-  <label class="md-nav__title" for="__drawer">
-    <a href="../../../../.." title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    Edge of Context: Practical AI Engineering
-  </label>
-  
-  <ul class="md-nav__list" data-md-scrollfix>
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../.." class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Home
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Blog
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-      
-        
-          
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <div class="md-nav__link md-nav__container">
-            <a href="../../../../fast-answers/" class="md-nav__link ">
-              
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Fast Answers
-  
-
-    
-  </span>
-  
-  
-
-            </a>
-            
-              
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
-                <span class="md-nav__icon md-icon"></span>
-              </label>
-            
-          </div>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Fast Answers
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ai-agent-frameworks/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Frameworks
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/rag-evaluation-tools/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    RAG Evaluation Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/local-llm-tools-macos/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Local LLM Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ocr-models-document-ai/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    OCR Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ner-models/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    NER Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/agent-security-patterns/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Security Patterns
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/search-ranking-stack/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Search Ranking Stack
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../../about/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    About
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-  </ul>
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#why-residual-connections-work" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why residual connections work
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Why residual connections work">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#the-depth-problem" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The depth problem
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#the-residual-solution" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The residual solution
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#how-layer-normalization-changes-the-residual-path" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How layer normalization changes the residual path
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#hyper-connections-add-parallel-residual-streams" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Hyper-Connections add parallel residual streams
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Hyper-Connections add parallel residual streams">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#what-a-stream-means" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What a stream means
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#core-mechanisms" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Core mechanisms
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#what-the-hc-paper-reports" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What the HC paper reports
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#the-scaling-problem" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The scaling problem
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#why-unconstrained-hc-can-become-unstable" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why unconstrained HC can become unstable
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Why unconstrained HC can become unstable">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#the-composite-map-problem" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The composite-map problem
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-mhc-constraint" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The mHC constraint
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The mHC constraint">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#what-double-stochasticity-guarantees" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What double stochasticity guarantees
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#sinkhorn-knopp-projection" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Sinkhorn-Knopp projection
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#parameterization-details" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Parameterization details
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#complete-mhc-architecture" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Complete mHC architecture
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#infrastructure-required-for-the-reported-overhead" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Infrastructure required for the reported overhead
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Infrastructure required for the reported overhead">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#kernel-fusion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Kernel fusion
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#selective-recomputation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Selective recomputation
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#reported-system-result" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Reported system result
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-the-experiments-establish" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What the experiments establish
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#trade-offs-and-open-questions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Trade-offs and open questions
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#key-takeaways" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Key takeaways
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#references" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        References
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-          
-              
-
-<div class="md-content md-content--post" data-md-component="content">
-  <div
-    class="md-sidebar md-sidebar--post"
-    data-md-component="sidebar"
-    data-md-type="navigation"
-  >
-    <div class="md-sidebar__scrollwrap">
-      <div class="md-sidebar__inner md-post">
-        <nav class="md-nav md-nav--primary">
-          <div class="md-post__back">
-            <div class="md-nav__title md-nav__container">
-              <a href="../../../../" class="md-nav__link">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-                <span class="md-ellipsis"> Back to index </span>
-              </a>
-            </div>
-          </div>
-
-          
-          <ul class="md-post__meta md-nav__list">
-            <li class="md-nav__item md-nav__item--section">
-              <div class="md-post__title">
-                <span class="md-ellipsis"
-                  >Topics</span
-                >
-              </div>
-              <nav class="md-nav">
-                          
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-agents"
-                  >
-                    <span class="blog-category-icon"
-                      >🦾</span
-                    >
-                    <span class="blog-category-name"
-                      >AI Agents</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../06/20/schema-guided-agent-memory/">AI Agent Memory: Schema-Guided Typed State for Long-Running Systems</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../06/10/agent-evals-traces-to-test-suites/">Evaluating AI Agents in Production: From Traces to Test Suites</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/26/ai-agent-runtime/">Long-Running AI Agent Runtime in 2026: Sessions, Sandboxes, Checkpoints, and Harnesses</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/20/ai-agent-security/">AI Agent Security in 2026: Guardrails, Permissions, Sandboxes, and MCP Threats</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../03/24/ai-agent-tool-use/">AI Agent Tool Use in 2026: MCP, CLI, Skills, and Code Execution</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../02/14/ai-agent-memory-architecture/">AI Agent Memory Architecture in 2026: Checkpoints, Vector Stores, and File-Based Memory</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../31/ai-agent-reasoning-loops/">AI Agent Reasoning Loops in 2026: ReAct vs ReWOO vs Plan-and-Execute</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../11/enterprise-rag-challenge-agent-architectures/">Enterprise RAG Challenge 3 (ECR3): Winning AI Agent Architectures</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/12/28/schema-guided-reasoning-vllm/">Schema-Guided Reasoning on vLLM: Structured Outputs with xgrammar and Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/20/domain-driven-design-ai-agents/">Domain-Driven Design for AI Agents: Bounded Contexts, Tools, and Business Rules</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/05/context-engineering-ai-agents/">Context Engineering for AI Agents: Context Windows, Memory, Tools, and Guardrails</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/06/10/mcp-server-tutorial-uv-fastmcp/">MCP Server Tutorial with uv and FastMCP: Build a FeatureStoreLite Server</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section blog-category-section--active"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#model-engineering"
-                  >
-                    <span class="blog-category-icon"
-                      >🤖</span
-                    >
-                    <span class="blog-category-name"
-                      >Model Engineering</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Model Quantization in 2026: From Foundations to Production Serving</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../03/13/llm-engineering-guide/">LLM Engineering Guide: 45 Concepts for Inference, Training, Architecture, and Operations</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post blog-category-post--active"
-                    >
-                      <a href="./">Manifold-Constrained Hyper-Connections (mHC): DeepSeek Residual Scaling Explained</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../04/llm-fine-tuning-guide/">LLM Fine-Tuning Guide: LoRA, QLoRA, DoRA, Unsloth, Axolotl, and Deployment</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/12/28/schema-guided-reasoning-vllm/">Schema-Guided Reasoning on vLLM: Structured Outputs with xgrammar and Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/11/open-source-llm-formats/">Open-Weight LLM Variants, Quantization, and Formats: Instruct, MoE, GGUF, GPTQ, and AWQ</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/10/local-llms-on-macos/">Local LLMs on macOS: Ollama, LM Studio, llama.cpp, MLX, and Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/04/scaling-llms-multi-gpu-multi-node/">Scaling Large Language Models: Multi-GPU and Multi-Node Strategies That Hold Up in Practice</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-infrastructure"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >AI Infrastructure</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Model Quantization in 2026: From Foundations to Production Serving</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../02/21/modern-data-processing-engines/">Modern Data Processing Engines Compared: Polars, DataFusion, Daft, Ray Data, Pandas, and Spark</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/06/mlops-vs-llmops/">MLOps vs LLMOps: Infrastructure for Foundation Models and LLM Systems</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/04/scaling-llms-multi-gpu-multi-node/">Scaling Large Language Models: Multi-GPU and Multi-Node Strategies That Hold Up in Practice</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#retrieval-and-language-systems"
-                  >
-                    <span class="blog-category-icon"
-                      >🔍</span
-                    >
-                    <span class="blog-category-name"
-                      >Retrieval and Language Systems</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/10/rag-evaluation-metrics/">Evaluating RAG: Metrics for Every Stage of a Production RAG System</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/02/ner-guide/">The Definitive Guide to NER in 2026: Encoders, LLMs, and the 3-Tier Production Architecture</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../03/04/ocr-guide/">The Definitive Guide to OCR in 2026: From Pipelines to VLMs</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../02/08/search-ranking-stack/">Search Ranking Stack in 2026: BM25, Embeddings, Cross-Encoders, and LLM Reranking</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#developer-tooling"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >Developer Tooling</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/06/10/mcp-server-tutorial-uv-fastmcp/">MCP Server Tutorial with uv and FastMCP: Build a FeatureStoreLite Server</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/10/local-llms-on-macos/">Local LLMs on macOS: Ollama, LM Studio, llama.cpp, MLX, and Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/10/stable-diffusion-macos-tools/">Stable Diffusion on macOS: Draw Things, DiffusionBee, ComfyUI, A1111, and Fooocus</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/08/pyproject-toml-guide/">`pyproject.toml` Guide: Python Packaging, Dependencies, and Tool Configuration</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/07/zprofile-vs-zshrc/">Zsh Startup Files: `~/.zprofile` vs `~/.zshrc` on macOS and Linux</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/04/19/macbook-ai-engineering-setup/">MacBook Setup for AI Engineering: macOS Tools, Python, Docker, and Terminal Workflow</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/04/17/uv-python-on-macos/">uv on macOS: Managing Python Versions, Projects, and Tools</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                
-              </nav>
-            </li>
-          </ul>
-
-          
-        </nav>
-        
-      </div>
-    </div>
-  </div>
-  <article class="md-content__inner md-typeset">
-     
-  
-
-
-
-
-<h1 id="manifold-constrained-hyper-connections-mhc-deepseek-residual-scaling-explained">Manifold-Constrained Hyper-Connections (mHC): DeepSeek Residual Scaling Explained</h1>
-<p>Modern deep learning rests on the residual connection. Hyper-Connections (HC) explore another architectural dimension: widen the residual state into several interacting streams. DeepSeek's <strong><a href="https://arxiv.org/abs/2512.24880">Manifold-Constrained Hyper-Connections (mHC)</a></strong> paper studies how to keep that routing stable at larger training scales.</p>
+<!DOCTYPE html><html lang="en"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Manifold-Constrained Hyper-Connections (mHC): DeepSeek Residual Scaling Explained - Edge of Context: Practical AI Engineering</title><meta name="description" content="A technical walkthrough of DeepSeek's Manifold-Constrained Hyper-Connections (mHC), residual stream width scaling, Sinkhorn routing, and training stability."><link rel="canonical" href="https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="de" href="https://slavadubrov.github.io/de/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="en" href="https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="es" href="https://slavadubrov.github.io/es/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="fr" href="https://slavadubrov.github.io/fr/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="nl" href="https://slavadubrov.github.io/nl/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="pt" href="https://slavadubrov.github.io/pt/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="ru" href="https://slavadubrov.github.io/ru/blog/2026/01/21/manifold-constrained-hyper-connections/"><link rel="alternate" hreflang="x-default" href="https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/"><meta property="og:type" content="article"><meta property="og:title" content="Manifold-Constrained Hyper-Connections (mHC): DeepSeek Residual Scaling Explained - Edge of Context: Practical AI Engineering"><meta property="og:description" content="A technical walkthrough of DeepSeek's Manifold-Constrained Hyper-Connections (mHC), residual stream width scaling, Sinkhorn routing, and training stability."><meta property="og:url" content="https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/"><meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Manifold-Constrained Hyper-Connections (mHC): DeepSeek Residual Scaling Explained - Edge of Context: Practical AI Engineering"><meta name="twitter:description" content="A technical walkthrough of DeepSeek's Manifold-Constrained Hyper-Connections (mHC), residual stream width scaling, Sinkhorn routing, and training stability."><meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta property="article:published_time" content="2026-01-21"><meta property="article:modified_time" content="2026-07-15"><link rel="icon" href="/assets/favicon-eoc.svg" type="image/svg+xml"><link href="/pagefind/pagefind-component-ui.css" rel="stylesheet"><script src="/pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Manifold-Constrained Hyper-Connections (mHC): DeepSeek Residual Scaling Explained - Edge of Context: Practical AI Engineering","description":"A technical walkthrough of DeepSeek's Manifold-Constrained Hyper-Connections (mHC), residual stream width scaling, Sinkhorn routing, and training stability.","url":"https://slavadubrov.github.io/blog/2026/01/21/manifold-constrained-hyper-connections/","image":"https://slavadubrov.github.io/assets/og-image.png","datePublished":"2026-01-21","dateModified":"2026-07-15","author":{"@type":"Person","name":"Viacheslav Dubrov"}}</script><link rel="stylesheet" href="/_astro/BaseLayout.DgRW7Vi7.css"></head> <body> <a class="skip-link" href="#main-content">Skip to content</a> <header class="site-header"> <a class="brand" data-home-link href="/" aria-label="Edge of Context home"> <img src="/assets/logo-eoc.svg" alt="" width="36" height="36"> <span>Edge of Context</span> </a> <nav aria-label="Primary navigation"> <ul> <li><a data-nav="home" href="/">Home</a></li><li><a data-nav="blog" href="/blog/">Blog</a></li><li><a data-nav="fastAnswers" href="/blog/fast-answers/">Fast Answers</a></li><li><a data-nav="about" href="/about/">About</a></li> </ul> </nav> <div class="header-actions"> <pagefind-modal-trigger data-search-label="true">Search</pagefind-modal-trigger> <label class="locale-switcher"> <span class="visually-hidden">Language</span> <select id="locale-select"> <option value="/de/blog/2026/01/21/manifold-constrained-hyper-connections/">Deutsch</option><option value="/blog/2026/01/21/manifold-constrained-hyper-connections/" selected>English</option><option value="/es/blog/2026/01/21/manifold-constrained-hyper-connections/">Español</option><option value="/fr/blog/2026/01/21/manifold-constrained-hyper-connections/">Français</option><option value="/nl/blog/2026/01/21/manifold-constrained-hyper-connections/">Nederlands</option><option value="/pt/blog/2026/01/21/manifold-constrained-hyper-connections/">Português</option><option value="/ru/blog/2026/01/21/manifold-constrained-hyper-connections/">Русский</option> </select> </label> </div> </header> <main id="main-content" tabindex="-1">  <article class="prose" data-pagefind-body> <p class="article-meta"> <time datetime="2026-01-21">2026-01-21</time>  · Updated <time datetime="2026-07-15">2026-07-15</time> </p> <h1 id="manifold-constrained-hyper-connections-mhc-deepseek-residual-scaling-explained">Manifold-Constrained Hyper-Connections (mHC): DeepSeek Residual Scaling Explained</h1>
+<p>Modern deep learning rests on the residual connection. Hyper-Connections (HC) explore another architectural dimension: widen the residual state into several interacting streams. DeepSeek’s <strong><a href="https://arxiv.org/abs/2512.24880">Manifold-Constrained Hyper-Connections (mHC)</a></strong> paper studies how to keep that routing stable at larger training scales.</p>
 <p>This post starts with standard residual connections, then introduces Hyper-Connections and the instability they create. That sequence makes the final mHC constraint and its implementation easier to understand.</p>
 <!-- more -->
-
 <p><strong>TL;DR</strong>: HC replaces one residual state with multiple streams and learnable read, write, and mixing maps. Those unconstrained maps can amplify or attenuate signals when composed across layers. mHC approximately projects the residual mixing map onto the Birkhoff polytope with 20 Sinkhorn-Knopp iterations. The paper reports stable 3B, 9B, and 27B pretraining experiments and 6.7% additional training time for four streams after custom kernel and scheduling work.</p>
-<hr />
+<hr>
 <h2 id="why-residual-connections-work">Why residual connections work</h2>
 <p>Before we get to what mHC fixes, we need what it builds on.</p>
 <h3 id="the-depth-problem">The depth problem</h3>
 <p>Adding layers can increase capacity, but it also makes optimization and signal propagation harder. Depending on initialization, normalization, and architecture, forward activations or backward gradients can shrink, grow, or become poorly conditioned across depth.</p>
 <h3 id="the-residual-solution">The residual solution</h3>
 <p>The <a href="https://arxiv.org/abs/1512.03385">ResNet paper</a> introduced an elegant fix. Instead of learning a direct mapping, learn the <em>residual</em>, the difference from identity:</p>
-<p><img alt="Standard Residual Connection" src="../../../../assets/2026-01-21-mhc-hyper-connections/residual_connection.svg" /></p>
-<p>The useful property is the <strong>identity shortcut</strong>. When the residual function <span class="arithmatex">\(F(x)\)</span> outputs zero, the layer becomes a pass-through. Two consequences follow:</p>
+<p><img src="/blog/assets/2026-01-21-mhc-hyper-connections/residual_connection.svg" alt="Standard Residual Connection"></p>
+<p>The useful property is the <strong>identity shortcut</strong>. When the residual function <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>F</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">F(x)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">F</span><span class="mopen">(</span><span class="mord mathnormal">x</span><span class="mclose">)</span></span></span></span> outputs zero, the layer becomes a pass-through. Two consequences follow:</p>
 <ol>
 <li><strong>A direct gradient term:</strong> backpropagation includes a path through the identity component.</li>
 <li><strong>A simple fallback mapping:</strong> the residual branch can stay near zero when a layer does not need to change the state much.</li>
 </ol>
 <p>This does not eliminate every optimization problem, but it made substantially deeper networks practical.</p>
-<hr />
+<hr>
 <h2 id="how-layer-normalization-changes-the-residual-path">How layer normalization changes the residual path</h2>
-<p>Transformers added a new variable: where to put Layer Normalization (LN). The decision looks minor and isn't.</p>
-<p><img alt="Post-LN vs Pre-LN Trade-offs" src="../../../../assets/2026-01-21-mhc-hyper-connections/ln_placement.svg" /></p>
-<table>
-<thead>
-<tr>
-<th>Variant</th>
-<th>LN Placement</th>
-<th>Advantage</th>
-<th>Key Limitation</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Post-LN</strong></td>
-<td>After residual block</td>
-<td>Strong depth contribution</td>
-<td>Can be harder to optimize at depth</td>
-</tr>
-<tr>
-<td><strong>Pre-LN</strong></td>
-<td>Before residual block</td>
-<td>More direct residual path</td>
-<td>Adjacent-layer representations can become increasingly similar</td>
-</tr>
-</tbody>
-</table>
+<p>Transformers added a new variable: where to put Layer Normalization (LN). The decision looks minor and isn’t.</p>
+<p><img src="/blog/assets/2026-01-21-mhc-hyper-connections/ln_placement.svg" alt="Post-LN vs Pre-LN Trade-offs"></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Variant</th><th>LN Placement</th><th>Advantage</th><th>Key Limitation</th></tr></thead><tbody><tr><td><strong>Post-LN</strong></td><td>After residual block</td><td>Strong depth contribution</td><td>Can be harder to optimize at depth</td></tr><tr><td><strong>Pre-LN</strong></td><td>Before residual block</td><td>More direct residual path</td><td>Adjacent-layer representations can become increasingly similar</td></tr></tbody></table>
 <p>The <a href="https://arxiv.org/abs/2304.14802"><strong>ResiDual</strong></a> architecture combines Pre-LN and Post-LN residual paths. HC takes a different route by widening the residual state into multiple streams.</p>
-<hr />
+<hr>
 <h2 id="hyper-connections-add-parallel-residual-streams">Hyper-Connections add parallel residual streams</h2>
-<p><a href="https://arxiv.org/abs/2409.19606">Hyper-Connections (HC)</a> takes a different route: expand the residual stream's <em>width</em> rather than adding depth.</p>
-<p><img alt="Hyper-Connections Architecture" src="../../../../assets/2026-01-21-mhc-hyper-connections/hyper_connections.svg" /></p>
+<p><a href="https://arxiv.org/abs/2409.19606">Hyper-Connections (HC)</a> takes a different route: expand the residual stream’s <em>width</em> rather than adding depth.</p>
+<p><img src="/blog/assets/2026-01-21-mhc-hyper-connections/hyper_connections.svg" alt="Hyper-Connections Architecture"></p>
 <h3 id="what-a-stream-means">What a stream means</h3>
-<p>In a standard Transformer, each token has a <span class="arithmatex">\(d\)</span>-dimensional state that passes through the blocks. HC replicates the initial state <span class="arithmatex">\(n\)</span> times, producing an <span class="arithmatex">\(n \times d\)</span> hidden matrix.</p>
-<p>In Hyper-Connections, a <strong>stream</strong> is one of <span class="arithmatex">\(n\)</span> parallel instantiations of this state.</p>
-<p>How do we get them? At the start of the network, the initial input embedding is replicated <span class="arithmatex">\(n\)</span> times (where <span class="arithmatex">\(n\)</span> is the "expansion rate", typically 4). The standard <span class="arithmatex">\(d\)</span>-dimensional hidden state becomes an <span class="arithmatex">\(n \times d\)</span> "hyper hidden matrix".</p>
+<p>In a standard Transformer, each token has a <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>d</mi></mrow><annotation encoding="application/x-tex">d</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">d</span></span></span></span>-dimensional state that passes through the blocks. HC replicates the initial state <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> times, producing an <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>×</mo><mi>d</mi></mrow><annotation encoding="application/x-tex">n \times d</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">n</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">d</span></span></span></span> hidden matrix.</p>
+<p>In Hyper-Connections, a <strong>stream</strong> is one of <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> parallel instantiations of this state.</p>
+<p>How do we get them? At the start of the network, the initial input embedding is replicated <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> times (where <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> is the “expansion rate”, typically 4). The standard <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>d</mi></mrow><annotation encoding="application/x-tex">d</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">d</span></span></span></span>-dimensional hidden state becomes an <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>×</mo><mi>d</mi></mrow><annotation encoding="application/x-tex">n \times d</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">n</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">d</span></span></span></span> “hyper hidden matrix”.</p>
 <p>The copies begin identically, then diverge as learned maps read from, write to, and mix the streams. The paper interprets them as multiple connection patterns across depth; it does not require each stream to acquire a fixed human-readable role.</p>
 <h3 id="core-mechanisms">Core mechanisms</h3>
-<p>Instead of one residual pathway, HC keeps <span class="arithmatex">\(n\)</span> parallel streams flowing through the entire network. At each transformer block, three operations run, each controlled by small learnable weights:</p>
+<p>Instead of one residual pathway, HC keeps <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> parallel streams flowing through the entire network. At each transformer block, three operations run, each controlled by small learnable weights:</p>
 <ol>
-<li><strong>Read (<span class="arithmatex">\(\mathcal{H}^{pre}\)</span>):</strong> aggregate the <span class="arithmatex">\(n\)</span> streams into the <span class="arithmatex">\(d\)</span>-dimensional input consumed by the attention or feed-forward block.</li>
-<li><strong>Write (<span class="arithmatex">\(\mathcal{H}^{post}\)</span>):</strong> map that block's output back into updates for the <span class="arithmatex">\(n\)</span> streams.</li>
-<li><strong>Mix (<span class="arithmatex">\(\mathcal{H}^{res}\)</span>):</strong> apply an <span class="arithmatex">\(n \times n\)</span> residual map before adding the block update.</li>
+<li><strong>Read (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi mathvariant="script">H</mi><mrow><mi>p</mi><mi>r</mi><mi>e</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\mathcal{H}^{pre}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord"><span class="mord mathcal" style="margin-right:0.0097em;">H</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">e</span></span></span></span></span></span></span></span></span></span></span></span>):</strong> aggregate the <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> streams into the <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>d</mi></mrow><annotation encoding="application/x-tex">d</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">d</span></span></span></span>-dimensional input consumed by the attention or feed-forward block.</li>
+<li><strong>Write (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi mathvariant="script">H</mi><mrow><mi>p</mi><mi>o</mi><mi>s</mi><mi>t</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\mathcal{H}^{post}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.7936em;"></span><span class="mord"><span class="mord mathcal" style="margin-right:0.0097em;">H</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.7936em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight">os</span><span class="mord mathnormal mtight">t</span></span></span></span></span></span></span></span></span></span></span></span>):</strong> map that block’s output back into updates for the <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> streams.</li>
+<li><strong>Mix (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi mathvariant="script">H</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\mathcal{H}^{res}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord"><span class="mord mathcal" style="margin-right:0.0097em;">H</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span></span></span></span></span></span></span></span>):</strong> apply an <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>×</mo><mi>n</mi></mrow><annotation encoding="application/x-tex">n \times n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">n</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> residual map before adding the block update.</li>
 </ol>
 <p>These maps can be static parameters plus input-dependent terms. The residual map is the stability-critical part because it is multiplied repeatedly across depth.</p>
 <h3 id="what-the-hc-paper-reports">What the HC paper reports</h3>
-<p><img alt="HC Performance" src="../../../../assets/2026-01-21-mhc-hyper-connections/hc_performance.svg" /></p>
+<p><img src="/blog/assets/2026-01-21-mhc-hyper-connections/hc_performance.svg" alt="HC Performance"></p>
 <p>The HC paper reports <strong>1.8× faster convergence</strong> for its OLMoE-1B-7B DHC×4 configuration relative to its baseline, plus downstream gains at 500B tokens. That is one evaluated configuration, not a general speed multiplier for four streams.</p>
 <h3 id="the-scaling-problem">The scaling problem</h3>
 <p>The mHC paper reports instability when it scales unconstrained HC to its 27B setup. The next section explains the mechanism it identifies.</p>
-<hr />
+<hr>
 <h2 id="why-unconstrained-hc-can-become-unstable">Why unconstrained HC can become unstable</h2>
 <p>The flexibility that powers HC is also what breaks it. It destroys the identity mapping that makes residuals trainable in the first place.</p>
-<p><img alt="HC Instability Problem" src="../../../../assets/2026-01-21-mhc-hyper-connections/hc_instability.svg" /></p>
+<p><img src="/blog/assets/2026-01-21-mhc-hyper-connections/hc_instability.svg" alt="HC Instability Problem"></p>
 <h3 id="the-composite-map-problem">The composite-map problem</h3>
 <p>In standard residuals:</p>
-<div class="arithmatex">\[x_{l+1} = x_l + F(x_l)\]</div>
-<p>When <span class="arithmatex">\(F(x) \rightarrow 0\)</span>, this is identity: <span class="arithmatex">\(x_{l+1} = x_l\)</span>. Signal passes through unchanged.</p>
+<p><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>x</mi><mrow><mi>l</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>=</mo><msub><mi>x</mi><mi>l</mi></msub><mo>+</mo><mi>F</mi><mo stretchy="false">(</mo><msub><mi>x</mi><mi>l</mi></msub><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">x_{l+1} = x_l + F(x_l)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6389em;vertical-align:-0.2083em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span><span class="mbin mtight">+</span><span class="mord mtight">1</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2083em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.7333em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">F</span><span class="mopen">(</span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mclose">)</span></span></span></span></p>
+<p>When <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>F</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>→</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">F(x) \rightarrow 0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">F</span><span class="mopen">(</span><span class="mord mathnormal">x</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">→</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span>, this is identity: <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>x</mi><mrow><mi>l</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>=</mo><msub><mi>x</mi><mi>l</mi></msub></mrow><annotation encoding="application/x-tex">x_{l+1} = x_l</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6389em;vertical-align:-0.2083em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span><span class="mbin mtight">+</span><span class="mord mtight">1</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2083em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span>. Signal passes through unchanged.</p>
 <p>In Hyper-Connections, the residual path includes a matrix multiplication:</p>
-<div class="arithmatex">\[x_{l+1} = \mathbf{H}^{res}_l \cdot x_l + \dots\]</div>
+<p><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>x</mi><mrow><mi>l</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>=</mo><msubsup><mi mathvariant="bold">H</mi><mi>l</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msubsup><mo>⋅</mo><msub><mi>x</mi><mi>l</mi></msub><mo>+</mo><mo>…</mo></mrow><annotation encoding="application/x-tex">x_{l+1} = \mathbf{H}^{res}_l \cdot x_l + \dots</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6389em;vertical-align:-0.2083em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span><span class="mbin mtight">+</span><span class="mord mtight">1</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2083em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.9692em;vertical-align:-0.2831em;"></span><span class="mord"><span class="mord mathbf">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-2.4169em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span></span></span><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2831em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.7333em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.123em;"></span><span class="minner">…</span></span></span></span></p>
 <p>Over L layers, the signal becomes:</p>
-<div class="arithmatex">\[x_L = \mathbf{H}^{res}_L \times \mathbf{H}^{res}_{L-1} \times \dots \times \mathbf{H}^{res}_1 \times x_0\]</div>
+<p><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>x</mi><mi>L</mi></msub><mo>=</mo><msubsup><mi mathvariant="bold">H</mi><mi>L</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msubsup><mo>×</mo><msubsup><mi mathvariant="bold">H</mi><mrow><mi>L</mi><mo>−</mo><mn>1</mn></mrow><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msubsup><mo>×</mo><mo>⋯</mo><mo>×</mo><msubsup><mi mathvariant="bold">H</mi><mn>1</mn><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msubsup><mo>×</mo><msub><mi>x</mi><mn>0</mn></msub></mrow><annotation encoding="application/x-tex">x_L = \mathbf{H}^{res}_L \times \mathbf{H}^{res}_{L-1} \times \dots \times \mathbf{H}^{res}_1 \times x_0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3283em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">L</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.9614em;vertical-align:-0.2753em;"></span><span class="mord"><span class="mord mathbf">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-2.4247em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">L</span></span></span><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2753em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1.0198em;vertical-align:-0.3337em;"></span><span class="mord"><span class="mord mathbf">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-2.4247em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">L</span><span class="mbin mtight">−</span><span class="mord mtight">1</span></span></span></span><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.3337em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="minner">⋯</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.9342em;vertical-align:-0.2481em;"></span><span class="mord"><span class="mord mathbf">H</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-2.4519em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">1</span></span></span><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2481em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3011em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">0</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></p>
 <p>The behavior depends on the composite matrix, not on whether individual entries sit above or below 1. If successive maps have operator gains above one along an aligned direction, signals can grow; gains below one can attenuate them. Negative entries can also introduce cancellation.</p>
 <p>The mHC paper measures this with <strong>Amax Gain Magnitude</strong>: the maximum absolute row sum for forward propagation and column sum for backward propagation in a composite residual map. In its 27B HC experiment, the peak approaches <strong>3,000</strong> and coincides with unstable training behavior.</p>
-<p><img alt="The Root Cause: Loss of Identity" src="../../../../assets/2026-01-21-mhc-hyper-connections/loss_of_identity.svg" /></p>
+<p><img src="/blog/assets/2026-01-21-mhc-hyper-connections/loss_of_identity.svg" alt="The Root Cause: Loss of Identity"></p>
 <p>The design goal is therefore narrower than forcing every map to be the identity: allow inter-stream mixing while bounding amplification across compositions.</p>
-<hr />
+<hr>
 <h2 id="the-mhc-constraint">The mHC constraint</h2>
-<p>mHC keeps inter-stream routing but constrains each residual mixing matrix to the <strong>Birkhoff polytope</strong>, the set of doubly stochastic matrices. Its entries are non-negative, and each row and column sums to one. The constraint makes each output stream a convex combination of input streams and bounds the residual map's spectral norm by one.</p>
-<p><img alt="The mHC Solution" src="../../../../assets/2026-01-21-mhc-hyper-connections/mhc_solution.svg" /></p>
+<p>mHC keeps inter-stream routing but constrains each residual mixing matrix to the <strong>Birkhoff polytope</strong>, the set of doubly stochastic matrices. Its entries are non-negative, and each row and column sums to one. The constraint makes each output stream a convex combination of input streams and bounds the residual map’s spectral norm by one.</p>
+<p><img src="/blog/assets/2026-01-21-mhc-hyper-connections/mhc_solution.svg" alt="The mHC Solution"></p>
 <h3 id="what-double-stochasticity-guarantees">What double stochasticity guarantees</h3>
 <p>mHC constrains the mixing matrix H^res to be <strong>doubly stochastic</strong>: all entries non-negative, every row and column summing to exactly 1. That enforces three properties at once:</p>
-<table>
-<thead>
-<tr>
-<th>Constraint</th>
-<th>Rule</th>
-<th>Consequence</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Non-negativity</strong></td>
-<td>All entries are at least zero</td>
-<td>Each output is a convex combination, without sign cancellation</td>
-</tr>
-<tr>
-<td><strong>Row sum = 1</strong></td>
-<td>Each row sums to one</td>
-<td>A constant signal across streams remains constant</td>
-</tr>
-<tr>
-<td><strong>Column sum = 1</strong></td>
-<td>Each column sums to one</td>
-<td>The global mean across streams is conserved</td>
-</tr>
-</tbody>
-</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Constraint</th><th>Rule</th><th>Consequence</th></tr></thead><tbody><tr><td><strong>Non-negativity</strong></td><td>All entries are at least zero</td><td>Each output is a convex combination, without sign cancellation</td></tr><tr><td><strong>Row sum = 1</strong></td><td>Each row sums to one</td><td>A constant signal across streams remains constant</td></tr><tr><td><strong>Column sum = 1</strong></td><td>Each column sums to one</td><td>The global mean across streams is conserved</td></tr></tbody></table>
 <p>This is not literal Euclidean-energy conservation. A doubly stochastic map can smooth differences between streams. What it provides is mean conservation plus non-expansive routing under the stated norm bound.</p>
 <p>This constraint also has useful mathematical consequences:</p>
 <ol>
@@ -1798,37 +125,36 @@
 </ol>
 <h3 id="sinkhorn-knopp-projection">Sinkhorn-Knopp projection</h3>
 <p>The learnable residual logits are unconstrained. mHC first exponentiates them to obtain a positive matrix, then alternates row and column normalization. With enough iterations, this Sinkhorn-Knopp process approaches a doubly stochastic matrix; the paper uses 20 iterations as an approximate, differentiable projection.</p>
-<p><img alt="Sinkhorn Algorithm Detailed" src="../../../../assets/2026-01-21-mhc-hyper-connections/sinkhorn_detailed.svg" /></p>
-<p>For raw logits <span class="arithmatex">\(A\)</span>, the procedure is:</p>
-<div class="highlight"><pre><span></span><code>S = exp(A)
-repeat 20 times:
-    S = S / row_sum(S)
-    S = S / column_sum(S)
-return S
-</code></pre></div>
+<p><img src="/blog/assets/2026-01-21-mhc-hyper-connections/sinkhorn_detailed.svg" alt="Sinkhorn Algorithm Detailed"></p>
+<p>For raw logits <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>A</mi></mrow><annotation encoding="application/x-tex">A</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal">A</span></span></span></span>, the procedure is:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="text"><code><span class="line"><span>S = exp(A)</span></span>
+<span class="line"><span>repeat 20 times:</span></span>
+<span class="line"><span>    S = S / row_sum(S)</span></span>
+<span class="line"><span>    S = S / column_sum(S)</span></span>
+<span class="line"><span>return S</span></span></code></pre>
 <p>The operations are differentiable, but they are not free. mHC relies on a fused forward kernel and a custom backward kernel that recomputes the intermediate normalization states on chip.</p>
 <h3 id="parameterization-details">Parameterization details</h3>
 <ul>
-<li><strong>Residual map:</strong> exponentiation plus Sinkhorn normalization produces the approximately doubly stochastic <span class="arithmatex">\(\mathcal{H}^{res}\)</span>.</li>
-<li><strong>Read and write maps:</strong> sigmoid parameterization keeps <span class="arithmatex">\(\mathcal{H}^{pre}\)</span> and <span class="arithmatex">\(\mathcal{H}^{post}\)</span> non-negative, reducing cancellation from mixed-sign coefficients.</li>
+<li><strong>Residual map:</strong> exponentiation plus Sinkhorn normalization produces the approximately doubly stochastic <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi mathvariant="script">H</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\mathcal{H}^{res}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord"><span class="mord mathcal" style="margin-right:0.0097em;">H</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span></span></span></span></span></span></span></span>.</li>
+<li><strong>Read and write maps:</strong> sigmoid parameterization keeps <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi mathvariant="script">H</mi><mrow><mi>p</mi><mi>r</mi><mi>e</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\mathcal{H}^{pre}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord"><span class="mord mathcal" style="margin-right:0.0097em;">H</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">e</span></span></span></span></span></span></span></span></span></span></span></span> and <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi mathvariant="script">H</mi><mrow><mi>p</mi><mi>o</mi><mi>s</mi><mi>t</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\mathcal{H}^{post}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.7936em;"></span><span class="mord"><span class="mord mathcal" style="margin-right:0.0097em;">H</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.7936em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight">os</span><span class="mord mathnormal mtight">t</span></span></span></span></span></span></span></span></span></span></span></span> non-negative, reducing cancellation from mixed-sign coefficients.</li>
 </ul>
-<hr />
+<hr>
 <h2 id="complete-mhc-architecture">Complete mHC architecture</h2>
 <p>All together:</p>
-<p><img alt="mHC Complete Architecture" src="../../../../assets/2026-01-21-mhc-hyper-connections/mhc_architecture.svg" /></p>
+<p><img src="/blog/assets/2026-01-21-mhc-hyper-connections/mhc_architecture.svg" alt="mHC Complete Architecture"></p>
 <p>The flow through each block:</p>
 <ol>
-<li><strong>Input</strong>: <span class="arithmatex">\(n\)</span> parallel residual streams enter the layer.</li>
-<li><strong>Read (<span class="arithmatex">\(\mathcal{H}^{pre}\)</span>):</strong> the <span class="arithmatex">\(n\)</span> streams combine into the input consumed by the layer function. A sigmoid makes the coefficients non-negative.</li>
+<li><strong>Input</strong>: <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> parallel residual streams enter the layer.</li>
+<li><strong>Read (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi mathvariant="script">H</mi><mrow><mi>p</mi><mi>r</mi><mi>e</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\mathcal{H}^{pre}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord"><span class="mord mathcal" style="margin-right:0.0097em;">H</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">e</span></span></span></span></span></span></span></span></span></span></span></span>):</strong> the <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> streams combine into the input consumed by the layer function. A sigmoid makes the coefficients non-negative.</li>
 <li><strong>Computation</strong>: The standard Transformer block (Attention or MLP) processes the single aggregated vector.</li>
-<li><strong>Write (<span class="arithmatex">\(\mathcal{H}^{post}\)</span>):</strong> the block output is mapped into updates for the <span class="arithmatex">\(n\)</span> streams, again with non-negative coefficients.</li>
-<li><strong>Mix (<span class="arithmatex">\(\mathcal{H}^{res}\)</span>):</strong> the approximately doubly stochastic residual map mixes the incoming streams before the update is added.</li>
+<li><strong>Write (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi mathvariant="script">H</mi><mrow><mi>p</mi><mi>o</mi><mi>s</mi><mi>t</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\mathcal{H}^{post}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.7936em;"></span><span class="mord"><span class="mord mathcal" style="margin-right:0.0097em;">H</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.7936em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">p</span><span class="mord mathnormal mtight">os</span><span class="mord mathnormal mtight">t</span></span></span></span></span></span></span></span></span></span></span></span>):</strong> the block output is mapped into updates for the <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi></mrow><annotation encoding="application/x-tex">n</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span></span></span></span> streams, again with non-negative coefficients.</li>
+<li><strong>Mix (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi mathvariant="script">H</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\mathcal{H}^{res}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord"><span class="mord mathcal" style="margin-right:0.0097em;">H</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span></span></span></span></span></span></span></span>):</strong> the approximately doubly stochastic residual map mixes the incoming streams before the update is added.</li>
 <li><strong>Output:</strong> the updated stream matrix moves to the next layer.</li>
 </ol>
-<p>Only the residual mixing map uses the Sinkhorn projection. The read and write maps use non-negative parameterizations. That distinction matters because the paper's composition guarantee applies to <span class="arithmatex">\(\mathcal{H}^{res}\)</span>.</p>
-<hr />
+<p>Only the residual mixing map uses the Sinkhorn projection. The read and write maps use non-negative parameterizations. That distinction matters because the paper’s composition guarantee applies to <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi mathvariant="script">H</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\mathcal{H}^{res}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord"><span class="mord mathcal" style="margin-right:0.0097em;">H</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span></span></span></span></span></span></span></span>.</p>
+<hr>
 <h2 id="infrastructure-required-for-the-reported-overhead">Infrastructure required for the reported overhead</h2>
-<p>Four streams increase residual-state memory access, activation storage, and pipeline communication. The paper's 6.7% timing result depends on the following co-designed implementation.</p>
+<p>Four streams increase residual-state memory access, activation storage, and pipeline communication. The paper’s 6.7% timing result depends on the following co-designed implementation.</p>
 <h3 id="kernel-fusion">Kernel fusion</h3>
 <p>The implementation fuses operations that share memory access, uses mixed precision where appropriate, and implements most custom kernels with <a href="https://arxiv.org/abs/2504.17577">TileLang</a>. The Sinkhorn loop and its custom backward pass run inside dedicated kernels to reduce memory traffic and launch overhead.</p>
 <h3 id="selective-recomputation">Selective recomputation</h3>
@@ -1839,21 +165,21 @@ return S
 </ul>
 <p>An extended <a href="https://arxiv.org/abs/2412.19437">DualPipe</a> schedule overlaps parts of communication, recomputation, and layer work at pipeline boundaries. The achieved overlap is specific to this training system.</p>
 <h3 id="reported-system-result">Reported system result</h3>
-<p>For the paper's large-scale setup, <strong>expansion rate <span class="arithmatex">\(n=4\)</span> adds 6.7% training time</strong> relative to its baseline. This is a system result, not the overhead of a plain framework implementation.</p>
-<hr />
+<p>For the paper’s large-scale setup, <strong>expansion rate <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>4</mn></mrow><annotation encoding="application/x-tex">n=4</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">n</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">4</span></span></span></span> adds 6.7% training time</strong> relative to its baseline. This is a system result, not the overhead of a plain framework implementation.</p>
+<hr>
 <h2 id="what-the-experiments-establish">What the experiments establish</h2>
-<p>In the 27B comparison, unconstrained HC reaches a peak composite Amax Gain near 3,000. With 20-step approximate Sinkhorn projection, mHC's composite backward gain deviates from one but remains bounded at roughly 1.6 in the reported analysis.</p>
+<p>In the 27B comparison, unconstrained HC reaches a peak composite Amax Gain near 3,000. With 20-step approximate Sinkhorn projection, mHC’s composite backward gain deviates from one but remains bounded at roughly 1.6 in the reported analysis.</p>
 <p>The authors also train 3B, 9B, and 27B DeepSeek-V3-inspired MoE variants. At 27B, mHC beats the standard residual baseline on all eight reported downstream benchmarks and beats HC on six of eight; HC is slightly higher on GSM8K and MATH. These are in-house pretraining experiments from the proposing team, so independent replication and comparisons on other architectures remain open.</p>
-<hr />
+<hr>
 <h2 id="trade-offs-and-open-questions">Trade-offs and open questions</h2>
 <p>mHC is not a drop-in win for every model. Four questions remain:</p>
 <ol>
 <li><strong>System overhead:</strong> 6.7% is the optimized paper result; another runtime, device topology, or model shape may see a different cost.</li>
 <li><strong>Implementation complexity:</strong> a reference implementation can express the method, but matching the reported throughput requires custom kernels, recomputation, and schedule changes.</li>
-<li><strong>Mixing bias:</strong> double stochasticity preserves the cross-stream mean and prevents expansion through <span class="arithmatex">\(\mathcal{H}^{res}\)</span>, but it can smooth differences between streams. The block update still changes the overall representation.</li>
+<li><strong>Mixing bias:</strong> double stochasticity preserves the cross-stream mean and prevents expansion through <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi mathvariant="script">H</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msup></mrow><annotation encoding="application/x-tex">\mathcal{H}^{res}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord"><span class="mord mathcal" style="margin-right:0.0097em;">H</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">es</span></span></span></span></span></span></span></span></span></span></span></span>, but it can smooth differences between streams. The block update still changes the overall representation.</li>
 <li><strong>Evidence scope:</strong> the strongest evidence is language-model pretraining on DeepSeek-V3-inspired MoE architectures. Generalization to other model families is not yet established by this paper.</li>
 </ol>
-<hr />
+<hr>
 <h2 id="key-takeaways">Key takeaways</h2>
 <ol>
 <li><strong>Residual connections work because of identity mapping</strong>: the ability to pass signals through unchanged.</li>
@@ -1864,7 +190,7 @@ return S
 <li><strong>The reported 6.7% overhead is a systems achievement</strong>, not an architecture-only property.</li>
 </ol>
 <p>mHC is a promising way to study wider residual topology while keeping the repeated residual map well conditioned. Whether it is worthwhile for another model depends on independent quality gains and the cost of reproducing its systems stack.</p>
-<hr />
+<hr>
 <h2 id="references">References</h2>
 <ul>
 <li><a href="https://arxiv.org/abs/2512.24880">mHC: Manifold-Constrained Hyper-Connections</a> - Xie et al. (DeepSeek)</li>
@@ -1873,120 +199,22 @@ return S
 <li><a href="https://arxiv.org/abs/2504.17577">TileLang</a> - CUDA kernel optimization framework</li>
 <li><a href="https://arxiv.org/abs/2412.19437">DualPipe</a> - Pipeline parallelism scheduler for DeepSeek-V3</li>
 <li><a href="https://arxiv.org/abs/2304.14802">ResiDual</a> - Dual residual path architecture</li>
-</ul>
-
-
-
-
-
-
-
-  
-  
-
-
-
-  
-
-
-  
-
-
- 
-  </article>
-</div>
-
-          
-<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
-        </div>
-        
-      </main>
-      
-        <footer class="md-footer">
-  
-  <div class="md-footer-meta md-typeset">
-    <div class="md-footer-meta__inner md-grid">
-      <div class="md-copyright">
-  
-  
-    Made with
-    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
-      Material for MkDocs
-    </a>
-  
-</div>
-      
-        
-<div class="md-social">
-  
-    
-    
-    
-    
-    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://www.tiktok.com/@edge.of.context" target="_blank" rel="noopener" title="TikTok" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M448.5 209.9c-44 .1-87-13.6-122.8-39.2v178.7c0 33.1-10.1 65.4-29 92.6s-45.6 48-76.6 59.6-64.8 13.5-96.9 5.3-60.9-25.9-82.7-50.8-35.3-56-39-88.9 2.9-66.1 18.6-95.2 40-52.7 69.6-67.7 62.9-20.5 95.7-16v89.9c-15-4.7-31.1-4.6-46 .4s-27.9 14.6-37 27.3-14 28.1-13.9 43.9 5.2 31 14.5 43.7 22.4 22.1 37.4 26.9 31.1 4.8 46-.1 28-14.4 37.2-27.1 14.2-28.1 14.2-43.8V0h88c-.1 7.4.6 14.9 1.9 22.2 3.1 16.3 9.4 31.9 18.7 45.7s21.3 25.6 35.2 34.6c19.9 13.1 43.2 20.1 67 20.1V210z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
-    </a>
-  
-</div>
-      
-    </div>
-  </div>
-</footer>
-      
-    </div>
-    <div class="md-dialog" data-md-component="dialog">
-      <div class="md-dialog__inner md-typeset"></div>
-    </div>
-    
-    
-    
-      
-      
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
-    
-    
-      <script src="../../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-      
-        <script src="../../../../../javascripts/mermaid-init.js"></script>
-      
-        <script src="../../../../../javascripts/mathjax.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
-      
-    
-  </body>
-</html>
+</ul> </article>  </main> <footer class="site-footer"> <p data-footer-tagline>Practical AI engineering by Slava Dubrov.</p> <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>
+      document.querySelector("#locale-select")?.addEventListener("change", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLSelectElement && target.value) location.assign(target.value);
+      });
+      document.querySelectorAll("pre").forEach((pre) => {
+        if (pre.closest(".mermaid-diagram")) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-code";
+        button.textContent = "Copy";
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(pre.textContent || "");
+          button.textContent = "Copied";
+          setTimeout(() => { button.textContent = "Copy"; }, 1500);
+        });
+        pre.append(button);
+      });
+    </script> </body> </html>

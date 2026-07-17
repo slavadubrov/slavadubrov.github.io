@@ -1,1559 +1,12 @@
-
-<!doctype html>
-<html lang="en" class="no-js">
-  <head>
-    
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1">
-      
-        <meta name="description" content="Evaluate and deploy LoRAX for long-tail LoRA serving, with current APIs, Kubernetes chart hardening, adapter security, cache-aware routing, and vLLM trade-offs.">
-      
-      
-        <meta name="author" content="Viacheslav Dubrov">
-      
-      
-        <link rel="canonical" href="https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">
-      
-      
-      
-      
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="en">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/de/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="de">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/ru/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="ru">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/es/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="es">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/pt/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="pt">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/fr/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="fr">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/nl/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="nl">
-        
-      
-      
-        <link rel="alternate" type="application/rss+xml" title="RSS feed" href="../../../../../feed_rss_created.xml">
-        <link rel="alternate" type="application/rss+xml" title="RSS feed of updated content" href="../../../../../feed_rss_updated.xml">
-      
-      <link rel="icon" href="../../../../../assets/favicon-eoc.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.6">
-    
-    
-      
-        <title>LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes - Edge of Context: Practical AI Engineering</title>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../assets/stylesheets/main.484c7ddc.min.css">
-      
-        
-        <link rel="stylesheet" href="../../../../../assets/stylesheets/palette.ab4e12ef.min.css">
-      
-      
-
-
-    
-    
-      
-    
-    
-      
-        
-        
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
-        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../assets/brand.css">
-    
-      <link rel="stylesheet" href="../../../../../assets/blog-sidebar.css">
-    
-      <link rel="stylesheet" href="../../../../../assets/blog-index.css">
-    
-    <script>__md_scope=new URL("../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
-    
-      
-  
-
-
-  
-  
-
-<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-T51K83ENZ5"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-T51K83ENZ5",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
-  
-    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
-  
-
-    
-        
-
-   
-     
-<!-- Open Graph -->
-<meta property="og:title" content="LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes" />
-<meta property="og:description" content="Evaluate and deploy LoRAX for long-tail LoRA serving, with current APIs, Kubernetes chart hardening, adapter security, cache-aware routing, and vLLM trade-offs." />
-<meta property="og:url" content="https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" />
-<meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
-<meta
-  property="og:type"
-  content="article"
-/>
-<meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png" />
-<!-- Twitter Card -->
-<meta
-  name="twitter:card"
-  content="summary"
-/>
-<meta name="twitter:title" content="LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes" />
-<meta name="twitter:description" content="Evaluate and deploy LoRAX for long-tail LoRA serving, with current APIs, Kubernetes chart hardening, adapter security, cache-aware routing, and vLLM trade-offs." />
-<meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png" />
-<!-- Site identity schema -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Person",
-        "@id": "https://slavadubrov.github.io/#person",
-        "name": "Viacheslav Dubrov",
-        "alternateName": "Slava Dubrov",
-        "url": "https://slavadubrov.github.io/about/",
-        "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-      },
-      {
-        "@type": "WebSite",
-        "@id": "https://slavadubrov.github.io/#website",
-        "name": "Edge of Context: Practical AI Engineering",
-        "alternateName": "Edge of Context",
-        "url": "https://slavadubrov.github.io/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "en",
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        }
-      },
-      {
-        "@type": "Blog",
-        "@id": "https://slavadubrov.github.io/#blog",
-        "name": "Edge of Context: Practical AI Engineering",
-        "url": "https://slavadubrov.github.io/blog/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "en",
-        "author": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "isPartOf": {
-          "@id": "https://slavadubrov.github.io/#website"
-        }
-      }
-    ]
-  }
-</script>
-
-<script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      "itemListElement": [
-        {
-          "@type": "ListItem",
-          "position": 1,
-          "name": "Edge of Context: Practical AI Engineering",
-          "item": "https://slavadubrov.github.io/"
-        },
-        {
-          "@type": "ListItem",
-          "position": 2,
-          "name": "Blog",
-          "item": "https://slavadubrov.github.io/blog/"
-        },
-        {
-          "@type": "ListItem",
-          "position": 3,
-          "name": "LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes",
-          "item": "https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"
-        }
-  
-      ]
-    }
-</script>
- 
-<style>
-  /* Header social icons */
-  .md-header__social {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-left: 0.5rem;
-  }
-  .md-header__social a {
-    color: var(--md-primary-bg-color);
-    opacity: 0.7;
-    transition: opacity 0.2s;
-  }
-  .md-header__social a:hover {
-    opacity: 1;
-  }
-  .md-header__social svg {
-    width: 1.2rem;
-    height: 1.2rem;
-    fill: currentColor;
-  }
-  /* Adjust search to make room for social icons */
-  .md-search {
-    margin-right: 0;
-  }
-</style>
-
-<!-- Article-specific Open Graph -->
-       
-<meta property="article:published_time" content="2025-10-22" />
- 
-<meta property="article:modified_time" content="2026-07-15" />
- 
-<meta property="article:author" content="Viacheslav Dubrov" />
-  
-<meta property="article:tag" content="Model Engineering" />
-
-<meta property="article:tag" content="AI Infrastructure" />
- 
-<!-- Schema.org JSON-LD -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    "@id": "https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/#blogposting",
-    "headline": "LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes",
-    "description": "Evaluate and deploy LoRAX for long-tail LoRA serving, with current APIs, Kubernetes chart hardening, adapter security, cache-aware routing, and vLLM trade-offs.",
-    "url": "https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/",
-    "image": "https://slavadubrov.github.io/assets/og-image.png",
-    "inLanguage": "en",
-    "mainEntityOfPage": {
-      "@type": "WebPage",
-      "@id": "https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"
-    },
-    "datePublished": "2025-10-22",
-    "dateModified": "2026-07-15",
-    "author": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "publisher": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "isPartOf": {
-      "@type": "Blog",
-      "@id": "https://slavadubrov.github.io/#blog",
-      "name": "Edge of Context: Practical AI Engineering",
-      "url": "https://slavadubrov.github.io/"
-    },
-    "keywords": "Model Engineering, AI Infrastructure"
-  }
-</script>
-
-  
-<link rel="alternate" href="https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="x-default">
-</head>
-  
-  
-    
-    
-      
-    
-    
-    
-    
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
-  
-    
-    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
-    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
-    <label class="md-overlay" for="__drawer"></label>
-    <div data-md-component="skip">
-      
-        
-        <a href="#lorax-serving-guide-operating-many-lora-adapters-on-kubernetes" class="md-skip">
-          Skip to content
-        </a>
-      
-    </div>
-    <div data-md-component="announce">
-      
-    </div>
-    
-     
-      
-
-  
-
-<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
-  <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../../../.." title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    <label class="md-header__button md-icon" for="__drawer">
-      
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
-    </label>
-    <div class="md-header__title" data-md-component="header-title">
-      <div class="md-header__ellipsis">
-        <div class="md-header__topic">
-          <span class="md-ellipsis">
-            Edge of Context: Practical AI Engineering
-          </span>
-        </div>
-        <div class="md-header__topic" data-md-component="header-topic">
-          <span class="md-ellipsis">
-            
-              LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes
-            
-          </span>
-        </div>
-      </div>
-    </div>
-    
-      
-        <form class="md-header__option" data-md-component="palette">
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
-    
-      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
-    
-      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-</form>
-      
-    
-    
-      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
-    
-    
-      <div class="md-header__option">
-  <div class="md-select">
-    
-    <button class="md-header__button md-icon" aria-label="Select language">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
-    </button>
-    <div class="md-select__inner">
-      <ul class="md-select__list">
-        
-          <li class="md-select__item">
-            <a href="./" hreflang="en" class="md-select__link">
-              English
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../de/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="de" class="md-select__link">
-              Deutsch
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../ru/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="ru" class="md-select__link">
-              Русский
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../es/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="es" class="md-select__link">
-              Español
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../pt/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="pt" class="md-select__link">
-              Português
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../fr/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="fr" class="md-select__link">
-              Français
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../nl/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="nl" class="md-select__link">
-              Nederlands
-            </a>
-          </li>
-        
-      </ul>
-    </div>
-  </div>
-</div>
-    
-    
-      
-      
-        <label class="md-header__button md-icon" for="__search">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        </label>
-        <div class="md-search" data-md-component="search" role="dialog">
-  <label class="md-search__overlay" for="__search"></label>
-  <div class="md-search__inner" role="search">
-    <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
-      <label class="md-search__icon md-icon" for="__search">
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-      </label>
-      <nav class="md-search__options" aria-label="Search">
-        
-        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-        </button>
-      </nav>
-      
-    </form>
-    <div class="md-search__output">
-      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
-        <div class="md-search-result" data-md-component="search-result">
-          <div class="md-search-result__meta">
-            Initializing search
-          </div>
-          <ol class="md-search-result__list" role="presentation"></ol>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-      
-    
-    
-  </nav>
-  
-    
-      
-<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
-  <div class="md-grid">
-    <ul class="md-tabs__list">
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../.." class="md-tabs__link">
-        
-  
-  
-    
-  
-  Home
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Blog
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
-        <a href="../../../../fast-answers/" class="md-tabs__link">
-          
-  
-  
-    
-  
-  Fast Answers
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../../about/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  About
-
-      </a>
-    </li>
-  
-
-      
-    </ul>
-  </div>
-</nav>
-    
-  
-</header>
-    
-<script>
-  // Inject social icons into header after DOM loads
-  document.addEventListener("DOMContentLoaded", function () {
-    const header = document.querySelector(".md-header__inner");
-    if (header) {
-      const social = document.createElement("div");
-      social.className = "md-header__social";
-      social.innerHTML = `
-      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
-      </a>
-      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
-      </a>
-      <a href="https://www.tiktok.com/@edge.of.context" title="TikTok" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M448 209.9a210.1 210.1 0 0 1-122.8-39.2v178.7A162.6 162.6 0 1 1 185 188.3v89.9a74.6 74.6 0 1 0 52.2 71.2V0h88a121.2 121.2 0 0 0 1.9 22.2 122.2 122.2 0 0 0 53.9 80.2 121.4 121.4 0 0 0 67 20.1v87.4z"/></svg>
-      </a>
-      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
-      </a>
-    `;
-      header.appendChild(social);
-    }
-  });
-</script>
-
-    <div class="md-container" data-md-component="container">
-      
-      
-        
-      
-      <main class="md-main" data-md-component="main">
-        <div class="md-main__inner md-grid">
-          
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-
-  
-
-
-<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
-  <label class="md-nav__title" for="__drawer">
-    <a href="../../../../.." title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    Edge of Context: Practical AI Engineering
-  </label>
-  
-  <ul class="md-nav__list" data-md-scrollfix>
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../.." class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Home
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Blog
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-      
-        
-          
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <div class="md-nav__link md-nav__container">
-            <a href="../../../../fast-answers/" class="md-nav__link ">
-              
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Fast Answers
-  
-
-    
-  </span>
-  
-  
-
-            </a>
-            
-              
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
-                <span class="md-nav__icon md-icon"></span>
-              </label>
-            
-          </div>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Fast Answers
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ai-agent-frameworks/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Frameworks
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/rag-evaluation-tools/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    RAG Evaluation Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/local-llm-tools-macos/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Local LLM Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ocr-models-document-ai/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    OCR Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ner-models/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    NER Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/agent-security-patterns/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Security Patterns
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/search-ranking-stack/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Search Ranking Stack
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../../about/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    About
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-  </ul>
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#the-serving-problem-is-the-working-set" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The serving problem is the working set
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#when-lorax-is-a-plausible-fit" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        When LoRAX is a plausible fit
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#verify-one-base-and-two-adapters-locally" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Verify one base and two adapters locally
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Verify one base and two adapters locally">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#use-the-current-openai-client" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Use the current OpenAI client
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#define-a-compatibility-gate" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Define a compatibility gate
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#understand-residency-before-deploying" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Understand residency before deploying
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#deploy-the-repository-chart-carefully" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deploy the repository chart carefully
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Deploy the repository chart carefully">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#start-from-the-charts-actual-value-structure" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Start from the chart's actual value structure
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#patch-the-gaps-explicitly" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Patch the gaps explicitly
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#route-for-cache-locality" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Route for cache locality
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#lorax-or-vllm" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        LoRAX or vLLM?
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#a-production-acceptance-test" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        A production acceptance test
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#conclusion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Conclusion
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#references" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        References
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-          
-              
-
-<div class="md-content md-content--post" data-md-component="content">
-  <div
-    class="md-sidebar md-sidebar--post"
-    data-md-component="sidebar"
-    data-md-type="navigation"
-  >
-    <div class="md-sidebar__scrollwrap">
-      <div class="md-sidebar__inner md-post">
-        <nav class="md-nav md-nav--primary">
-          <div class="md-post__back">
-            <div class="md-nav__title md-nav__container">
-              <a href="../../../../" class="md-nav__link">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-                <span class="md-ellipsis"> Back to index </span>
-              </a>
-            </div>
-          </div>
-
-          
-          <ul class="md-post__meta md-nav__list">
-            <li class="md-nav__item md-nav__item--section">
-              <div class="md-post__title">
-                <span class="md-ellipsis"
-                  >Topics</span
-                >
-              </div>
-              <nav class="md-nav">
-                            
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-agents"
-                  >
-                    <span class="blog-category-icon"
-                      >🦾</span
-                    >
-                    <span class="blog-category-name"
-                      >AI Agents</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/06/20/schema-guided-agent-memory/">AI Agent Memory: Schema-Guided Typed State for Long-Running Systems</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/06/10/agent-evals-traces-to-test-suites/">Evaluating AI Agents in Production: From Traces to Test Suites</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/05/26/ai-agent-runtime/">Long-Running AI Agent Runtime in 2026: Sessions, Sandboxes, Checkpoints, and Harnesses</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/04/20/ai-agent-security/">AI Agent Security in 2026: Guardrails, Permissions, Sandboxes, and MCP Threats</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/03/24/ai-agent-tool-use/">AI Agent Tool Use in 2026: MCP, CLI, Skills, and Code Execution</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/02/14/ai-agent-memory-architecture/">AI Agent Memory Architecture in 2026: Checkpoints, Vector Stores, and File-Based Memory</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/01/31/ai-agent-reasoning-loops/">AI Agent Reasoning Loops in 2026: ReAct vs ReWOO vs Plan-and-Execute</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/01/11/enterprise-rag-challenge-agent-architectures/">Enterprise RAG Challenge 3 (ECR3): Winning AI Agent Architectures</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../12/28/schema-guided-reasoning-vllm/">Schema-Guided Reasoning on vLLM: Structured Outputs with xgrammar and Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../20/domain-driven-design-ai-agents/">Domain-Driven Design for AI Agents: Bounded Contexts, Tools, and Business Rules</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../05/context-engineering-ai-agents/">Context Engineering for AI Agents: Context Windows, Memory, Tools, and Guardrails</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../06/10/mcp-server-tutorial-uv-fastmcp/">MCP Server Tutorial with uv and FastMCP: Build a FeatureStoreLite Server</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section blog-category-section--active"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#model-engineering"
-                  >
-                    <span class="blog-category-icon"
-                      >🤖</span
-                    >
-                    <span class="blog-category-name"
-                      >Model Engineering</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Model Quantization in 2026: From Foundations to Production Serving</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/03/13/llm-engineering-guide/">LLM Engineering Guide: 45 Concepts for Inference, Training, Architecture, and Operations</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/01/21/manifold-constrained-hyper-connections/">Manifold-Constrained Hyper-Connections (mHC): DeepSeek Residual Scaling Explained</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/01/04/llm-fine-tuning-guide/">LLM Fine-Tuning Guide: LoRA, QLoRA, DoRA, Unsloth, Axolotl, and Deployment</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../12/28/schema-guided-reasoning-vllm/">Schema-Guided Reasoning on vLLM: Structured Outputs with xgrammar and Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post blog-category-post--active"
-                    >
-                      <a href="./">LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/11/open-source-llm-formats/">Open-Weight LLM Variants, Quantization, and Formats: Instruct, MoE, GGUF, GPTQ, and AWQ</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/10/local-llms-on-macos/">Local LLMs on macOS: Ollama, LM Studio, llama.cpp, MLX, and Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/04/scaling-llms-multi-gpu-multi-node/">Scaling Large Language Models: Multi-GPU and Multi-Node Strategies That Hold Up in Practice</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section blog-category-section--active"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-infrastructure"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >AI Infrastructure</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Model Quantization in 2026: From Foundations to Production Serving</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/02/21/modern-data-processing-engines/">Modern Data Processing Engines Compared: Polars, DataFusion, Daft, Ray Data, Pandas, and Spark</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post blog-category-post--active"
-                    >
-                      <a href="./">LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/06/mlops-vs-llmops/">MLOps vs LLMOps: Infrastructure for Foundation Models and LLM Systems</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/04/scaling-llms-multi-gpu-multi-node/">Scaling Large Language Models: Multi-GPU and Multi-Node Strategies That Hold Up in Practice</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#retrieval-and-language-systems"
-                  >
-                    <span class="blog-category-icon"
-                      >🔍</span
-                    >
-                    <span class="blog-category-name"
-                      >Retrieval and Language Systems</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/05/10/rag-evaluation-metrics/">Evaluating RAG: Metrics for Every Stage of a Production RAG System</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/04/02/ner-guide/">The Definitive Guide to NER in 2026: Encoders, LLMs, and the 3-Tier Production Architecture</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/03/04/ocr-guide/">The Definitive Guide to OCR in 2026: From Pipelines to VLMs</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/02/08/search-ranking-stack/">Search Ranking Stack in 2026: BM25, Embeddings, Cross-Encoders, and LLM Reranking</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#developer-tooling"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >Developer Tooling</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../06/10/mcp-server-tutorial-uv-fastmcp/">MCP Server Tutorial with uv and FastMCP: Build a FeatureStoreLite Server</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/10/local-llms-on-macos/">Local LLMs on macOS: Ollama, LM Studio, llama.cpp, MLX, and Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/10/stable-diffusion-macos-tools/">Stable Diffusion on macOS: Draw Things, DiffusionBee, ComfyUI, A1111, and Fooocus</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/08/pyproject-toml-guide/">`pyproject.toml` Guide: Python Packaging, Dependencies, and Tool Configuration</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/07/zprofile-vs-zshrc/">Zsh Startup Files: `~/.zprofile` vs `~/.zshrc` on macOS and Linux</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/19/macbook-ai-engineering-setup/">MacBook Setup for AI Engineering: macOS Tools, Python, Docker, and Terminal Workflow</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/17/uv-python-on-macos/">uv on macOS: Managing Python Versions, Projects, and Tools</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                
-              </nav>
-            </li>
-          </ul>
-
-          
-        </nav>
-        
-      </div>
-    </div>
-  </div>
-  <article class="md-content__inner md-typeset">
-     
-  
-
-
-
-
-<h1 id="lorax-serving-guide-operating-many-lora-adapters-on-kubernetes">LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes</h1>
+<!DOCTYPE html><html lang="en"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes - Edge of Context: Practical AI Engineering</title><meta name="description" content="Evaluate and deploy LoRAX for long-tail LoRA serving, with current APIs, Kubernetes chart hardening, adapter security, cache-aware routing, and vLLM trade-offs."><link rel="canonical" href="https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><link rel="alternate" hreflang="de" href="https://slavadubrov.github.io/de/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><link rel="alternate" hreflang="en" href="https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><link rel="alternate" hreflang="es" href="https://slavadubrov.github.io/es/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><link rel="alternate" hreflang="fr" href="https://slavadubrov.github.io/fr/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><link rel="alternate" hreflang="nl" href="https://slavadubrov.github.io/nl/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><link rel="alternate" hreflang="pt" href="https://slavadubrov.github.io/pt/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><link rel="alternate" hreflang="ru" href="https://slavadubrov.github.io/ru/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><link rel="alternate" hreflang="x-default" href="https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><meta property="og:type" content="article"><meta property="og:title" content="LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes - Edge of Context: Practical AI Engineering"><meta property="og:description" content="Evaluate and deploy LoRAX for long-tail LoRA serving, with current APIs, Kubernetes chart hardening, adapter security, cache-aware routing, and vLLM trade-offs."><meta property="og:url" content="https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes - Edge of Context: Practical AI Engineering"><meta name="twitter:description" content="Evaluate and deploy LoRAX for long-tail LoRA serving, with current APIs, Kubernetes chart hardening, adapter security, cache-aware routing, and vLLM trade-offs."><meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta property="article:published_time" content="2025-10-22"><meta property="article:modified_time" content="2026-07-15"><link rel="icon" href="/assets/favicon-eoc.svg" type="image/svg+xml"><link href="/pagefind/pagefind-component-ui.css" rel="stylesheet"><script src="/pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes - Edge of Context: Practical AI Engineering","description":"Evaluate and deploy LoRAX for long-tail LoRA serving, with current APIs, Kubernetes chart hardening, adapter security, cache-aware routing, and vLLM trade-offs.","url":"https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/","image":"https://slavadubrov.github.io/assets/og-image.png","datePublished":"2025-10-22","dateModified":"2026-07-15","author":{"@type":"Person","name":"Viacheslav Dubrov"}}</script><link rel="stylesheet" href="/_astro/BaseLayout.DgRW7Vi7.css"></head> <body> <a class="skip-link" href="#main-content">Skip to content</a> <header class="site-header"> <a class="brand" data-home-link href="/" aria-label="Edge of Context home"> <img src="/assets/logo-eoc.svg" alt="" width="36" height="36"> <span>Edge of Context</span> </a> <nav aria-label="Primary navigation"> <ul> <li><a data-nav="home" href="/">Home</a></li><li><a data-nav="blog" href="/blog/">Blog</a></li><li><a data-nav="fastAnswers" href="/blog/fast-answers/">Fast Answers</a></li><li><a data-nav="about" href="/about/">About</a></li> </ul> </nav> <div class="header-actions"> <pagefind-modal-trigger data-search-label="true">Search</pagefind-modal-trigger> <label class="locale-switcher"> <span class="visually-hidden">Language</span> <select id="locale-select"> <option value="/de/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Deutsch</option><option value="/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" selected>English</option><option value="/es/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Español</option><option value="/fr/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Français</option><option value="/nl/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Nederlands</option><option value="/pt/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Português</option><option value="/ru/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Русский</option> </select> </label> </div> </header> <main id="main-content" tabindex="-1">  <article class="prose" data-pagefind-body> <p class="article-meta"> <time datetime="2025-10-22">2025-10-22</time>  · Updated <time datetime="2026-07-15">2026-07-15</time> </p> <h1 id="lorax-serving-guide-operating-many-lora-adapters-on-kubernetes">LoRAX Serving Guide: Operating Many LoRA Adapters on Kubernetes</h1>
 <p>One base model and many LoRA adapters create an unusual serving problem. The base weights are shared, but every request may need a different set of adapter weights. A conventional one-deployment-per-variant design wastes GPU memory when most variants are idle.</p>
 <p><a href="https://github.com/predibase/lorax">LoRAX</a> addresses that long tail. It loads adapters on demand, batches requests for different adapters, and moves adapter weights between GPU and CPU memory. The attractive headline is “thousands of fine-tuned models on one GPU.” The engineering question is narrower: does your active adapter set, arrival pattern, and latency target benefit from exchange scheduling enough to justify another serving runtime?</p>
-<p>This guide answers that question, verifies the API locally, and then turns the repository's starter Helm chart into an explicit production plan.</p>
+<p>This guide answers that question, verifies the API locally, and then turns the repository’s starter Helm chart into an explicit production plan.</p>
 <!-- more -->
-
 <blockquote>
 <p><strong>TL;DR.</strong> Choose LoRAX when many compatible LoRA adapters share one base model and traffic is sparse or long-tailed. Capacity depends on the active working set, not the catalog size. Pin the runtime, authenticate and allowlist adapter IDs, add durable artifact caching and probes, route for cache locality, and benchmark cold and warm paths separately.</p>
 </blockquote>
-<hr />
+<hr>
 <h2 id="the-serving-problem-is-the-working-set">The serving problem is the working set</h2>
 <p>LoRA freezes a base model and learns low-rank updates for selected weight matrices. The resulting adapter is usually much smaller than a full checkpoint, but its size still depends on rank, target modules, layer count, and dtype. Fixed claims such as “every adapter is 100 MB” are poor capacity inputs.</p>
 <p>For serving, distinguish three quantities:</p>
@@ -1570,7 +23,7 @@
 <li>Adapter exchange scheduling prefetches and offloads weights between GPU and CPU memory.</li>
 <li>Heterogeneous continuous batching groups requests targeting different adapters.</li>
 </ol>
-<p><img alt="LoRAX request path from adapter resolution through generation" src="../../../../assets/2025-10-22-lorax-serving-guide/lorax-request-flow.svg" /></p>
+<p><img src="/blog/assets/2025-10-22-lorax-serving-guide/lorax-request-flow.svg" alt="LoRAX request path from adapter resolution through generation"></p>
 <p>The project reports that heterogeneous batching keeps throughput and latency nearly constant as concurrent adapter count grows in its benchmarks. Treat that as a hypothesis for your workload. Prompt length, output length, rank, target modules, batch occupancy, cache churn, and GPU generation can change the result.</p>
 <h2 id="when-lorax-is-a-plausible-fit">When LoRAX is a plausible fit</h2>
 <p>LoRAX deserves a benchmark when all of these are true:</p>
@@ -1584,58 +37,54 @@
 <p>Typical cases include tenant-specific assistants, many domain variants, and online experiments that share a base checkpoint.</p>
 <p>It is a weaker fit when a few adapters dominate traffic, models do not share a base, hard latency targets cannot tolerate cold loads, or the platform cannot safely control which artifacts the server loads. A standard vLLM or TGI deployment with a fixed adapter set may be simpler in those cases.</p>
 <p>Do not use Kubernetes merely because the catalog is large. First prove the runtime and adapter compatibility on one GPU.</p>
-<hr />
+<hr>
 <h2 id="verify-one-base-and-two-adapters-locally">Verify one base and two adapters locally</h2>
-<p>The LoRAX README recommends its prebuilt container. Use an immutable image digest in a real environment; <code>main</code> is shown here only because it is the repository's documented quick-start tag.</p>
-<div class="highlight"><pre><span></span><code>mkdir<span class="w"> </span>-p<span class="w"> </span>data
-
-docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>--shm-size<span class="w"> </span>1g<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span><span class="m">8080</span>:80<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">/data:/data&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>ghcr.io/predibase/lorax:main<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--model-id<span class="w"> </span>mistralai/Mistral-7B-Instruct-v0.1
-</code></pre></div>
+<p>The LoRAX README recommends its prebuilt container. Use an immutable image digest in a real environment; <code>main</code> is shown here only because it is the repository’s documented quick-start tag.</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">mkdir</span><span style="color:#79C0FF"> -p</span><span style="color:#A5D6FF"> data</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FFA657">docker</span><span style="color:#A5D6FF"> run</span><span style="color:#79C0FF"> --rm</span><span style="color:#79C0FF"> --gpus</span><span style="color:#A5D6FF"> all</span><span style="color:#79C0FF"> --shm-size</span><span style="color:#A5D6FF"> 1g</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#79C0FF">    -p</span><span style="color:#A5D6FF"> 8080:80</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#79C0FF">    -v</span><span style="color:#A5D6FF"> "</span><span style="color:#E6EDF3">$PWD</span><span style="color:#A5D6FF">/data:/data"</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#A5D6FF">    ghcr.io/predibase/lorax:main</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#79C0FF">    --model-id</span><span style="color:#A5D6FF"> mistralai/Mistral-7B-Instruct-v0.1</span></span></code></pre>
 <p>The documented minimum is Linux, Docker, an Ampere-or-newer NVIDIA GPU, and CUDA 11.8-compatible drivers. Model licenses and gated repositories may also require a Hugging Face token.</p>
 <p>Start with the base model:</p>
-<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>http://127.0.0.1:8080/generate<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-H<span class="w"> </span><span class="s1">&#39;Content-Type: application/json&#39;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
-<span class="s1">      &quot;inputs&quot;: &quot;[INST] Give one reason to measure cold-adapter latency. [/INST]&quot;,</span>
-<span class="s1">      &quot;parameters&quot;: {&quot;max_new_tokens&quot;: 64}</span>
-<span class="s1">    }&#39;</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">curl</span><span style="color:#A5D6FF"> http://127.0.0.1:8080/generate</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#79C0FF">    -H</span><span style="color:#A5D6FF"> 'Content-Type: application/json'</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#79C0FF">    -d</span><span style="color:#A5D6FF"> '{</span></span>
+<span class="line"><span style="color:#A5D6FF">      "inputs": "[INST] Give one reason to measure cold-adapter latency. [/INST]",</span></span>
+<span class="line"><span style="color:#A5D6FF">      "parameters": {"max_new_tokens": 64}</span></span>
+<span class="line"><span style="color:#A5D6FF">    }'</span></span></code></pre>
 <p>Then send a compatible adapter:</p>
-<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>http://127.0.0.1:8080/generate<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-H<span class="w"> </span><span class="s1">&#39;Content-Type: application/json&#39;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
-<span class="s1">      &quot;inputs&quot;: &quot;[INST] Solve: Natalia sold 48 clips in April and half as many in May. What is the total? [/INST]&quot;,</span>
-<span class="s1">      &quot;parameters&quot;: {</span>
-<span class="s1">        &quot;max_new_tokens&quot;: 64,</span>
-<span class="s1">        &quot;adapter_id&quot;: &quot;vineetsharma/qlora-adapter-Mistral-7B-Instruct-v0.1-gsm8k&quot;</span>
-<span class="s1">      }</span>
-<span class="s1">    }&#39;</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">curl</span><span style="color:#A5D6FF"> http://127.0.0.1:8080/generate</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#79C0FF">    -H</span><span style="color:#A5D6FF"> 'Content-Type: application/json'</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#79C0FF">    -d</span><span style="color:#A5D6FF"> '{</span></span>
+<span class="line"><span style="color:#A5D6FF">      "inputs": "[INST] Solve: Natalia sold 48 clips in April and half as many in May. What is the total? [/INST]",</span></span>
+<span class="line"><span style="color:#A5D6FF">      "parameters": {</span></span>
+<span class="line"><span style="color:#A5D6FF">        "max_new_tokens": 64,</span></span>
+<span class="line"><span style="color:#A5D6FF">        "adapter_id": "vineetsharma/qlora-adapter-Mistral-7B-Instruct-v0.1-gsm8k"</span></span>
+<span class="line"><span style="color:#A5D6FF">      }</span></span>
+<span class="line"><span style="color:#A5D6FF">    }'</span></span></code></pre>
 <p>The first request may download and load the adapter; later requests can use cached artifacts and resident weights. Record both paths. A single warm request says little about long-tail behavior.</p>
 <h3 id="use-the-current-openai-client">Use the current OpenAI client</h3>
 <p>LoRAX exposes an OpenAI-compatible chat endpoint. The <code>model</code> field identifies the adapter:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">openai</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenAI</span>
-
-
-<span class="n">client</span> <span class="o">=</span> <span class="n">OpenAI</span><span class="p">(</span>
-    <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;EMPTY&quot;</span><span class="p">,</span>
-    <span class="n">base_url</span><span class="o">=</span><span class="s2">&quot;http://127.0.0.1:8080/v1&quot;</span><span class="p">,</span>
-<span class="p">)</span>
-
-<span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
-    <span class="n">model</span><span class="o">=</span><span class="s2">&quot;alignment-handbook/zephyr-7b-dpo-lora&quot;</span><span class="p">,</span>
-    <span class="n">messages</span><span class="o">=</span><span class="p">[</span>
-        <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;Explain cache locality in two sentences.&quot;</span><span class="p">},</span>
-    <span class="p">],</span>
-    <span class="n">max_tokens</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
-<span class="p">)</span>
-
-<span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">choices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">message</span><span class="o">.</span><span class="n">content</span><span class="p">)</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> openai </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> OpenAI</span></span>
+<span class="line"></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">client </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> OpenAI(</span></span>
+<span class="line"><span style="color:#FFA657">    api_key</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"EMPTY"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#FFA657">    base_url</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"http://127.0.0.1:8080/v1"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">response </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> client.chat.completions.create(</span></span>
+<span class="line"><span style="color:#FFA657">    model</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"alignment-handbook/zephyr-7b-dpo-lora"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#FFA657">    messages</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">[</span></span>
+<span class="line"><span style="color:#E6EDF3">        {</span><span style="color:#A5D6FF">"role"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"user"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"content"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"Explain cache locality in two sentences."</span><span style="color:#E6EDF3">},</span></span>
+<span class="line"><span style="color:#E6EDF3">    ],</span></span>
+<span class="line"><span style="color:#FFA657">    max_tokens</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">100</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#79C0FF">print</span><span style="color:#E6EDF3">(response.choices[</span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">].message.content)</span></span></code></pre>
 <p>The server does not require an API key by default. That is convenient for localhost and unsafe as an Internet-facing configuration. Put authentication, tenant authorization, quotas, and adapter allowlisting in front of it.</p>
 <h3 id="define-a-compatibility-gate">Define a compatibility gate</h3>
 <p>Before an adapter enters the catalog, verify at least:</p>
@@ -1647,58 +96,57 @@ docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </
 <li>license, provenance, and integrity digest</li>
 <li>a small behavioral and regression test suite</li>
 </ul>
-<p>Reject incompatible artifacts during registration rather than on a user's first request.</p>
-<hr />
+<p>Reject incompatible artifacts during registration rather than on a user’s first request.</p>
+<hr>
 <h2 id="understand-residency-before-deploying">Understand residency before deploying</h2>
-<p><img alt="Adapter artifact storage and runtime residency in LoRAX" src="../../../../assets/2025-10-22-lorax-serving-guide/lorax-memory-hierarchy.svg" /></p>
+<p><img src="/blog/assets/2025-10-22-lorax-serving-guide/lorax-memory-hierarchy.svg" alt="Adapter artifact storage and runtime residency in LoRAX"></p>
 <p>The base model consumes the dominant fixed share of GPU memory. Adapter weights, KV cache, batch workspace, and runtime kernels compete for the remainder. CPU RAM can hold offloaded adapters, while <code>/data</code> stores downloaded artifacts.</p>
 <p>These are not interchangeable tiers. A disk or Hub artifact must be read and materialized before it becomes a CPU- or GPU-resident adapter. Measure the transitions separately:</p>
-<table>
-<thead>
-<tr>
-<th>Path</th>
-<th>What it includes</th>
-<th>Metric to record</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>GPU hit</td>
-<td>Adapter already resident</td>
-<td>queue time and time to first token</td>
-</tr>
-<tr>
-<td>CPU hit</td>
-<td>Transfer or rematerialization into GPU</td>
-<td>adapter-load delay and end-to-end latency</td>
-</tr>
-<tr>
-<td>Artifact hit</td>
-<td>Read from local <code>/data</code> cache</td>
-<td>read/load delay and cache bytes</td>
-</tr>
-<tr>
-<td>Remote miss</td>
-<td>Download plus validation and load</td>
-<td>download time, failures, and full cold latency</td>
-</tr>
-</tbody>
-</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Path</th><th>What it includes</th><th>Metric to record</th></tr></thead><tbody><tr><td>GPU hit</td><td>Adapter already resident</td><td>queue time and time to first token</td></tr><tr><td>CPU hit</td><td>Transfer or rematerialization into GPU</td><td>adapter-load delay and end-to-end latency</td></tr><tr><td>Artifact hit</td><td>Read from local <code>/data</code> cache</td><td>read/load delay and cache bytes</td></tr><tr><td>Remote miss</td><td>Download plus validation and load</td><td>download time, failures, and full cold latency</td></tr></tbody></table>
 <p>Capacity planning should replay the real adapter popularity distribution. Uniform random adapter IDs create a different cache problem from a Zipf-like tenant workload.</p>
-<hr />
+<hr>
 <h2 id="deploy-the-repository-chart-carefully">Deploy the repository chart carefully</h2>
 <p>The repository contains <code>charts/lorax</code>, so the repeatable starting point is a pinned repository revision and a local chart:</p>
-<div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/predibase/lorax.git
-<span class="nb">cd</span><span class="w"> </span>lorax
-git<span class="w"> </span>checkout<span class="w"> </span>&lt;reviewed-commit-or-release&gt;
-
-helm<span class="w"> </span>dependency<span class="w"> </span>update<span class="w"> </span>charts/lorax
-helm<span class="w"> </span>template<span class="w"> </span>lorax<span class="w"> </span>charts/lorax<span class="w"> </span>-f<span class="w"> </span>values.production.yaml
-helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>lorax<span class="w"> </span>charts/lorax<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--namespace<span class="w"> </span>inference<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--create-namespace<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-f<span class="w"> </span>values.production.yaml
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">git</span><span style="color:#A5D6FF"> clone</span><span style="color:#A5D6FF"> https://github.com/predibase/lorax.git</span></span>
+<span class="line"><span style="color:#79C0FF">cd</span><span style="color:#A5D6FF"> lorax</span></span>
+<span class="line"><span style="color:#FFA657">git</span><span style="color:#A5D6FF"> checkout</span><span style="color:#FF7B72"> &#x3C;</span><span style="color:#A5D6FF">reviewed-commit-or-releas</span><span style="color:#E6EDF3">e</span><span style="color:#FF7B72">></span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FFA657">helm</span><span style="color:#A5D6FF"> dependency</span><span style="color:#A5D6FF"> update</span><span style="color:#A5D6FF"> charts/lorax</span></span>
+<span class="line"><span style="color:#FFA657">helm</span><span style="color:#A5D6FF"> template</span><span style="color:#A5D6FF"> lorax</span><span style="color:#A5D6FF"> charts/lorax</span><span style="color:#79C0FF"> -f</span><span style="color:#A5D6FF"> values.production.yaml</span></span>
+<span class="line"><span style="color:#FFA657">helm</span><span style="color:#A5D6FF"> upgrade</span><span style="color:#79C0FF"> --install</span><span style="color:#A5D6FF"> lorax</span><span style="color:#A5D6FF"> charts/lorax</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#79C0FF">    --namespace</span><span style="color:#A5D6FF"> inference</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#79C0FF">    --create-namespace</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#79C0FF">    -f</span><span style="color:#A5D6FF"> values.production.yaml</span></span></code></pre>
 <p>As reviewed on July 15, 2026, the chart defaults deserve attention:</p>
 <ul>
 <li>the image tag is <code>latest</code></li>
@@ -1708,44 +156,43 @@ helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class=
 <li>one GPU is requested by default</li>
 </ul>
 <p>That makes the chart useful scaffolding, not a production policy.</p>
-<h3 id="start-from-the-charts-actual-value-structure">Start from the chart's actual value structure</h3>
+<h3 id="start-from-the-charts-actual-value-structure">Start from the chart’s actual value structure</h3>
 <p>The chart nests runtime configuration under <code>deployment</code>, and launcher arguments are a list of name/value pairs. A minimal overlay looks like this:</p>
-<div class="highlight"><pre><span></span><code><span class="nt">deployment</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-
-<span class="w">    </span><span class="nt">image</span><span class="p">:</span>
-<span class="w">        </span><span class="nt">repository</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ghcr.io/predibase/lorax</span>
-<span class="w">        </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&lt;tested-tag&gt;&quot;</span><span class="w"> </span><span class="c1"># Prefer an immutable digest in rendered manifests.</span>
-
-<span class="w">    </span><span class="nt">args</span><span class="p">:</span>
-<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;--model-id&quot;</span>
-<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mistralai/Mistral-7B-Instruct-v0.1&quot;</span>
-<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;--max-input-length&quot;</span>
-<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2048&quot;</span>
-<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;--max-total-tokens&quot;</span>
-<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;3072&quot;</span>
-<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;--max-batch-total-tokens&quot;</span>
-<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;8192&quot;</span>
-<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;--max-batch-prefill-tokens&quot;</span>
-<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;4096&quot;</span>
-
-<span class="w">    </span><span class="nt">resources</span><span class="p">:</span>
-<span class="w">        </span><span class="nt">requests</span><span class="p">:</span>
-<span class="w">            </span><span class="nt">nvidia.com/gpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1&quot;</span>
-<span class="w">        </span><span class="nt">limits</span><span class="p">:</span>
-<span class="w">            </span><span class="nt">nvidia.com/gpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1&quot;</span>
-
-<span class="w">    </span><span class="nt">readinessProbe</span><span class="p">:</span>
-<span class="w">        </span><span class="nt">httpGet</span><span class="p">:</span>
-<span class="w">            </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/health</span>
-<span class="w">            </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http</span>
-<span class="w">        </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
-<span class="w">        </span><span class="nt">failureThreshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">600</span>
-
-<span class="nt">service</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">serviceType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ClusterIP</span>
-<span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">80</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#7EE787">deployment</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#7EE787">    replicas</span><span style="color:#E6EDF3">: </span><span style="color:#79C0FF">1</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7EE787">    image</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#7EE787">        repository</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">ghcr.io/predibase/lorax</span></span>
+<span class="line"><span style="color:#7EE787">        tag</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"&#x3C;tested-tag>"</span><span style="color:#8B949E"> # Prefer an immutable digest in rendered manifests.</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7EE787">    args</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#E6EDF3">        - </span><span style="color:#7EE787">name</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"--model-id"</span></span>
+<span class="line"><span style="color:#7EE787">          value</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"mistralai/Mistral-7B-Instruct-v0.1"</span></span>
+<span class="line"><span style="color:#E6EDF3">        - </span><span style="color:#7EE787">name</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"--max-input-length"</span></span>
+<span class="line"><span style="color:#7EE787">          value</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"2048"</span></span>
+<span class="line"><span style="color:#E6EDF3">        - </span><span style="color:#7EE787">name</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"--max-total-tokens"</span></span>
+<span class="line"><span style="color:#7EE787">          value</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"3072"</span></span>
+<span class="line"><span style="color:#E6EDF3">        - </span><span style="color:#7EE787">name</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"--max-batch-total-tokens"</span></span>
+<span class="line"><span style="color:#7EE787">          value</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"8192"</span></span>
+<span class="line"><span style="color:#E6EDF3">        - </span><span style="color:#7EE787">name</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"--max-batch-prefill-tokens"</span></span>
+<span class="line"><span style="color:#7EE787">          value</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"4096"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7EE787">    resources</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#7EE787">        requests</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#7EE787">            nvidia.com/gpu</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"1"</span></span>
+<span class="line"><span style="color:#7EE787">        limits</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#7EE787">            nvidia.com/gpu</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"1"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7EE787">    readinessProbe</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#7EE787">        httpGet</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#7EE787">            path</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">/health</span></span>
+<span class="line"><span style="color:#7EE787">            port</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">http</span></span>
+<span class="line"><span style="color:#7EE787">        periodSeconds</span><span style="color:#E6EDF3">: </span><span style="color:#79C0FF">5</span></span>
+<span class="line"><span style="color:#7EE787">        failureThreshold</span><span style="color:#E6EDF3">: </span><span style="color:#79C0FF">600</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7EE787">service</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#7EE787">    serviceType</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">ClusterIP</span></span>
+<span class="line"><span style="color:#7EE787">    port</span><span style="color:#E6EDF3">: </span><span style="color:#79C0FF">80</span></span></code></pre>
 <p>The token limits above are example starting values, not sizing recommendations. Derive them from representative prompts, expected concurrency, GPU memory, and load tests.</p>
 <h3 id="patch-the-gaps-explicitly">Patch the gaps explicitly</h3>
 <p>The current chart template hard-codes <code>emptyDir</code> volumes and plain environment values. A hardened deployment therefore needs a reviewed chart fork, post-render patch, or higher-level manifest layer to add:</p>
@@ -1761,41 +208,41 @@ helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class=
 <h3 id="route-for-cache-locality">Route for cache locality</h3>
 <p>Round-robin balancing can turn every replica into a cold cache. A useful router hashes or otherwise affinitizes an allowed adapter ID to a replica, while retaining a failover path when that replica is unavailable.</p>
 <p>The routing key must come from authenticated application state, not an arbitrary public URL parameter. Otherwise a caller can force remote downloads, churn caches, or probe private adapter names.</p>
-<hr />
+<hr>
 <h2 id="lorax-or-vllm">LoRAX or vLLM?</h2>
 <p>Current vLLM can serve LoRA modules declared at startup and can also load them dynamically through endpoints or resolver plugins. Its own documentation warns that runtime adapter updating has security risks and should not be used in production outside an isolated, trusted environment.</p>
 <p>The useful comparison is operational rather than numerical:</p>
-<table>
-<thead>
-<tr>
-<th>Question</th>
-<th>LoRAX</th>
-<th>vLLM</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>How are long-tail adapters discovered?</td>
-<td>Adapter ID can resolve Hugging Face, Predibase, or filesystem artifacts on request</td>
-<td>Static modules, dynamic management endpoints, or resolver plugins</td>
-</tr>
-<tr>
-<td>How is residency managed?</td>
-<td>Explicit adapter exchange scheduling between GPU and CPU</td>
-<td>Configured active and CPU LoRA limits plus resolver behavior</td>
-</tr>
-<tr>
-<td>What is the request interface?</td>
-<td>TGI-style <code>/generate</code>, Python client, and OpenAI-compatible chat</td>
-<td>OpenAI-compatible serving and native Python APIs</td>
-</tr>
-<tr>
-<td>What should decide?</td>
-<td>Cold/warm latency, cache churn, heterogeneous batch throughput, and operational fit</td>
-<td>The same workload replay and operational criteria</td>
-</tr>
-</tbody>
-</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Question</th><th>LoRAX</th><th>vLLM</th></tr></thead><tbody><tr><td>How are long-tail adapters discovered?</td><td>Adapter ID can resolve Hugging Face, Predibase, or filesystem artifacts on request</td><td>Static modules, dynamic management endpoints, or resolver plugins</td></tr><tr><td>How is residency managed?</td><td>Explicit adapter exchange scheduling between GPU and CPU</td><td>Configured active and CPU LoRA limits plus resolver behavior</td></tr><tr><td>What is the request interface?</td><td>TGI-style <code>/generate</code>, Python client, and OpenAI-compatible chat</td><td>OpenAI-compatible serving and native Python APIs</td></tr><tr><td>What should decide?</td><td>Cold/warm latency, cache churn, heterogeneous batch throughput, and operational fit</td><td>The same workload replay and operational criteria</td></tr></tbody></table>
 <p>Avoid rules such as “LoRAX for 1,000 adapters, vLLM for ten.” Catalog size alone does not determine performance. Benchmark both with the same base, adapters, prompts, ranks, arrival trace, and hardware.</p>
 <h2 id="a-production-acceptance-test">A production acceptance test</h2>
 <p>Before expanding the catalog, run a replay that includes:</p>
@@ -1819,120 +266,22 @@ helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class=
 <li><a href="https://docs.vllm.ai/en/latest/features/lora/">vLLM LoRA adapters</a> — static and dynamic adapter serving</li>
 <li><a href="https://arxiv.org/abs/2106.09685">LoRA paper</a> — low-rank adaptation method</li>
 <li><a href="https://huggingface.co/docs/peft/index">Hugging Face PEFT documentation</a> — adapter formats and training integration</li>
-</ul>
-
-
-
-
-
-
-
-  
-  
-
-
-
-  
-
-
-  
-
-
- 
-  </article>
-</div>
-
-          
-<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
-        </div>
-        
-      </main>
-      
-        <footer class="md-footer">
-  
-  <div class="md-footer-meta md-typeset">
-    <div class="md-footer-meta__inner md-grid">
-      <div class="md-copyright">
-  
-  
-    Made with
-    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
-      Material for MkDocs
-    </a>
-  
-</div>
-      
-        
-<div class="md-social">
-  
-    
-    
-    
-    
-    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://www.tiktok.com/@edge.of.context" target="_blank" rel="noopener" title="TikTok" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M448.5 209.9c-44 .1-87-13.6-122.8-39.2v178.7c0 33.1-10.1 65.4-29 92.6s-45.6 48-76.6 59.6-64.8 13.5-96.9 5.3-60.9-25.9-82.7-50.8-35.3-56-39-88.9 2.9-66.1 18.6-95.2 40-52.7 69.6-67.7 62.9-20.5 95.7-16v89.9c-15-4.7-31.1-4.6-46 .4s-27.9 14.6-37 27.3-14 28.1-13.9 43.9 5.2 31 14.5 43.7 22.4 22.1 37.4 26.9 31.1 4.8 46-.1 28-14.4 37.2-27.1 14.2-28.1 14.2-43.8V0h88c-.1 7.4.6 14.9 1.9 22.2 3.1 16.3 9.4 31.9 18.7 45.7s21.3 25.6 35.2 34.6c19.9 13.1 43.2 20.1 67 20.1V210z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
-    </a>
-  
-</div>
-      
-    </div>
-  </div>
-</footer>
-      
-    </div>
-    <div class="md-dialog" data-md-component="dialog">
-      <div class="md-dialog__inner md-typeset"></div>
-    </div>
-    
-    
-    
-      
-      
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
-    
-    
-      <script src="../../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-      
-        <script src="../../../../../javascripts/mermaid-init.js"></script>
-      
-        <script src="../../../../../javascripts/mathjax.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
-      
-    
-  </body>
-</html>
+</ul> </article>  </main> <footer class="site-footer"> <p data-footer-tagline>Practical AI engineering by Slava Dubrov.</p> <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>
+      document.querySelector("#locale-select")?.addEventListener("change", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLSelectElement && target.value) location.assign(target.value);
+      });
+      document.querySelectorAll("pre").forEach((pre) => {
+        if (pre.closest(".mermaid-diagram")) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-code";
+        button.textContent = "Copy";
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(pre.textContent || "");
+          button.textContent = "Copied";
+          setTimeout(() => { button.textContent = "Copy"; }, 1500);
+        });
+        pre.append(button);
+      });
+    </script> </body> </html>

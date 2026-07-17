@@ -1,1711 +1,153 @@
-
-<!doctype html>
-<html lang="pt" class="no-js">
-  <head>
-    
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1">
-      
-        <meta name="description" content="Como avaliar agentes de IA em produção, transformando registos em conjuntos de dados de regressão versionados, métricas de trajetória, juízes calibrados e portas de CI.">
-      
-      
-        <meta name="author" content="Viacheslav Dubrov">
-      
-      
-        <link rel="canonical" href="https://slavadubrov.github.io/pt/blog/2026/06/10/agent-evals-traces-to-test-suites/">
-      
-      
-      
-      
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/blog/2026/06/10/agent-evals-traces-to-test-suites/" hreflang="en">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/de/blog/2026/06/10/agent-evals-traces-to-test-suites/" hreflang="de">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/ru/blog/2026/06/10/agent-evals-traces-to-test-suites/" hreflang="ru">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/es/blog/2026/06/10/agent-evals-traces-to-test-suites/" hreflang="es">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/pt/blog/2026/06/10/agent-evals-traces-to-test-suites/" hreflang="pt">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/fr/blog/2026/06/10/agent-evals-traces-to-test-suites/" hreflang="fr">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/nl/blog/2026/06/10/agent-evals-traces-to-test-suites/" hreflang="nl">
-        
-      
-      
-        <link rel="alternate" type="application/rss+xml" title="canal RSS" href="../../../../../../feed_rss_created.xml">
-        <link rel="alternate" type="application/rss+xml" title="canal RSS com conteúdo atualizado" href="../../../../../../feed_rss_updated.xml">
-      
-      <link rel="icon" href="../../../../../../assets/favicon-eoc.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.6">
-    
-    
-      
-        <title>Avaliação de Agentes de IA em Produção: De Registos a Conjuntos de Testes - Edge of Context: Practical AI Engineering</title>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../../assets/stylesheets/main.484c7ddc.min.css">
-      
-        
-        <link rel="stylesheet" href="../../../../../../assets/stylesheets/palette.ab4e12ef.min.css">
-      
-      
-
-
-    
-    
-      
-    
-    
-      
-        
-        
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
-        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../../assets/brand.css">
-    
-      <link rel="stylesheet" href="../../../../../../assets/blog-sidebar.css">
-    
-      <link rel="stylesheet" href="../../../../../../assets/blog-index.css">
-    
-    <script>__md_scope=new URL("../../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
-    
-      
-  
-
-
-  
-  
-
-<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-T51K83ENZ5"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-T51K83ENZ5",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
-  
-    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
-  
-
-    
-        
-
-   
-     
-<!-- Open Graph -->
-<meta property="og:title" content="Avaliação de Agentes de IA em Produção: De Registos a Conjuntos de Testes" />
-<meta property="og:description" content="Como avaliar agentes de IA em produção, transformando registos em conjuntos de dados de regressão versionados, métricas de trajetória, juízes calibrados e portas de CI." />
-<meta property="og:url" content="https://slavadubrov.github.io/pt/blog/2026/06/10/agent-evals-traces-to-test-suites/" />
-<meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
-<meta
-  property="og:type"
-  content="article"
-/>
-<meta property="og:image" content="https://slavadubrov.github.io/blog/assets/2026-06-10-agent-evals-traces-to-test-suites/trace-to-eval-flywheel.svg" />
-<!-- Twitter Card -->
-<meta
-  name="twitter:card"
-  content="summary_large_image"
-/>
-<meta name="twitter:title" content="Avaliação de Agentes de IA em Produção: De Registos a Conjuntos de Testes" />
-<meta name="twitter:description" content="Como avaliar agentes de IA em produção, transformando registos em conjuntos de dados de regressão versionados, métricas de trajetória, juízes calibrados e portas de CI." />
-<meta name="twitter:image" content="https://slavadubrov.github.io/blog/assets/2026-06-10-agent-evals-traces-to-test-suites/trace-to-eval-flywheel.svg" />
-<!-- Site identity schema -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Person",
-        "@id": "https://slavadubrov.github.io/#person",
-        "name": "Viacheslav Dubrov",
-        "alternateName": "Slava Dubrov",
-        "url": "https://slavadubrov.github.io/about/",
-        "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-      },
-      {
-        "@type": "WebSite",
-        "@id": "https://slavadubrov.github.io/#website",
-        "name": "Edge of Context: Practical AI Engineering",
-        "alternateName": "Edge of Context",
-        "url": "https://slavadubrov.github.io/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "pt",
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        }
-      },
-      {
-        "@type": "Blog",
-        "@id": "https://slavadubrov.github.io/#blog",
-        "name": "Edge of Context: Practical AI Engineering",
-        "url": "https://slavadubrov.github.io/blog/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "pt",
-        "author": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "isPartOf": {
-          "@id": "https://slavadubrov.github.io/#website"
-        }
-      }
-    ]
-  }
-</script>
-
-<script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      "itemListElement": [
-        {
-          "@type": "ListItem",
-          "position": 1,
-          "name": "Edge of Context: Practical AI Engineering",
-          "item": "https://slavadubrov.github.io/"
-        },
-        {
-          "@type": "ListItem",
-          "position": 2,
-          "name": "Avalia\u00e7\u00e3o de Agentes de IA em Produ\u00e7\u00e3o: De Registos a Conjuntos de Testes",
-          "item": "https://slavadubrov.github.io/pt/blog/2026/06/10/agent-evals-traces-to-test-suites/"
-        }
-  
-      ]
-    }
-</script>
- 
-<style>
-  /* Header social icons */
-  .md-header__social {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-left: 0.5rem;
-  }
-  .md-header__social a {
-    color: var(--md-primary-bg-color);
-    opacity: 0.7;
-    transition: opacity 0.2s;
-  }
-  .md-header__social a:hover {
-    opacity: 1;
-  }
-  .md-header__social svg {
-    width: 1.2rem;
-    height: 1.2rem;
-    fill: currentColor;
-  }
-  /* Adjust search to make room for social icons */
-  .md-search {
-    margin-right: 0;
-  }
-</style>
-
-<!-- Article-specific Open Graph -->
-       
-<meta property="article:published_time" content="2026-06-10" />
- 
-<meta property="article:modified_time" content="2026-06-10" />
- 
-<meta property="article:author" content="Viacheslav Dubrov" />
-  
-<meta property="article:tag" content="AI Agents" />
- 
-<!-- Schema.org JSON-LD -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    "@id": "https://slavadubrov.github.io/pt/blog/2026/06/10/agent-evals-traces-to-test-suites/#blogposting",
-    "headline": "Avalia\u00e7\u00e3o de Agentes de IA em Produ\u00e7\u00e3o: De Registos a Conjuntos de Testes",
-    "description": "Como avaliar agentes de IA em produ\u00e7\u00e3o, transformando registos em conjuntos de dados de regress\u00e3o versionados, m\u00e9tricas de trajet\u00f3ria, ju\u00edzes calibrados e portas de CI.",
-    "url": "https://slavadubrov.github.io/pt/blog/2026/06/10/agent-evals-traces-to-test-suites/",
-    "image": "https://slavadubrov.github.io/blog/assets/2026-06-10-agent-evals-traces-to-test-suites/trace-to-eval-flywheel.svg",
-    "inLanguage": "pt",
-    "mainEntityOfPage": {
-      "@type": "WebPage",
-      "@id": "https://slavadubrov.github.io/pt/blog/2026/06/10/agent-evals-traces-to-test-suites/"
-    },
-    "datePublished": "2026-06-10",
-    "dateModified": "2026-06-10",
-    "author": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "publisher": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "isPartOf": {
-      "@type": "Blog",
-      "@id": "https://slavadubrov.github.io/#blog",
-      "name": "Edge of Context: Practical AI Engineering",
-      "url": "https://slavadubrov.github.io/"
-    },
-    "keywords": "AI Agents"
-  }
-</script>
-
-  
-<link rel="alternate" href="https://slavadubrov.github.io/blog/2026/06/10/agent-evals-traces-to-test-suites/" hreflang="x-default">
-</head>
-  
-  
-    
-    
-      
-    
-    
-    
-    
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
-  
-    
-    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
-    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
-    <label class="md-overlay" for="__drawer"></label>
-    <div data-md-component="skip">
-      
-        
-        <a href="#avaliacao-de-agentes-de-ia-em-producao-de-registos-a-conjuntos-de-testes" class="md-skip">
-          Ir para o conteúdo
-        </a>
-      
-    </div>
-    <div data-md-component="announce">
-      
-    </div>
-    
-     
-      
-
-  
-
-<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
-  <nav class="md-header__inner md-grid" aria-label="Cabeçalho">
-    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    <label class="md-header__button md-icon" for="__drawer">
-      
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
-    </label>
-    <div class="md-header__title" data-md-component="header-title">
-      <div class="md-header__ellipsis">
-        <div class="md-header__topic">
-          <span class="md-ellipsis">
-            Edge of Context: Practical AI Engineering
-          </span>
-        </div>
-        <div class="md-header__topic" data-md-component="header-topic">
-          <span class="md-ellipsis">
-            
-              Avaliação de Agentes de IA em Produção: De Registos a Conjuntos de Testes
-            
-          </span>
-        </div>
-      </div>
-    </div>
-    
-      
-        <form class="md-header__option" data-md-component="palette">
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
-    
-      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
-    
-      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-</form>
-      
-    
-    
-      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
-    
-    
-      <div class="md-header__option">
-  <div class="md-select">
-    
-    <button class="md-header__button md-icon" aria-label="Selecione o idioma">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
-    </button>
-    <div class="md-select__inner">
-      <ul class="md-select__list">
-        
-          <li class="md-select__item">
-            <a href="../../../../../../blog/2026/06/10/agent-evals-traces-to-test-suites/" hreflang="en" class="md-select__link">
-              English
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../de/blog/2026/06/10/agent-evals-traces-to-test-suites/" hreflang="de" class="md-select__link">
-              Deutsch
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../ru/blog/2026/06/10/agent-evals-traces-to-test-suites/" hreflang="ru" class="md-select__link">
-              Русский
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../es/blog/2026/06/10/agent-evals-traces-to-test-suites/" hreflang="es" class="md-select__link">
-              Español
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="./" hreflang="pt" class="md-select__link">
-              Português
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../fr/blog/2026/06/10/agent-evals-traces-to-test-suites/" hreflang="fr" class="md-select__link">
-              Français
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../nl/blog/2026/06/10/agent-evals-traces-to-test-suites/" hreflang="nl" class="md-select__link">
-              Nederlands
-            </a>
-          </li>
-        
-      </ul>
-    </div>
-  </div>
-</div>
-    
-    
-      
-      
-        <label class="md-header__button md-icon" for="__search">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        </label>
-        <div class="md-search" data-md-component="search" role="dialog">
-  <label class="md-search__overlay" for="__search"></label>
-  <div class="md-search__inner" role="search">
-    <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" aria-label="Buscar" placeholder="Buscar" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
-      <label class="md-search__icon md-icon" for="__search">
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-      </label>
-      <nav class="md-search__options" aria-label="Pesquisar">
-        
-        <button type="reset" class="md-search__icon md-icon" title="Limpar" aria-label="Limpar" tabindex="-1">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-        </button>
-      </nav>
-      
-    </form>
-    <div class="md-search__output">
-      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
-        <div class="md-search-result" data-md-component="search-result">
-          <div class="md-search-result__meta">
-            Inicializando a pesquisa
-          </div>
-          <ol class="md-search-result__list" role="presentation"></ol>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-      
-    
-    
-  </nav>
-  
-    
-      
-<nav class="md-tabs" aria-label="Abas" data-md-component="tabs">
-  <div class="md-grid">
-    <ul class="md-tabs__list">
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../../" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Início
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Blog
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
-        <a href="../../../../fast-answers/" class="md-tabs__link">
-          
-  
-  
-    
-  
-  Respostas rápidas
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../../about/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Sobre
-
-      </a>
-    </li>
-  
-
-      
-    </ul>
-  </div>
-</nav>
-    
-  
-</header>
-    
-<script>
-  // Inject social icons into header after DOM loads
-  document.addEventListener("DOMContentLoaded", function () {
-    const header = document.querySelector(".md-header__inner");
-    if (header) {
-      const social = document.createElement("div");
-      social.className = "md-header__social";
-      social.innerHTML = `
-      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
-      </a>
-      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
-      </a>
-      <a href="https://www.tiktok.com/@edge.of.context" title="TikTok" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M448 209.9a210.1 210.1 0 0 1-122.8-39.2v178.7A162.6 162.6 0 1 1 185 188.3v89.9a74.6 74.6 0 1 0 52.2 71.2V0h88a121.2 121.2 0 0 0 1.9 22.2 122.2 122.2 0 0 0 53.9 80.2 121.4 121.4 0 0 0 67 20.1v87.4z"/></svg>
-      </a>
-      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
-      </a>
-    `;
-      header.appendChild(social);
-    }
-  });
-</script>
-
-    <div class="md-container" data-md-component="container">
-      
-      
-        
-      
-      <main class="md-main" data-md-component="main">
-        <div class="md-main__inner md-grid">
-          
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-
-  
-
-
-<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navegação" data-md-level="0">
-  <label class="md-nav__title" for="__drawer">
-    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    Edge of Context: Practical AI Engineering
-  </label>
-  
-  <ul class="md-nav__list" data-md-scrollfix>
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Início
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Blog
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-      
-        
-          
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <div class="md-nav__link md-nav__container">
-            <a href="../../../../fast-answers/" class="md-nav__link ">
-              
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Respostas rápidas
-  
-
-    
-  </span>
-  
-  
-
-            </a>
-            
-              
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
-                <span class="md-nav__icon md-icon"></span>
-              </label>
-            
-          </div>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Respostas rápidas
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ai-agent-frameworks/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Frameworks
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/rag-evaluation-tools/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    RAG Evaluation Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/local-llm-tools-macos/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Local LLM Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ocr-models-document-ai/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    OCR Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ner-models/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    NER Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/agent-security-patterns/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Security Patterns
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/search-ranking-stack/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Search Ranking Stack
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../../about/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Sobre
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-  </ul>
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-<nav class="md-nav md-nav--secondary" aria-label="Índice">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Índice
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#por-que-as-avaliacoes-de-agentes-sao-diferentes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Por que as avaliações de agentes são diferentes
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#a-lacuna-de-adocao" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        A lacuna de adoção
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#selecionar-metricas-por-modo-de-falha" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Selecionar métricas por modo de falha
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Selecionar métricas por modo de falha">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#correcao-das-chamadas-de-ferramenta" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Correção das chamadas de ferramenta
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#eficiencia-lacos-e-impasses" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Eficiência, laços e impasses
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#conclusao-da-tarefa-e-classificacao-dos-resultados" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Conclusão da tarefa e classificação dos resultados
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#o-volante-de-rastreio-a-avaliacao" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        O volante de rastreio a avaliação
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="O volante de rastreio a avaliação">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#falhas-na-mina-com-analise-de-erros" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Falhas na mina com análise de erros
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#elimine-duplicatas-antes-de-promover" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Elimine duplicatas antes de promover
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#versione-o-conjunto-de-dados" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Versione o conjunto de dados
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#gate-ci" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Gate CI
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#escolhas-de-ferramentas" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Escolhas de ferramentas
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#uma-lista-de-verificacao-pratica-para-implementacao" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Uma lista de verificação prática para implementação
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#principais-conclusoes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Principais conclusões
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#referencias" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Referências
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-          
-              
-
-<div class="md-content md-content--post" data-md-component="content">
-  <div
-    class="md-sidebar md-sidebar--post"
-    data-md-component="sidebar"
-    data-md-type="navigation"
-  >
-    <div class="md-sidebar__scrollwrap">
-      <div class="md-sidebar__inner md-post">
-        <nav class="md-nav md-nav--primary">
-          <div class="md-post__back">
-            <div class="md-nav__title md-nav__container">
-              <a href="../../../../" class="md-nav__link">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-                <span class="md-ellipsis"> Voltar ao índice </span>
-              </a>
-            </div>
-          </div>
-
-          
-          <ul class="md-post__meta md-nav__list">
-            <li class="md-nav__item md-nav__item--section">
-              <div class="md-post__title">
-                <span class="md-ellipsis"
-                  >Temas</span
-                >
-              </div>
-              <nav class="md-nav">
-                          
-                <div
-                  class="blog-category-section blog-category-section--active"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-agents"
-                  >
-                    <span class="blog-category-icon"
-                      >🦾</span
-                    >
-                    <span class="blog-category-name"
-                      >Agentes de IA</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../20/schema-guided-agent-memory/">Memória de Agente de IA: Estado Tipado Guiado por Esquema para Sistemas em Execução Contínua</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post blog-category-post--active"
-                    >
-                      <a href="./">Avaliação de Agentes de IA em Produção: De Registos a Conjuntos de Testes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/26/ai-agent-runtime/">Tempo de Execução de Agentes de IA de Longo Prazo em 2026: Sessões, Sandboxs, Pontos de Verificação e Ferramentas de Otimização</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/20/ai-agent-security/">Segurança de Agentes de IA em 2026: Restrições, Permissões, Ambientes de Teste e Ameaças MCP</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../03/24/ai-agent-tool-use/">Uso de Ferramentas de Agente de IA em 2026: MCP, CLI, Habilidades e Execução de Código</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../02/14/ai-agent-memory-architecture/">Arquitetura de Memória de Agentes de IA em 2026: Pontos de Parada, Armazenamentos Vetoriais e Memória Baseada em Ficheiros</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../01/31/ai-agent-reasoning-loops/">Laços de Raciocínio de Agentes de IA em 2026: ReAct vs ReWOO vs Planear e Executar</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../01/11/enterprise-rag-challenge-agent-architectures/">Desafio Enterprise RAG 3 (ECR3): Arquiteturas Vencedoras de Agentes de IA</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/12/28/schema-guided-reasoning-vllm/">Raciocínio Guiado por Esquema em vLLM: Saídas Estruturadas com xgrammar e Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/20/domain-driven-design-ai-agents/">Design Orientado a Domínios para Agentes de IA: Contextos Delimitados, Ferramentas e Regras de Negócio</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/05/context-engineering-ai-agents/">Engenharia de Contexto para Agentes de IA: Janelas de Contexto, Memória, Ferramentas e Restrições</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/06/10/mcp-server-tutorial-uv-fastmcp/">Tutorial de Servidor MCP com uv e FastMCP: Construir um Servidor FeatureStoreLite</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#model-engineering"
-                  >
-                    <span class="blog-category-icon"
-                      >🤖</span
-                    >
-                    <span class="blog-category-name"
-                      >Engenharia de
-modelos</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Quantização de Modelos em 2026: Das Fundações à Implementação em Produção</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../03/13/llm-engineering-guide/">Guia de Engenharia de LLMs: 45 Conceitos para Inferência, Treino, Arquitetura e Operações</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../01/21/manifold-constrained-hyper-connections/">Hyper-Conexões Restritas por Manifolds (mHC): Explicação da Escala Residual do DeepSeek</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../01/04/llm-fine-tuning-guide/">Guia de Ajuste Fino de LLMs: LoRA, QLoRA, DoRA, Unsloth, Axolotl e Implementação</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/12/28/schema-guided-reasoning-vllm/">Raciocínio Guiado por Esquema em vLLM: Saídas Estruturadas com xgrammar e Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Guia de Implementação do LoRAX: Milhares de Adaptadores LoRA em Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/11/open-source-llm-formats/">Variantes de LLM de Código Aberto e Formatos de Ficheiro: Instruct, GGUF, GPTQ, AWQ e MoE</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/10/local-llms-on-macos/">LLMs locais no macOS: Ollama, LM Studio, llama.cpp, MLX e Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/04/scaling-llms-multi-gpu-multi-node/">Escalar Modelos de Língua Grande: Estratégias Multi-GPU e Multi-Nó que Funcionam na Prática</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-infrastructure"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >Infraestrutura de IA</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Quantização de Modelos em 2026: Das Fundações à Implementação em Produção</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../02/21/modern-data-processing-engines/">Comparação de Motores Modernos de Processamento de Dados: Polars, DataFusion, Daft, Ray Data, Pandas e Spark</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Guia de Implementação do LoRAX: Milhares de Adaptadores LoRA em Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/06/mlops-vs-llmops/">MLOps vs LLMOps: Infraestrutura para Modelos Fundacionais e Sistemas de LLM</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/04/scaling-llms-multi-gpu-multi-node/">Escalar Modelos de Língua Grande: Estratégias Multi-GPU e Multi-Nó que Funcionam na Prática</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#retrieval-and-language-systems"
-                  >
-                    <span class="blog-category-icon"
-                      >🔍</span
-                    >
-                    <span class="blog-category-name"
-                      >Retrieval and Language Systems</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/10/rag-evaluation-metrics/">Avaliação de RAG: Métricas para Cada Etapa de um Sistema RAG em Produção</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/02/ner-guide/">O Guia Definitivo sobre NER em 2026: Codificadores, LLMs e a Arquitetura de Produção em 3 Camadas</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../03/04/ocr-guide/">O Guia Definitivo sobre OCR em 2026: De Pipelines a VLMs</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../02/08/search-ranking-stack/">Stack de Classificação de Pesquisas em 2026: BM25, Embeddings, Cross-Encoders e Reranking com LLMs</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#developer-tooling"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >Ferramentas de desenvolvimento</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/06/10/mcp-server-tutorial-uv-fastmcp/">Tutorial de Servidor MCP com uv e FastMCP: Construir um Servidor FeatureStoreLite</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/10/local-llms-on-macos/">LLMs locais no macOS: Ollama, LM Studio, llama.cpp, MLX e Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/10/stable-diffusion-macos-tools/">Stable Diffusion no macOS: Ferramentas para Desenhar, DiffusionBee, ComfyUI, A1111 e Fooocus</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/08/pyproject-toml-guide/">Guia `pyproject.toml`: Empacotamento em Python, Dependências e Configuração de Ferramentas</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/05/07/zprofile-vs-zshrc/">Ficheiros de inicialização do Zsh: `~/.zprofile` vs `~/.zshrc` em macOS e Linux</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/04/19/macbook-ai-engineering-setup/">Configuração do MacBook para Engenharia de IA: Ferramentas do macOS, Python, Docker e Fluxo de Trabalho no Terminal</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2025/04/17/uv-python-on-macos/">UV no macOS: Gestão de Versões, Projetos e Ferramentas Python</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                
-              </nav>
-            </li>
-          </ul>
-
-          
-        </nav>
-        
-      </div>
-    </div>
-  </div>
-  <article class="md-content__inner md-typeset">
-     
-  
-
-
-
-
-<!-- automated-translation-notice:start -->
-
-<div class="admonition info">
-<p class="admonition-title">Tradução automática</p>
-</div>
-<p>Este artigo foi traduzido automaticamente a partir da versão original em inglês.</p>
+<!DOCTYPE html><html lang="pt"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Avaliação de Agentes de IA em Produção: De Registos a Conjuntos de Testes - Edge of Context: Practical AI Engineering</title><meta name="description" content="Como avaliar agentes de IA em produção, transformando registos em conjuntos de dados de regressão versionados, métricas de trajetória, juízes calibrados e portas de CI."><link rel="canonical" href="https://slavadubrov.github.io/pt/blog/2026/06/10/agent-evals-traces-to-test-suites/"><link rel="alternate" hreflang="de" href="https://slavadubrov.github.io/de/blog/2026/06/10/agent-evals-traces-to-test-suites/"><link rel="alternate" hreflang="en" href="https://slavadubrov.github.io/blog/2026/06/10/agent-evals-traces-to-test-suites/"><link rel="alternate" hreflang="es" href="https://slavadubrov.github.io/es/blog/2026/06/10/agent-evals-traces-to-test-suites/"><link rel="alternate" hreflang="fr" href="https://slavadubrov.github.io/fr/blog/2026/06/10/agent-evals-traces-to-test-suites/"><link rel="alternate" hreflang="nl" href="https://slavadubrov.github.io/nl/blog/2026/06/10/agent-evals-traces-to-test-suites/"><link rel="alternate" hreflang="pt" href="https://slavadubrov.github.io/pt/blog/2026/06/10/agent-evals-traces-to-test-suites/"><link rel="alternate" hreflang="ru" href="https://slavadubrov.github.io/ru/blog/2026/06/10/agent-evals-traces-to-test-suites/"><link rel="alternate" hreflang="x-default" href="https://slavadubrov.github.io/blog/2026/06/10/agent-evals-traces-to-test-suites/"><meta property="og:type" content="article"><meta property="og:title" content="Avaliação de Agentes de IA em Produção: De Registos a Conjuntos de Testes - Edge of Context: Practical AI Engineering"><meta property="og:description" content="Como avaliar agentes de IA em produção, transformando registos em conjuntos de dados de regressão versionados, métricas de trajetória, juízes calibrados e portas de CI."><meta property="og:url" content="https://slavadubrov.github.io/pt/blog/2026/06/10/agent-evals-traces-to-test-suites/"><meta property="og:image" content="https://slavadubrov.github.io/blog/assets/2026-06-10-agent-evals-traces-to-test-suites/trace-to-eval-flywheel.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Avaliação de Agentes de IA em Produção: De Registos a Conjuntos de Testes - Edge of Context: Practical AI Engineering"><meta name="twitter:description" content="Como avaliar agentes de IA em produção, transformando registos em conjuntos de dados de regressão versionados, métricas de trajetória, juízes calibrados e portas de CI."><meta name="twitter:image" content="https://slavadubrov.github.io/blog/assets/2026-06-10-agent-evals-traces-to-test-suites/trace-to-eval-flywheel.svg"><meta property="article:published_time" content="2026-06-10"><meta property="article:modified_time" content="2026-06-10"><link rel="icon" href="/assets/favicon-eoc.svg" type="image/svg+xml"><link href="/pagefind/pagefind-component-ui.css" rel="stylesheet"><script src="/pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Avaliação de Agentes de IA em Produção: De Registos a Conjuntos de Testes - Edge of Context: Practical AI Engineering","description":"Como avaliar agentes de IA em produção, transformando registos em conjuntos de dados de regressão versionados, métricas de trajetória, juízes calibrados e portas de CI.","url":"https://slavadubrov.github.io/pt/blog/2026/06/10/agent-evals-traces-to-test-suites/","image":"https://slavadubrov.github.io/blog/assets/2026-06-10-agent-evals-traces-to-test-suites/trace-to-eval-flywheel.svg","datePublished":"2026-06-10","dateModified":"2026-06-10","author":{"@type":"Person","name":"Viacheslav Dubrov"}}</script><link rel="stylesheet" href="/_astro/BaseLayout.DgRW7Vi7.css"></head> <body> <a class="skip-link" href="#main-content">Skip to content</a> <header class="site-header"> <a class="brand" data-home-link href="/pt/" aria-label="Edge of Context home"> <img src="/assets/logo-eoc.svg" alt="" width="36" height="36"> <span>Edge of Context</span> </a> <nav aria-label="Primary navigation"> <ul> <li><a data-nav="home" href="/pt/">Início</a></li><li><a data-nav="blog" href="/pt/blog/">Blog</a></li><li><a data-nav="fastAnswers" href="/pt/blog/fast-answers/">Respostas rápidas</a></li><li><a data-nav="about" href="/pt/about/">Sobre</a></li> </ul> </nav> <div class="header-actions"> <pagefind-modal-trigger data-search-label="true">Buscar</pagefind-modal-trigger> <label class="locale-switcher"> <span class="visually-hidden">Idioma</span> <select id="locale-select"> <option value="/de/blog/2026/06/10/agent-evals-traces-to-test-suites/">Deutsch</option><option value="/blog/2026/06/10/agent-evals-traces-to-test-suites/">English</option><option value="/es/blog/2026/06/10/agent-evals-traces-to-test-suites/">Español</option><option value="/fr/blog/2026/06/10/agent-evals-traces-to-test-suites/">Français</option><option value="/nl/blog/2026/06/10/agent-evals-traces-to-test-suites/">Nederlands</option><option value="/pt/blog/2026/06/10/agent-evals-traces-to-test-suites/" selected>Português</option><option value="/ru/blog/2026/06/10/agent-evals-traces-to-test-suites/">Русский</option> </select> </label> </div> </header> <main id="main-content" tabindex="-1">  <article class="prose" data-pagefind-body> <p class="article-meta"> <time datetime="2026-06-10">2026-06-10</time>  · Atualizado <time datetime="2026-06-10">2026-06-10</time> </p> <!-- automated-translation-notice:start -->
+<blockquote>
+<p>[!NOTE] Tradução automática
+Este artigo foi traduzido automaticamente a partir da versão original em inglês.</p>
+</blockquote>
 <!-- automated-translation-notice:end -->
-
-<h1 id="avaliacao-de-agentes-de-ia-em-producao-de-registos-a-conjuntos-de-testes">Avaliação de Agentes de IA em Produção: De Registos a Conjuntos de Testes</h1>
+<h1 id="avaliação-de-agentes-de-ia-em-produção-de-registos-a-conjuntos-de-testes">Avaliação de Agentes de IA em Produção: De Registos a Conjuntos de Testes</h1>
 <p>Um chatbot fornece-lhe uma única resposta para avaliar. Um agente, por sua vez, apresenta toda uma estrutura de decisões: planos, chamadas a ferramentas, tentativas de repetição e o momento exato em que decidiu que tinha terminado.</p>
 <p>Essa diferença altera muitos dos hábitos de avaliação habituais. A resposta final pode parecer correta, mas o agente pode ter ignorado uma ferramenta necessária, repetido a mesma chamada 17 vezes, interpretado erradamente um resultado de ferramenta ou seguido um caminho que seria inválido em produção. Se avaliar apenas a resposta, passará ao lado da parte onde o sistema realmente falhou.</p>
 <!-- more -->
-
-<p><strong>TL;DR</strong>: As avaliações de agentes necessitam de três camadas: métricas de resultado, métricas de trajetória e métricas de componentes. Construa o processo com base neste ciclo: rastreio -&gt; rotulagem -&gt; agrupamento -&gt; remoção de duplicatas -&gt; conjunto de dados versionado -&gt; gate de CI -&gt; monitorização em tempo real. Utilize verificações determinísticas para a ordem das ferramentas, argumentos, laços e invariantes. Recorra a juízes baseados em LLM apenas quando a verificação depender da interpretação; modele esses juízes com Reasoning Guiado por Esquema (Schema-Guided Reasoning – SGR) e calibre-os com rotulagens humanas antes de confiar neles.</p>
-<hr />
-<h2 id="por-que-as-avaliacoes-de-agentes-sao-diferentes">Por que as avaliações de agentes são diferentes</h2>
+<p><strong>TL;DR</strong>: As avaliações de agentes necessitam de três camadas: métricas de resultado, métricas de trajetória e métricas de componentes. Construa o processo com base neste ciclo: rastreio -> rotulagem -> agrupamento -> remoção de duplicatas -> conjunto de dados versionado -> gate de CI -> monitorização em tempo real. Utilize verificações determinísticas para a ordem das ferramentas, argumentos, laços e invariantes. Recorra a juízes baseados em LLM apenas quando a verificação depender da interpretação; modele esses juízes com Reasoning Guiado por Esquema (Schema-Guided Reasoning – SGR) e calibre-os com rotulagens humanas antes de confiar neles.</p>
+<hr>
+<h2 id="por-que-as-avaliações-de-agentes-são-diferentes">Por que as avaliações de agentes são diferentes</h2>
 <p>As avaliações tradicionais de LLM costumam avaliar apenas um par entrada-saída: relevância, fidelidade, correção, segurança e, eventualmente, estilo. Os agentes acrescentam planeamento, chamadas a ferramentas, tentativas repetidas e verificações de terminação, sendo que cada passo representa um novo ponto potencial de falha.</p>
 <p>Tomemos como exemplo um agente responsável por reembolsos. O registo da interação pode terminar bem, embora o rastreio esteja incorreto:</p>
-<div class="highlight"><pre><span></span><code>lookup_order -&gt; issue_refund -&gt; final_answer
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="text"><code><span class="line"><span>lookup_order -> issue_refund -> final_answer</span></span></code></pre>
 <p>A avaliação de saída passou. A avaliação da trajetória deveria falhar porque <code>verify_identity</code> nunca foi executado anteriormente <code>issue_refund</code>. Para agentes que utilizam ferramentas, as avaliações de apenas resposta funcionam como testes de validação preliminar: elas detetam falhas totais, mas passam despercebidas todas as outras questões.</p>
 <p>Existe um segundo problema: os erros se acumulam. Se um fluxo de trabalho com 20 etapas tiver uma fiabilidade de 95% em cada etapa, a sua taxa de sucesso global permanece em torno de 36%:</p>
-<div class="arithmatex">\[
-0.95^{20} \approx 0.36
-\]</div>
+<span class="katex-display" tabindex="0"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msup><mn>0.95</mn><mn>20</mn></msup><mo>≈</mo><mn>0.36</mn></mrow><annotation encoding="application/x-tex">0.95^{20} \approx 0.36</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8641em;"></span><span class="mord">0.9</span><span class="mord"><span class="mord">5</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8641em;"><span style="top:-3.113em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">20</span></span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">0.36</span></span></span></span></span>
 <p>Assim, o agente pode parecer funcional em verificações isoladas, mas ainda assim falhar na maioria das execuções completas. A falha ocorre geralmente em algum ponto intermédio, e para a identificar é necessária visibilidade ao nível dos componentes, e não apenas uma nova análise da resposta.</p>
-<p><img alt="Uma linha versus uma árvore: onde se escondem as falhas dos agentes" src="../../../../assets/2026-06-10-agent-evals-traces-to-test-suites/trace-tree-vs-row.svg" /></p>
+<p><img src="/pt/blog/assets/2026-06-10-agent-evals-traces-to-test-suites/trace-tree-vs-row.svg" alt="Uma linha versus uma árvore: onde se escondem as falhas dos agentes"></p>
 <p>Duas equipas de investigação forneceram valores para isso.</p>
 <p><a href="https://arxiv.org/abs/2406.12045">tau-bench</a> é um benchmark no qual um agente lida com tarefas de atendimento ao cliente em companhias aéreas e lojas retalhistas: ele conversa com um utilizador simulado, faz chamadas a APIs e tem de seguir as políticas específicas do domínio ao longo do processo. A avaliação ignora a transcrição da conversa. Após o término da interação, o benchmark verifica se a base de dados atingiu o estado desejado, pelo que uma execução educada e plausível que tenha deixado registos incorretos também é considerada falha. Sob este critério de avaliação, até mesmo o GPT-4o obteve sucesso em menos de metade das tarefas. O artigo também apresentou <code>pass^k</code>: executar a mesma tarefa <code>k</code> contar um passe apenas se o agente tiver sucesso em todos os casos <code>k</code> funciona. As pontuações de varejo que pareciam aceitáveis numa primeira tentativa caíram para abaixo de 25% em <code>k = 8</code>. Mesmo agente, mesma tarefa, oito execuções — resultados em sua maioria diferentes. Essa inconsistência fica invisível se a avaliação for realizada uma única vez para cada caso.</p>
 <p><a href="https://arxiv.org/abs/2503.13657">MAST</a> Coloca-se uma questão diferente: não se trata de saber com que frequência os agentes falham, mas sim porquê. Os autores anotaram mais de 1.600 rastreios de execução de 7 frameworks multi-agente populares e classificaram as falhas em 14 padrões recorrentes. Quase nenhuma delas se deve ao “modelo ter fornecido uma resposta incorreta”. Trata-se, antes, de problemas como definições vagas de papéis (design do sistema), um agente ignorar o que outro lhe disse (desalinhamento entre agentes) ou declarar sucesso sem verificar o resultado (falta de verificação). A maioria das falhas está relacionada com o conjunto de ferramentas de suporte: os prompts, a lógica de orquestração e as verificações ausentes. Um modelo base mais potente pode reduzir esses números, mas não consegue corrigir uma etapa de verificação que nunca foi implementada. É por isso que é necessário avaliar o conjunto de ferramentas de suporte, e não apenas o modelo nele contido.</p>
-<hr />
-<h2 id="a-lacuna-de-adocao">A lacuna de adoção</h2>
+<hr>
+<h2 id="a-lacuna-de-adoção">A lacuna de adoção</h2>
 <p>A maioria das equipas já dispõe dos materiais necessários para avaliações mais precisas. Elas têm os rastreios. Só ainda não os transformou em testes.</p>
 <p>O LangChain’s <a href="https://www.langchain.com/state-of-agent-engineering">Estado da Engenharia de Agentes</a> A pesquisa representa o retrato público mais fiel dessa lacuna. Ela indica que 57,3% dos respondentes já dispõem de agentes em produção, 89% possuem alguma forma de capacidade de observabilidade, 52,4% realizam avaliações offline e 37,3% realizam avaliações online. Quando questionados sobre o que impede a entrada em produção, 32% dos respondentes citaram a qualidade como fator principal, à frente da latência, que ficou com 20%. O que as avaliações medem é exatamente o problema que deixa as equipas paralisadas.</p>
 <p>Isso leva as equipas a uma situação delicada: elas conseguem analisar um resultado insatisfatório posteriormente, mas ainda assim acabam por lançar novamente o mesmo erro.</p>
 <p>Uma regra resolve isto: cada falha em produção diagnosticada deve deixar para trás um rasto, uma etiqueta, uma linha de conjunto de dados e um avaliador. Se algo do tipo puder acontecer novamente, esse caso deve fazer parte do conjunto de testes de regressão.</p>
-<hr />
-<h2 id="selecionar-metricas-por-modo-de-falha">Selecionar métricas por modo de falha</h2>
+<hr>
+<h2 id="selecionar-métricas-por-modo-de-falha">Selecionar métricas por modo de falha</h2>
 <p>A métrica adequada depende do modo de falha, e não da arquitetura utilizada. A divisão útil inclui três categorias:</p>
 <ol>
 <li><strong>Avaliações de resultado</strong> indicam se a tarefa foi concluída com sucesso.</li>
 <li><strong>Avaliações de trajetória</strong> verificam se o percurso seguido foi válido, eficiente e conforme às políticas estabelecidas.</li>
 <li><strong>Avaliações de componente</strong> identificam qual ferramenta, recuperaador de informações, subagente ou etapa de decisão falhou.</li>
 </ol>
-<p><img alt="Três níveis de avaliação de agentes com as respetivas métricas" src="../../../../assets/2026-06-10-agent-evals-traces-to-test-suites/eval-levels.svg" /></p>
+<p><img src="/pt/blog/assets/2026-06-10-agent-evals-traces-to-test-suites/eval-levels.svg" alt="Três níveis de avaliação de agentes com as respetivas métricas"></p>
 <p>Cada escopo pode ser executado <strong>offline</strong> (casos fixos e reprodutíveis antes do lançamento) ou <strong>online</strong> (registos de produção amostrados após a resposta); a secção de diretrizes abaixo aborda essa distinção em detalhe. Em resumo: as avaliações offline podem exigir casos de referência, enquanto as avaliações online devem priorizar invariantes, distribuições e verificações assíncronas que não afetem o caminho da requisição.</p>
-<table>
-<thead>
-<tr>
-<th>Pergunta</th>
-<th>Família de métricas</th>
-<th>Contrato offline / online</th>
-<th>Determinístico ou estocástico?</th>
-<th>Tenha cuidado com</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>O agente chamou as ferramentas corretas?</td>
-<td>Correção da ferramenta: correspondência exata, em ordem ou em qualquer ordem</td>
-<td>Ouro exato offline; invariantes de ferramentas necessárias e anomalias online</td>
-<td>Determinístico</td>
-<td>A correspondência exata penaliza caminhos alternativos válidos</td>
-</tr>
-<tr>
-<td>Será que foram chamadas com os inputs corretos?</td>
-<td>Correção de argumentos, validação de esquema, correspondência de parâmetros</td>
-<td>Argumentos esperados estão offline; verificações de esquema, intervalo e política estão online.</td>
-<td>Ambos</td>
-<td>A ferramenta certa com argumentos incorretos continua a não funcionar corretamente.</td>
-</tr>
-<tr>
-<td>Acabou por desperdiçar passos?</td>
-<td>Eficiência de passo, número de tentativas, deteção de loops, custo e latência</td>
-<td>Definir orçamentos por passo e em laço offline; monitorizar a deriva de custos e latência online</td>
-<td>Principalmente determinístico</td>
-<td>Uma alta taxa de conclusão de tarefas pode ocultar tempos de processamento dispendiosos.</td>
-</tr>
-<tr>
-<td>A tarefa teve realmente sucesso?</td>
-<td>Conclusão da tarefa, classificação do resultado, diferença de estado final</td>
-<td>Simulador ou estado dourado offline; estado final, sinal do utilizador ou juiz assíncrono online</td>
-<td>Avaliação ou verificação de estado</td>
-<td>Classifique o estado do ambiente sempre que possível</td>
-</tr>
-<tr>
-<td>O sistema preservou o contexto ao longo das interações?</td>
-<td>Fidelidade em múltiplas turnos, adesão ao papel e completude da conversa</td>
-<td>Processamento offline de casos de horizonte temporal prolongado por meio de scripts; amostragem de sessões longas em tempo real</td>
-<td>Juiz</td>
-<td>Os testes de uma única volta não dizem nada sobre a volta 14</td>
-</tr>
-<tr>
-<td>Parou na hora certa?</td>
-<td>Correção na terminação, sucesso prematuro, trabalho interminável</td>
-<td>Testes de cenário em modo offline; monitores de loop, tempo de espera e sucesso falso em modo online</td>
-<td>Ambos</td>
-<td>"Concluído" pode ser um estado resultante de alucinações</td>
-</tr>
-<tr>
-<td>Será que interpretou corretamente os resultados da ferramenta?</td>
-<td>Compreensão dos resultados da ferramenta, verificação do estado em fluxos subsequentes</td>
-<td>Os resultados das ferramentas adversariais são gerados offline; as verificações de estado em cascata e as avaliações amostradas são realizadas online.</td>
-<td>Ambos</td>
-<td>A ferramenta pode estar correta enquanto o agente a interpreta de forma errada.</td>
-</tr>
-</tbody>
-</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Pergunta</th><th>Família de métricas</th><th>Contrato offline / online</th><th>Determinístico ou estocástico?</th><th>Tenha cuidado com</th></tr></thead><tbody><tr><td>O agente chamou as ferramentas corretas?</td><td>Correção da ferramenta: correspondência exata, em ordem ou em qualquer ordem</td><td>Ouro exato offline; invariantes de ferramentas necessárias e anomalias online</td><td>Determinístico</td><td>A correspondência exata penaliza caminhos alternativos válidos</td></tr><tr><td>Será que foram chamadas com os inputs corretos?</td><td>Correção de argumentos, validação de esquema, correspondência de parâmetros</td><td>Argumentos esperados estão offline; verificações de esquema, intervalo e política estão online.</td><td>Ambos</td><td>A ferramenta certa com argumentos incorretos continua a não funcionar corretamente.</td></tr><tr><td>Acabou por desperdiçar passos?</td><td>Eficiência de passo, número de tentativas, deteção de loops, custo e latência</td><td>Definir orçamentos por passo e em laço offline; monitorizar a deriva de custos e latência online</td><td>Principalmente determinístico</td><td>Uma alta taxa de conclusão de tarefas pode ocultar tempos de processamento dispendiosos.</td></tr><tr><td>A tarefa teve realmente sucesso?</td><td>Conclusão da tarefa, classificação do resultado, diferença de estado final</td><td>Simulador ou estado dourado offline; estado final, sinal do utilizador ou juiz assíncrono online</td><td>Avaliação ou verificação de estado</td><td>Classifique o estado do ambiente sempre que possível</td></tr><tr><td>O sistema preservou o contexto ao longo das interações?</td><td>Fidelidade em múltiplas turnos, adesão ao papel e completude da conversa</td><td>Processamento offline de casos de horizonte temporal prolongado por meio de scripts; amostragem de sessões longas em tempo real</td><td>Juiz</td><td>Os testes de uma única volta não dizem nada sobre a volta 14</td></tr><tr><td>Parou na hora certa?</td><td>Correção na terminação, sucesso prematuro, trabalho interminável</td><td>Testes de cenário em modo offline; monitores de loop, tempo de espera e sucesso falso em modo online</td><td>Ambos</td><td>”Concluído” pode ser um estado resultante de alucinações</td></tr><tr><td>Será que interpretou corretamente os resultados da ferramenta?</td><td>Compreensão dos resultados da ferramenta, verificação do estado em fluxos subsequentes</td><td>Os resultados das ferramentas adversariais são gerados offline; as verificações de estado em cascata e as avaliações amostradas são realizadas online.</td><td>Ambos</td><td>A ferramenta pode estar correta enquanto o agente a interpreta de forma errada.</td></tr></tbody></table>
 <p>Comece com métricas determinísticas. Elas são económicas, rápidas e não sofrem deriva.</p>
-<h3 id="correcao-das-chamadas-de-ferramenta">Correção das chamadas de ferramenta</h3>
+<h3 id="correção-das-chamadas-de-ferramenta">Correção das chamadas de ferramenta</h3>
 <p>A correção da ferramenta compara as ferramentas chamadas com as ferramentas esperadas. Escolha a rigorosidade de forma deliberada:</p>
 <ul>
-<li><strong>Correspondência exata</strong>: a sequência deve ser idêntica. Utilize este caso quando a ordem é um fator crítico, por exemplo <code>lookup_order -&gt; verify_identity -&gt; issue_refund</code>.</li>
+<li><strong>Correspondência exata</strong>: a sequência deve ser idêntica. Utilize este caso quando a ordem é um fator crítico, por exemplo <code>lookup_order -> verify_identity -> issue_refund</code>.</li>
 <li><strong>Correspondência em ordem sequencial</strong>: as ferramentas necessárias devem aparecer na ordem relativa correta, mas são permitidas chamadas adicionais inofensivas.</li>
 <li><strong>Correspondência em qualquer ordem</strong>: as ferramentas necessárias devem estar presentes, mas a ordem pode variar.</li>
 </ul>
 <p>Um pequeno pontuador local é suficiente para começar:</p>
-<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">tool_correctness</span><span class="p">(</span><span class="n">called</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">expected</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;in_order&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">expected</span><span class="p">:</span>
-        <span class="k">return</span> <span class="mf">1.0</span>
-    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;exact&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">called</span> <span class="o">==</span> <span class="n">expected</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;any_order&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">expected</span><span class="p">)</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">called</span><span class="p">))</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">expected</span><span class="p">))</span>
-
-    <span class="n">rows</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">expected</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">called</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
-    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">tool</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">called</span><span class="p">):</span>
-        <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">wanted</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">expected</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">tool</span> <span class="o">==</span> <span class="n">wanted</span><span class="p">:</span>
-                <span class="n">rows</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">][</span><span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">rows</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">rows</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">][</span><span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">rows</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">],</span> <span class="n">rows</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">][</span><span class="n">j</span><span class="p">])</span>
-    <span class="k">return</span> <span class="n">rows</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">expected</span><span class="p">)</span>
-
-
-<span class="n">called</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;lookup_order&quot;</span><span class="p">,</span> <span class="s2">&quot;check_refund_policy&quot;</span><span class="p">,</span> <span class="s2">&quot;issue_refund&quot;</span><span class="p">]</span>
-<span class="n">expected</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;lookup_order&quot;</span><span class="p">,</span> <span class="s2">&quot;verify_identity&quot;</span><span class="p">,</span> <span class="s2">&quot;issue_refund&quot;</span><span class="p">]</span>
-
-<span class="nb">print</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">tool_correctness</span><span class="p">(</span><span class="n">called</span><span class="p">,</span> <span class="n">expected</span><span class="p">,</span> <span class="s2">&quot;exact&quot;</span><span class="p">),</span> <span class="mi">3</span><span class="p">))</span>     <span class="c1"># 0.0</span>
-<span class="nb">print</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">tool_correctness</span><span class="p">(</span><span class="n">called</span><span class="p">,</span> <span class="n">expected</span><span class="p">,</span> <span class="s2">&quot;in_order&quot;</span><span class="p">),</span> <span class="mi">3</span><span class="p">))</span>  <span class="c1"># 0.667</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">def</span><span style="color:#D2A8FF"> tool_correctness</span><span style="color:#E6EDF3">(called: list[</span><span style="color:#79C0FF">str</span><span style="color:#E6EDF3">], expected: list[</span><span style="color:#79C0FF">str</span><span style="color:#E6EDF3">], mode: </span><span style="color:#79C0FF">str</span><span style="color:#FF7B72"> =</span><span style="color:#A5D6FF"> "in_order"</span><span style="color:#E6EDF3">) -> </span><span style="color:#79C0FF">float</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#FF7B72">    if</span><span style="color:#FF7B72"> not</span><span style="color:#E6EDF3"> expected:</span></span>
+<span class="line"><span style="color:#FF7B72">        return</span><span style="color:#79C0FF"> 1.0</span></span>
+<span class="line"><span style="color:#FF7B72">    if</span><span style="color:#E6EDF3"> mode </span><span style="color:#FF7B72">==</span><span style="color:#A5D6FF"> "exact"</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#FF7B72">        return</span><span style="color:#79C0FF"> float</span><span style="color:#E6EDF3">(called </span><span style="color:#FF7B72">==</span><span style="color:#E6EDF3"> expected)</span></span>
+<span class="line"><span style="color:#FF7B72">    if</span><span style="color:#E6EDF3"> mode </span><span style="color:#FF7B72">==</span><span style="color:#A5D6FF"> "any_order"</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#FF7B72">        return</span><span style="color:#79C0FF"> len</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">set</span><span style="color:#E6EDF3">(expected) </span><span style="color:#FF7B72">&#x26;</span><span style="color:#79C0FF"> set</span><span style="color:#E6EDF3">(called)) </span><span style="color:#FF7B72">/</span><span style="color:#79C0FF"> len</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">set</span><span style="color:#E6EDF3">(expected))</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">    rows </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> [[</span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">*</span><span style="color:#E6EDF3"> (</span><span style="color:#79C0FF">len</span><span style="color:#E6EDF3">(expected) </span><span style="color:#FF7B72">+</span><span style="color:#79C0FF"> 1</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> _ </span><span style="color:#FF7B72">in</span><span style="color:#79C0FF"> range</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">len</span><span style="color:#E6EDF3">(called) </span><span style="color:#FF7B72">+</span><span style="color:#79C0FF"> 1</span><span style="color:#E6EDF3">)]</span></span>
+<span class="line"><span style="color:#FF7B72">    for</span><span style="color:#E6EDF3"> i, tool </span><span style="color:#FF7B72">in</span><span style="color:#79C0FF"> enumerate</span><span style="color:#E6EDF3">(called):</span></span>
+<span class="line"><span style="color:#FF7B72">        for</span><span style="color:#E6EDF3"> j, wanted </span><span style="color:#FF7B72">in</span><span style="color:#79C0FF"> enumerate</span><span style="color:#E6EDF3">(expected):</span></span>
+<span class="line"><span style="color:#FF7B72">            if</span><span style="color:#E6EDF3"> tool </span><span style="color:#FF7B72">==</span><span style="color:#E6EDF3"> wanted:</span></span>
+<span class="line"><span style="color:#E6EDF3">                rows[i </span><span style="color:#FF7B72">+</span><span style="color:#79C0FF"> 1</span><span style="color:#E6EDF3">][j </span><span style="color:#FF7B72">+</span><span style="color:#79C0FF"> 1</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> rows[i][j] </span><span style="color:#FF7B72">+</span><span style="color:#79C0FF"> 1</span></span>
+<span class="line"><span style="color:#FF7B72">            else</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#E6EDF3">                rows[i </span><span style="color:#FF7B72">+</span><span style="color:#79C0FF"> 1</span><span style="color:#E6EDF3">][j </span><span style="color:#FF7B72">+</span><span style="color:#79C0FF"> 1</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> max</span><span style="color:#E6EDF3">(rows[i][j </span><span style="color:#FF7B72">+</span><span style="color:#79C0FF"> 1</span><span style="color:#E6EDF3">], rows[i </span><span style="color:#FF7B72">+</span><span style="color:#79C0FF"> 1</span><span style="color:#E6EDF3">][j])</span></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> rows[</span><span style="color:#FF7B72">-</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">][</span><span style="color:#FF7B72">-</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">/</span><span style="color:#79C0FF"> len</span><span style="color:#E6EDF3">(expected)</span></span>
+<span class="line"></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">called </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> [</span><span style="color:#A5D6FF">"lookup_order"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"check_refund_policy"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"issue_refund"</span><span style="color:#E6EDF3">]</span></span>
+<span class="line"><span style="color:#E6EDF3">expected </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> [</span><span style="color:#A5D6FF">"lookup_order"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"verify_identity"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"issue_refund"</span><span style="color:#E6EDF3">]</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#79C0FF">print</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">round</span><span style="color:#E6EDF3">(tool_correctness(called, expected, </span><span style="color:#A5D6FF">"exact"</span><span style="color:#E6EDF3">), </span><span style="color:#79C0FF">3</span><span style="color:#E6EDF3">))     </span><span style="color:#8B949E"># 0.0</span></span>
+<span class="line"><span style="color:#79C0FF">print</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">round</span><span style="color:#E6EDF3">(tool_correctness(called, expected, </span><span style="color:#A5D6FF">"in_order"</span><span style="color:#E6EDF3">), </span><span style="color:#79C0FF">3</span><span style="color:#E6EDF3">))  </span><span style="color:#8B949E"># 0.667</span></span></code></pre>
 <p><a href="https://deepeval.com/docs/metrics-tool-correctness">A métrica de correção de ferramentas do DeepEval</a> exibe os mesmos parâmetros de ajuste através de <code>should_consider_ordering</code> e <code>should_exact_match</code>### Correção de argumentos</p>
 <p>Chamar a ferramenta certa com argumentos incorretos é frequentemente pior do que chamar a ferramenta errada, uma vez que o rasto de execução parece normal.</p>
 <p>Em casos simples, valide o esquema JSON e os valores exatos. Em casos semânticos, armazene os argumentos esperados e avalie as diferenças detectadas:</p>
-<div class="highlight"><pre><span></span><code><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;trace_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tr_2417&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;input&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Reschedule order A-100 for next Friday.&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;expected_tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;lookup_order&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;reschedule_delivery&quot;</span><span class="p">],</span>
-<span class="w">    </span><span class="nt">&quot;expected_arguments&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nt">&quot;reschedule_delivery&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="nt">&quot;order_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;A-100&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;date&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-06-19&quot;</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="json"><code><span class="line"><span style="color:#E6EDF3">{</span></span>
+<span class="line"><span style="color:#7EE787">    "trace_id"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"tr_2417"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#7EE787">    "input"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"Reschedule order A-100 for next Friday."</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#7EE787">    "expected_tools"</span><span style="color:#E6EDF3">: [</span><span style="color:#A5D6FF">"lookup_order"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"reschedule_delivery"</span><span style="color:#E6EDF3">],</span></span>
+<span class="line"><span style="color:#7EE787">    "expected_arguments"</span><span style="color:#E6EDF3">: {</span></span>
+<span class="line"><span style="color:#7EE787">        "reschedule_delivery"</span><span style="color:#E6EDF3">: {</span></span>
+<span class="line"><span style="color:#7EE787">            "order_id"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"A-100"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#7EE787">            "date"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"2026-06-19"</span></span>
+<span class="line"><span style="color:#E6EDF3">        }</span></span>
+<span class="line"><span style="color:#E6EDF3">    }</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
 <p>Uma métrica de nome de ferramenta não consegue detetar <code>2026-06-17</code> onde a política exige <code>2026-06-19</code>O conjunto de dados também tem de armazenar os argumentos.</p>
-<h3 id="eficiencia-lacos-e-impasses">Eficiência, laços e impasses</h3>
+<h3 id="eficiência-laços-e-impasses">Eficiência, laços e impasses</h3>
 <p>Um agente que conclui a tarefa após cinco chamadas redundantes a ferramentas ainda indica um problema de planeamento e custa mais para ser executado.</p>
 <p>Sinais económicos com os quais deve começar:</p>
 <ul>
@@ -1715,7 +157,7 @@ modelos</span
 <li><strong>Correção da terminação</strong>: se o agente parou precocemente, continuou a trabalhar após obter sucesso ou declarou sucesso sem a alteração de estado necessária.</li>
 </ul>
 <p>Execute estes testes antes de usar um avaliador sempre que possível. Um detetor de laços é constituído por algumas linhas adicionais ao registo; não precisa de um modelo.</p>
-<h3 id="conclusao-da-tarefa-e-classificacao-dos-resultados">Conclusão da tarefa e classificação dos resultados</h3>
+<h3 id="conclusão-da-tarefa-e-classificação-dos-resultados">Conclusão da tarefa e classificação dos resultados</h3>
 <p>Em termos gerais, a questão é “o utilizador obteve o que pediu?”.</p>
 <p>Dois padrões funcionam melhor:</p>
 <ul>
@@ -1723,10 +165,10 @@ modelos</span
 <li><strong>Classificação com base no estado do ambiente</strong>: comparar as linhas finais da base de dados, ficheiros, tickets, reservas ou registos com um estado de objetivo anotado. Este método é mais robusto do que a correspondência de transcrições, pois os agentes podem encontrar caminhos válidos que não foram definidos manualmente.</li>
 </ul>
 <p>A segunda opção é preferível quando é possível implementá-la. O estado final constitui o contrato; a transcrição é apenas uma evidência.</p>
-<hr />
-<h2 id="o-volante-de-rastreio-a-avaliacao">O volante de rastreio a avaliação</h2>
+<hr>
+<h2 id="o-volante-de-rastreio-a-avaliação">O volante de rastreio a avaliação</h2>
 <p>Não comece por criar um conjunto de avaliação aleatório. Analise primeiro os falhas em produção.</p>
-<p><img alt="O volante de rastreio a avaliação" src="../../../../assets/2026-06-10-agent-evals-traces-to-test-suites/trace-to-eval-flywheel.svg" /></p>
+<p><img src="/pt/blog/assets/2026-06-10-agent-evals-traces-to-test-suites/trace-to-eval-flywheel.svg" alt="O volante de rastreio a avaliação"></p>
 <p>O ciclo:</p>
 <ol>
 <li>Capturar o rasto completo.</li>
@@ -1738,7 +180,7 @@ modelos</span
 <li>Continuar a avaliar rastos de produção amostrados em tempo real.</li>
 </ol>
 <p>Todo o ciclo é executável. O repositório complementar <a href="https://github.com/slavadubrov/trace2evals">trace2evals</a> orienta um agente de suporte que utiliza ferramentas com defeitos em cada passo: captura as trajetórias como spans do OpenTelemetry GenAI, analisa as falhas com regras determinísticas, elimina duplicatas para criar um conjunto de dados “dourado” versionado e controla os processos de CI ao executar novamente o agente em cada versão dourada — com resultado vermelho para a versão com defeito e verde para a versão corrigida. Não é necessária nenhuma chave API; o modo padrão reproduz um agente programado, portanto <code>make demo</code> reproduz o volante fora de linha.</p>
-<h3 id="falhas-na-mina-com-analise-de-erros">Falhas na mina com análise de erros</h3>
+<h3 id="falhas-na-mina-com-análise-de-erros">Falhas na mina com análise de erros</h3>
 <p>Hamel Husain e Shreya Shankar explicam um fluxo de trabalho de análise de erros para exatamente esta etapa; o método de Hamel <a href="https://hamel.dev/blog/posts/field-guide/">guia de campo</a> Analisa-o detalhadamente. Os dois primeiros passos tiram o seu nome da investigação qualitativa, mas o método é simples: ler os registos, tomar notas e atribuir nomes aos padrões identificados.</p>
 <ol>
 <li><strong>Codificação aberta</strong>: ler de 30 a 50 registos reais e escrever notas livres sobre os problemas que ocorreram.</li>
@@ -1766,22 +208,21 @@ modelos</span
 <h3 id="gate-ci">Gate CI</h3>
 <p>Uma métrica com falha deve resultar numa compilação falhada; caso contrário, o conjunto de avaliação é apenas um painel de controlo que ninguém lê.</p>
 <p>O teste deve executar novamente o agente atual com os dados de referência. Não se deve limitar a reproduzir o registo de falha anterior:</p>
-<div class="highlight"><pre><span></span><code><span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">&quot;golden&quot;</span><span class="p">,</span> <span class="n">GOLDENS</span><span class="p">,</span> <span class="n">ids</span><span class="o">=</span><span class="p">[</span><span class="n">item</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">GOLDENS</span><span class="p">])</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">test_agent_regression</span><span class="p">(</span><span class="n">golden</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="n">answer</span><span class="p">,</span> <span class="n">fresh_trace</span> <span class="o">=</span> <span class="n">run_agent_and_capture_trace</span><span class="p">(</span><span class="n">golden</span><span class="p">[</span><span class="s2">&quot;input&quot;</span><span class="p">])</span>
-
-    <span class="n">refired</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">flag_failures</span><span class="p">(</span><span class="n">fresh_trace</span><span class="p">))</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">golden</span><span class="p">[</span><span class="s2">&quot;failure_modes&quot;</span><span class="p">])</span>
-    <span class="k">assert</span> <span class="ow">not</span> <span class="n">refired</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;failure mode regressed: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">refired</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
-
-    <span class="k">assert</span> <span class="n">tool_correctness</span><span class="p">(</span>
-        <span class="n">called</span><span class="o">=</span><span class="p">[</span><span class="n">call</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">call</span> <span class="ow">in</span> <span class="n">fresh_trace</span><span class="p">[</span><span class="s2">&quot;tool_calls&quot;</span><span class="p">]],</span>
-        <span class="n">expected</span><span class="o">=</span><span class="n">golden</span><span class="p">[</span><span class="s2">&quot;expected_tools&quot;</span><span class="p">],</span>
-        <span class="n">mode</span><span class="o">=</span><span class="n">golden</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tool_match&quot;</span><span class="p">,</span> <span class="s2">&quot;in_order&quot;</span><span class="p">),</span>
-    <span class="p">)</span> <span class="o">&gt;=</span> <span class="n">golden</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tool_threshold&quot;</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="py"><code><span class="line"><span style="color:#D2A8FF">@pytest.mark.parametrize</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"golden"</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">GOLDENS</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">ids</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">[item[</span><span style="color:#A5D6FF">"id"</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> item </span><span style="color:#FF7B72">in</span><span style="color:#79C0FF"> GOLDENS</span><span style="color:#E6EDF3">])</span></span>
+<span class="line"><span style="color:#FF7B72">def</span><span style="color:#D2A8FF"> test_agent_regression</span><span style="color:#E6EDF3">(golden: </span><span style="color:#79C0FF">dict</span><span style="color:#E6EDF3">) -> </span><span style="color:#79C0FF">None</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#E6EDF3">    answer, fresh_trace </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> run_agent_and_capture_trace(golden[</span><span style="color:#A5D6FF">"input"</span><span style="color:#E6EDF3">])</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">    refired </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> set</span><span style="color:#E6EDF3">(flag_failures(fresh_trace)) </span><span style="color:#FF7B72">&#x26;</span><span style="color:#79C0FF"> set</span><span style="color:#E6EDF3">(golden[</span><span style="color:#A5D6FF">"failure_modes"</span><span style="color:#E6EDF3">])</span></span>
+<span class="line"><span style="color:#FF7B72">    assert</span><span style="color:#FF7B72"> not</span><span style="color:#E6EDF3"> refired, </span><span style="color:#FF7B72">f</span><span style="color:#A5D6FF">"failure mode regressed: </span><span style="color:#FF7B72">{</span><span style="color:#79C0FF">sorted</span><span style="color:#E6EDF3">(refired)</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    assert</span><span style="color:#E6EDF3"> tool_correctness(</span></span>
+<span class="line"><span style="color:#FFA657">        called</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">[call[</span><span style="color:#A5D6FF">"name"</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> call </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> fresh_trace[</span><span style="color:#A5D6FF">"tool_calls"</span><span style="color:#E6EDF3">]],</span></span>
+<span class="line"><span style="color:#FFA657">        expected</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">golden[</span><span style="color:#A5D6FF">"expected_tools"</span><span style="color:#E6EDF3">],</span></span>
+<span class="line"><span style="color:#FFA657">        mode</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">golden.get(</span><span style="color:#A5D6FF">"tool_match"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"in_order"</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#E6EDF3">    ) </span><span style="color:#FF7B72">>=</span><span style="color:#E6EDF3"> golden.get(</span><span style="color:#A5D6FF">"tool_threshold"</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">1.0</span><span style="color:#E6EDF3">)</span></span></code></pre>
 <p>Esta distinção é fácil de errar. A função do conjunto de dados é detetar se a próxima versão do agente está a repetir um erro anterior, e não arquivar o erro em si. <a href="https://arxiv.org/abs/2303.16634">G-Eval</a> Verificou‑se que um juiz que analisa passo a passo uma rubrica explícita consegue avaliar as classificações humanas de forma mais precisa do que as métricas automáticas anteriores que substituiu. <a href="https://arxiv.org/abs/2306.05685">MT-Bench</a> Mostrou que o GPT-4 concordava com as preferências humanas com a mesma frequência com que os próprios humanos concordam entre si, o que justificou a utilização de LLMs para fazer julgamentos. No entanto, surgiram ressalvas: os juízes favorecem a resposta que aparece primeiro num pedido emparelhado, atribuem pontuações mais altas a respostas mais longas, dão preferência a resultados provenientes da sua própria família de modelos, creditam afirmações confiantes que nunca verificaram e alteram o seu comportamento quando o pedido ou a versão do modelo muda. <a href="https://arxiv.org/abs/2410.12784">JudgeBench</a> Foram testados juízes com pares de respostas em que uma resposta é objetivamente incorreta, e constatou-se que, mesmo os juízes mais competentes, apresentam precisão próxima à aleatória nos casos mais difíceis.</p>
 <p>Treate o juiz como um instrumento de medição: calibre-o com rótulos fornecidos por humanos antes de ele avaliar qualquer coisa, e verifique-o novamente sempre que o modelo ou o prompt responsável pelo julgamento for alterado.</p>
-<p><img alt="Loop de calibração do juiz" src="../../../../assets/2026-06-10-agent-evals-traces-to-test-suites/judge-calibration-loop.svg" /></p>
+<p><img src="/pt/blog/assets/2026-06-10-agent-evals-traces-to-test-suites/judge-calibration-loop.svg" alt="Loop de calibração do juiz"></p>
 <p>Quando for necessário um juiz, estruture o veredito de forma clara. <a href="/pt/blog/2025/12/28/schema-guided-reasoning-vllm/">Raciocínio Orientado por Esquema (SGR)</a> o padrão padrão aqui é: definir o caminho de raciocínio do juiz como um esquema Pydantic, executá-lo através de Structured Outputs ou decodificação restrita, e forçar o modelo a emitir campos como <code>evidence</code>, <code>passed_criteria</code>, <code>failed_criteria</code>, <code>failure_mode</code>, e <code>score</code>A ordem dos campos é fundamental aqui. A emissão de evidências antes da pontuação representa um processo de raciocínio sequencial em formato facilmente interpretável, e os avaliadores que priorizam o raciocínio concordam mais frequentemente com as etiquetas humanas do que aqueles que apresentam apenas uma pontuação. O que o esquema garante é a reprodutibilidade: o avaliador deve seguir sempre os mesmos passos da rubrica predefinida, na mesma ordem de campos, em todas as execuções e em todos os modelos compatíveis. Um revisor pode inspecionar campos nomeados em vez de analisar parágrafos inteiros. Os sistemas de integração contínua conseguem comparar objetos JSON estáveis. A calibração torna-se mais simples, pois a rubrica não está mais embutida em texto livre. Isso também altera a curva de custos: quando a topologia do raciocínio é explícita e a saída é restrita, modelos mais baratos costumam ser suficientes para avaliações rotineiras. Reserve os modelos mais potentes para casos de desacordo, situações de alto risco ou processos de calibração, em vez de utilizá-los em todas as análises. Lista de verificação padrão para a higiene dos avaliadores:</p>
 <ol>
 <li>Prefira, sempre que possível, um sistema binário de aprovação/rejeição. As escalas de cinco pontos incentivam uma precisão falsa.</li>
@@ -1797,7 +238,7 @@ modelos</span
 <li>Para avaliações de alto impacto, utilize um pequeno júri em vez de um único avaliador principal. <a href="https://arxiv.org/abs/2404.18796">PoLL</a> Testei exatamente esta configuração: um painel de juízes menores selecionados a partir de famílias de modelos distintas, cujos vereditos eram combinados num único score. Em seis conjuntos de dados, este painel conseguiu reproduzir com maior precisão os julgamentos humanos do que um único juiz GPT-4, evitou o viés de preferência própria que um juiz isolado apresenta em relação aos resultados da sua própria família de modelos e teve um custo mais de sete vezes inferior. Mantenha a revisão humana para decisões que afetem questões financeiras, de acesso, segurança ou conformidade.</li>
 </ol>
 <p>Se um juiz concordar com os humanos num valor de kappa de 0,55 na sua tarefa, não o utilize para bloquear lançamentos. Utilize-o para ordenar as filas de revisão. Se o valor se aproximar de 0,75 e o custo de falha for moderado, é muito mais fácil justificar a utilização de uma porta de controlo CI.</p>
-<p><img alt="Limites de segurança versus avaliações online" src="../../../../assets/2026-06-10-agent-evals-traces-to-test-suites/guardrails-vs-evals.svg" /></p>
+<p><img src="/pt/blog/assets/2026-06-10-agent-evals-traces-to-test-suites/guardrails-vs-evals.svg" alt="Limites de segurança versus avaliações online"></p>
 <p><strong>Guardrails</strong> são executados em tempo real. São rápidos, determinísticos e visíveis para o utilizador. Um guardrail pode bloquear uma chamada de ferramenta, remover dados PII, rejeitar injeções de prompt ou forçar uma tentativa de novo antes que a resposta saia do seu sistema. Um falso positivo constitui um erro em produção.</p>
 <p>As <strong>avaliações offline</strong> são realizadas antes da libertação. São reprodutíveis e servem para filtrar prompts, modelos, ferramentas, recuperadores de informação e políticas com base num conjunto de dados fixo.</p>
 <p>As <strong>avaliações online</strong> são executadas após a resposta, geralmente em tráfego amostrado. Podem utilizar juízes LLM mais lentos, uma vez que não estão no caminho da latência. A sua função é detetar desvios, identificar novos grupos de falhas e fornecer os dados para o próximo conjunto de dados offline.</p>
@@ -1807,71 +248,71 @@ modelos</span
 <li>Um guardrail relegado a avaliação assíncrona permite que violações de política cheguem aos utilizadores.</li>
 </ul>
 <p>Em sistemas de alto volume, avalie uma pequena amostra com um juiz mais potente e uma amostra maior com classificadores mais económicos. Emita alertas com base em clusters e limites de confiança, e não apenas com base numa única estimativa ruidosa.</p>
-<hr />
+<hr>
 <h2 id="escolhas-de-ferramentas">Escolhas de ferramentas</h2>
 <p>Nenhuma ferramenta isolada gere todo o ciclo de desenvolvimento. As soluções mais robustas utilizam dois componentes: um repositório de rastreio e um executor de CI/evaluação.</p>
-<table>
-<thead>
-<tr>
-<th>Ferramenta</th>
-<th>Melhor ajuste</th>
-<th>História de CI</th>
-<th>História de auto-hospedagem</th>
-<th>Compromisso</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="https://deepeval.com/">DeepEval</a></td>
-<td>Agentes nativos do Pytest e avaliações com LLM</td>
-<td>Strong: <code>deepeval test run</code> funciona em CI</td>
-<td>A biblioteca principal é local e de código aberto.</td>
-<td>O juiz determina que as funcionalidades em nuvem podem acarretar custos adicionais</td>
-</tr>
-<tr>
-<td><a href="https://inspect.aisi.org.uk/">Inspeção de IA</a></td>
-<td>Segurança, fronteiras e avaliações em ambiente isolado</td>
-<td>CLI e API em Python</td>
-<td>Totalmente local e de código aberto</td>
-<td>Não é uma plataforma de rastreio para produção</td>
-</tr>
-<tr>
-<td><a href="https://phoenix.arize.com/">Phoenix</a></td>
-<td>Rastreio OTel/OpenInference juntamente com avaliações</td>
-<td>Scripts personalizados</td>
-<td>Opção robusta de auto-hospedagem</td>
-<td>O alerting gerido encontra-se na camada comercial.</td>
-</tr>
-<tr>
-<td><a href="https://langfuse.com/">Langfuse</a></td>
-<td>Armazenamento de rastreios, conjuntos de dados, versões de prompts</td>
-<td>Experimentos e portas personalizadas</td>
-<td>Opção robusta de auto-hospedagem</td>
-<td>As métricas Eval consomem menos recursos em termos de bateria do que o DeepEval.</td>
-</tr>
-<tr>
-<td><a href="https://www.langchain.com/langsmith">LangSmith</a></td>
-<td>Rastreio e avaliação do LangChain/LangGraph</td>
-<td>pytest, Vitest, fluxos de trabalho do GitHub</td>
-<td>Autopublicação empresarial</td>
-<td>Código fechado; preços por assento e por volume de tráfego</td>
-</tr>
-<tr>
-<td><a href="https://www.braintrust.dev/">Equipa de elite</a></td>
-<td>Loop de produto orientado por avaliações e revisão de PRs</td>
-<td>Fluxo de regressão gerido muito robusto para PRs</td>
-<td>Empresarial/híbrido</td>
-<td>O volume de span, os dados processados e o número de pontuações podem somar-se.</td>
-</tr>
-<tr>
-<td><a href="https://github.com/promptfoo/promptfoo">Promptfoo</a></td>
-<td>Testes de prompt e suites de red-team</td>
-<td>GitHub, GitLab, Jenkins, CircleCI</td>
-<td>Núcleo local/de código aberto</td>
-<td>Um excelente executador de pré-lançamento, sem ser um hub de rastreio.</td>
-</tr>
-</tbody>
-</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Ferramenta</th><th>Melhor ajuste</th><th>História de CI</th><th>História de auto-hospedagem</th><th>Compromisso</th></tr></thead><tbody><tr><td><a href="https://deepeval.com/">DeepEval</a></td><td>Agentes nativos do Pytest e avaliações com LLM</td><td>Strong: <code>deepeval test run</code> funciona em CI</td><td>A biblioteca principal é local e de código aberto.</td><td>O juiz determina que as funcionalidades em nuvem podem acarretar custos adicionais</td></tr><tr><td><a href="https://inspect.aisi.org.uk/">Inspeção de IA</a></td><td>Segurança, fronteiras e avaliações em ambiente isolado</td><td>CLI e API em Python</td><td>Totalmente local e de código aberto</td><td>Não é uma plataforma de rastreio para produção</td></tr><tr><td><a href="https://phoenix.arize.com/">Phoenix</a></td><td>Rastreio OTel/OpenInference juntamente com avaliações</td><td>Scripts personalizados</td><td>Opção robusta de auto-hospedagem</td><td>O alerting gerido encontra-se na camada comercial.</td></tr><tr><td><a href="https://langfuse.com/">Langfuse</a></td><td>Armazenamento de rastreios, conjuntos de dados, versões de prompts</td><td>Experimentos e portas personalizadas</td><td>Opção robusta de auto-hospedagem</td><td>As métricas Eval consomem menos recursos em termos de bateria do que o DeepEval.</td></tr><tr><td><a href="https://www.langchain.com/langsmith">LangSmith</a></td><td>Rastreio e avaliação do LangChain/LangGraph</td><td>pytest, Vitest, fluxos de trabalho do GitHub</td><td>Autopublicação empresarial</td><td>Código fechado; preços por assento e por volume de tráfego</td></tr><tr><td><a href="https://www.braintrust.dev/">Equipa de elite</a></td><td>Loop de produto orientado por avaliações e revisão de PRs</td><td>Fluxo de regressão gerido muito robusto para PRs</td><td>Empresarial/híbrido</td><td>O volume de span, os dados processados e o número de pontuações podem somar-se.</td></tr><tr><td><a href="https://github.com/promptfoo/promptfoo">Promptfoo</a></td><td>Testes de prompt e suites de red-team</td><td>GitHub, GitLab, Jenkins, CircleCI</td><td>Núcleo local/de código aberto</td><td>Um excelente executador de pré-lançamento, sem ser um hub de rastreio.</td></tr></tbody></table>
 <p>As notas sobre os compromissos técnicos descrevem de onde provém o custo, e não qual é a sua natureza. As páginas de preços podem mudar, e os fornecedores consideram fatores diferentes: rastreios, observações, períodos de tempo, pontuações, utilizadores, taxa de retenção ou dados processados. Verifique novamente os preços em tempo real antes de tomar uma decisão.</p>
 <p>Atalhos de decisão:</p>
 <ul>
@@ -1883,8 +324,8 @@ modelos</span
 <li>Pesquisa em segurança ou trabalhos de benchmark controlado: o Inspect AI é a opção mais adequada.</li>
 </ul>
 <p>A escolha da ferramenta é secundária. Se os falhas em produção não se transformarem em casos de teste, você está, na maior parte dos casos, a pagar apenas pelo armazenamento de rastreios.</p>
-<hr />
-<h2 id="uma-lista-de-verificacao-pratica-para-implementacao">Uma lista de verificação prática para implementação</h2>
+<hr>
+<h2 id="uma-lista-de-verificação-prática-para-implementação">Uma lista de verificação prática para implementação</h2>
 <p>Antes de a implementação se tornar mais sofisticada, construa primeiro o pipeline de recolha de evidências. A primeira questão a responder é de onde virão os exemplos, e não qual métrica deve ser otimizada.</p>
 <ol>
 <li>
@@ -1916,18 +357,18 @@ modelos</span
 </li>
 </ol>
 <p>O seu primeiro conjunto de avaliação estará errado de maneiras óbvias. Envie-o mesmo assim. Um conjunto que é executado todos os dias é mais fácil de corrigir do que um documento de design perfeito que nunca impede uma PR defeituosa.</p>
-<hr />
-<h2 id="principais-conclusoes">Principais conclusões</h2>
+<hr>
+<h2 id="principais-conclusões">Principais conclusões</h2>
 <ol>
 <li>As avaliações por agente são avaliações por rasto. A resposta final é apenas um nó no processo de execução.</li>
 <li>A seleção de ferramentas, a correção dos argumentos, a deteção de ciclos, a conclusão das tarefas e a fidelidade em múltiplas interações devem ser métricas separadas.</li>
-<li>O mecanismo de produção funciona da seguinte forma: rasto -&gt; etiqueta -&gt; cluster -&gt; eliminação de duplicados -&gt; conjunto de dados -&gt; porta de CI -&gt; avaliação online.</li>
+<li>O mecanismo de produção funciona da seguinte forma: rasto -> etiqueta -> cluster -> eliminação de duplicados -> conjunto de dados -> porta de CI -> avaliação online.</li>
 <li>Comece de forma determinística. As verificações de ferramentas, argumentos e estado, bem como os detetores de ciclos, são mais económicos e estáveis do que juízes humanos.</li>
 <li>Os juízes baseados em LLM precisam de estrutura e calibração. Utilize o SGR para obter veredictos reprodutíveis e inspecionáveis e, em seguida, fixe o modelo do juiz, o prompt, o esquema, a versão do conjunto de dados, a versão da aplicação e as amostras com etiquetas humanas.</li>
 <li>As avaliações offline filtram casos conhecidos antes do lançamento. As avaliações online analisam rastos de produção amostrados após a resposta. As medidas de segurança bloqueiam comportamentos inseguros diretamente.</li>
 <li>A maioria das equipas precisa de um armazenamento de rastos e de um executor de CI. Escolha ferramentas simples que permitam transformar falhas de produção em testes de regressão rapidamente.</li>
 </ol>
-<h2 id="referencias">Referências</h2>
+<h2 id="referências">Referências</h2>
 <ul>
 <li><a href="https://github.com/slavadubrov/trace2evals">trace2evals — repositório de demonstração complementar para este artigo</a></li>
 <li><a href="https://www.langchain.com/state-of-agent-engineering">LangChain – Estado da Engenharia de Agentes</a></li>
@@ -1949,120 +390,22 @@ modelos</span
 <li><a href="https://arxiv.org/abs/2404.18796">Substituir juízes por júris: Avaliar gerações de LLMs com um painel de modelos diversificados</a></li>
 <li><a href="https://arxiv.org/abs/2410.12784">JudgeBench: Um benchmark para avaliar juízes baseados em LLM</a></li>
 <li><a href="https://arxiv.org/abs/2410.21819">Viés de Auto-Preferência em LLM como Juiz</a></li>
-</ul>
-
-
-
-
-
-
-
-  
-  
-
-
-
-  
-
-
-  
-
-
- 
-  </article>
-</div>
-
-          
-<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
-        </div>
-        
-      </main>
-      
-        <footer class="md-footer">
-  
-  <div class="md-footer-meta md-typeset">
-    <div class="md-footer-meta__inner md-grid">
-      <div class="md-copyright">
-  
-  
-    Made with
-    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
-      Material for MkDocs
-    </a>
-  
-</div>
-      
-        
-<div class="md-social">
-  
-    
-    
-    
-    
-    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://www.tiktok.com/@edge.of.context" target="_blank" rel="noopener" title="TikTok" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M448.5 209.9c-44 .1-87-13.6-122.8-39.2v178.7c0 33.1-10.1 65.4-29 92.6s-45.6 48-76.6 59.6-64.8 13.5-96.9 5.3-60.9-25.9-82.7-50.8-35.3-56-39-88.9 2.9-66.1 18.6-95.2 40-52.7 69.6-67.7 62.9-20.5 95.7-16v89.9c-15-4.7-31.1-4.6-46 .4s-27.9 14.6-37 27.3-14 28.1-13.9 43.9 5.2 31 14.5 43.7 22.4 22.1 37.4 26.9 31.1 4.8 46-.1 28-14.4 37.2-27.1 14.2-28.1 14.2-43.8V0h88c-.1 7.4.6 14.9 1.9 22.2 3.1 16.3 9.4 31.9 18.7 45.7s21.3 25.6 35.2 34.6c19.9 13.1 43.2 20.1 67 20.1V210z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
-    </a>
-  
-</div>
-      
-    </div>
-  </div>
-</footer>
-      
-    </div>
-    <div class="md-dialog" data-md-component="dialog">
-      <div class="md-dialog__inner md-typeset"></div>
-    </div>
-    
-    
-    
-      
-      
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copiado para \u00e1rea de transfer\u00eancia", "clipboard.copy": "Copiar para \u00e1rea de transfer\u00eancia", "search.result.more.one": "Mais 1 nesta p\u00e1gina", "search.result.more.other": "Mais # nesta p\u00e1gina", "search.result.none": "Nenhum resultado encontrado", "search.result.one": "1 resultado encontrado", "search.result.other": "# resultados encontrados", "search.result.placeholder": "Digite para iniciar a busca", "search.result.term.missing": "Ausente", "select.version": "Selecione a vers\u00e3o"}, "version": null}</script>
-    
-    
-      <script src="../../../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-      
-        <script src="../../../../../../javascripts/mermaid-init.js"></script>
-      
-        <script src="../../../../../../javascripts/mathjax.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
-      
-    
-  </body>
-</html>
+</ul> </article>  </main> <footer class="site-footer"> <p data-footer-tagline>Engenharia prática de IA por Slava Dubrov.</p> <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>
+      document.querySelector("#locale-select")?.addEventListener("change", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLSelectElement && target.value) location.assign(target.value);
+      });
+      document.querySelectorAll("pre").forEach((pre) => {
+        if (pre.closest(".mermaid-diagram")) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-code";
+        button.textContent = "Copy";
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(pre.textContent || "");
+          button.textContent = "Copied";
+          setTimeout(() => { button.textContent = "Copy"; }, 1500);
+        });
+        pre.append(button);
+      });
+    </script> </body> </html>

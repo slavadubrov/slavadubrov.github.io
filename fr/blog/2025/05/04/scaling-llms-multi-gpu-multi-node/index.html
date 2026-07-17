@@ -1,1633 +1,33 @@
-
-<!doctype html>
-<html lang="fr" class="no-js">
-  <head>
-    
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1">
-      
-        <meta name="description" content="Comment mettre à l’échelle de grands modèles de langage sur plusieurs GPU et nœuds grâce au parallélisme des données, au FSDP, au parallélisme des tenseurs, au parallélisme des pipelines et au parallélisme du contexte.">
-      
-      
-        <meta name="author" content="Viacheslav Dubrov">
-      
-      
-        <link rel="canonical" href="https://slavadubrov.github.io/fr/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/">
-      
-      
-      
-      
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" hreflang="en">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/de/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" hreflang="de">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/ru/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" hreflang="ru">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/es/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" hreflang="es">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/pt/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" hreflang="pt">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/fr/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" hreflang="fr">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/nl/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" hreflang="nl">
-        
-      
-      
-        <link rel="alternate" type="application/rss+xml" title="Flux RSS" href="../../../../../../feed_rss_created.xml">
-        <link rel="alternate" type="application/rss+xml" title="Flux RSS du contenu mis à jour" href="../../../../../../feed_rss_updated.xml">
-      
-      <link rel="icon" href="../../../../../../assets/favicon-eoc.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.6">
-    
-    
-      
-        <title>Échelle des grands modèles de langage : stratégies multi-GPU et multi-nœuds fiables en pratique - Edge of Context: Practical AI Engineering</title>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../../assets/stylesheets/main.484c7ddc.min.css">
-      
-        
-        <link rel="stylesheet" href="../../../../../../assets/stylesheets/palette.ab4e12ef.min.css">
-      
-      
-
-
-    
-    
-      
-    
-    
-      
-        
-        
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
-        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../../assets/brand.css">
-    
-      <link rel="stylesheet" href="../../../../../../assets/blog-sidebar.css">
-    
-      <link rel="stylesheet" href="../../../../../../assets/blog-index.css">
-    
-    <script>__md_scope=new URL("../../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
-    
-      
-  
-
-
-  
-  
-
-<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-T51K83ENZ5"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-T51K83ENZ5",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
-  
-    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
-  
-
-    
-        
-
-   
-     
-<!-- Open Graph -->
-<meta property="og:title" content="Échelle des grands modèles de langage : stratégies multi-GPU et multi-nœuds fiables en pratique" />
-<meta property="og:description" content="Comment mettre à l’échelle de grands modèles de langage sur plusieurs GPU et nœuds grâce au parallélisme des données, au FSDP, au parallélisme des tenseurs, au parallélisme des pipelines et au parallélisme du contexte." />
-<meta property="og:url" content="https://slavadubrov.github.io/fr/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" />
-<meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
-<meta
-  property="og:type"
-  content="article"
-/>
-<meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png" />
-<!-- Twitter Card -->
-<meta
-  name="twitter:card"
-  content="summary"
-/>
-<meta name="twitter:title" content="Échelle des grands modèles de langage : stratégies multi-GPU et multi-nœuds fiables en pratique" />
-<meta name="twitter:description" content="Comment mettre à l’échelle de grands modèles de langage sur plusieurs GPU et nœuds grâce au parallélisme des données, au FSDP, au parallélisme des tenseurs, au parallélisme des pipelines et au parallélisme du contexte." />
-<meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png" />
-<!-- Site identity schema -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Person",
-        "@id": "https://slavadubrov.github.io/#person",
-        "name": "Viacheslav Dubrov",
-        "alternateName": "Slava Dubrov",
-        "url": "https://slavadubrov.github.io/about/",
-        "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-      },
-      {
-        "@type": "WebSite",
-        "@id": "https://slavadubrov.github.io/#website",
-        "name": "Edge of Context: Practical AI Engineering",
-        "alternateName": "Edge of Context",
-        "url": "https://slavadubrov.github.io/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "fr",
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        }
-      },
-      {
-        "@type": "Blog",
-        "@id": "https://slavadubrov.github.io/#blog",
-        "name": "Edge of Context: Practical AI Engineering",
-        "url": "https://slavadubrov.github.io/blog/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "fr",
-        "author": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "isPartOf": {
-          "@id": "https://slavadubrov.github.io/#website"
-        }
-      }
-    ]
-  }
-</script>
-
-<script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      "itemListElement": [
-        {
-          "@type": "ListItem",
-          "position": 1,
-          "name": "Edge of Context: Practical AI Engineering",
-          "item": "https://slavadubrov.github.io/"
-        },
-        {
-          "@type": "ListItem",
-          "position": 2,
-          "name": "\u00c9chelle des grands mod\u00e8les de langage : strat\u00e9gies multi-GPU et multi-n\u0153uds fiables en pratique",
-          "item": "https://slavadubrov.github.io/fr/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/"
-        }
-  
-      ]
-    }
-</script>
- 
-<style>
-  /* Header social icons */
-  .md-header__social {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-left: 0.5rem;
-  }
-  .md-header__social a {
-    color: var(--md-primary-bg-color);
-    opacity: 0.7;
-    transition: opacity 0.2s;
-  }
-  .md-header__social a:hover {
-    opacity: 1;
-  }
-  .md-header__social svg {
-    width: 1.2rem;
-    height: 1.2rem;
-    fill: currentColor;
-  }
-  /* Adjust search to make room for social icons */
-  .md-search {
-    margin-right: 0;
-  }
-</style>
-
-<!-- Article-specific Open Graph -->
-       
-<meta property="article:published_time" content="2025-05-04" />
- 
-<meta property="article:modified_time" content="2026-06-07" />
- 
-<meta property="article:author" content="Viacheslav Dubrov" />
-  
-<meta property="article:tag" content="Model Engineering" />
-
-<meta property="article:tag" content="AI Infrastructure" />
- 
-<!-- Schema.org JSON-LD -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    "@id": "https://slavadubrov.github.io/fr/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/#blogposting",
-    "headline": "\u00c9chelle des grands mod\u00e8les de langage : strat\u00e9gies multi-GPU et multi-n\u0153uds fiables en pratique",
-    "description": "Comment mettre \u00e0 l\u2019\u00e9chelle de grands mod\u00e8les de langage sur plusieurs GPU et n\u0153uds gr\u00e2ce au parall\u00e9lisme des donn\u00e9es, au FSDP, au parall\u00e9lisme des tenseurs, au parall\u00e9lisme des pipelines et au parall\u00e9lisme du contexte.",
-    "url": "https://slavadubrov.github.io/fr/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/",
-    "image": "https://slavadubrov.github.io/assets/og-image.png",
-    "inLanguage": "fr",
-    "mainEntityOfPage": {
-      "@type": "WebPage",
-      "@id": "https://slavadubrov.github.io/fr/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/"
-    },
-    "datePublished": "2025-05-04",
-    "dateModified": "2026-06-07",
-    "author": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "publisher": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "isPartOf": {
-      "@type": "Blog",
-      "@id": "https://slavadubrov.github.io/#blog",
-      "name": "Edge of Context: Practical AI Engineering",
-      "url": "https://slavadubrov.github.io/"
-    },
-    "keywords": "Model Engineering, AI Infrastructure"
-  }
-</script>
-
-  
-<link rel="alternate" href="https://slavadubrov.github.io/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" hreflang="x-default">
-</head>
-  
-  
-    
-    
-      
-    
-    
-    
-    
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
-  
-    
-    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
-    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
-    <label class="md-overlay" for="__drawer"></label>
-    <div data-md-component="skip">
-      
-        
-        <a href="#echelle-des-grands-modeles-de-langage-strategies-multi-gpu-et-multi-nuds-fiables-en-pratique" class="md-skip">
-          Aller au contenu
-        </a>
-      
-    </div>
-    <div data-md-component="announce">
-      
-    </div>
-    
-     
-      
-
-  
-
-<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
-  <nav class="md-header__inner md-grid" aria-label="En-tête">
-    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    <label class="md-header__button md-icon" for="__drawer">
-      
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
-    </label>
-    <div class="md-header__title" data-md-component="header-title">
-      <div class="md-header__ellipsis">
-        <div class="md-header__topic">
-          <span class="md-ellipsis">
-            Edge of Context: Practical AI Engineering
-          </span>
-        </div>
-        <div class="md-header__topic" data-md-component="header-topic">
-          <span class="md-ellipsis">
-            
-              Échelle des grands modèles de langage : stratégies multi-GPU et multi-nœuds fiables en pratique
-            
-          </span>
-        </div>
-      </div>
-    </div>
-    
-      
-        <form class="md-header__option" data-md-component="palette">
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
-    
-      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
-    
-      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-</form>
-      
-    
-    
-      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
-    
-    
-      <div class="md-header__option">
-  <div class="md-select">
-    
-    <button class="md-header__button md-icon" aria-label="Sélectionner la langue">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
-    </button>
-    <div class="md-select__inner">
-      <ul class="md-select__list">
-        
-          <li class="md-select__item">
-            <a href="../../../../../../blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" hreflang="en" class="md-select__link">
-              English
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../de/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" hreflang="de" class="md-select__link">
-              Deutsch
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../ru/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" hreflang="ru" class="md-select__link">
-              Русский
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../es/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" hreflang="es" class="md-select__link">
-              Español
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../pt/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" hreflang="pt" class="md-select__link">
-              Português
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="./" hreflang="fr" class="md-select__link">
-              Français
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../nl/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" hreflang="nl" class="md-select__link">
-              Nederlands
-            </a>
-          </li>
-        
-      </ul>
-    </div>
-  </div>
-</div>
-    
-    
-      
-      
-        <label class="md-header__button md-icon" for="__search">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        </label>
-        <div class="md-search" data-md-component="search" role="dialog">
-  <label class="md-search__overlay" for="__search"></label>
-  <div class="md-search__inner" role="search">
-    <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" aria-label="Rechercher" placeholder="Rechercher" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
-      <label class="md-search__icon md-icon" for="__search">
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-      </label>
-      <nav class="md-search__options" aria-label="Recherche">
-        
-        <button type="reset" class="md-search__icon md-icon" title="Effacer" aria-label="Effacer" tabindex="-1">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-        </button>
-      </nav>
-      
-    </form>
-    <div class="md-search__output">
-      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
-        <div class="md-search-result" data-md-component="search-result">
-          <div class="md-search-result__meta">
-            Initialisation de la recherche
-          </div>
-          <ol class="md-search-result__list" role="presentation"></ol>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-      
-    
-    
-  </nav>
-  
-    
-      
-<nav class="md-tabs" aria-label="Onglets" data-md-component="tabs">
-  <div class="md-grid">
-    <ul class="md-tabs__list">
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../../" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Accueil
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Blog
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
-        <a href="../../../../fast-answers/" class="md-tabs__link">
-          
-  
-  
-    
-  
-  Réponses rapides
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../../about/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  À propos
-
-      </a>
-    </li>
-  
-
-      
-    </ul>
-  </div>
-</nav>
-    
-  
-</header>
-    
-<script>
-  // Inject social icons into header after DOM loads
-  document.addEventListener("DOMContentLoaded", function () {
-    const header = document.querySelector(".md-header__inner");
-    if (header) {
-      const social = document.createElement("div");
-      social.className = "md-header__social";
-      social.innerHTML = `
-      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
-      </a>
-      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
-      </a>
-      <a href="https://www.tiktok.com/@edge.of.context" title="TikTok" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M448 209.9a210.1 210.1 0 0 1-122.8-39.2v178.7A162.6 162.6 0 1 1 185 188.3v89.9a74.6 74.6 0 1 0 52.2 71.2V0h88a121.2 121.2 0 0 0 1.9 22.2 122.2 122.2 0 0 0 53.9 80.2 121.4 121.4 0 0 0 67 20.1v87.4z"/></svg>
-      </a>
-      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
-      </a>
-    `;
-      header.appendChild(social);
-    }
-  });
-</script>
-
-    <div class="md-container" data-md-component="container">
-      
-      
-        
-      
-      <main class="md-main" data-md-component="main">
-        <div class="md-main__inner md-grid">
-          
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-
-  
-
-
-<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
-  <label class="md-nav__title" for="__drawer">
-    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    Edge of Context: Practical AI Engineering
-  </label>
-  
-  <ul class="md-nav__list" data-md-scrollfix>
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Accueil
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Blog
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-      
-        
-          
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <div class="md-nav__link md-nav__container">
-            <a href="../../../../fast-answers/" class="md-nav__link ">
-              
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Réponses rapides
-  
-
-    
-  </span>
-  
-  
-
-            </a>
-            
-              
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
-                <span class="md-nav__icon md-icon"></span>
-              </label>
-            
-          </div>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Réponses rapides
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ai-agent-frameworks/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Frameworks
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/rag-evaluation-tools/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    RAG Evaluation Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/local-llm-tools-macos/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Local LLM Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ocr-models-document-ai/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    OCR Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ner-models/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    NER Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/agent-security-patterns/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Security Patterns
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/search-ranking-stack/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Search Ranking Stack
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../../about/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    À propos
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-  </ul>
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-<nav class="md-nav md-nav--secondary" aria-label="Table des matières">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table des matières
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#prerequis" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Prérequis
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pourquoi-lechelle-est-importante" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Pourquoi l’échelle est importante
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#1-techniques-de-parallelisme-expliquees-simplement" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1. Techniques de parallélisme, expliquées simplement
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="1. Techniques de parallélisme, expliquées simplement">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#11-parallelisme-des-donnees-data-parallelism-dp" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1.1 Parallélisme des données (Data Parallelism, DP)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#12-parallelisme-en-donnees-entierement-sharde-fsdp" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1.2 Parallélisme en données entièrement shardé (FSDP)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="1.2 Parallélisme en données entièrement shardé (FSDP)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#activer-fsdp-dans-pytorch" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Activer FSDP dans PyTorch
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#14-parallelisme-du-pipeline-pp" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1.4 Parallélisme du pipeline (PP)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#16-parallelisme-expert-melange-dexperts" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1.6 Parallélisme expert (Mélange d’experts)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#comparaison-rapide-quel-niveau-de-parallelisme-choisir" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Comparaison rapide : quel niveau de parallélisme choisir ?
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#2-strategies-de-formation-pratique" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. Stratégies de formation pratique
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="2. Stratégies de formation pratique">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#21-une-seule-machine-2-a-8-gpu" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.1 Une seule machine, 2 à 8 GPU
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#22-petit-cluster-216-nuds-128-gpu" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.2 Petit cluster, 2–16 nœuds (≤128 GPU)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#23-grand-cluster-des-centaines-a-des-milliers-de-gpu" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2.3 Grand cluster (des centaines à des milliers de GPU)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#3-outils-a-maitriser" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3. Outils à maîtriser
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="3. Outils à maîtriser">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#un-exemple-minimal-accelerate-configuration-fsdp" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Un exemple minimal accelerate Configuration FSDP
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#5-le-guide-rapide-pour-lultra-echelle" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5. Le guide rapide pour l’ultra-échelle
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#conclusion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Conclusion
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#points-cles" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Points clés
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-          
-              
-
-<div class="md-content md-content--post" data-md-component="content">
-  <div
-    class="md-sidebar md-sidebar--post"
-    data-md-component="sidebar"
-    data-md-type="navigation"
-  >
-    <div class="md-sidebar__scrollwrap">
-      <div class="md-sidebar__inner md-post">
-        <nav class="md-nav md-nav--primary">
-          <div class="md-post__back">
-            <div class="md-nav__title md-nav__container">
-              <a href="../../../../" class="md-nav__link">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-                <span class="md-ellipsis"> Retourner à l'index </span>
-              </a>
-            </div>
-          </div>
-
-          
-          <ul class="md-post__meta md-nav__list">
-            <li class="md-nav__item md-nav__item--section">
-              <div class="md-post__title">
-                <span class="md-ellipsis"
-                  >Thèmes</span
-                >
-              </div>
-              <nav class="md-nav">
-                            
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-agents"
-                  >
-                    <span class="blog-category-icon"
-                      >🦾</span
-                    >
-                    <span class="blog-category-name"
-                      >Agents IA</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/06/20/schema-guided-agent-memory/">Mémoire des agents IA : état typé guidé par un schéma pour les systèmes à exécution prolongée</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/06/10/agent-evals-traces-to-test-suites/">Évaluation des agents IA en production : des traces aux suites de tests</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/05/26/ai-agent-runtime/">Exécution à long terme d’agents IA en 2026 : sessions, sandbox, points de contrôle et outils d’orchestration</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/04/20/ai-agent-security/">Sécurité des agents IA en 2026 : mécanismes de contrôle, permissions, environnements isolés et menaces liées à MCP</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/03/24/ai-agent-tool-use/">Utilisation des outils d’agent IA en 2026 : MCP, CLI, compétences et exécution de code</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/02/14/ai-agent-memory-architecture/">Architecture de mémoire des agents IA en 2026 : points d’arrêt, stores vectoriels et mémoire basée sur des fichiers</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/01/31/ai-agent-reasoning-loops/">Boucles de raisonnement des agents IA en 2026 : ReAct vs ReWOO vs Plan-and-Execute</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/01/11/enterprise-rag-challenge-agent-architectures/">Challenge RAG Entreprise 3 (ECR3) : Architectures d’agents IA gagnantes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../12/28/schema-guided-reasoning-vllm/">Raisonnement guidé par un schéma sur vLLM : sorties structurées à l’aide de xgrammar et Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../10/20/domain-driven-design-ai-agents/">Conception pilotée par le domaine pour les agents IA : contextes délimités, outils et règles métier</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../10/05/context-engineering-ai-agents/">Ingénierie du contexte pour les agents IA : fenêtres de contexte, mémoire, outils et contraintes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../06/10/mcp-server-tutorial-uv-fastmcp/">Tutoriel sur le serveur MCP avec uv et FastMCP : Création d’un serveur FeatureStoreLite</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section blog-category-section--active"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#model-engineering"
-                  >
-                    <span class="blog-category-icon"
-                      >🤖</span
-                    >
-                    <span class="blog-category-name"
-                      >Model Engineering</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Quantification des modèles en 2026 : des fondements à la mise en production</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/03/13/llm-engineering-guide/">Guide d’ingénierie des LLM : 45 concepts pour l’inférence, l’entraînement, l’architecture et les opérations</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/01/21/manifold-constrained-hyper-connections/">Hyper-conexions contraintes par un manifond (mHC) : Explication de l’échelle des résidus DeepSeek</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/01/04/llm-fine-tuning-guide/">Guide de fine-tuning des LLM : LoRA, QLoRA, DoRA, Unsloth, Axolotl et déploiement</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../12/28/schema-guided-reasoning-vllm/">Raisonnement guidé par un schéma sur vLLM : sorties structurées à l’aide de xgrammar et Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../10/22/lorax-serving-guide-lora-adapters-kubernetes/">Guide de déploiement de LoRAX : Des milliers d’adaptateurs LoRA sur Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../11/open-source-llm-formats/">Variantes de modèles LLM open source et formats de fichiers : Instruct, GGUF, GPTQ, AWQ et MoE</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../10/local-llms-on-macos/">LLM locaux sous macOS : Ollama, LM Studio, llama.cpp, MLX et Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post blog-category-post--active"
-                    >
-                      <a href="./">Échelle des grands modèles de langage : stratégies multi-GPU et multi-nœuds fiables en pratique</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section blog-category-section--active"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-infrastructure"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >Infrastructure
-IA</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Quantification des modèles en 2026 : des fondements à la mise en production</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/02/21/modern-data-processing-engines/">Comparaison des moteurs modernes de traitement de données : Polars, DataFusion, Daft, Ray Data, Pandas et Spark</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../10/22/lorax-serving-guide-lora-adapters-kubernetes/">Guide de déploiement de LoRAX : Des milliers d’adaptateurs LoRA sur Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../06/mlops-vs-llmops/">MLOps contre LLMOps : infrastructure pour les modèles fondamentaux et les systèmes LLM</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post blog-category-post--active"
-                    >
-                      <a href="./">Échelle des grands modèles de langage : stratégies multi-GPU et multi-nœuds fiables en pratique</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#retrieval-and-language-systems"
-                  >
-                    <span class="blog-category-icon"
-                      >🔍</span
-                    >
-                    <span class="blog-category-name"
-                      >Systèmes de recherche et de langage</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/05/10/rag-evaluation-metrics/">Évaluation du RAG : Métriques pour chaque étape d’un système RAG en production</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/04/02/ner-guide/">Le guide ultime sur le NER en 2026 : encodeurs, modèles LLM et architecture de production à 3 niveaux</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/03/04/ocr-guide/">Le guide ultime sur l’OCR en 2026 : des pipelines aux VLM</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/02/08/search-ranking-stack/">Stack de classement des recherches en 2026 : BM25, embeddings, encodeurs croisés et reranking par modèles de langage grandeur nature</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#developer-tooling"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >Outils de développement</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../06/10/mcp-server-tutorial-uv-fastmcp/">Tutoriel sur le serveur MCP avec uv et FastMCP : Création d’un serveur FeatureStoreLite</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../10/local-llms-on-macos/">LLM locaux sous macOS : Ollama, LM Studio, llama.cpp, MLX et Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../10/stable-diffusion-macos-tools/">Stable Diffusion sous macOS : Draw Things, DiffusionBee, ComfyUI, A1111 et Fooocus</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../08/pyproject-toml-guide/">Guide `pyproject.toml` : emballage Python, dépendances et configuration des outils</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../07/zprofile-vs-zshrc/">Fichiers de démarrage de Zsh : `~/.zprofile` contre `~/.zshrc` sous macOS et Linux</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/19/macbook-ai-engineering-setup/">Configuration du MacBook pour l’ingénierie IA : outils macOS, Python, Docker et flux de travail terminal</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/17/uv-python-on-macos/">UV sous macOS : Gestion des versions de Python, des projets et des outils</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                
-              </nav>
-            </li>
-          </ul>
-
-          
-        </nav>
-        
-      </div>
-    </div>
-  </div>
-  <article class="md-content__inner md-typeset">
-     
-  
-
-
-
-
-<!-- automated-translation-notice:start -->
-
-<div class="admonition info">
-<p class="admonition-title">Traduction automatique</p>
-</div>
-<p>Cet article a été traduit automatiquement depuis la version originale en anglais.</p>
+<!DOCTYPE html><html lang="fr"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Échelle des grands modèles de langage : stratégies multi-GPU et multi-nœuds fiables en pratique - Edge of Context: Practical AI Engineering</title><meta name="description" content="Comment mettre à l’échelle de grands modèles de langage sur plusieurs GPU et nœuds grâce au parallélisme des données, au FSDP, au parallélisme des tenseurs, au parallélisme des pipelines et au parallélisme du contexte."><link rel="canonical" href="https://slavadubrov.github.io/fr/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/"><link rel="alternate" hreflang="de" href="https://slavadubrov.github.io/de/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/"><link rel="alternate" hreflang="en" href="https://slavadubrov.github.io/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/"><link rel="alternate" hreflang="es" href="https://slavadubrov.github.io/es/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/"><link rel="alternate" hreflang="fr" href="https://slavadubrov.github.io/fr/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/"><link rel="alternate" hreflang="nl" href="https://slavadubrov.github.io/nl/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/"><link rel="alternate" hreflang="pt" href="https://slavadubrov.github.io/pt/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/"><link rel="alternate" hreflang="ru" href="https://slavadubrov.github.io/ru/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/"><link rel="alternate" hreflang="x-default" href="https://slavadubrov.github.io/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/"><meta property="og:type" content="article"><meta property="og:title" content="Échelle des grands modèles de langage : stratégies multi-GPU et multi-nœuds fiables en pratique - Edge of Context: Practical AI Engineering"><meta property="og:description" content="Comment mettre à l’échelle de grands modèles de langage sur plusieurs GPU et nœuds grâce au parallélisme des données, au FSDP, au parallélisme des tenseurs, au parallélisme des pipelines et au parallélisme du contexte."><meta property="og:url" content="https://slavadubrov.github.io/fr/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/"><meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Échelle des grands modèles de langage : stratégies multi-GPU et multi-nœuds fiables en pratique - Edge of Context: Practical AI Engineering"><meta name="twitter:description" content="Comment mettre à l’échelle de grands modèles de langage sur plusieurs GPU et nœuds grâce au parallélisme des données, au FSDP, au parallélisme des tenseurs, au parallélisme des pipelines et au parallélisme du contexte."><meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta property="article:published_time" content="2025-05-04"><meta property="article:modified_time" content="2026-06-07"><link rel="icon" href="/assets/favicon-eoc.svg" type="image/svg+xml"><link href="/pagefind/pagefind-component-ui.css" rel="stylesheet"><script src="/pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Échelle des grands modèles de langage : stratégies multi-GPU et multi-nœuds fiables en pratique - Edge of Context: Practical AI Engineering","description":"Comment mettre à l’échelle de grands modèles de langage sur plusieurs GPU et nœuds grâce au parallélisme des données, au FSDP, au parallélisme des tenseurs, au parallélisme des pipelines et au parallélisme du contexte.","url":"https://slavadubrov.github.io/fr/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/","image":"https://slavadubrov.github.io/assets/og-image.png","datePublished":"2025-05-04","dateModified":"2026-06-07","author":{"@type":"Person","name":"Viacheslav Dubrov"}}</script><link rel="stylesheet" href="/_astro/BaseLayout.DgRW7Vi7.css"></head> <body> <a class="skip-link" href="#main-content">Skip to content</a> <header class="site-header"> <a class="brand" data-home-link href="/fr/" aria-label="Edge of Context home"> <img src="/assets/logo-eoc.svg" alt="" width="36" height="36"> <span>Edge of Context</span> </a> <nav aria-label="Primary navigation"> <ul> <li><a data-nav="home" href="/fr/">Accueil</a></li><li><a data-nav="blog" href="/fr/blog/">Blog</a></li><li><a data-nav="fastAnswers" href="/fr/blog/fast-answers/">Réponses rapides</a></li><li><a data-nav="about" href="/fr/about/">À propos</a></li> </ul> </nav> <div class="header-actions"> <pagefind-modal-trigger data-search-label="true">Rechercher</pagefind-modal-trigger> <label class="locale-switcher"> <span class="visually-hidden">Langue</span> <select id="locale-select"> <option value="/de/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/">Deutsch</option><option value="/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/">English</option><option value="/es/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/">Español</option><option value="/fr/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/" selected>Français</option><option value="/nl/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/">Nederlands</option><option value="/pt/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/">Português</option><option value="/ru/blog/2025/05/04/scaling-llms-multi-gpu-multi-node/">Русский</option> </select> </label> </div> </header> <main id="main-content" tabindex="-1">  <article class="prose" data-pagefind-body> <p class="article-meta"> <time datetime="2025-05-04">2025-05-04</time>  · Mis à jour <time datetime="2026-06-07">2026-06-07</time> </p> <!-- automated-translation-notice:start -->
+<blockquote>
+<p>[!NOTE] Traduction automatique
+Cet article a été traduit automatiquement depuis la version originale en anglais.</p>
+</blockquote>
 <!-- automated-translation-notice:end -->
-
-<h1 id="echelle-des-grands-modeles-de-langage-strategies-multi-gpu-et-multi-nuds-fiables-en-pratique">Échelle des grands modèles de langage : stratégies multi-GPU et multi-nœuds fiables en pratique</h1>
+<h1 id="échelle-des-grands-modèles-de-langage--stratégies-multi-gpu-et-multi-nœuds-fiables-en-pratique">Échelle des grands modèles de langage : stratégies multi-GPU et multi-nœuds fiables en pratique</h1>
 <p>Les modèles LLM actuels ne tiennent pas sur une seule GPU. Un modèle à 70 milliards de paramètres nécessite environ 140 Go rien que pour les poids en format FP16, soit presque le double de la capacité d’une A100. L’entraînement ou le déploiement de ces modèles implique donc de répartir le travail sur plusieurs GPU ; une mauvaise allocation gaspille la majeure partie du budget de calcul disponible.</p>
 <p>Il s’agit d’une présentation pratique des stratégies de parallélisme qui fonctionnent réellement en environnement de production, tirée des expériences de Hugging Face. <a href="https://huggingface.co/spaces/nanotron/ultrascale-playbook">Guide de mise en œuvre à très grande échelle</a>.</p>
 <!-- more -->
-
 <p><strong>En résumé</strong> : L’optimisation des LLM repose avant tout sur des problèmes de mémoire, de bande passante et de communication, et non pas uniquement sur des problèmes algorithmiques. Commencez par le parallélisme des données, passez à FSDP/ZeRO lorsque les états du modèle ne rentrent plus dans les limites, ajoutez le parallélisme des tenseurs ou des pipelines lorsque une seule GPU ne peut pas stocker ou exécuter le modèle de manière efficace, et n’utilisez le MoE que lorsque la complexité liée au service et à la routage est justifiée.</p>
-<h2 id="prerequis">Prérequis</h2>
+<h2 id="prérequis">Prérequis</h2>
 <p>Vous tirerez le meilleur parti de ce contenu si vous maîtrisez déjà :</p>
 <ul>
 <li>La rétropropagation, les gradients et des optimiseurs tels qu’AdamW.</li>
 <li>Les principes des modèles Transformer : mécanisme d’attention et réseaux feed-forward.</li>
 <li>Les bases de PyTorch : <code>nn.Module</code>, <code>DataLoader</code>, la boucle d’entraînement standard.</li>
 </ul>
-<h2 id="pourquoi-lechelle-est-importante">Pourquoi l’échelle est importante</h2>
+<h2 id="pourquoi-léchelle-est-importante">Pourquoi l’échelle est importante</h2>
 <p>Quatre facteurs empêchent d’utiliser une seule GPU pour de gros travaux. Un modèle de 70 milliards de paramètres nécessite environ 140 Go en format FP16, soit presque le double des 80 Go d’une A100. Même avec huit A100, l’entraînement d’un modèle de 13 milliards de paramètres à partir de zéro prend des semaines. Les contextes longs (32 K de tokens ou plus) épuisent rapidement la mémoire d’une seule GPU avant même que le travail réel ne commence. Et sous charge de production, c’est l’inference distribuée qui permet de contrôler les latences élevées.</p>
-<h2 id="1-techniques-de-parallelisme-expliquees-simplement">1. Techniques de parallélisme, expliquées simplement</h2>
-<h3 id="11-parallelisme-des-donnees-data-parallelism-dp">1.1 Parallélisme des données (Data Parallelism, DP)</h3>
+<h2 id="1-techniques-de-parallélisme-expliquées-simplement">1. Techniques de parallélisme, expliquées simplement</h2>
+<h3 id="11-parallélisme-des-données-data-parallelism-dp">1.1 Parallélisme des données (Data Parallelism, DP)</h3>
 <p>La forme la plus simple de partitionnement. Chaque GPU conserve l’intégralité du modèle et traite une partie différente du lot. Après la rétropropagation, les GPU effectuent un <em>all-reduce</em> de leurs gradients (moyennage), puis chacun met à jour sa propre copie du modèle. Il s’agit de modèles identiques, de données différentes, mais avec des poids synchronisés.</p>
 <p>Cette approche convient lorsque le modèle tient aisément dans une seule GPU et que l’on souhaite simplement traiter davantage de lots par seconde. Le coût de mise en place est quasi nul ; DDP dans PyTorch n’est rien d’autre qu’un wrapper en une seule ligne de code. L’inconvénient réside dans la mémoire : chaque GPU doit toujours stocker l’intégralité du modèle, les états de l’optimiseur ainsi que les gradients, ce qui signifie que l’on gagne en vitesse de traitement plutôt qu’en capacité de stockage.</p>
-<p><img alt="Parallélisme des données" src="../../../../assets/2025-05-04-scaling-llms/data_parallelism.svg" /></p>
+<p><img src="/fr/blog/assets/2025-05-04-scaling-llms/data_parallelism.svg" alt="Parallélisme des données"></p>
 <p>Outils : <a href="https://pytorch.org/docs/stable/notes/ddp.html">DDP de PyTorch</a>, <a href="https://horovod.ai/">Horovod</a>.</p>
-<h3 id="12-parallelisme-en-donnees-entierement-sharde-fsdp">1.2 Parallélisme en données entièrement shardé (FSDP)</h3>
+<h3 id="12-parallélisme-en-données-entièrement-shardé-fsdp">1.2 Parallélisme en données entièrement shardé (FSDP)</h3>
 <p>Parallélisme en données classique, mais avec prise en compte de la mémoire. Les paramètres, les gradients et les états de l’optimiseur sont distribués sur plusieurs GPU. Lors du passage en avant, chaque GPU récupère les paramètres dont il a besoin auprès des autres, effectue les calculs, puis supprime les fragments empruntés afin de libérer de la mémoire. Le passage en arrière répète cette opération de récupération, puis combine les gradients de manière à ce que chaque GPU ne mette à jour que son propre fragment.</p>
 <p>C’est la couche à utiliser une fois que le modèle a dépassé les capacités d’une seule carte GPU (généralement dès qu’on dépasse environ 10 milliards de paramètres) et que l’on souhaite poursuivre l’entraînement sur une seule machine sans devoir réécrire son code. En pratique, FSDP permet d’entraîner des modèles 4 à 8 fois plus volumineux que ce qui peut tenir sur une seule GPU.</p>
-<p><img alt="FSDP" src="../../../../assets/2025-05-04-scaling-llms/fsdp.svg" /></p>
+<p><img src="/fr/blog/assets/2025-05-04-scaling-llms/fsdp.svg" alt="FSDP"></p>
 <blockquote>
 <p>[!NOTE] <strong>Les étapes ZeRO, en bref</strong>
 Le FSDP est souvent décrit en termes de ZeRO (Zero Redundancy Optimizer) :</p>
@@ -1639,100 +39,99 @@ Le FSDP est souvent décrit en termes de ZeRO (Zero Redundancy Optimizer) :</p>
 <p>Par défaut, le FSDP de PyTorch adopte le comportement de l’Étape 3.</p>
 </blockquote>
 <h4 id="activer-fsdp-dans-pytorch">Activer FSDP dans PyTorch</h4>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">torch.distributed.fsdp</span><span class="w"> </span><span class="kn">import</span> <span class="n">FullyShardedDataParallel</span> <span class="k">as</span> <span class="n">FSDP</span>
-
-<span class="c1"># 1. Wrap your model</span>
-<span class="n">model</span> <span class="o">=</span> <span class="n">MyLLM</span><span class="p">()</span>
-<span class="n">model</span> <span class="o">=</span> <span class="n">FSDP</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
-
-<span class="c1"># 2. Train as usual</span>
-<span class="n">output</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span>
-<span class="n">loss</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
-<span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
-<span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> torch.distributed.fsdp </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> FullyShardedDataParallel </span><span style="color:#FF7B72">as</span><span style="color:#79C0FF"> FSDP</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># 1. Wrap your model</span></span>
+<span class="line"><span style="color:#E6EDF3">model </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> MyLLM()</span></span>
+<span class="line"><span style="color:#E6EDF3">model </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> FSDP(model)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># 2. Train as usual</span></span>
+<span class="line"><span style="color:#E6EDF3">output </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> model(</span><span style="color:#79C0FF">input</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">loss </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> output.sum()</span></span>
+<span class="line"><span style="color:#E6EDF3">loss.backward()</span></span>
+<span class="line"><span style="color:#E6EDF3">optimizer.step()</span></span></code></pre>
 <p>Outils : <a href="https://pytorch.org/docs/stable/fsdp.html">PyTorch FSDP</a>, <a href="https://www.deepspeed.ai/tutorials/zero/">DeepSpeed ZeRO-3</a>### 1.3 Parallélisme des tenseurs (TP)</p>
 <p>On divise les différentes couches entre plusieurs GPU. On prend une matrice de poids, on la découpe colonne par colonne (ou ligne par ligne), et on attribue chaque morceau à un GPU. Chaque dispositif calcule sa partie du résultat ; une opération d’agrégation globale ou de concaténation reconstitue ensuite les résultats avant de passer à la couche suivante. Ce processus s’applique à chaque couche.</p>
 <p>Le parallélisme des tenseurs s’avère utile lorsque les couches individuelles restent trop volumineuses même après l’application de FSDP — par exemple en raison de matrices d’attention de grande taille ou de réseaux feedforward très larges. Il suppose également l’existence d’interconnexions rapides au sein du même nœud : NVLink ou NVSwitch, et non PCIe. Entre différents nœuds, l’opération d’agrégation par couche devient alors le goulot d’étranglement, annulant les avantages du parallélisme. Un degré de parallélisme compris entre 2 et 8 au sein d’une seule machine constitue généralement le compromis idéal.</p>
-<p><img alt="Parallélisme des tenseurs" src="../../../../assets/2025-05-04-scaling-llms/tensor_parallelism.svg" /></p>
+<p><img src="/fr/blog/assets/2025-05-04-scaling-llms/tensor_parallelism.svg" alt="Parallélisme des tenseurs"></p>
 <p>Outils : <a href="https://github.com/NVIDIA/Megatron-LM">Megatron-LM</a>, <a href="https://github.com/NVIDIA/TensorRT-LLM">TensorRT-LLM</a>, <a href="https://github.com/hpcaitech/ColossalAI">ColossalAI</a>.</p>
-<h3 id="14-parallelisme-du-pipeline-pp">1.4 Parallélisme du pipeline (PP)</h3>
+<h3 id="14-parallélisme-du-pipeline-pp">1.4 Parallélisme du pipeline (PP)</h3>
 <p>Divisez le modèle verticalement, en groupes de couches. Les couches 1 à 10 se trouvent sur la GPU 1, les couches 11 à 20 sur la GPU 2, et ainsi de suite. Ensuite, envoyez des micro-groupes de données à travers le pipeline afin que chaque étape reste active : la GPU 1 termine le groupe 1 et le transmet à la GPU 2, puis commence immédiatement à traiter le groupe 2. Avec suffisamment de micro-groupes en cours de traitement, chaque dispositif est constamment occupé.</p>
 <p>Recourrez au parallélisme du pipeline lorsque le modèle est si profond que même FSDP ne parvient pas à le gérer, ou lorsque vous devez le distribuer sur plusieurs nœuds et que la bande passante entre ces nœuds constitue un facteur limitant. Le problème majeur réside dans les « bulles » du pipeline — c’est-à-dire les étapes inactives au début et à la fin de chaque groupe de données — que l’on minimise en exécutant de nombreux micro-groupes de petite taille plutôt que quelques grands groupes.</p>
-<p><img alt="Parallélisme des pipelines" src="../../../../assets/2025-05-04-scaling-llms/pipeline_parallelism.svg" /></p>
+<p><img src="/fr/blog/assets/2025-05-04-scaling-llms/pipeline_parallelism.svg" alt="Parallélisme des pipelines"></p>
 <p>Outils : <a href="https://www.deepspeed.ai/tutorials/pipeline/">DeepSpeed PP</a>, <a href="https://github.com/NVIDIA/Megatron-LM">Megatron-LM</a>, <a href="https://arxiv.org/abs/1811.06965">GPipe</a>### 1.5 Parallélisme du contexte (CP)</p>
 <p>Pour les séquences très longues. On divise un contexte de 64 K de tokens en, disons, quatre GPU (16 K de tokens chacun). Chaque GPU applique l’auto‑attention sur son morceau local, puis les GPU échangent les clés et les valeurs afin de calculer les parties d’attention entre les différents morceaux. Le résultat fusionné correspond à ce que l’on obtiendrait en exécutant l’ensemble du contexte sur un seul appareil, sans la contrainte liée à la mémoire.</p>
 <p>C’est là qu’il convient d’utiliser cette approche lorsque c’est la longueur du contexte, et non la taille du modèle, qui constitue le goulot d’étranglement : analyse de documents longs, raisonnement sur des volumes importants de texte, génération de code dans un dépôt très vaste. C’est grâce au parallélisme du contexte que l’entraînement avec plus de 100 K de tokens devient possible sur des matériels qui, autrement, ne pourraient gérer que jusqu’à 8 K de tokens.</p>
-<p><img alt="Parallélisme de contexte" src="../../../../assets/2025-05-04-scaling-llms/context_parallelism.svg" /></p>
+<p><img src="/fr/blog/assets/2025-05-04-scaling-llms/context_parallelism.svg" alt="Parallélisme de contexte"></p>
 <p>Outils : <a href="https://github.com/huggingface/picotron">Picotron</a>, <a href="https://github.com/huggingface/nanotron">Nanotron</a>.</p>
-<h3 id="16-parallelisme-expert-melange-dexperts">1.6 Parallélisme expert (Mélange d’experts)</h3>
+<h3 id="16-parallélisme-expert-mélange-dexperts">1.6 Parallélisme expert (Mélange d’experts)</h3>
 <p>Spécialisation. Les couches FFN denses sont remplacées par N sous-réseaux d’experts (8, 64, parfois plus). Un petit réseau de contrôle sélectionne les k meilleurs experts (généralement les 2 meilleurs) pour chaque token. Seuls ces experts s’exécutent pour ce token ; les autres restent inactifs. Les différents experts peuvent être hébergés sur des GPU distincts, ce qui permet au modèle d’avoir un nombre élevé de paramètres totaux tout en maintenant une consommation de calcul faible par token.</p>
 <p>Mixtral-8x7B dispose de 56 milliards de paramètres au total, mais seulement environ 13 milliards sont activés par token ; Grok et DeepSeek-V2 utilisent la même technique. Le prix à payer est la complexité côté entraînement : le bilan des charges entre les experts constitue en soi un problème d’ingénierie, et l’instabilité du routage a provoqué le dérive de plusieurs exécutions basées sur le principe MoE.</p>
-<p><img alt="Mélange d’experts" src="../../../../assets/2025-05-04-scaling-llms/moe.svg" /></p>
+<p><img src="/fr/blog/assets/2025-05-04-scaling-llms/moe.svg" alt="Mélange d’experts"></p>
 <p>Outils : <a href="https://github.com/huggingface/picotron">Picotron</a>, <a href="https://github.com/huggingface/nanotron">Nanotron</a>.</p>
-<h3 id="comparaison-rapide-quel-niveau-de-parallelisme-choisir">Comparaison rapide : quel niveau de parallélisme choisir ?</h3>
-<table>
-<thead>
-<tr>
-<th>Technique</th>
-<th>Ce qu’il divise</th>
-<th>Idéal pour</th>
-<th>Économie de mémoire</th>
-<th>Coût de communication</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Parallélisme des données (DP)</strong></td>
-<td>Lot de données</td>
-<td>Modèles qui tiennent sur 1 GPU</td>
-<td>Aucun (copie du modèle)</td>
-<td>Faible (uniquement des gradients)</td>
-</tr>
-<tr>
-<td><strong>FSDP</strong></td>
-<td>Modèle + optimiseur + gradients</td>
-<td>Modèles trop volumineux pour une seule GPU</td>
-<td>Élevé (4–8×)</td>
-<td>Moyen</td>
-</tr>
-<tr>
-<td><strong>Parallélisme des tenseurs (TP)</strong></td>
-<td>Couche individuelle</td>
-<td>Étages massifs, GPU rapides</td>
-<td>Moyen</td>
-<td>Élevé (par couche)</td>
-</tr>
-<tr>
-<td><strong>Parallélisme des pipelines (PP)</strong></td>
-<td>Groupes de couches (étapes)</td>
-<td>Modèles très profonds</td>
-<td>Moyen</td>
-<td>Faible (entre les étapes)</td>
-</tr>
-<tr>
-<td><strong>Parallélisme de contexte (PC)</strong></td>
-<td>Longueur de la séquence</td>
-<td>Contextes longs (64 K+ tokens)</td>
-<td>Élevé (pour les activations)</td>
-<td>Moyen</td>
-</tr>
-<tr>
-<td><strong>Parallélisme expert (MoE)</strong></td>
-<td>Experts en couches MoE</td>
-<td>Modèles sparses à très grande échelle</td>
-<td>Aucun (plus de paramètres, moins de FLOPs)</td>
-<td>Moyen</td>
-</tr>
-</tbody>
-</table>
+<h3 id="comparaison-rapide--quel-niveau-de-parallélisme-choisir-">Comparaison rapide : quel niveau de parallélisme choisir ?</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Technique</th><th>Ce qu’il divise</th><th>Idéal pour</th><th>Économie de mémoire</th><th>Coût de communication</th></tr></thead><tbody><tr><td><strong>Parallélisme des données (DP)</strong></td><td>Lot de données</td><td>Modèles qui tiennent sur 1 GPU</td><td>Aucun (copie du modèle)</td><td>Faible (uniquement des gradients)</td></tr><tr><td><strong>FSDP</strong></td><td>Modèle + optimiseur + gradients</td><td>Modèles trop volumineux pour une seule GPU</td><td>Élevé (4–8×)</td><td>Moyen</td></tr><tr><td><strong>Parallélisme des tenseurs (TP)</strong></td><td>Couche individuelle</td><td>Étages massifs, GPU rapides</td><td>Moyen</td><td>Élevé (par couche)</td></tr><tr><td><strong>Parallélisme des pipelines (PP)</strong></td><td>Groupes de couches (étapes)</td><td>Modèles très profonds</td><td>Moyen</td><td>Faible (entre les étapes)</td></tr><tr><td><strong>Parallélisme de contexte (PC)</strong></td><td>Longueur de la séquence</td><td>Contextes longs (64 K+ tokens)</td><td>Élevé (pour les activations)</td><td>Moyen</td></tr><tr><td><strong>Parallélisme expert (MoE)</strong></td><td>Experts en couches MoE</td><td>Modèles sparses à très grande échelle</td><td>Aucun (plus de paramètres, moins de FLOPs)</td><td>Moyen</td></tr></tbody></table>
 <p>Une valeur par défaut raisonnable : commencer avec FSDP. Ajouter TP lorsque les couches individuelles restent trop volumineuses. Ajouter PP lorsqu’il est nécessaire d’étendre l’infrastructure sur plusieurs nœuds. Ajouter CP lorsque la longueur du contexte constitue le goulot d’étranglement.</p>
-<h2 id="2-strategies-de-formation-pratique">2. Stratégies de formation pratique</h2>
+<h2 id="2-stratégies-de-formation-pratique">2. Stratégies de formation pratique</h2>
 <p>Les formes différentes du matériel exigent des combinaisons variées. Voici ce que je ferais concrètement pour trois configurations courantes.</p>
-<h3 id="21-une-seule-machine-2-a-8-gpu">2.1 Une seule machine, 2 à 8 GPU</h3>
+<h3 id="21-une-seule-machine-2-à-8-gpu">2.1 Une seule machine, 2 à 8 GPU</h3>
 <p>Il convient d’utiliser d’abord FSDP pur — que ce soit PyTorch FSDP ou DeepSpeed ZeRO-2/ZeRO-3 — géré par Hugging Face <code>accelerate</code> ou <code>torchrun</code>. Si l’attention individuelle ou les couches FFN restent trop volumineuses après le shardage, ajoutez une couche avec TP=2.</p>
 <p>Quelques remarques spécifiques au matériel. Les GPU grand public (RTX 4090 et modèles similaires) connectés par PCIe doivent se limiter à TP=1 ou TP=2 au maximum ; l’interconnexion ne peut pas suivre un rythme plus élevé. Les GPU serveur (A100, H100) équipés de NVLink gèrent sans problème des valeurs de TP allant de 2 à 4. De plus, avec huit GPU dans une seule boîtier, le FSDP pur permet souvent de traiter des modèles allant jusqu’à 70 milliards de paramètres sans avoir besoin du TP du tout.</p>
-<h3 id="22-petit-cluster-216-nuds-128-gpu">2.2 Petit cluster, 2–16 nœuds (≤128 GPU)</h3>
+<h3 id="22-petit-cluster-216-nœuds-128-gpu">2.2 Petit cluster, 2–16 nœuds (≤128 GPU)</h3>
 <p>Vous souhaitez bénéficier d’un parallélisme 2D ou 3D : combinez TP avec FSDP, éventuellement complété par PP. La configuration la plus efficace en pratique est la suivante :</p>
 <ol>
 <li>TP au sein de chaque nœud (TP=4 ou TP=8 en utilisant NVLink).</li>
@@ -1741,7 +140,7 @@ Le FSDP est souvent décrit en termes de ZeRO (Zero Redundancy Optimizer) :</p>
 </ol>
 <p>La raison pour laquelle cette architecture fonctionne : NVLink est suffisamment rapide pour gérer les échanges de données au niveau de chaque couche, tandis qu’InfiniBand entre les nœuds n’a qu’à synchroniser les shards FSDP, ce qui représente une communication bien moins coûteuse. Résultat global : vous minimisez la bande passante entre les nœuds, qui constitue presque toujours le goulot d’étranglement à cette échelle.</p>
 <p>Lorsque vous ajoutez PP, configurez le nombre de micro-batches à au moins 4 fois le degré du pipeline. Un chiffre inférieur entraînera une réduction significative de votre débit de traitement.</p>
-<h3 id="23-grand-cluster-des-centaines-a-des-milliers-de-gpu">2.3 Grand cluster (des centaines à des milliers de GPU)</h3>
+<h3 id="23-grand-cluster-des-centaines-à-des-milliers-de-gpu">2.3 Grand cluster (des centaines à des milliers de GPU)</h3>
 <p>C’est ici que le parallélisme 4D (DP × TP × PP × CP) commence à prendre sens. Associez chaque dimension à votre topologie matérielle, et utilisez Megatron-LM ou Nanotron — ils prennent en charge nativement le 4D, tandis que développer une solution personnalisée relève d’un projet complexe.</p>
 <p>En réalité, vous n’avez besoin de cela que lorsque vous entraînez à partir de zéro des modèles de 70 milliards de paramètres avec des fenêtres de contexte de 32 000 tokens ou plus. La plupart des cas de retouche, même pour de grands modèles, ne l’exigent pas.</p>
 <p>Un exemple concret : entraîner un modèle de 70 milliards de paramètres avec une fenêtre de contexte de 32 000 tokens sur 512 GPU :</p>
@@ -1753,212 +152,113 @@ Le FSDP est souvent décrit en termes de ZeRO (Zero Redundancy Optimizer) :</p>
 <li>8 × 4 × 4 × 4 = 512 GPU.</li>
 </ul>
 <p>L’efficacité de l’échelle sur une telle configuration atteint environ 70–80 % avec un bon réseau InfiniBand, et elle peut monter à ~85 % grâce à des ajustements minutieux. Tout en dessous de ce niveau, c’est de l’argent gaspillé.</p>
-<h2 id="3-outils-a-maitriser">3. Outils à maîtriser</h2>
+<h2 id="3-outils-à-maîtriser">3. Outils à maîtriser</h2>
 <p>Un bref guide pour choisir le bon outil :</p>
-<table>
-<thead>
-<tr>
-<th></th>
-<th>Quand l’utiliser</th>
-<th>Courbe d’apprentissage</th>
-<th>Idéal pour</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Hugging Face Accelerate</strong></td>
-<td>Tout entraînement distribué avec des modifications de code minimales</td>
-<td>★☆☆☆☆</td>
-<td>Débutants, prototypes rapides</td>
-</tr>
-<tr>
-<td><strong>PyTorch FSDP</strong></td>
-<td>Modèles de taille moyenne à grande (1–30 milliards de paramètres) sur une seule machine</td>
-<td>★★☆☆☆</td>
-<td>Le cas le plus courant</td>
-</tr>
-<tr>
-<td><strong>DeepSpeed ZeRO</strong></td>
-<td>Entraînement multi-nœuds accompagné d’une documentation de qualité</td>
-<td>★★★☆☆</td>
-<td>Formation en environnement de production</td>
-</tr>
-<tr>
-<td><strong>Megatron-LM</strong></td>
-<td>Modèles très volumineux (70B+), parallélisme 3D/4D</td>
-<td>★★★★☆</td>
-<td>Production à grande échelle</td>
-</tr>
-<tr>
-<td><strong>Nanotron</strong></td>
-<td>Apprentissage et recherche sur le parallélisme moderne</td>
-<td>★★★☆☆</td>
-<td>Éducation, expérimentation</td>
-</tr>
-<tr>
-<td><strong>vLLM</strong></td>
-<td>Inference rapide grâce à PagedAttention et au cache KV</td>
-<td>★★☆☆☆</td>
-<td>Mise en production</td>
-</tr>
-<tr>
-<td><strong>TensorRT-LLM</strong></td>
-<td>Vitesse maximale d’inférence sur les GPU NVIDIA</td>
-<td>★★★★☆</td>
-<td>Optimisation de l’inférence en production</td>
-</tr>
-</tbody>
-</table>
-<h4 id="un-exemple-minimal-accelerate-configuration-fsdp">Un exemple minimal <code>accelerate</code> Configuration FSDP</h4>
-<div class="highlight"><pre><span></span><code><span class="nt">compute_environment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LOCAL_MACHINE</span>
-<span class="nt">distributed_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">FSDP</span>
-<span class="nt">fsdp_config</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">fsdp_auto_wrap_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRANSFORMER_BASED_WRAP</span>
-<span class="w">    </span><span class="nt">fsdp_backward_prefetch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">BACKWARD_PRE</span>
-<span class="w">    </span><span class="nt">fsdp_state_dict_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SHARDED_STATE_DICT</span>
-<span class="nt">machine_rank</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
-<span class="nt">main_process_ip</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
-<span class="nt">main_process_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
-<span class="nt">main_training_function</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
-<span class="nt">mixed_precision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bf16</span>
-<span class="nt">num_machines</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<span class="nt">num_processes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
-<span class="nt">use_cpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
-</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th></th><th>Quand l’utiliser</th><th>Courbe d’apprentissage</th><th>Idéal pour</th></tr></thead><tbody><tr><td><strong>Hugging Face Accelerate</strong></td><td>Tout entraînement distribué avec des modifications de code minimales</td><td>★☆☆☆☆</td><td>Débutants, prototypes rapides</td></tr><tr><td><strong>PyTorch FSDP</strong></td><td>Modèles de taille moyenne à grande (1–30 milliards de paramètres) sur une seule machine</td><td>★★☆☆☆</td><td>Le cas le plus courant</td></tr><tr><td><strong>DeepSpeed ZeRO</strong></td><td>Entraînement multi-nœuds accompagné d’une documentation de qualité</td><td>★★★☆☆</td><td>Formation en environnement de production</td></tr><tr><td><strong>Megatron-LM</strong></td><td>Modèles très volumineux (70B+), parallélisme 3D/4D</td><td>★★★★☆</td><td>Production à grande échelle</td></tr><tr><td><strong>Nanotron</strong></td><td>Apprentissage et recherche sur le parallélisme moderne</td><td>★★★☆☆</td><td>Éducation, expérimentation</td></tr><tr><td><strong>vLLM</strong></td><td>Inference rapide grâce à PagedAttention et au cache KV</td><td>★★☆☆☆</td><td>Mise en production</td></tr><tr><td><strong>TensorRT-LLM</strong></td><td>Vitesse maximale d’inférence sur les GPU NVIDIA</td><td>★★★★☆</td><td>Optimisation de l’inférence en production</td></tr></tbody></table>
+<h3 id="un-exemple-minimal-accelerate-configuration-fsdp">Un exemple minimal <code>accelerate</code> Configuration FSDP</h3>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#7EE787">compute_environment</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">LOCAL_MACHINE</span></span>
+<span class="line"><span style="color:#7EE787">distributed_type</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">FSDP</span></span>
+<span class="line"><span style="color:#7EE787">fsdp_config</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#7EE787">    fsdp_auto_wrap_policy</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">TRANSFORMER_BASED_WRAP</span></span>
+<span class="line"><span style="color:#7EE787">    fsdp_backward_prefetch</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">BACKWARD_PRE</span></span>
+<span class="line"><span style="color:#7EE787">    fsdp_state_dict_type</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">SHARDED_STATE_DICT</span></span>
+<span class="line"><span style="color:#7EE787">machine_rank</span><span style="color:#E6EDF3">: </span><span style="color:#79C0FF">0</span></span>
+<span class="line"><span style="color:#7EE787">main_process_ip</span><span style="color:#E6EDF3">: </span><span style="color:#79C0FF">null</span></span>
+<span class="line"><span style="color:#7EE787">main_process_port</span><span style="color:#E6EDF3">: </span><span style="color:#79C0FF">null</span></span>
+<span class="line"><span style="color:#7EE787">main_training_function</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">main</span></span>
+<span class="line"><span style="color:#7EE787">mixed_precision</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">bf16</span></span>
+<span class="line"><span style="color:#7EE787">num_machines</span><span style="color:#E6EDF3">: </span><span style="color:#79C0FF">1</span></span>
+<span class="line"><span style="color:#7EE787">num_processes</span><span style="color:#E6EDF3">: </span><span style="color:#79C0FF">8</span></span>
+<span class="line"><span style="color:#7EE787">use_cpu</span><span style="color:#E6EDF3">: </span><span style="color:#79C0FF">false</span></span></code></pre>
 <p>Si vous débutez, je vous conseillerais d’utiliser Hugging Face Accelerate pour faire fonctionner un modèle, puis de passer à PyTorch FSDP ou DeepSpeed lorsque vous aurez besoin d’un contrôle plus fin.</p>
-<p><img alt="Échelle des arbres de décision" src="../../../../assets/2025-05-04-scaling-llms/scaling_decision_tree.svg" /></p>
+<p><img src="/fr/blog/assets/2025-05-04-scaling-llms/scaling_decision_tree.svg" alt="Échelle des arbres de décision"></p>
 <p>L’image ci-dessus illustre ce que je ferais en pratique : d’abord FSDP, puis TP lorsque les couches deviennent trop volumineuses, PP pour les architectures à plusieurs nœuds, et CP pour les contextes longs. On n’ajoute de la complexité qu’une fois que l’approche plus simple a réellement épuisé ses capacités.</p>
-<h2 id="5-le-guide-rapide-pour-lultra-echelle">5. Le guide rapide pour l’ultra-échelle</h2>
+<h2 id="5-le-guide-rapide-pour-lultra-échelle">5. Le guide rapide pour l’ultra-échelle</h2>
 <p>L’équipe de Hugging Face a élaboré un résumé visuel en une seule page qui couvre la majeure partie des points abordés ci-dessus :</p>
-<p><img alt="Guide pratique pour les LLM à très grande échelle" src="https://nanotron-ultrascale-playbook.static.hf.space/assets/images/ultra-cheatsheet.svg" /></p>
+<p><img src="https://nanotron-ultrascale-playbook.static.hf.space/assets/images/ultra-cheatsheet.svg" alt="Guide pratique pour les LLM à très grande échelle"></p>
 <h2 id="conclusion">Conclusion</h2>
 <p>FSDP gère la plupart des cas auxquels vous pourrez être confronté. TP permet d’insérer le modèle dans une seule nœud lorsque les couches individuelles ne rentrent pas encore. PP répartit le modèle sur plusieurs nœuds lorsque la profondeur du réseau constitue la contrainte. CP intervient lorsque la longueur du contexte épuise la mémoire disponible. Le principe commun à tous ces approches consiste à adapter la stratégie de parallélisation à la topologie matérielle réelle, et à ajouter une nouvelle dimension uniquement une fois que celle plus simple s’est avérée insuffisante.</p>
 <p>Lectures complémentaires :</p>
 <ul>
 <li><a href="https://huggingface.co/spaces/nanotron/ultrascale-playbook">Guide de mise en œuvre à très grande échelle sur Hugging Face</a> — le guide interactif sur lequel s’appuie cet article. <a href="https://pytorch.org/tutorials/intermediate/FSDP_tutorial.html">Tutoriel sur PyTorch FSDP</a> — le guide officiel pour commencer. <a href="https://www.deepspeed.ai/tutorials/">Guides DeepSpeed</a> — Documentation complète de DeepSpeed.</li>
 </ul>
-<hr />
-<h2 id="points-cles">Points clés</h2>
+<hr>
+<h2 id="points-clés">Points clés</h2>
 <ol>
 <li>Le parallélisme des données constitue la référence la plus simple, mais il duplique l’état du modèle sur chaque GPU.</li>
 <li>FSDP et ZeRO réduisent la pression mémoire en shardant les paramètres, les gradients et l’état de l’optimiseur.</li>
 <li>Le parallélisme des tenseurs et celui des pipelines résolvent des goulots d’étranglement différents : les opérations mathématiques au niveau des couches par rapport à leur disposition.</li>
 <li>Le parallélisme contextuel devient pertinent lorsque la longueur de la séquence, et non le nombre de paramètres, constitue le facteur limitant.</li>
 <li>La méthode Mixture-of-Experts améliore le calcul actif par token, mais complique les tâches de routage, d’équilibrage de charge et de fourniture des services. <a href="https://pytorch.org/docs/stable/fsdp.html">Documentation de PyTorch FSDP</a> - entraînement parallèle sur des données entièrement shardées. <a href="https://arxiv.org/abs/1910.02054">Article sur DeepSpeed ZeRO</a> - Partitionnement de l’optimiseur et de l’état du modèle. <a href="https://arxiv.org/abs/1909.08053">Article sur Megatron-LM</a> - parallélisme des modèles en tenseur. <a href="https://arxiv.org/abs/1811.06965">Article GPipe</a> - entraînement parallèle sur des pipelines. <a href="https://arxiv.org/abs/2101.03961">Article sur les transformateurs à commutation</a> - modèles d’experts sparses.</li>
-</ol>
-
-
-
-
-
-
-
-  
-  
-
-
-
-  
-
-
-  
-
-
- 
-  </article>
-</div>
-
-          
-<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
-        </div>
-        
-      </main>
-      
-        <footer class="md-footer">
-  
-  <div class="md-footer-meta md-typeset">
-    <div class="md-footer-meta__inner md-grid">
-      <div class="md-copyright">
-  
-  
-    Made with
-    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
-      Material for MkDocs
-    </a>
-  
-</div>
-      
-        
-<div class="md-social">
-  
-    
-    
-    
-    
-    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://www.tiktok.com/@edge.of.context" target="_blank" rel="noopener" title="TikTok" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M448.5 209.9c-44 .1-87-13.6-122.8-39.2v178.7c0 33.1-10.1 65.4-29 92.6s-45.6 48-76.6 59.6-64.8 13.5-96.9 5.3-60.9-25.9-82.7-50.8-35.3-56-39-88.9 2.9-66.1 18.6-95.2 40-52.7 69.6-67.7 62.9-20.5 95.7-16v89.9c-15-4.7-31.1-4.6-46 .4s-27.9 14.6-37 27.3-14 28.1-13.9 43.9 5.2 31 14.5 43.7 22.4 22.1 37.4 26.9 31.1 4.8 46-.1 28-14.4 37.2-27.1 14.2-28.1 14.2-43.8V0h88c-.1 7.4.6 14.9 1.9 22.2 3.1 16.3 9.4 31.9 18.7 45.7s21.3 25.6 35.2 34.6c19.9 13.1 43.2 20.1 67 20.1V210z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
-    </a>
-  
-</div>
-      
-    </div>
-  </div>
-</footer>
-      
-    </div>
-    <div class="md-dialog" data-md-component="dialog">
-      <div class="md-dialog__inner md-typeset"></div>
-    </div>
-    
-    
-    
-      
-      
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copi\u00e9 dans le presse-papier", "clipboard.copy": "Copier dans le presse-papier", "search.result.more.one": "1 de plus sur cette page", "search.result.more.other": "# de plus sur cette page", "search.result.none": "Aucun document trouv\u00e9", "search.result.one": "1 document trouv\u00e9", "search.result.other": "# documents trouv\u00e9s", "search.result.placeholder": "Taper pour d\u00e9marrer la recherche", "search.result.term.missing": "Non trouv\u00e9", "select.version": "S\u00e9lectionner la version"}, "version": null}</script>
-    
-    
-      <script src="../../../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-      
-        <script src="../../../../../../javascripts/mermaid-init.js"></script>
-      
-        <script src="../../../../../../javascripts/mathjax.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
-      
-    
-  </body>
-</html>
+</ol> </article>  </main> <footer class="site-footer"> <p data-footer-tagline>Ingénierie IA pratique par Slava Dubrov.</p> <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>
+      document.querySelector("#locale-select")?.addEventListener("change", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLSelectElement && target.value) location.assign(target.value);
+      });
+      document.querySelectorAll("pre").forEach((pre) => {
+        if (pre.closest(".mermaid-diagram")) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-code";
+        button.textContent = "Copy";
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(pre.textContent || "");
+          button.textContent = "Copied";
+          setTimeout(() => { button.textContent = "Copy"; }, 1500);
+        });
+        pre.append(button);
+      });
+    </script> </body> </html>

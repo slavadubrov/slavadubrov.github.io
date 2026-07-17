@@ -1,1750 +1,13 @@
-
-<!doctype html>
-<html lang="nl" class="no-js">
-  <head>
-    
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1">
-      
-        <meta name="description" content="Hoe duizenden LoRA-adapters te serveren met LoRAX op Kubernetes: dynamische laad van adapters, batchverwerking van meerdere adapters, geheugenlagen, Helm en APIs.">
-      
-      
-        <meta name="author" content="Viacheslav Dubrov">
-      
-      
-        <link rel="canonical" href="https://slavadubrov.github.io/nl/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">
-      
-      
-      
-      
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="en">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/de/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="de">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/ru/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="ru">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/es/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="es">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/pt/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="pt">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/fr/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="fr">
-        
-          <link rel="alternate" href="https://slavadubrov.github.io/nl/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="nl">
-        
-      
-      
-        <link rel="alternate" type="application/rss+xml" title="RSS feed" href="../../../../../../feed_rss_created.xml">
-        <link rel="alternate" type="application/rss+xml" title="RSS feed met geüpdatet inhoud" href="../../../../../../feed_rss_updated.xml">
-      
-      <link rel="icon" href="../../../../../../assets/favicon-eoc.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.7.6">
-    
-    
-      
-        <title>LoRAX-beheergids: Duizenden LoRA-adapters op Kubernetes - Edge of Context: Practical AI Engineering</title>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../../assets/stylesheets/main.484c7ddc.min.css">
-      
-        
-        <link rel="stylesheet" href="../../../../../../assets/stylesheets/palette.ab4e12ef.min.css">
-      
-      
-
-
-    
-    
-      
-    
-    
-      
-        
-        
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
-        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-      
-    
-    
-      <link rel="stylesheet" href="../../../../../../assets/brand.css">
-    
-      <link rel="stylesheet" href="../../../../../../assets/blog-sidebar.css">
-    
-      <link rel="stylesheet" href="../../../../../../assets/blog-index.css">
-    
-    <script>__md_scope=new URL("../../../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
-    
-      
-  
-
-
-  
-  
-
-<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-T51K83ENZ5"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-T51K83ENZ5",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
-  
-    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
-  
-
-    
-        
-
-   
-     
-<!-- Open Graph -->
-<meta property="og:title" content="LoRAX-beheergids: Duizenden LoRA-adapters op Kubernetes" />
-<meta property="og:description" content="Hoe duizenden LoRA-adapters te serveren met LoRAX op Kubernetes: dynamische laad van adapters, batchverwerking van meerdere adapters, geheugenlagen, Helm en APIs." />
-<meta property="og:url" content="https://slavadubrov.github.io/nl/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" />
-<meta property="og:site_name" content="Edge of Context: Practical AI Engineering" />
-<meta
-  property="og:type"
-  content="article"
-/>
-<meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png" />
-<!-- Twitter Card -->
-<meta
-  name="twitter:card"
-  content="summary"
-/>
-<meta name="twitter:title" content="LoRAX-beheergids: Duizenden LoRA-adapters op Kubernetes" />
-<meta name="twitter:description" content="Hoe duizenden LoRA-adapters te serveren met LoRAX op Kubernetes: dynamische laad van adapters, batchverwerking van meerdere adapters, geheugenlagen, Helm en APIs." />
-<meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png" />
-<!-- Site identity schema -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Person",
-        "@id": "https://slavadubrov.github.io/#person",
-        "name": "Viacheslav Dubrov",
-        "alternateName": "Slava Dubrov",
-        "url": "https://slavadubrov.github.io/about/",
-        "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-      },
-      {
-        "@type": "WebSite",
-        "@id": "https://slavadubrov.github.io/#website",
-        "name": "Edge of Context: Practical AI Engineering",
-        "alternateName": "Edge of Context",
-        "url": "https://slavadubrov.github.io/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "nl",
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        }
-      },
-      {
-        "@type": "Blog",
-        "@id": "https://slavadubrov.github.io/#blog",
-        "name": "Edge of Context: Practical AI Engineering",
-        "url": "https://slavadubrov.github.io/blog/",
-        "description": "Practical AI engineering articles by Slava Dubrov on production AI agents, LLM infrastructure, RAG, search, fine-tuning, and tooling.",
-        "inLanguage": "nl",
-        "author": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "publisher": {
-          "@id": "https://slavadubrov.github.io/#person"
-        },
-        "isPartOf": {
-          "@id": "https://slavadubrov.github.io/#website"
-        }
-      }
-    ]
-  }
-</script>
-
-<script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      "itemListElement": [
-        {
-          "@type": "ListItem",
-          "position": 1,
-          "name": "Edge of Context: Practical AI Engineering",
-          "item": "https://slavadubrov.github.io/"
-        },
-        {
-          "@type": "ListItem",
-          "position": 2,
-          "name": "LoRAX-beheergids: Duizenden LoRA-adapters op Kubernetes",
-          "item": "https://slavadubrov.github.io/nl/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"
-        }
-  
-      ]
-    }
-</script>
- 
-<style>
-  /* Header social icons */
-  .md-header__social {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-left: 0.5rem;
-  }
-  .md-header__social a {
-    color: var(--md-primary-bg-color);
-    opacity: 0.7;
-    transition: opacity 0.2s;
-  }
-  .md-header__social a:hover {
-    opacity: 1;
-  }
-  .md-header__social svg {
-    width: 1.2rem;
-    height: 1.2rem;
-    fill: currentColor;
-  }
-  /* Adjust search to make room for social icons */
-  .md-search {
-    margin-right: 0;
-  }
-</style>
-
-<!-- Article-specific Open Graph -->
-       
-<meta property="article:published_time" content="2025-10-22" />
- 
-<meta property="article:modified_time" content="2026-06-07" />
- 
-<meta property="article:author" content="Viacheslav Dubrov" />
-  
-<meta property="article:tag" content="Model Engineering" />
-
-<meta property="article:tag" content="AI Infrastructure" />
- 
-<!-- Schema.org JSON-LD -->
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    "@id": "https://slavadubrov.github.io/nl/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/#blogposting",
-    "headline": "LoRAX-beheergids: Duizenden LoRA-adapters op Kubernetes",
-    "description": "Hoe duizenden LoRA-adapters te serveren met LoRAX op Kubernetes: dynamische laad van adapters, batchverwerking van meerdere adapters, geheugenlagen, Helm en APIs.",
-    "url": "https://slavadubrov.github.io/nl/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/",
-    "image": "https://slavadubrov.github.io/assets/og-image.png",
-    "inLanguage": "nl",
-    "mainEntityOfPage": {
-      "@type": "WebPage",
-      "@id": "https://slavadubrov.github.io/nl/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"
-    },
-    "datePublished": "2025-10-22",
-    "dateModified": "2026-06-07",
-    "author": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "publisher": {
-      "@type": "Person",
-      "@id": "https://slavadubrov.github.io/#person",
-      "name": "Viacheslav Dubrov",
-      "alternateName": "Slava Dubrov",
-      "url": "https://slavadubrov.github.io/about/",
-      "sameAs": ["https://www.linkedin.com/in/slavadubrov", "https://github.com/slavadubrov", "https://slavadubrov.substack.com/", "https://www.tiktok.com/@edge.of.context"]
-    },
-    "isPartOf": {
-      "@type": "Blog",
-      "@id": "https://slavadubrov.github.io/#blog",
-      "name": "Edge of Context: Practical AI Engineering",
-      "url": "https://slavadubrov.github.io/"
-    },
-    "keywords": "Model Engineering, AI Infrastructure"
-  }
-</script>
-
-  
-<link rel="alternate" href="https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="x-default">
-</head>
-  
-  
-    
-    
-      
-    
-    
-    
-    
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
-  
-    
-    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
-    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
-    <label class="md-overlay" for="__drawer"></label>
-    <div data-md-component="skip">
-      
-        
-        <a href="#lorax-servicegids-duizenden-lora-adapters-op-kubernetes" class="md-skip">
-          Ga naar inhoud
-        </a>
-      
-    </div>
-    <div data-md-component="announce">
-      
-    </div>
-    
-     
-      
-
-  
-
-<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
-  <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-header__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    <label class="md-header__button md-icon" for="__drawer">
-      
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
-    </label>
-    <div class="md-header__title" data-md-component="header-title">
-      <div class="md-header__ellipsis">
-        <div class="md-header__topic">
-          <span class="md-ellipsis">
-            Edge of Context: Practical AI Engineering
-          </span>
-        </div>
-        <div class="md-header__topic" data-md-component="header-topic">
-          <span class="md-ellipsis">
-            
-              LoRAX-beheergids: Duizenden LoRA-adapters op Kubernetes
-            
-          </span>
-        </div>
-      </div>
-    </div>
-    
-      
-        <form class="md-header__option" data-md-component="palette">
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
-    
-      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
-    
-      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-</form>
-      
-    
-    
-      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
-    
-    
-      <div class="md-header__option">
-  <div class="md-select">
-    
-    <button class="md-header__button md-icon" aria-label="Selecteer taal">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
-    </button>
-    <div class="md-select__inner">
-      <ul class="md-select__list">
-        
-          <li class="md-select__item">
-            <a href="../../../../../../blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="en" class="md-select__link">
-              English
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../de/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="de" class="md-select__link">
-              Deutsch
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../ru/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="ru" class="md-select__link">
-              Русский
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../es/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="es" class="md-select__link">
-              Español
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../pt/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="pt" class="md-select__link">
-              Português
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="../../../../../../fr/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" hreflang="fr" class="md-select__link">
-              Français
-            </a>
-          </li>
-        
-          <li class="md-select__item">
-            <a href="./" hreflang="nl" class="md-select__link">
-              Nederlands
-            </a>
-          </li>
-        
-      </ul>
-    </div>
-  </div>
-</div>
-    
-    
-      
-      
-        <label class="md-header__button md-icon" for="__search">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        </label>
-        <div class="md-search" data-md-component="search" role="dialog">
-  <label class="md-search__overlay" for="__search"></label>
-  <div class="md-search__inner" role="search">
-    <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" aria-label="Zoeken" placeholder="Zoeken" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
-      <label class="md-search__icon md-icon" for="__search">
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-      </label>
-      <nav class="md-search__options" aria-label="Zoeken">
-        
-        <button type="reset" class="md-search__icon md-icon" title="Leegmaken" aria-label="Leegmaken" tabindex="-1">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-        </button>
-      </nav>
-      
-    </form>
-    <div class="md-search__output">
-      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
-        <div class="md-search-result" data-md-component="search-result">
-          <div class="md-search-result__meta">
-            Zoeken initialiseren
-          </div>
-          <ol class="md-search-result__list" role="presentation"></ol>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-      
-    
-    
-  </nav>
-  
-    
-      
-<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
-  <div class="md-grid">
-    <ul class="md-tabs__list">
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../../" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Start
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Blog
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
-        <a href="../../../../fast-answers/" class="md-tabs__link">
-          
-  
-  
-    
-  
-  Snelle antwoorden
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../../../../../about/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Over
-
-      </a>
-    </li>
-  
-
-      
-    </ul>
-  </div>
-</nav>
-    
-  
-</header>
-    
-<script>
-  // Inject social icons into header after DOM loads
-  document.addEventListener("DOMContentLoaded", function () {
-    const header = document.querySelector(".md-header__inner");
-    if (header) {
-      const social = document.createElement("div");
-      social.className = "md-header__social";
-      social.innerHTML = `
-      <a href="https://www.linkedin.com/in/slavadubrov" title="LinkedIn" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/></svg>
-      </a>
-      <a href="https://slavadubrov.substack.com/" title="Substack" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>
-      </a>
-      <a href="https://www.tiktok.com/@edge.of.context" title="TikTok" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M448 209.9a210.1 210.1 0 0 1-122.8-39.2v178.7A162.6 162.6 0 1 1 185 188.3v89.9a74.6 74.6 0 1 0 52.2 71.2V0h88a121.2 121.2 0 0 0 1.9 22.2 122.2 122.2 0 0 0 53.9 80.2 121.4 121.4 0 0 0 67 20.1v87.4z"/></svg>
-      </a>
-      <a href="https://github.com/slavadubrov" title="GitHub" target="_blank" rel="noopener">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
-      </a>
-    `;
-      header.appendChild(social);
-    }
-  });
-</script>
-
-    <div class="md-container" data-md-component="container">
-      
-      
-        
-      
-      <main class="md-main" data-md-component="main">
-        <div class="md-main__inner md-grid">
-          
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-
-  
-
-
-<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigatie" data-md-level="0">
-  <label class="md-nav__title" for="__drawer">
-    <a href="../../../../../" title="Edge of Context: Practical AI Engineering" class="md-nav__button md-logo" aria-label="Edge of Context: Practical AI Engineering" data-md-component="logo">
-      
-  <img src="../../../../../../assets/logo-eoc.svg" alt="logo">
-
-    </a>
-    Edge of Context: Practical AI Engineering
-  </label>
-  
-  <ul class="md-nav__list" data-md-scrollfix>
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Start
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Blog
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-      
-        
-          
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <div class="md-nav__link md-nav__container">
-            <a href="../../../../fast-answers/" class="md-nav__link ">
-              
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Snelle antwoorden
-  
-
-    
-  </span>
-  
-  
-
-            </a>
-            
-              
-              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
-                <span class="md-nav__icon md-icon"></span>
-              </label>
-            
-          </div>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Snelle antwoorden
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ai-agent-frameworks/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Frameworks
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/rag-evaluation-tools/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    RAG Evaluation Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/local-llm-tools-macos/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Local LLM Tools
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ocr-models-document-ai/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    OCR Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/ner-models/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    NER Models
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/agent-security-patterns/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Agent Security Patterns
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../fast-answers/search-ranking-stack/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Search Ranking Stack
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../../../../about/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Over
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-  </ul>
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-            
-              
-                
-              
-              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-<nav class="md-nav md-nav--secondary" aria-label="Inhoudsopgave">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Inhoudsopgave
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#achtergrond-wat-is-lora" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Achtergrond: wat is LoRA?
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#het-probleem-dat-lorax-oplost" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Het probleem dat LoRAX oplost
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#hoe-het-werkt" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Hoe het werkt
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Hoe het werkt">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#dynamisch-laden-van-adaptoren" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Dynamisch laden van adaptoren
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#gerangschikte-opslag-van-gewichten" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Gerangschikte opslag van gewichten
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#continu-batchverwerken-van-meerdere-adaptoren" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Continu batchverwerken van meerdere adaptoren
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#de-onderliggende-tgi-technologie" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        De onderliggende TGI-technologie
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#de-kosten-per-token-blijven-vrijwel-constant" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        De kosten per token blijven vrijwel constant
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#wanneer-lorax-te-gebruiken-is" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Wanneer LoRAX te gebruiken is
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#architectuur-geheugenhierarchie-en-aanvraagplanning" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Architectuur: geheugenhiërarchie en aanvraagplanning
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#lorax-implementeren-op-kubernetes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        LoRAX implementeren op Kubernetes
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="LoRAX implementeren op Kubernetes">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#voorwaarden" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Voorwaarden
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#snelle-start-met-het-officiele-helm-chart" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Snelle start met het officiële Helm-chart
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#het-basismodel-en-de-schaalbaarheid-aanpassen" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Het basismodel en de schaalbaarheid aanpassen
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Het basismodel en de schaalbaarheid aanpassen">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#het-blootstellen-van-de-service" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Het blootstellen van de service
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#opruimen" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Opruimen
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#python-client" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Python-client
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#openai-compatibele-endpoint" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        OpenAI-compatibele endpoint
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#afwegingen" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Afwegingen
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Afwegingen">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#waarin-lorax-sterk-is" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Waarin LoRAX sterk is
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#beperkingen" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Beperkingen
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#lorax-versus-vllm" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        LoRAX versus vLLM
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#beginnen" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Beginnen
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Beginnen">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#1-begin-met-kleine-stappen" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1. Begin met kleine stappen
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#2-meten-en-profileren" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. Meten en profileren
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#3-optimalisatie-voor-uw-werklast" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3. Optimalisatie voor uw werklast
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#4-horizontale-schaling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4. Horizontale schaling
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#5-monitoren" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5. Monitoren
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#belangrijkste-conclusies" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Belangrijkste conclusies
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#referenties" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Referenties
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-          
-              
-
-<div class="md-content md-content--post" data-md-component="content">
-  <div
-    class="md-sidebar md-sidebar--post"
-    data-md-component="sidebar"
-    data-md-type="navigation"
-  >
-    <div class="md-sidebar__scrollwrap">
-      <div class="md-sidebar__inner md-post">
-        <nav class="md-nav md-nav--primary">
-          <div class="md-post__back">
-            <div class="md-nav__title md-nav__container">
-              <a href="../../../../" class="md-nav__link">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-                <span class="md-ellipsis"> Terug naar de inhoudsopgave </span>
-              </a>
-            </div>
-          </div>
-
-          
-          <ul class="md-post__meta md-nav__list">
-            <li class="md-nav__item md-nav__item--section">
-              <div class="md-post__title">
-                <span class="md-ellipsis"
-                  >Onderwerpen</span
-                >
-              </div>
-              <nav class="md-nav">
-                            
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-agents"
-                  >
-                    <span class="blog-category-icon"
-                      >🦾</span
-                    >
-                    <span class="blog-category-name"
-                      >AI-agenten</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/06/20/schema-guided-agent-memory/">Gedächtnis van AI-agenten: schema-gestuurde getypeerde toestand voor langlopende systemen</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/06/10/agent-evals-traces-to-test-suites/">Beoordeling van AI-agenten in productieomgevingen: van trace-gegevens tot testsets</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/05/26/ai-agent-runtime/">Lange-lopende AI-agent runtime in 2026: sessies, sandboxen, checkpoints en harnesses</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/04/20/ai-agent-security/">Beveiliging van AI-agenten in 2026: beperkende maatregelen, toestemmingen, sandboxomgevingen en MCP-bedreigingen</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/03/24/ai-agent-tool-use/">Gebruik van AI-agenthulpmiddelen in 2026: MCP, CLI, Skills en codeuitvoering</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/02/14/ai-agent-memory-architecture/">AI-agentgeheugenarchitectuur in 2026: checkpoints, vectoropslag en bestandsgebaseerd geheugen</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/01/31/ai-agent-reasoning-loops/">Redeneerlusjes van AI-agenten in 2026: ReAct versus ReWOO versus Plan-en-uitvoeren</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/01/11/enterprise-rag-challenge-agent-architectures/">Enterprise RAG Challenge 3 (ECR3): Succesvolle architecturen voor AI-agenten</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../12/28/schema-guided-reasoning-vllm/">Schema-geleid redeneren op vLLM: Gestructureerde uitvoer met xgrammar en Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../20/domain-driven-design-ai-agents/">Domein-gestuurd ontwerp voor AI-agenten: Begrensde contexten, hulpmiddelen en bedrijfsregels</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../05/context-engineering-ai-agents/">Context engineering voor AI-agenten: contextvensters, geheugen, hulpmiddelen en beperkende maatregelen</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../06/10/mcp-server-tutorial-uv-fastmcp/">Tutorial voor MCP-server met uv en FastMCP: Bouw een FeatureStoreLite-server</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section blog-category-section--active"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#model-engineering"
-                  >
-                    <span class="blog-category-icon"
-                      >🤖</span
-                    >
-                    <span class="blog-category-name"
-                      >Modelengineering</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Modelkwantificatie in 2026: van fundamenten tot productiegebruik</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/03/13/llm-engineering-guide/">GGML-engineeringsgids: 45 concepten voor inferentie, training, architectuur en operationele beheersing</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/01/21/manifold-constrained-hyper-connections/">Manifolds-beperkte hyperverbindingen (mHC): Uitleg van DeepSeek Residual Scaling</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/01/04/llm-fine-tuning-guide/">Gids voor fine-tuning van LLM’s: LoRA, QLoRA, DoRA, Unsloth, Axolotl en implementatie</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../12/28/schema-guided-reasoning-vllm/">Schema-geleid redeneren op vLLM: Gestructureerde uitvoer met xgrammar en Pydantic</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post blog-category-post--active"
-                    >
-                      <a href="./">LoRAX-beheergids: Duizenden LoRA-adapters op Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/11/open-source-llm-formats/">Open-source varianten en bestandsformaten van LLM’s: Instruct, GGUF, GPTQ, AWQ en MoE</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/10/local-llms-on-macos/">Lokale LLM’s op macOS: Ollama, LM Studio, llama.cpp, MLX en Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/04/scaling-llms-multi-gpu-multi-node/">Schaalbaarheid van grote taalmodellen: multi-GPU- en multi-node-strategieën die in de praktijk werken</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section blog-category-section--active"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#ai-infrastructure"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >AI-infrastructuur</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/07/05/model-quantization-in-2026-from-foundations-to-production-serving/">Modelkwantificatie in 2026: van fundamenten tot productiegebruik</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/02/21/modern-data-processing-engines/">Vergelijking van moderne dataverwerkingsmachines: Polars, DataFusion, Daft, Ray Data, Pandas en Spark</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post blog-category-post--active"
-                    >
-                      <a href="./">LoRAX-beheergids: Duizenden LoRA-adapters op Kubernetes</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/06/mlops-vs-llmops/">MLOps versus LLMOps: Infrastructuur voor foundation models en LLM-systemen</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/04/scaling-llms-multi-gpu-multi-node/">Schaalbaarheid van grote taalmodellen: multi-GPU- en multi-node-strategieën die in de praktijk werken</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#retrieval-and-language-systems"
-                  >
-                    <span class="blog-category-icon"
-                      >🔍</span
-                    >
-                    <span class="blog-category-name"
-                      >Zoek- en taalsystemen</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/05/10/rag-evaluation-metrics/">Evaluatie van RAG: Metrieken voor elke fase van een productiesysteem voor RAG</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/04/02/ner-guide/">Het definitieve handboek over NER in 2026: encoders, LLM’s en de drie-laagse productiearchitectuur</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/03/04/ocr-guide/">Het definitieve handboek over OCR in 2026: van pipelines tot VLM’s</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../../2026/02/08/search-ranking-stack/">Search Ranking Stack in 2026: BM25, Embeddings, Cross-Encoders en LLM Reranking</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                 
-                <div
-                  class="blog-category-section"
-                >
-                  <a
-                    class="blog-category-header"
-                    href="../../../../#developer-tooling"
-                  >
-                    <span class="blog-category-icon"
-                      ></span
-                    >
-                    <span class="blog-category-name"
-                      >Ontwikkelaarstools</span
-                    >
-                  </a>
-                  <ul class="blog-category-posts">
-                      
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../06/10/mcp-server-tutorial-uv-fastmcp/">Tutorial voor MCP-server met uv en FastMCP: Bouw een FeatureStoreLite-server</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/10/local-llms-on-macos/">Lokale LLM’s op macOS: Ollama, LM Studio, llama.cpp, MLX en Apple Silicon</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/10/stable-diffusion-macos-tools/">Stable Diffusion op macOS: Tools voor tekenen, DiffusionBee, ComfyUI, A1111 en Fooocus</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/08/pyproject-toml-guide/">Gids voor `pyproject.toml`: pakketbouw in Python, afhankelijkheden en configuratie van tools</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../05/07/zprofile-vs-zshrc/">Zsh-startbestanden: `~/.zprofile` versus `~/.zshrc` op macOS en Linux</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/19/macbook-ai-engineering-setup/">Instellingen van een MacBook voor AI-engineering: macOS-hulpmiddelen, Python, Docker en workflow in de terminal</a>
-                    </li>
-                    
-                    <li
-                      class="blog-category-post"
-                    >
-                      <a href="../../../04/17/uv-python-on-macos/">UV op macOS: Beheer van Python-versies, projecten en tools</a>
-                    </li>
-                     
-                  </ul>
-                </div>
-                
-              </nav>
-            </li>
-          </ul>
-
-          
-        </nav>
-        
-      </div>
-    </div>
-  </div>
-  <article class="md-content__inner md-typeset">
-     
-  
-
-
-
-
-<!-- automated-translation-notice:start -->
-
-<div class="admonition info">
-<p class="admonition-title">Automatische vertaling</p>
-</div>
-<p>Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p>
+<!DOCTYPE html><html lang="nl"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>LoRAX-beheergids: Duizenden LoRA-adapters op Kubernetes - Edge of Context: Practical AI Engineering</title><meta name="description" content="Hoe duizenden LoRA-adapters te serveren met LoRAX op Kubernetes: dynamische laad van adapters, batchverwerking van meerdere adapters, geheugenlagen, Helm en APIs."><link rel="canonical" href="https://slavadubrov.github.io/nl/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><link rel="alternate" hreflang="de" href="https://slavadubrov.github.io/de/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><link rel="alternate" hreflang="en" href="https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><link rel="alternate" hreflang="es" href="https://slavadubrov.github.io/es/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><link rel="alternate" hreflang="fr" href="https://slavadubrov.github.io/fr/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><link rel="alternate" hreflang="nl" href="https://slavadubrov.github.io/nl/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><link rel="alternate" hreflang="pt" href="https://slavadubrov.github.io/pt/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><link rel="alternate" hreflang="ru" href="https://slavadubrov.github.io/ru/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><link rel="alternate" hreflang="x-default" href="https://slavadubrov.github.io/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><meta property="og:type" content="article"><meta property="og:title" content="LoRAX-beheergids: Duizenden LoRA-adapters op Kubernetes - Edge of Context: Practical AI Engineering"><meta property="og:description" content="Hoe duizenden LoRA-adapters te serveren met LoRAX op Kubernetes: dynamische laad van adapters, batchverwerking van meerdere adapters, geheugenlagen, Helm en APIs."><meta property="og:url" content="https://slavadubrov.github.io/nl/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/"><meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="LoRAX-beheergids: Duizenden LoRA-adapters op Kubernetes - Edge of Context: Practical AI Engineering"><meta name="twitter:description" content="Hoe duizenden LoRA-adapters te serveren met LoRAX op Kubernetes: dynamische laad van adapters, batchverwerking van meerdere adapters, geheugenlagen, Helm en APIs."><meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta property="article:published_time" content="2025-10-22"><meta property="article:modified_time" content="2026-06-07"><link rel="icon" href="/assets/favicon-eoc.svg" type="image/svg+xml"><link href="/pagefind/pagefind-component-ui.css" rel="stylesheet"><script src="/pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"LoRAX-beheergids: Duizenden LoRA-adapters op Kubernetes - Edge of Context: Practical AI Engineering","description":"Hoe duizenden LoRA-adapters te serveren met LoRAX op Kubernetes: dynamische laad van adapters, batchverwerking van meerdere adapters, geheugenlagen, Helm en APIs.","url":"https://slavadubrov.github.io/nl/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/","image":"https://slavadubrov.github.io/assets/og-image.png","datePublished":"2025-10-22","dateModified":"2026-06-07","author":{"@type":"Person","name":"Viacheslav Dubrov"}}</script><link rel="stylesheet" href="/_astro/BaseLayout.DgRW7Vi7.css"></head> <body> <a class="skip-link" href="#main-content">Skip to content</a> <header class="site-header"> <a class="brand" data-home-link href="/nl/" aria-label="Edge of Context home"> <img src="/assets/logo-eoc.svg" alt="" width="36" height="36"> <span>Edge of Context</span> </a> <nav aria-label="Primary navigation"> <ul> <li><a data-nav="home" href="/nl/">Start</a></li><li><a data-nav="blog" href="/nl/blog/">Blog</a></li><li><a data-nav="fastAnswers" href="/nl/blog/fast-answers/">Korte antwoorden</a></li><li><a data-nav="about" href="/nl/about/">Over</a></li> </ul> </nav> <div class="header-actions"> <pagefind-modal-trigger data-search-label="true">Zoeken</pagefind-modal-trigger> <label class="locale-switcher"> <span class="visually-hidden">Taal</span> <select id="locale-select"> <option value="/de/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Deutsch</option><option value="/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">English</option><option value="/es/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Español</option><option value="/fr/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Français</option><option value="/nl/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/" selected>Nederlands</option><option value="/pt/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Português</option><option value="/ru/blog/2025/10/22/lorax-serving-guide-lora-adapters-kubernetes/">Русский</option> </select> </label> </div> </header> <main id="main-content" tabindex="-1">  <article class="prose" data-pagefind-body> <p class="article-meta"> <time datetime="2025-10-22">2025-10-22</time>  · Bijgewerkt <time datetime="2026-06-07">2026-06-07</time> </p> <!-- automated-translation-notice:start -->
+<blockquote>
+<p>[!NOTE] Automatische vertaling
+Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p>
+</blockquote>
 <!-- automated-translation-notice:end -->
-
 <h1 id="lorax-servicegids-duizenden-lora-adapters-op-kubernetes">LoRAX Servicegids: Duizenden LoRA-adapters op Kubernetes</h1>
 <p>Het serveren van tientallen gefineerde grote taalmodellen vereiste vroeger één GPU per model. LoRAX (LoRA eXchange) houdt één basismodel in geheugen en wisselt per verzoek lichtgewicht LoRA-adapters snel uit. De kosten per token blijven redelijk constant naarmate er meer modellen worden gefineerd.</p>
 <p>Deze gids behandelt wat LoRA is, wanneer je voor LoRAX kiest in plaats van vLLM, hoe je het met de officiële Helm-chart op Kubernetes kunt implementeren, en hoe je de REST-, Python- en OpenAI-compatibele APIs kunt gebruiken.</p>
 <!-- more -->
-
 <p><strong>Kort samengevat</strong>: LoRAX is nuttig wanneer veel LoRA-adapters één basismodel delen en een efficiënte multi-tenant-dienstverlening vereisen. De moeilijkste aspecten zijn routering van adapters, geheugenbeheer, batchverwerking, autoscaling en observabiliteit, en niet de wiskunde achter LoRA zelf.</p>
 <h2 id="achtergrond-wat-is-lora">Achtergrond: wat is LoRA?</h2>
 <p>Low-Rank Adaptation (LoRA) bevriest de vooraf getrainde modelgewichten en voegt kleine matrices met rangontbinding toe aan elke Transformer-laag. In plaats van het hele model opnieuw te trainen, traint men een klein aantal “diffs” die het nieuwe gedrag weergeven.</p>
@@ -1764,9 +27,9 @@
 <p>LoRAX is gebaseerd op Hugging Face’s Text Generation Inference (TGI), waardoor je de optimalisaties van TGI overneemt: FlashAttention 2, paginatiegebonden aandacht, SGMV-kernen voor inferentie met meerdere adapters, en gestreamde responsen. Het is dus TGI met dynamische wisseling van adapters.</p>
 <h3 id="de-kosten-per-token-blijven-vrijwel-constant">De kosten per token blijven vrijwel constant</h3>
 <p>De grafiek maakt dit duidelijk. Gereserveerde implementaties (donkergrijs) schalen lineair: verdubbel je de modellen, dan verdubbelen ook de kosten. LoRAX (oranje) houdt de kosten per token nagenoeg constant naarmate je meer adapters toevoegt. Zelfs gefineerde API’s die worden gehost door aanbieders zoals OpenAI (lichtgrijs) kunnen dit niet evenaren bij meermodellenvraagstukken.</p>
-<p><img alt="LoRAX-kost per miljoen tokens versus aantal modellen" src="https://slavadubrov.github.io/blog/assets/2025-10-22-lorax-serving-guide/lorax-performance.png" /></p>
+<p><img src="https://slavadubrov.github.io/blog/assets/2025-10-22-lorax-serving-guide/lorax-performance.png" alt="LoRAX-kost per miljoen tokens versus aantal modellen"></p>
 <p>Cost per miljoen tokens naarmate er meer gefineerde modellen worden gebruikt. LoRAX blijft vrijwel constant bij batchverwerking met meerdere adapters; gespecialiseerde implementaties schalen lineair. Bron: <a href="https://github.com/predibase/lorax">LoRAX GitHub-repo</a>### Verzoekstroom</p>
-<p><img alt="LoRAX-verzoekstroom" src="../../../../assets/2025-10-22-lorax-serving-guide/lorax-request-flow.svg" /></p>
+<p><img src="/nl/blog/assets/2025-10-22-lorax-serving-guide/lorax-request-flow.svg" alt="LoRAX-verzoekstroom"></p>
 <h2 id="wanneer-lorax-te-gebruiken-is">Wanneer LoRAX te gebruiken is</h2>
 <p>LoRAX is zinvol in een aantal specifieke situaties.</p>
 <ul>
@@ -1775,9 +38,9 @@
 <li><strong>Snel experimenteren.</strong> Testt u 10 verschillende aanpassingsmethoden in productie? Zet LoRAX één keer op en wissel tussen de varianten door alleen de benodigde parameters aan te passen. <code>adapter_id</code> parameter. Er zijn geen infrastructuurveranderingen of herstarten van diensten nodig.</li>
 <li><strong>Implementaties met beperkte resources of op edge-locaties.</strong> Eén NVIDIA A10G kan een gequantiseerd 7B-basemodel samen met tientallen modelspecifieke adapters ondersteunen, in plaats van één GPU per model.</li>
 </ul>
-<h2 id="architectuur-geheugenhierarchie-en-aanvraagplanning">Architectuur: geheugenhiërarchie en aanvraagplanning</h2>
+<h2 id="architectuur-geheugenhiërarchie-en-aanvraagplanning">Architectuur: geheugenhiërarchie en aanvraagplanning</h2>
 <p>LoRAX is gebaseerd op een drie-laags geheugenhiërarchiesysteem. Het begrijpen hiervan helpt u om de prestaties te voorspellen en de benodigde capaciteit te plannen.</p>
-<p><img alt="LoRAX-geheugenhiërarchie" src="../../../../assets/2025-10-22-lorax-serving-guide/lorax-memory-hierarchy.svg" /></p>
+<p><img src="/nl/blog/assets/2025-10-22-lorax-serving-guide/lorax-memory-hierarchy.svg" alt="LoRAX-geheugenhiërarchie"></p>
 <p>LoRAX beschouwt elke adapter als een lichtgewicht “view” op het gedeelde basismodel. De scheduler bundelt verzoeken zodat het serveren van 32 verschillende adapters net zo snel kan gaan als het serveren van één, zelfs bij een doorvoersnelheid van een miljoen tokens. Adapters wegen doorgaans tussen 10 en 200 MB, in vergelijking met volledige modellen die meerdere gigabytes beslaan.</p>
 <h2 id="lorax-implementeren-op-kubernetes">LoRAX implementeren op Kubernetes</h2>
 <p>LoRAX wordt geleverd met Helm-charts en Docker-images, waardoor de implementatie op Kubernetes eenvoudig is.</p>
@@ -1785,59 +48,56 @@
 <p>Je hebt nodig:</p>
 <ul>
 <li>Een Kubernetes-cluster met NVIDIA GPUs (Ampere-generatie of nieuwere modellen: A10, A100, H100) <a href="https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html">NVIDIA Container Runtime</a> geconfigureerd op GPU-knooppunten <code>kubectl</code> en <code>helm</code> lokaal geïnstalleerd
-  – Persistent opslag voor adaptercaches; monteer een PersistentVolume hiervoor <code>/data</code> binnen de pod</li>
+– Persistent opslag voor adaptercaches; monteer een PersistentVolume hiervoor <code>/data</code> binnen de pod</li>
 </ul>
-<h3 id="snelle-start-met-het-officiele-helm-chart">Snelle start met het officiële Helm-chart</h3>
+<h3 id="snelle-start-met-het-officiële-helm-chart">Snelle start met het officiële Helm-chart</h3>
 <p><a href="https://helm.sh/">Helm</a> Het is de pakketbeheerder voor Kubernetes. Het bundelt alle Kubernetes-resources die een applicatie nodig heeft (Deployments, Services, ConfigMaps, etc.) in één enkele “chart”, zodat u het geheel met één commando kunt implementeren in plaats van handmatig tientallen YAML-bestanden te beheren.</p>
 <p>Predibase heeft eind 2024 hun openbare Helm-repository afgesloten, dus de ondersteunde werkwijze is om het LoRAX-repository te klonen en de chart vanaf de schijf te installeren. Voer deze commando’s uit vanaf uw werkstation:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># Clone the LoRAX repository and switch into it</span>
-git<span class="w"> </span>clone<span class="w"> </span>https://github.com/predibase/lorax.git
-<span class="nb">cd</span><span class="w"> </span>lorax
-
-<span class="c1"># Make sure kubectl can talk to your cluster</span>
-kubectl<span class="w"> </span>config<span class="w"> </span>current-context
-kubectl<span class="w"> </span>get<span class="w"> </span>nodes
-
-<span class="c1"># Build chart dependencies (generates charts/lorax/charts/*.tgz)</span>
-helm<span class="w"> </span>dependency<span class="w"> </span>update<span class="w"> </span>charts/lorax
-
-<span class="c1"># Optional: render manifests locally to verify everything is templating</span>
-helm<span class="w"> </span>template<span class="w"> </span>mistral-7b-release<span class="w"> </span>charts/lorax<span class="w"> </span>&gt;<span class="w"> </span>/tmp/lorax-rendered.yaml
-
-<span class="c1"># Deploy with default settings (Mistral-7B-Instruct)</span>
-helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>mistral-7b-release<span class="w"> </span>charts/lorax
-
-<span class="c1"># Watch the pod come up</span>
-kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-w
-
-<span class="c1"># Check logs to see model loading progress</span>
-kubectl<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </span>deploy/mistral-7b-release-lorax
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#8B949E"># Clone the LoRAX repository and switch into it</span></span>
+<span class="line"><span style="color:#FFA657">git</span><span style="color:#A5D6FF"> clone</span><span style="color:#A5D6FF"> https://github.com/predibase/lorax.git</span></span>
+<span class="line"><span style="color:#79C0FF">cd</span><span style="color:#A5D6FF"> lorax</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Make sure kubectl can talk to your cluster</span></span>
+<span class="line"><span style="color:#FFA657">kubectl</span><span style="color:#A5D6FF"> config</span><span style="color:#A5D6FF"> current-context</span></span>
+<span class="line"><span style="color:#FFA657">kubectl</span><span style="color:#A5D6FF"> get</span><span style="color:#A5D6FF"> nodes</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Build chart dependencies (generates charts/lorax/charts/*.tgz)</span></span>
+<span class="line"><span style="color:#FFA657">helm</span><span style="color:#A5D6FF"> dependency</span><span style="color:#A5D6FF"> update</span><span style="color:#A5D6FF"> charts/lorax</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Optional: render manifests locally to verify everything is templating</span></span>
+<span class="line"><span style="color:#FFA657">helm</span><span style="color:#A5D6FF"> template</span><span style="color:#A5D6FF"> mistral-7b-release</span><span style="color:#A5D6FF"> charts/lorax</span><span style="color:#FF7B72"> ></span><span style="color:#A5D6FF"> /tmp/lorax-rendered.yaml</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Deploy with default settings (Mistral-7B-Instruct)</span></span>
+<span class="line"><span style="color:#FFA657">helm</span><span style="color:#A5D6FF"> upgrade</span><span style="color:#79C0FF"> --install</span><span style="color:#A5D6FF"> mistral-7b-release</span><span style="color:#A5D6FF"> charts/lorax</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Watch the pod come up</span></span>
+<span class="line"><span style="color:#FFA657">kubectl</span><span style="color:#A5D6FF"> get</span><span style="color:#A5D6FF"> pods</span><span style="color:#79C0FF"> -w</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Check logs to see model loading progress</span></span>
+<span class="line"><span style="color:#FFA657">kubectl</span><span style="color:#A5D6FF"> logs</span><span style="color:#79C0FF"> -f</span><span style="color:#A5D6FF"> deploy/mistral-7b-release-lorax</span></span></code></pre>
 <p>De grafiek toont een Deployment (standaard één replica) en een ClusterIP Service die luistert op poort 80. Tijdens de eerste start wordt het basismodel gedownload van Hugging Face en in het GPU-geheugen geladen, wat afhankelijk van uw netwerk en GPU enkele minuten kan duren. Bij latere herstarten worden de opgeslagen gewichten uit het persistente volume opnieuw gebruikt.</p>
 <blockquote>
 <p><strong>Tip:</strong> Als <code>helm upgrade --install</code> keert terug <code>Kubernetes cluster unreachable</code>, uw kubeconfig-context verwijst naar een cluster dat offline is. Start uw lokale cluster (Docker Desktop, kind, minikube) of schakel over naar een bereikbare context. <code>kubectl config use-context</code>. In uitvoering <code>kubectl get nodes</code> Voor het implementeren wordt gecontroleerd of de API-server beschikbaar is.</p>
 </blockquote>
 <h3 id="het-basismodel-en-de-schaalbaarheid-aanpassen">Het basismodel en de schaalbaarheid aanpassen</h3>
 <p>U kunt een ander basismodel instellen of de benodigde resources aanpassen door een aangepaste waardenbestand te maken. Hier is een voorbeeld. <code>llama2-values.yaml</code>:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># Use LLaMA 2 7B Chat instead of Mistral</span>
-<span class="nt">modelId</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">meta-llama/Llama-2-7b-chat-hf</span>
-
-<span class="c1"># Enable 4-bit quantization to save VRAM</span>
-<span class="nt">modelArgs</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">quantization</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;bitsandbytes&quot;</span>
-
-<span class="c1"># Scale to 2 replicas for high availability</span>
-<span class="nt">replicaCount</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
-
-<span class="c1"># Request exactly 1 GPU per pod</span>
-<span class="nt">resources</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">limits</span><span class="p">:</span>
-<span class="w">        </span><span class="nt">nvidia.com/gpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#8B949E"># Use LLaMA 2 7B Chat instead of Mistral</span></span>
+<span class="line"><span style="color:#7EE787">modelId</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">meta-llama/Llama-2-7b-chat-hf</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Enable 4-bit quantization to save VRAM</span></span>
+<span class="line"><span style="color:#7EE787">modelArgs</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#7EE787">    quantization</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"bitsandbytes"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Scale to 2 replicas for high availability</span></span>
+<span class="line"><span style="color:#7EE787">replicaCount</span><span style="color:#E6EDF3">: </span><span style="color:#79C0FF">2</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Request exactly 1 GPU per pod</span></span>
+<span class="line"><span style="color:#7EE787">resources</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#7EE787">    limits</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#7EE787">        nvidia.com/gpu</span><span style="color:#E6EDF3">: </span><span style="color:#79C0FF">1</span></span></code></pre>
 <p>Deploy met uw aangepaste configuratie:</p>
-<div class="highlight"><pre><span></span><code>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>-f<span class="w"> </span>llama2-values.yaml<span class="w"> </span>llama2-chat-release<span class="w"> </span>charts/lorax
-</code></pre></div>
-<p>Voer die commando's uit vanuit de gekloneerde <code>lorax/</code> repository zodat Helm de chart-map kan vinden.</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">helm</span><span style="color:#A5D6FF"> upgrade</span><span style="color:#79C0FF"> --install</span><span style="color:#79C0FF"> -f</span><span style="color:#A5D6FF"> llama2-values.yaml</span><span style="color:#A5D6FF"> llama2-chat-release</span><span style="color:#A5D6FF"> charts/lorax</span></span></code></pre>
+<p>Voer die commando’s uit vanuit de gekloneerde <code>lorax/</code> repository zodat Helm de chart-map kan vinden.</p>
 <p>LoRAX ondersteunt de populaire open-source modellen direct uit de doos: LLaMA 2, CodeLlama, Mistral, Mixtral, Qwen en anderen. Controleer de <a href="https://github.com/predibase/lorax">lijst met modelcompatibiliteit</a> voor de nieuwste toevoegingen.</p>
 <h4 id="het-blootstellen-van-de-service">Het blootstellen van de service</h4>
 <p>De standaard Service-type is ClusterIP, waarmee alleen toegang mogelijk is van binnenuit de cluster. Voor externe verkeersstromen kun je kiezen uit:</p>
@@ -1848,80 +108,74 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </
 </ul>
 <h4 id="opruimen">Opruimen</h4>
 <p>Wanneer je klaar bent met testen, maak dan de GPU-resources vrij:</p>
-<div class="highlight"><pre><span></span><code>helm<span class="w"> </span>uninstall<span class="w"> </span>mistral-7b-release
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">helm</span><span style="color:#A5D6FF"> uninstall</span><span style="color:#A5D6FF"> mistral-7b-release</span></span></code></pre>
 <p>Dit verwijdert de deployment, de service en alle pods. De opgeslagen modelgewichten blijven in het PersistentVolume, tenzij je deze apart verwijdert. <code>/generate</code> De endpoint accepteert JSON-ladingen met je prompt en optionele parameters. Het gebruik van het base-model zonder enige adapter:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># Basic request to the base model (no adapter)</span>
-curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8080/generate<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
-<span class="s1">    &quot;inputs&quot;: &quot;Write a short poem about the sea.&quot;,</span>
-<span class="s1">    &quot;parameters&quot;: {</span>
-<span class="s1">      &quot;max_new_tokens&quot;: 64,</span>
-<span class="s1">      &quot;temperature&quot;: 0.7</span>
-<span class="s1">    }</span>
-<span class="s1">  }&#39;</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#8B949E"># Basic request to the base model (no adapter)</span></span>
+<span class="line"><span style="color:#FFA657">curl</span><span style="color:#79C0FF"> -X</span><span style="color:#A5D6FF"> POST</span><span style="color:#A5D6FF"> http://localhost:8080/generate</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#79C0FF">  -H</span><span style="color:#A5D6FF"> "Content-Type: application/json"</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#79C0FF">  -d</span><span style="color:#A5D6FF"> '{</span></span>
+<span class="line"><span style="color:#A5D6FF">    "inputs": "Write a short poem about the sea.",</span></span>
+<span class="line"><span style="color:#A5D6FF">    "parameters": {</span></span>
+<span class="line"><span style="color:#A5D6FF">      "max_new_tokens": 64,</span></span>
+<span class="line"><span style="color:#A5D6FF">      "temperature": 0.7</span></span>
+<span class="line"><span style="color:#A5D6FF">    }</span></span>
+<span class="line"><span style="color:#A5D6FF">  }'</span></span></code></pre>
 <p>De reactie bevat de gegenereerde tekst en metadata zoals het aantal tokens en de tijdsduur.</p>
 <p>Voeg een toe <code>adapter_id</code> parameter om een gefineerde model te richten. Hier is een voorbeeld met een adapter die gespecialiseerd is in wiskunde:</p>
-<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8080/generate<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
-<span class="s1">    &quot;inputs&quot;: &quot;Natalia sold 48 clips in April, and then half as many in May. How many clips did she sell in total?&quot;,</span>
-<span class="s1">    &quot;parameters&quot;: {</span>
-<span class="s1">      &quot;max_new_tokens&quot;: 64,</span>
-<span class="s1">      &quot;adapter_id&quot;: &quot;vineetsharma/qlora-adapter-Mistral-7B-Instruct-v0.1-gsm8k&quot;</span>
-<span class="s1">    }</span>
-<span class="s1">  }&#39;</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">curl</span><span style="color:#79C0FF"> -X</span><span style="color:#A5D6FF"> POST</span><span style="color:#A5D6FF"> http://localhost:8080/generate</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#79C0FF">  -H</span><span style="color:#A5D6FF"> "Content-Type: application/json"</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#79C0FF">  -d</span><span style="color:#A5D6FF"> '{</span></span>
+<span class="line"><span style="color:#A5D6FF">    "inputs": "Natalia sold 48 clips in April, and then half as many in May. How many clips did she sell in total?",</span></span>
+<span class="line"><span style="color:#A5D6FF">    "parameters": {</span></span>
+<span class="line"><span style="color:#A5D6FF">      "max_new_tokens": 64,</span></span>
+<span class="line"><span style="color:#A5D6FF">      "adapter_id": "vineetsharma/qlora-adapter-Mistral-7B-Instruct-v0.1-gsm8k"</span></span>
+<span class="line"><span style="color:#A5D6FF">    }</span></span>
+<span class="line"><span style="color:#A5D6FF">  }'</span></span></code></pre>
 <p>Op de eerste oproep met een nieuw <code>adapter_id</code>, LoRAX downloadt de adapter van Hugging Face Hub en cacheert deze daar. <code>/data</code>. Volgende verzoeken maken gebruik van de opgeslagen versie. U kunt ook adapters laden van lokale paden door in te stellen <code>"adapter_source": "local"</code> naast een bestandspad.</p>
 <h3 id="python-client">Python-client</h3>
 <p>Voor programmatische toegang, installeer de <code>lorax-client</code> package:</p>
-<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>lorax-client
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">pip</span><span style="color:#A5D6FF"> install</span><span style="color:#A5D6FF"> lorax-client</span></span></code></pre>
 <p>De client omhult de REST API met een eenvoudige interface:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">lorax</span><span class="w"> </span><span class="kn">import</span> <span class="n">Client</span>
-
-<span class="c1"># Connect to your LoRAX instance (default port 8080)</span>
-<span class="n">client</span> <span class="o">=</span> <span class="n">Client</span><span class="p">(</span><span class="s2">&quot;http://localhost:8080&quot;</span><span class="p">)</span>
-
-<span class="n">prompt</span> <span class="o">=</span> <span class="s2">&quot;Explain the significance of the moon landing in 1969.&quot;</span>
-
-<span class="c1"># 1. Generate using the base model (no adapter loaded)</span>
-<span class="n">base_response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">max_new_tokens</span><span class="o">=</span><span class="mi">80</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Base model:&quot;</span><span class="p">,</span> <span class="n">base_response</span><span class="o">.</span><span class="n">generated_text</span><span class="p">)</span>
-
-<span class="c1"># 2. Generate using a fine-tuned adapter</span>
-<span class="c1"># The adapter_id can be a Hugging Face repo ID or a local path</span>
-<span class="n">adapter_response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-    <span class="n">prompt</span><span class="p">,</span>
-    <span class="n">max_new_tokens</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span>
-    <span class="n">adapter_id</span><span class="o">=</span><span class="s2">&quot;alignment-handbook/zephyr-7b-dpo-lora&quot;</span><span class="p">,</span>
-<span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;With adapter:&quot;</span><span class="p">,</span> <span class="n">adapter_response</span><span class="o">.</span><span class="n">generated_text</span><span class="p">)</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> lorax </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> Client</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Connect to your LoRAX instance (default port 8080)</span></span>
+<span class="line"><span style="color:#E6EDF3">client </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> Client(</span><span style="color:#A5D6FF">"http://localhost:8080"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">prompt </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> "Explain the significance of the moon landing in 1969."</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># 1. Generate using the base model (no adapter loaded)</span></span>
+<span class="line"><span style="color:#E6EDF3">base_response </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> client.generate(prompt, </span><span style="color:#FFA657">max_new_tokens</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">80</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#79C0FF">print</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"Base model:"</span><span style="color:#E6EDF3">, base_response.generated_text)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># 2. Generate using a fine-tuned adapter</span></span>
+<span class="line"><span style="color:#8B949E"># The adapter_id can be a Hugging Face repo ID or a local path</span></span>
+<span class="line"><span style="color:#E6EDF3">adapter_response </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> client.generate(</span></span>
+<span class="line"><span style="color:#E6EDF3">    prompt,</span></span>
+<span class="line"><span style="color:#FFA657">    max_new_tokens</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">80</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#FFA657">    adapter_id</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"alignment-handbook/zephyr-7b-dpo-lora"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#79C0FF">print</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"With adapter:"</span><span style="color:#E6EDF3">, adapter_response.generated_text)</span></span></code></pre>
 <p>De client ondersteunt streaming, decodingsparameters (temperature, top-p, repetition penalty) en details op tokenniveau. Zie de <a href="https://github.com/predibase/lorax">Clientreferentie</a> voor geavanceerd gebruik.</p>
 <h3 id="openai-compatibele-endpoint">OpenAI-compatibele endpoint</h3>
 <p>LoRAX implementeert de OpenAI Chat Completions API onder de <code>/v1</code> pad. Hierdoor kun je LoRAX integreren in tools die het API-formaat van OpenAI verwachten: LangChain, Semantic Kernel of zelfontworpen applicaties. <code>model</code> Veld om aan te geven welke adapter moet worden geladen:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">openai</span>
-
-<span class="c1"># Point the OpenAI client at LoRAX</span>
-<span class="n">openai</span><span class="o">.</span><span class="n">api_key</span> <span class="o">=</span> <span class="s2">&quot;EMPTY&quot;</span>  <span class="c1"># LoRAX doesn&#39;t require an API key by default</span>
-<span class="n">openai</span><span class="o">.</span><span class="n">api_base</span> <span class="o">=</span> <span class="s2">&quot;http://localhost:8080/v1&quot;</span>
-
-<span class="c1"># The model parameter becomes the adapter_id</span>
-<span class="c1"># This allows seamless integration with tools like LangChain</span>
-<span class="n">response</span> <span class="o">=</span> <span class="n">openai</span><span class="o">.</span><span class="n">ChatCompletion</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
-    <span class="n">model</span><span class="o">=</span><span class="s2">&quot;alignment-handbook/zephyr-7b-dpo-lora&quot;</span><span class="p">,</span>
-    <span class="n">messages</span><span class="o">=</span><span class="p">[</span>
-        <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;system&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;You are a friendly chatbot who speaks like a pirate.&quot;</span><span class="p">},</span>
-        <span class="p">{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;How many parrots can a person own?&quot;</span><span class="p">},</span>
-    <span class="p">],</span>
-    <span class="n">max_tokens</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
-<span class="p">)</span>
-
-<span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="p">[</span><span class="s2">&quot;choices&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s2">&quot;message&quot;</span><span class="p">][</span><span class="s2">&quot;content&quot;</span><span class="p">])</span>
-</code></pre></div>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> openai</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Point the OpenAI client at LoRAX</span></span>
+<span class="line"><span style="color:#E6EDF3">openai.api_key </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> "EMPTY"</span><span style="color:#8B949E">  # LoRAX doesn't require an API key by default</span></span>
+<span class="line"><span style="color:#E6EDF3">openai.api_base </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> "http://localhost:8080/v1"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># The model parameter becomes the adapter_id</span></span>
+<span class="line"><span style="color:#8B949E"># This allows seamless integration with tools like LangChain</span></span>
+<span class="line"><span style="color:#E6EDF3">response </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> openai.ChatCompletion.create(</span></span>
+<span class="line"><span style="color:#FFA657">    model</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"alignment-handbook/zephyr-7b-dpo-lora"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#FFA657">    messages</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">[</span></span>
+<span class="line"><span style="color:#E6EDF3">        {</span><span style="color:#A5D6FF">"role"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"system"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"content"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"You are a friendly chatbot who speaks like a pirate."</span><span style="color:#E6EDF3">},</span></span>
+<span class="line"><span style="color:#E6EDF3">        {</span><span style="color:#A5D6FF">"role"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"user"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"content"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"How many parrots can a person own?"</span><span style="color:#E6EDF3">},</span></span>
+<span class="line"><span style="color:#E6EDF3">    ],</span></span>
+<span class="line"><span style="color:#FFA657">    max_tokens</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">100</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#79C0FF">print</span><span style="color:#E6EDF3">(response[</span><span style="color:#A5D6FF">"choices"</span><span style="color:#E6EDF3">][</span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">][</span><span style="color:#A5D6FF">"message"</span><span style="color:#E6EDF3">][</span><span style="color:#A5D6FF">"content"</span><span style="color:#E6EDF3">])</span></span></code></pre>
 <p>Er volgen twee praktische toepassingsgebieden:</p>
 <ol>
 <li><strong>Directe vervanging.</strong> Migreer bestaande applicaties van de door OpenAI gehoste modellen naar uw eigen infrastructuur door slechts één configuratielijn aan te passen.</li>
@@ -1947,37 +201,37 @@ curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </spa
 </ul>
 <h2 id="lorax-versus-vllm">LoRAX versus vLLM</h2>
 <p><a href="https://github.com/vllm-project/vllm">vLLM</a> Het is een andere high-throughput serving-engine, die onlangs multi-LoRA-ondersteuning heeft gekregen. Beide lossen verschillende problemen op.</p>
-<table>
-<thead>
-<tr>
-<th style="text-align: left;">Functie</th>
-<th style="text-align: left;">LoRAX</th>
-<th style="text-align: left;">vLLM</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;"><strong>Hoofdfocus</strong></td>
-<td style="text-align: left;">Massale schaal: honderden of duizenden adapters</td>
-<td style="text-align: left;">Hoge doorvoer: maximale aantal tokens per seconde voor minder actieve adapters</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Architectuur</strong></td>
-<td style="text-align: left;">Dynamische uitwisseling; intensieve afhandeling door de CPU/schijf</td>
-<td style="text-align: left;">Batchverwerking afgestemd op gelijktijdige uitvoering van actieve adapters</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Ideaal voor</strong></td>
-<td style="text-align: left;">Long-tail SaaS: duizenden huurders, sporadisch gebruik</td>
-<td style="text-align: left;">Hoogverkeersniveaus: 5–10 intensief gebruikte adapters</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>Basis</strong></td>
-<td style="text-align: left;">Hugging Face TGI</td>
-<td style="text-align: left;">Geavanceerde PagedAttention-engine</td>
-</tr>
-</tbody>
-</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th align="left">Functie</th><th align="left">LoRAX</th><th align="left">vLLM</th></tr></thead><tbody><tr><td align="left"><strong>Hoofdfocus</strong></td><td align="left">Massale schaal: honderden of duizenden adapters</td><td align="left">Hoge doorvoer: maximale aantal tokens per seconde voor minder actieve adapters</td></tr><tr><td align="left"><strong>Architectuur</strong></td><td align="left">Dynamische uitwisseling; intensieve afhandeling door de CPU/schijf</td><td align="left">Batchverwerking afgestemd op gelijktijdige uitvoering van actieve adapters</td></tr><tr><td align="left"><strong>Ideaal voor</strong></td><td align="left">Long-tail SaaS: duizenden huurders, sporadisch gebruik</td><td align="left">Hoogverkeersniveaus: 5–10 intensief gebruikte adapters</td></tr><tr><td align="left"><strong>Basis</strong></td><td align="left">Hugging Face TGI</td><td align="left">Geavanceerde PagedAttention-engine</td></tr></tbody></table>
 <p>Kies voor LoRAX wanneer je een grote hoeveelheid adapters hebt (één per gebruiker, waarvan de meeste het grootste deel van de tijd niet actief zijn) en waarbij gestage opslagcaching zinvol is. Kies voor vLLM wanneer je maar weinig zeer actieve adapters hebt en brute doorvoersnelheid de hoogste prioriteit heeft.</p>
 <h2 id="beginnen">Beginnen</h2>
 <p>Een praktische roadmap van prototype naar productie:</p>
@@ -2000,7 +254,7 @@ curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </spa
 <h3 id="5-monitoren">5. Monitoren</h3>
 <p>Stel dashboards in voor de GPU-utilisatie, metrics van de adaptercache en vertragingen van verzoeken, opgesplitst per adapter. Houd in de gaten of er sprake is van cache-thrashing tijdens pieken in het verkeer en passeer de schaalbaarheid dienovereenkomstig aan.</p>
 <p>Met LoRAX wordt het uitvoeren van N fine-tuningsprocessen een routingsprobleem op één GPU in plaats van een provisioningprobleem op N GPUs.</p>
-<hr />
+<hr>
 <h2 id="belangrijkste-conclusies">Belangrijkste conclusies</h2>
 <ol>
 <li>Het serveren via LoRA-adapters is een routings- en geheugenbeheersprobleem.</li>
@@ -2008,124 +262,26 @@ curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </spa
 <li>Batching werkt alleen als de serverlaag de plaatsing van adapters en de swapecost begrijpt.</li>
 <li>Kubernetes biedt operationele voordelen, maar alleen als de metrics latency op adapterniveau, cachehits en fouten weergeven.</li>
 </ol>
-<hr />
+<hr>
 <h2 id="referenties">Referenties</h2>
 <ul>
 <li><a href="https://github.com/predibase/lorax">Predibase LoRAX op GitHub</a> - Runtime voor het serveren van meerdere LoRA’s. <a href="https://arxiv.org/abs/2106.09685">LoRA-artikel</a> - lage-rangadaptatie. <a href="https://huggingface.co/docs/peft/index">Documentatie voor Hugging Face PEFT</a> - Parameter-efficiënt fijnafstellen. <a href="https://kubernetes.io/docs/home/">Kubernetes-documentatie</a> - Containerorchestration.</li>
-</ul>
-
-
-
-
-
-
-
-  
-  
-
-
-
-  
-
-
-  
-
-
- 
-  </article>
-</div>
-
-          
-<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
-        </div>
-        
-      </main>
-      
-        <footer class="md-footer">
-  
-  <div class="md-footer-meta md-typeset">
-    <div class="md-footer-meta__inner md-grid">
-      <div class="md-copyright">
-  
-  
-    Made with
-    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
-      Material for MkDocs
-    </a>
-  
-</div>
-      
-        
-<div class="md-social">
-  
-    
-    
-    
-    
-    <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener" title="LinkedIn" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener" title="Substack" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.539 8.242H1.46V5.406h21.08zM1.46 10.812V24L12 18.11 22.54 24V10.812zM22.54 0H1.46v2.836h21.08z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://www.tiktok.com/@edge.of.context" target="_blank" rel="noopener" title="TikTok" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M448.5 209.9c-44 .1-87-13.6-122.8-39.2v178.7c0 33.1-10.1 65.4-29 92.6s-45.6 48-76.6 59.6-64.8 13.5-96.9 5.3-60.9-25.9-82.7-50.8-35.3-56-39-88.9 2.9-66.1 18.6-95.2 40-52.7 69.6-67.7 62.9-20.5 95.7-16v89.9c-15-4.7-31.1-4.6-46 .4s-27.9 14.6-37 27.3-14 28.1-13.9 43.9 5.2 31 14.5 43.7 22.4 22.1 37.4 26.9 31.1 4.8 46-.1 28-14.4 37.2-27.1 14.2-28.1 14.2-43.8V0h88c-.1 7.4.6 14.9 1.9 22.2 3.1 16.3 9.4 31.9 18.7 45.7s21.3 25.6 35.2 34.6c19.9 13.1 43.2 20.1 67 20.1V210z"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="https://github.com/slavadubrov" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
-    </a>
-  
-    
-    
-    
-    
-    <a href="/feed_rss_created.xml" target="_blank" rel="noopener" title="RSS" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27zm0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93z"/></svg>
-    </a>
-  
-</div>
-      
-    </div>
-  </div>
-</footer>
-      
-    </div>
-    <div class="md-dialog" data-md-component="dialog">
-      <div class="md-dialog__inner md-typeset"></div>
-    </div>
-    
-    
-    
-      
-      
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.indexes", "navigation.toc", "navigation.toc.sticky", "navigation.toc.maxdepth", "navigation.toc.title", "navigation.toc.collapse", "navigation.toc.collapse_empty_groups", "navigation.toc.collapse_single_children", "content.code.copy"], "search": "../../../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Gekopieerd naar klembord", "clipboard.copy": "Kopi\u00ebren naar klembord", "search.result.more.one": "1 extra overeenkomst op deze pagina", "search.result.more.other": "# extra overeenkomsten op deze pagina", "search.result.none": "Geen overeenkomende documenten", "search.result.one": "1 overeenkomende document", "search.result.other": "# overeenkomende documenten", "search.result.placeholder": "Typ om te beginnen met zoeken", "search.result.term.missing": "Ontbreekt", "select.version": "Selecteer versie"}, "version": null}</script>
-    
-    
-      <script src="../../../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-      
-        <script src="../../../../../../javascripts/mermaid-init.js"></script>
-      
-        <script src="../../../../../../javascripts/mathjax.js"></script>
-      
-        <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
-      
-    
-  </body>
-</html>
+</ul> </article>  </main> <footer class="site-footer"> <p data-footer-tagline>Praktische AI-engineering door Slava Dubrov.</p> <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>
+      document.querySelector("#locale-select")?.addEventListener("change", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLSelectElement && target.value) location.assign(target.value);
+      });
+      document.querySelectorAll("pre").forEach((pre) => {
+        if (pre.closest(".mermaid-diagram")) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-code";
+        button.textContent = "Copy";
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(pre.textContent || "");
+          button.textContent = "Copied";
+          setTimeout(() => { button.textContent = "Copy"; }, 1500);
+        });
+        pre.append(button);
+      });
+    </script> </body> </html>
