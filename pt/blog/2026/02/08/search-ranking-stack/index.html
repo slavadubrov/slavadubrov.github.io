@@ -232,7 +232,7 @@ Este artigo foi traduzido automaticamente a partir da versão original em inglê
 <p>Com embeddings normalizados, a semelhança coseno reduz-se a um produto escalar — uma única multiplicação matricial permite recuperar todas as consultas de uma só vez. Os 22 milhões de parâmetros <code>all-MiniLM-L6-v2</code> O modelo funciona de forma eficiente em CPU e alcança um valor de Recall@100 de <strong>0,825</strong>, o que representa uma melhoria de 11% em relação ao BM25.</p>
 <h4 id="como-os-bi-encoders-aprendem-representações-de-qualidade">Como os bi-encoders aprendem representações de qualidade</h4>
 <p>O treino de bi-encoders geralmente ocorre em <strong>duas fases</strong>. Primeiro, o modelo é pré-treinado com conjuntos de dados de Inferência de Linguagem Natural (NLI) e Semelhança Textual Semântica (STS), que ensinam uma compreensão semântica de uso geral — o modelo aprende que frases como “um gato senta-se num tapete” e “um felino descansa num carpete” devem ter embeddings semelhantes. Em seguida, é feito um ajuste fino com dados específicos para recuperação de informação, como o MS MARCO, onde o modelo aprende que uma consulta de busca e o seu trecho relevante devem estar mais próximos um do outro do que a consulta e os trechos irrelevantes.</p>
-<p>O elemento crucial na segunda fase é a <strong>mineração de negativos difíceis</strong>. Negativos aleatórios (por exemplo, um documento sobre culinária associado a uma consulta sobre fones de ouvido) são facilmente distinguíveis — o modelo não aprende nada com eles. Em vez disso, utiliza-se o próprio modelo atual para identificar documentos que ele classifica como altamente relevantes, mas que na realidade não o são.<a href="https://arxiv.org/abs/2210.11773">SimANS</a><strong>A abordagem de Amostragem de Negativos Ambíguos Simples</strong> formaliza este processo: classifica-se todos os documentos com o bi-encoder atual e, em seguida, excluem-se os negativos fáceis (classificados com uma posição muito baixa — já são tratados pelo modelo) e os potenciais falsos negativos (classificados com uma posição muito alta — podem ser relevantes, mas ainda não foram rotulados). O “terreno intermediário difícil” gera o sinal de aprendizagem máximo.</p>
+<p>O elemento crucial na segunda fase é a <strong>mineração de negativos difíceis</strong>. Negativos aleatórios (por exemplo, um documento sobre culinária associado a uma consulta sobre fones de ouvido) são facilmente distinguíveis — o modelo não aprende nada com eles. Em vez disso, utiliza-se o próprio modelo atual para identificar documentos que ele classifica como altamente relevantes, mas que na realidade não o são.<a href="https://arxiv.org/abs/2210.11773">SimANS</a>** A abordagem de Amostragem de Negativos Ambíguos Simples** formaliza este processo: classifica-se todos os documentos com o bi-encoder atual e, em seguida, excluem-se os negativos fáceis (classificados com uma posição muito baixa — já são tratados pelo modelo) e os potenciais falsos negativos (classificados com uma posição muito alta — podem ser relevantes, mas ainda não foram rotulados). O “terreno intermediário difícil” gera o sinal de aprendizagem máximo.</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># What a training triplet looks like after hard negative mining</span></span>
 <span class="line"><span style="color:#E6EDF3">training_triplet </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {</span></span>
 <span class="line"><span style="color:#A5D6FF">    "query"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"wireless noise canceling headphones"</span><span style="color:#E6EDF3">,</span></span>
@@ -475,45 +475,15 @@ Este artigo foi traduzido automaticamente a partir da versão original em inglê
 <p>Os embeddings densos só se tornam úteis em larga escala quando se dispõe de um índice de Vizinho Mais Próximo Aproximado (ANN). A demonstração utiliza a similaridade coseno por força bruta (o que é suficiente para cerca de 8.500 documentos), mas os sistemas em produção exigem índices especializados.</p>
 <h3 id="hnsw-hierarchical-navigable-small-world">HNSW (Hierarchical Navigable Small World)</h3>
 <p><a href="https://arxiv.org/abs/1603.09320">HNSW</a> (Malkov &#x26; Yashunin, 2016) é uma escolha comum para ambientes de produção que exigem uma latência inferior a 100 ms. Este método constrói um grafo multinível, no qual as camadas superiores fornecem ligações “rápidas” para navegação aproximada, enquanto as camadas inferiores oferecem ligações densas para um refinamento preciso. Parâmetros de ajuste principais: <code>M</code> (conexões por nó, normalmente 16–64) e <code>efSearch</code> (Largura do feixe em tempo de consulta — utilize pelo menos 512 para objetivos de recall acima de 0,95).</p>
-<p>A fraqueza do HNSW é o <strong>problema das “pedras tumulares”</strong>: quando os registos são eliminados, ficam nodos fantasma no grafo. Com o tempo, estes criam regiões inacessíveis, o que acaba por ocultar partes dos seus dados às buscas. Não se trata de uma preocupação teórica — até mesmo bases de dados vetoriais modernas como a Qdrant, que utiliza exclusivamente o HNSW, <a href="https://github.com/qdrant/qdrant/issues/7147">Relatório de degradação na qualidade da pesquisa após exclusões em massa</a> o que exige reconstruções completas do índice. Se o seu conjunto de dados sofre atualizações ou eliminações frequentes, planeie um reindexação periódica ou considere alternativas baseadas em IVF. <code>nprobe</code> Os clusters mais próximos do centroide da consulta são escaneados. O IVF é mais eficiente em termos de memória e mais resistente a conjuntos de dados dinâmicos — as exclusões são limpas, sem nodos inacessíveis. Os tempos de construção são de 4x a 32x mais rápidos do que os do HNSW.</p>
-<p>Para escalas extremas, **<a href="https://arxiv.org/abs/2405.12497">IVF_RaBitQ</a></p>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<table tabindex="0"><thead><tr><th>Funcionalidade</th><th></th><th>IVF (Cluster)</th></tr></thead><tbody><tr><td><strong>Velocidade de Consulta</strong></td><td>Excecional</td><td>Moderado</td></tr><tr><td><strong>Velocidade de Construção</strong></td><td>Lento</td><td>Rápido (4x a 32x mais rápido)</td></tr><tr><td><strong>Memória</strong></td><td>Alto (limitado por RAM)</td><td></td></tr><tr><td><strong>Deleções</strong></td><td>Problemas (marcadores de fim de seção)</td><td></td></tr><tr><td><strong>Ideal para</strong></td><td>Estático, crítico em termos de latência</td><td>Dinâmico, com restrições de memória</td></tr></tbody></table>
-<p><strong>Orientações práticas de</strong> <a href="https://www.uber.com/blog/evolution-and-scale-of-ubers-delivery-search-platform/">Uber</a>:** Eles otimizaram a recuperação via ANN ao reduzir o parâmetro de busca a nível de shard, K, de 1.200 para 200, conseguindo uma redução de 34% na latência e uma poupança de 17% no consumo de CPU, com um impacto mínimo na taxa de recall.</p>
+<p>A fraqueza do HNSW é o <strong>problema das “pedras tumulares”</strong>: quando os registos são eliminados, ficam nodos fantasma no grafo. Com o tempo, estes criam regiões inacessíveis, o que acaba por ocultar partes dos seus dados às buscas. Não se trata de uma preocupação teórica — até mesmo bases de dados vetoriais modernas como a Qdrant, que utiliza exclusivamente o HNSW, <a href="https://github.com/qdrant/qdrant/issues/7147">Relatório de degradação na qualidade da pesquisa após exclusões em massa</a>, o que exige reconstruções completas do índice. Se o seu conjunto de dados sofre atualizações ou eliminações frequentes, planeie um reindexação periódica ou considere alternativas baseadas em IVF. <code>nprobe</code> Os clusters mais próximos do centroide da consulta são escaneados. O IVF é mais eficiente em termos de memória e mais resistente a conjuntos de dados dinâmicos — as exclusões são limpas, sem nodos inacessíveis. Os tempos de construção são de 4x a 32x mais rápidos do que os do HNSW.</p>
+<p>Para escalas extremas, **<a href="https://arxiv.org/abs/2405.12497">IVF_RaBitQ</a>** | Funcionalidade               |                                         | IVF (Cluster)                       |
+| ---------------------------- | --------------------------------------- | ----------------------------------- |
+| <strong>Velocidade de Consulta</strong>   | Excecional                              | Moderado                            |
+| <strong>Velocidade de Construção</strong> | Lento                                   | Rápido (4x a 32x mais rápido)       |
+| <strong>Memória</strong>                  | Alto (limitado por RAM)                 |                                     |
+| <strong>Deleções</strong>                 | Problemas (marcadores de fim de seção)  |                                     |
+| <strong>Ideal para</strong>               | Estático, crítico em termos de latência | Dinâmico, com restrições de memória |</p>
+<p><strong>Orientações práticas de</strong> <a href="https://www.uber.com/blog/evolution-and-scale-of-ubers-delivery-search-platform/">Uber</a>, ** Eles otimizaram a recuperação via ANN ao reduzir o parâmetro de busca a nível de shard, K, de 1.200 para 200, conseguindo uma redução de 34% na latência e uma poupança de 17% no consumo de CPU, com um impacto mínimo na taxa de recall.</p>
 <hr>
 <h2 id="a-camada-llm-para-além-do-reranking">A camada LLM: para além do reranking</h2>
 <p>Os LLMs não estão apenas a melhorar a fase de reranking. Eles estão também a alterar o resto do pipeline de busca.</p>
@@ -525,8 +495,7 @@ Este artigo foi traduzido automaticamente a partir da versão original em inglê
 <p>Fatores que tornam a avaliação de LLMs mais fiável:</p>
 <ul>
 <li>Solicitar aos modelos que <strong>explicitem as suas classificações</strong> (isso melhora significativamente a alinhamento com os critérios humanos)</li>
-<li>Utilizar <strong>conjuntos de modelos diversos</strong> para reduzir a variabilidade (“<a href="https://arxiv.org/abs/2404.18796">substituir os juízes por júris</a>”)</li>
-<li>Ter em conta o <strong>viés de tendência central</strong> nas etiquetas geradas por LLMs</li>
+<li>Utilizar <strong>conjuntos de modelos diversos</strong> para reduzir a variabilidade (“<a href="https://arxiv.org/abs/2404.18796">substituir os juízes por júris</a> - Ter em conta o <strong>viés de tendência central</strong> nas etiquetas geradas por LLMs</li>
 </ul>
 <h3 id="destilação-de-conhecimento">Destilação de conhecimento</h3>
 <p>Executar um LLM completo para cada consulta é extremamente dispendioso. A solução é a destilação:</p>
@@ -542,14 +511,17 @@ Este artigo foi traduzido automaticamente a partir da versão original em inglê
 <p>A relevância genérica só leva até certo ponto. Uma busca por “maçã” deve retornar iPhones para um entusiasta de tecnologia e receitas com maçãs para quem costuma consultar conteúdos de culinária.</p>
 <h3 id="modelos-de-duas-torres-para-personalização">Modelos de duas torres para personalização</h3>
 <p>Uma arquitetura comum de recuperação para personalização utiliza um <strong>modelo de embedding de duas torres</strong>: a torre de consulta codifica as consultas de busca juntamente com o perfil do utilizador em embeddings; a torre de itens codifica os itens juntamente com metadados. A semelhança pelo produto escalar determina a relevância, o que permite manter tempos de resposta abaixo de 100 ms no âmbito das ANNs.</p>
-<p><a href="https://dl.acm.org/doi/10.1145/3219819.3219885">Airbnb</a> foi pioneiro na utilização de embeddings de listagens, através de treino no estilo Word2Vec com sessões de cliques — os seus canais de “Pesquisa” e “Listagens Semelhantes” somam-se para gerar <strong>99% das conversões de reserva</strong>. O Pinterest’s <a href="https://arxiv.org/abs/2404.16260">OmniSearchSage</a> (WWW 2024) aprende de forma conjunta embeddings unificados para consultas, pins e produtos, obtendo uma <strong>melhoria na relevância superior a 8%</strong> com 300 mil solicitações por segundo. <a href="https://www.uber.com/blog/innovative-recommendation-applications-using-two-tower-embeddings/">Embeddings de Duas Torres da Uber</a> A recuperação do feed Homefeed consome energia em aproximadamente 100 ms.</p>
+<p><a href="https://dl.acm.org/doi/10.1145/3219819.3219885">Airbnb</a>, foi pioneiro na utilização de embeddings de listagens, através de treino no estilo Word2Vec com sessões de cliques — os seus canais de “Pesquisa” e “Listagens Semelhantes” somam-se para gerar <strong>99% das conversões de reserva</strong>. O Pinterest’s <a href="https://arxiv.org/abs/2404.16260">OmniSearchSage</a>, (WWW 2024) aprende de forma conjunta embeddings unificados para consultas, pins e produtos, obtendo uma <strong>melhoria na relevância superior a 8%</strong> com 300 mil solicitações por segundo. <a href="https://www.uber.com/blog/innovative-recommendation-applications-using-two-tower-embeddings/">Embeddings de Duas Torres da Uber</a> A recuperação do feed Homefeed consome energia em aproximadamente 100 ms.</p>
 <h3 id="viés-de-posição-a-distorção-silenciosa">Viés de posição: a distorção silenciosa</h3>
-<p>Os utilizadores clicam em itens com classificação mais alta, independentemente da sua relevância real, o que gera um ciclo de retroalimentação auto-reforçador. A solução prática mais adequada para produção (<a href="https://dl.acm.org/doi/10.1145/3298689.3347033">PAL</a>, Guo et al., RecSys 2019): inclua a posição como uma característica de treino e, em seguida, defina position=1 para todos os itens no momento da prestação do serviço. Isso elimina vieses no modelo sem ser necessário modelar explicitamente a distribuição de cliques.</p>
+<p>Os utilizadores clicam em itens com classificação mais alta, independentemente da sua relevância real, o que gera um ciclo de retroalimentação auto-reforçador. A solução prática mais adequada para produção (<a href="https://dl.acm.org/doi/10.1145/3298689.3347033">PAL</a> Guo et al., RecSys 2019): inclua a posição como uma característica de treino e, em seguida, defina position=1 para todos os itens no momento da prestação do serviço. Isso elimina vieses no modelo sem ser necessário modelar explicitamente a distribuição de cliques.</p>
 <hr>
 <h2 id="superar-a-lacuna-entre-domínios">Superar a lacuna entre domínios</h2>
 <p>Um erro comum nas estratégias de busca é assumir que um modelo treinado com dados da web em geral (como o MS MARCO) funcionará bem num domínio especializado. Este é o <strong>problema de fora-do-domínio (OOD)</strong>.</p>
 <h3 id="geração-de-dados-sintéticos">Geração de dados sintéticos</h3>
-<p>Os LLMs resolvem o problema da escassez de dados rotulados através do <strong>pseudo-rotulamento generativo</strong>.<a href="https://arxiv.org/abs/2112.07577">GPL</a>, <a href="https://arxiv.org/abs/2202.05144">InPars</a>1. Utilize o seu corpus de documentos específico de um determinado domínio. 2. Peça a um LLM que “Gere uma consulta de busca à qual este documento responderia”. 3. Utilize os pares sintéticos (consulta, documento) para ajustar com precisão o seu mecanismo de recuperação e o reclassificador.</p>
+<p>Os LLMs resolvem o problema da escassez de dados rotulados através do <strong>pseudo-rotulamento generativo</strong>.<a href="https://arxiv.org/abs/2112.07577">GPL</a>, <a href="https://arxiv.org/abs/2202.05144">InPars</a>):</p>
+<ol>
+<li>Utilize o seu corpus de documentos específico de um determinado domínio. 2. Peça a um LLM que “Gere uma consulta de busca à qual este documento responderia”. 3. Utilize os pares sintéticos (consulta, documento) para ajustar com precisão o seu mecanismo de recuperação e o reclassificador.</li>
+</ol>
 <p>Esta técnica permitiu melhorias significativas em tarefas específicas de domínio, onde as consultas reais dos utilizadores são escassas. Representa a ponte prática entre o Nível 2 e o Nível 3 no percurso de maturidade.</p>
 <h3 id="rmsc-tokens-flexíveis-para-adaptação-a-domínios">RMSC: tokens flexíveis para adaptação a domínios</h3>
 <p>O <a href="https://arxiv.org/abs/2309.09828">RMSC</a> (A estratégia de <strong>Combinação Robusta de Multi-Supervisão</strong>) introduz <strong>tokens flexíveis</strong> — tokens de domínio <code>[S1]</code>, <code>[T1]</code> e tokens de relevância <code>[H1]</code>, <code>[W1]</code> — que indicam ao modelo qual domínio está a processar e qual é o nível de confiança do sinal de supervisão. O treino com estes tokens armazena conhecimento específico do domínio nas embeddings dos tokens, em vez de sobrescrever os parâmetros principais do modelo.</p>
@@ -560,7 +532,7 @@ Este artigo foi traduzido automaticamente a partir da versão original em inglê
 <p><strong>Nível 1 (base de referência):</strong> Postgres pgvector ou Elasticsearch. Pesquisa híbrida com BM25 + recuperação vetorial. Sem reranker.</p>
 <p><strong>Nível 2 (o reclassificador):</strong> adicione um codificador cruzado (por exemplo, <code>bge-reranker-v2-m3</code> ou <code>ms-marco-MiniLM-L-12-v2</code>) para reclassificar os 50 melhores resultados. Geralmente, este é o <strong>maior ROI com o menor esforço</strong>. O <a href="https://www.elastic.co/search-labs/blog/elastic-semantic-reranker-part-2">Elastic Reranking</a> O modelo (184M de parâmetros, DeBERTa v3) atinge uma média de nDCG@10 de 0,565 no BEIR — o que representa uma melhoria de 39% em relação ao BM25.</p>
 <p><strong>Nível 3 (ajuste fino):</strong> ajuste o seu modelo de embedding e o mecanismo de reclassificação com base em dados de domínio, utilizando consultas sintéticas geradas por LLMs (GPL/InPars). É aqui que o desempenho específico de um domínio começa a superar o dos modelos genéricos.</p>
-<p><strong>Nível 4 (estado da arte):</strong> adicione um mecanismo de reclassificação por lista para os 5–10 resultados principais e incorpore sinais de personalização. Experimente também reclassificadores baseados em raciocínio como <a href="https://arxiv.org/abs/2502.18418">Rank1</a>, que gera cadeias de raciocínio explícitas antes de efetuar julgamentos de relevância.</p>
+<p><strong>Nível 4 (estado da arte):</strong> adicione um mecanismo de reclassificação por lista para os 5–10 resultados principais e incorpore sinais de personalização. Experimente também reclassificadores baseados em raciocínio como <a href="https://arxiv.org/abs/2502.18418">Rank1</a> que gera cadeias de raciocínio explícitas antes de efetuar julgamentos de relevância.</p>
 <p><strong>O Nível 2 representa o ponto ideal para a maioria das equipas.</strong> Adicionar um reclassificador com codificador cruzado a uma configuração de busca híbrida existente pode melhorar significativamente a precisão sem ser necessária uma reformulação arquitetónica.</p>
 <hr>
 <h2 id="a-fronteira-reclassificadores-baseados-em-raciocínio-e-busca-agente">A fronteira: reclassificadores baseados em raciocínio e busca agente</h2>

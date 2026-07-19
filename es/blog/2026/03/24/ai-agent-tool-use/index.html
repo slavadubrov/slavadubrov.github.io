@@ -11,7 +11,7 @@ Este artículo se tradujo automáticamente a partir de la versión original en i
 <p>Este artículo compara la llamada a herramientas mediante JSON, MCP, Skills, herramientas CLI y la ejecución de código, y luego las relaciona con los principios de diseño de la Interfaz Agente-Computadora (ACI) que yo aplico en <a href="https://github.com/slavadubrov/market-analyst-agent">Agente de Análisis de Mercado</a>.</p>
 <!-- more -->
 <p><strong>TL;DR</strong>: Existen cinco modalidades de herramientas para agentes de IA, cada una con sus ventajas específicas. La combinación práctica para 2026 es la siguiente: habilidades especializadas para el conocimiento profundo, CLI como opción por defecto, MCP para servicios externos, y ejecución de código para la orquestación de múltiples pasos. Todos ellos se rigen por los principios de diseño ACI provenientes de SWE-agent.</p>
-<p>In <a href="/es/blog/2026/01/31/ai-agent-reasoning-loops/">Parte 1</a>Mostré cómo los bucles de razonamiento de los agentes de IA determinan <em>cómo</em> pensar. Las modalidades de herramienta, por su parte, deciden <em>cómo actuar</em>. Actualmente existen cinco enfoques distintos, cada uno con diferentes compromisos en cuanto al costo de tokens, la flexibilidad y la seguridad.</p>
+<p>In <a href="/es/blog/2026/01/31/ai-agent-reasoning-loops/">Parte 1</a>, Mostré cómo los bucles de razonamiento de los agentes de IA determinan <em>cómo</em> pensar. Las modalidades de herramienta, por su parte, deciden <em>cómo actuar</em>. Actualmente existen cinco enfoques distintos, cada uno con diferentes compromisos en cuanto al costo de tokens, la flexibilidad y la seguridad.</p>
 <p><img src="/es/blog/assets/2026-03-24-the-hands/tool-modalities-landscape.svg" alt="panorama de modalidades de herramientas"></p>
 <h2 id="1-llamadas-a-herramientas-json-el-punto-de-partida">1. Llamadas a herramientas JSON: el punto de partida</h2>
 <p>El patrón original consiste en definir los esquemas de las herramientas en formato JSON; el LLM genera llamadas a funciones estructuradas, y su código las ejecuta. Este enfoque está ampliamente reconocido y funciona correctamente para conjuntos de herramientas pequeños.</p>
@@ -38,7 +38,7 @@ Este artículo se tradujo automáticamente a partir de la versión original en i
 <p>La envenenamiento de herramientas es el tipo de ataque que más me preocupa. <a href="https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks">Invariant Labs mostró</a> Esos herramientas MCP contaminadas pueden extraer datos incluso cuando nunca se invocan. Basta con que el modelo lea los metadatos de la herramienta para desencadenar el ataque. <a href="https://arxiv.org/abs/2508.14925">Pruebas de rendimiento de MCPTox</a> Al probar 20 agentes de LLM contra 45 servidores MCP del mundo real, se observó que las tasas de éxito en los ataques alcanzaron hasta el <strong>72,8%</strong>.</p>
 <p>El sobrecoste por tokens representa el problema operativo principal. Un equipo que gestiona servidores MCP para GitHub, Slack y Sentry (un total de aproximadamente 40 herramientas) descubrió <a href="https://www.apideck.com/blog/mcp-server-eating-context-window-cli-alternative">55,000 tokens</a> de las definiciones de esquema inyectadas antes de que el usuario pregunte algo. Otra queja reportada <a href="https://www.apideck.com/blog/mcp-server-eating-context-window-cli-alternative">143.000 de 200.000 tokens disponibles (72 %)</a> Consumido únicamente por las definiciones de herramientas.</p>
 <p><img src="/es/blog/assets/2026-03-24-the-hands/token-overhead-comparison.svg" alt="Comparación del sobrecoste por tokens"></p>
-<p>Las medidas de mitigación funcionan, pero confirman el problema subyacente. De Anthropic’s <a href="https://www.anthropic.com/engineering/advanced-tool-use">La herramienta de búsqueda de herramientas reduce la sobrecarga del esquema en un 85%.</a>. El cargamento dinámico de herramientas (3-5 herramientas relevantes por tarea) permite una reducción del 96 %. Se trata de soluciones temporales para un protocolo que no fue diseñado teniendo en cuenta los presupuestos de tokens.</p>
+<p>Las medidas de mitigación funcionan, pero confirman el problema subyacente. De Anthropic’s <a href="https://www.anthropic.com/engineering/advanced-tool-use">La herramienta de búsqueda de herramientas reduce la sobrecarga del esquema en un 85%.</a>, El cargamento dinámico de herramientas (3-5 herramientas relevantes por tarea) permite una reducción del 96 %. Se trata de soluciones temporales para un protocolo que no fue diseñado teniendo en cuenta los presupuestos de tokens.</p>
 <h3 id="3-habilidades-skillmd--expertise-no-ejecución">3. Habilidades (SKILL.md) — Expertise, no ejecución</h3>
 <p>A finales de 2025 se produjo la estandarización de las <strong>habilidades de agente</strong> como formato abierto (lanzado en octubre de 2025 y publicado como estándar abierto en diciembre de 2025). Esta distinción es importante: las herramientas proporcionan capacidades (lo que pueden hacer los agentes), mientras que las habilidades aportan conocimiento especializado (lo que saben los agentes sobre cómo llevar a cabo tareas complejas).</p>
 <p>El estándar <strong>SKILL.md</strong> define una habilidad como un archivo Markdown con frontmatter en YAML:</p>
@@ -73,7 +73,7 @@ Este artículo se tradujo automáticamente a partir de la versión original en i
 <p>Los compromisos son reales. La CLI carece de la seguridad tipológica de MCP, de la orquestación integrada de OAuth, de la detección de herramientas y del registro de auditoría. El patrón al que parece llegar la mayoría de los equipos es: utilizar la CLI como opción predeterminada para el desarrollo y las operaciones locales, y MCP para la integración con servicios externos y la gobernanza empresarial.</p>
 <h3 id="5-ejecución-de-código-el-gran-cambio">5. Ejecución de código: el gran cambio</h3>
 <p>Este es el cambio en las herramientas de agente que considero más significativo. En lugar de que el LLM emita JSON estructurado para invocar funciones predefinidas una por una, el agente escribe un script completo en Python o Bash que llama a múltiples herramientas, procesa los resultados mediante bucles y condicionales, y solo devuelve resúmenes finales al contexto del modelo.</p>
-<p>Anthropic formalizó esto mediante <a href="https://www.anthropic.com/engineering/advanced-tool-use"><strong>Llamadas a herramientas de forma programática (PTC)</strong></a>, ahora disponible en la API de Claude. La base académica es la <a href="https://arxiv.org/abs/2402.01030"><strong>Artículo CodeAct</strong></a> (Wang et al., ICML 2024), que realizaron pruebas en 17 modelos de lenguaje grande y descubrieron que las acciones basadas en código lograron tasas de éxito en las tareas hasta un <strong>20 % más altas</strong>, así como <strong>30 % menos pasos</strong> en comparación con las alternativas basadas en JSON.</p>
+<p>Anthropic formalizó esto mediante <a href="https://www.anthropic.com/engineering/advanced-tool-use"><strong>Llamadas a herramientas de forma programática (PTC)</strong></a> ahora disponible en la API de Claude. La base académica es la <a href="https://arxiv.org/abs/2402.01030"><strong>Artículo CodeAct</strong></a> (Wang et al., ICML 2024), que realizaron pruebas en 17 modelos de lenguaje grande y descubrieron que las acciones basadas en código lograron tasas de éxito en las tareas hasta un <strong>20 % más altas</strong>, así como <strong>30 % menos pasos</strong> en comparación con las alternativas basadas en JSON.</p>
 <p><img src="/es/blog/assets/2026-03-24-the-hands/code-execution-flow.svg" alt="Flujo de ejecución del código"></p>
 <p>La evidencia de producción: <a href="https://vercel.com/blog/we-removed-80-percent-of-our-agents-tools">Vercel ha reconstruido su agente d0 de texto a SQL</a> al eliminar el 80 % de sus herramientas (de 15 a 2): <code>ExecuteCommand</code> y <code>ExecuteSQL</code>). El éxito de la tarea aumentó del 80 % al 100 %, el tiempo de ejecución disminuyó 3,5 veces y el consumo de tokens se redujo en un 40 %. Su forma de expresarlo es: “Los mejores agentes podrían ser aquellos que disponen de la menor cantidad de herramientas”.</p>
 <ul>
@@ -185,7 +185,7 @@ Este artículo se tradujo automáticamente a partir de la versión original en i
 <p><strong>1. Las acciones deben ser simples y fáciles de comprender.</strong> El error más frecuente es envolver los puntos finales de la API de forma uno a uno. En lugar de <code>list_users</code>, <code>list_events</code>, <code>create_event</code>, implementar <code>schedule_event</code> que determina la disponibilidad y programa las tareas en una sola llamada. En lugar de <code>read_logs</code>, implementar <code>search_logs</code> que devuelve únicamente las líneas relevantes junto con su contexto.</p>
 <p><strong>2. Las acciones deben ser compactas y eficientes.</strong> Consolide las operaciones importantes en el menor número posible de acciones. En la <a href="https://github.com/slavadubrov/market-analyst-agent">Agente de Análisis de Mercado</a>, combino la obtención de precios con métricas básicas en una sola <code>get_stock_snapshot</code> herramienta que evita la necesidad de realizar llamadas separadas para obtener el precio, el volumen, el valor de mercado y la relación P/E.</p>
 <p><strong>3. La retroalimentación del entorno debe ser informativa pero concisa.</strong> Evite devolver HTML sin procesar o cargas completas de la API. Convierta los ID poco claros en nombres semánticos. <a href="https://www.anthropic.com/engineering/writing-tools-for-agents">Las pruebas de Anthropic</a> demostró que al añadir un <code>response_format</code> El uso de un enum que permite a los agentes solicitar respuestas concisas (~72 tokens) o detalladas (~206 tokens), lo que supone una diferencia de costo en tokens de 3 veces, mejoró notablemente el rendimiento en entornos reales.</p>
-<p><strong>4. Las restricciones deben mitigar la propagación de errores.</strong> La detección automática de errores ayuda a los agentes a reconocer y corregir errores de forma rápida. En <a href="https://arxiv.org/abs/2405.15793">SWE-agent</a>Un editor de archivos personalizado con linting integrado rechaza automáticamente los errores de sintaxis, detectando el 51,7 % de los errores en las ediciones realizadas por los agentes antes de que puedan agravarse. Aplico el mismo principio en el Market Analyst Agent al validar los argumentos de las herramientas mediante esquemas Pydantic antes de su ejecución:</p>
+<p><strong>4. Las restricciones deben mitigar la propagación de errores.</strong> La detección automática de errores ayuda a los agentes a reconocer y corregir errores de forma rápida. En <a href="https://arxiv.org/abs/2405.15793">SWE-agent</a>, Un editor de archivos personalizado con linting integrado rechaza automáticamente los errores de sintaxis, detectando el 51,7 % de los errores en las ediciones realizadas por los agentes antes de que puedan agravarse. Aplico el mismo principio en el Market Analyst Agent al validar los argumentos de las herramientas mediante esquemas Pydantic antes de su ejecución:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> pydantic </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> BaseModel, Field, field_validator</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> StockQuery</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">BaseModel</span><span style="color:#E6EDF3">):</span></span>
@@ -279,87 +279,67 @@ Este artículo se tradujo automáticamente a partir de la versión original en i
 <li>Enrutamiento por clasificación de errores: los errores transitorios se vuelven a intentar, los errores recuperables mediante LLM se devuelven al agente con contexto, y los errores que requieren intervención humana se escalan</li>
 <li>Recuperación mediante puntos de control para sobrevivir a caídas bruscas</li>
 </ol>
-<p>Los equipos informan que las fallas irreparables han disminuido del 23 % al menos del 2 % con este enfoque de cuatro capas, tal como se documenta en <a href="https://www.anthropic.com/engineering/writing-tools-for-agents">Patrones de resiliencia de las herramientas de Anthropic</a>.</p>
-<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> tenacity </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> retry, stop_after_attempt, wait_exponential</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#D2A8FF">@retry</span><span style="color:#E6EDF3">(</span></span>
-<span class="line"><span style="color:#FFA657">    stop</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">stop_after_attempt(</span><span style="color:#79C0FF">3</span><span style="color:#E6EDF3">),</span></span>
-<span class="line"><span style="color:#FFA657">    wait</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">wait_exponential(</span><span style="color:#FFA657">multiplier</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">min</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">2</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">max</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">10</span><span style="color:#E6EDF3">),</span></span>
-<span class="line"><span style="color:#E6EDF3">)</span></span>
-<span class="line"><span style="color:#FF7B72">def</span><span style="color:#D2A8FF"> call_stock_api</span><span style="color:#E6EDF3">(ticker: </span><span style="color:#79C0FF">str</span><span style="color:#E6EDF3">) -> </span><span style="color:#79C0FF">dict</span><span style="color:#E6EDF3">:</span></span>
-<span class="line"><span style="color:#A5D6FF">    """Fetch stock data with automatic retry on transient failures.</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#A5D6FF">    Layer 1: Exponential backoff handles rate limits and network blips.</span></span>
-<span class="line"><span style="color:#A5D6FF">    If all retries fail, the error propagates to the agent with</span></span>
-<span class="line"><span style="color:#A5D6FF">    enough context to decide whether to try a different approach.</span></span>
-<span class="line"><span style="color:#A5D6FF">    """</span></span>
-<span class="line"><span style="color:#E6EDF3">    response </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> httpx.get(</span></span>
-<span class="line"><span style="color:#FF7B72">        f</span><span style="color:#A5D6FF">"https://api.example.com/v1/quotes/</span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">ticker</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">"</span><span style="color:#E6EDF3">,</span></span>
-<span class="line"><span style="color:#FFA657">        timeout</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">10.0</span><span style="color:#E6EDF3">,</span></span>
-<span class="line"><span style="color:#E6EDF3">    )</span></span>
-<span class="line"><span style="color:#E6EDF3">    response.raise_for_status()</span></span>
-<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> response.json()</span></span></code></pre>
-<hr>
-<h2 id="aplicación-de-estos-patrones-el-agente-analista-de-mercado">Aplicación de estos patrones: El agente analista de mercado</h2>
-<p>Permítanme mostrar cómo se combinan estos principios en la práctica. <a href="https://github.com/slavadubrov/market-analyst-agent">Agente de Análisis de Mercado</a> desde <a href="/es/blog/2026/01/31/ai-agent-reasoning-loops/">Parte 1</a>### Consolidación de herramientas</p>
-<p>El artículo de la Parte 1 muestra la superficie simplificada con 5 herramientas tras esta refactorización. Antes de esa limpieza, el diseño original contaba con más de 10 herramientas: <code>get_stock_price</code>, <code>get_company_metrics</code>, <code>get_market_cap</code>, <code>get_pe_ratio</code>, <code>get_volume</code>, y así sucesivamente. Cada uno de ellos era un envoltorio sencillo alrededor de un punto final de API. El agente tenía que determinar qué combinación llamar para cada solicitud.</p>
-<p>Consolidé estos en 5 herramientas de alto nivel, siguiendo el principio ACI de acciones compactas y eficientes:</p>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<table tabindex="0"><thead><tr><th>Antes (más de 10 herramientas)</th><th></th><th>¿Por qué?</th></tr></thead><tbody><tr><td><code>get_stock_price</code> + <code>get_company_metrics</code> + <code>get_pe_ratio</code></td><td><code>get_stock_snapshot</code></td><td>Una sola llamada devuelve todo lo necesario para el análisis básico.</td></tr><tr><td><code>get_price_history</code> + <code>get_volume_history</code></td><td><code>get_price_history</code></td><td>Combinado con un período e indicadores configurables</td></tr><tr><td><code>search_news</code> + <code>search_press_releases</code></td><td><code>search_news</code></td><td>Búsqueda unificada con filtrado por origen</td></tr><tr><td><code>search_competitors</code> + <code>get_sector_data</code></td><td><code>search_competitors</code></td><td>Devuelve a los competidores con métricas relativas</td></tr><tr><td><code>get_financials</code> + <code>get_balance_sheet</code> + <code>get_cash_flow</code></td><td><code>get_financials</code></td><td>Unificado con el parámetro statement_type</td></tr></tbody></table>
-<p>Esto redujo de forma significativa la sobrecarga asociada al esquema de herramientas y aumentó la fiabilidad en la selección de herramientas por parte del agente, ya que hay menos opciones ambiguas entre las que decidir.</p>
-<h3 id="salidas-estructuradas-para-los-resultados-de-la-herramienta">Salidas estructuradas para los resultados de la herramienta</h3>
-<p>Cada herramienta del Market Analyst Agent devuelve una respuesta validada con Pydantic. Esto aplica el principio de límites de seguridad de ACI en los bordes de las herramientas:</p>
-<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> StockSnapshot</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">BaseModel</span><span style="color:#E6EDF3">):</span></span>
-<span class="line"><span style="color:#A5D6FF">    """Structured tool response — the agent never sees raw API noise."""</span></span>
-<span class="line"><span style="color:#E6EDF3">    ticker: </span><span style="color:#79C0FF">str</span></span>
-<span class="line"><span style="color:#E6EDF3">    price: </span><span style="color:#79C0FF">float</span></span>
-<span class="line"><span style="color:#E6EDF3">    change_pct: </span><span style="color:#79C0FF">float</span></span>
-<span class="line"><span style="color:#E6EDF3">    volume: </span><span style="color:#79C0FF">int</span></span>
-<span class="line"><span style="color:#E6EDF3">    market_cap_b: </span><span style="color:#79C0FF">float</span></span>
-<span class="line"><span style="color:#E6EDF3">    pe_ratio: </span><span style="color:#79C0FF">float</span><span style="color:#FF7B72"> |</span><span style="color:#79C0FF"> None</span></span>
-<span class="line"><span style="color:#E6EDF3">    summary: </span><span style="color:#79C0FF">str</span><span style="color:#8B949E">  # Human-readable one-liner for direct use in reports</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> NewsResult</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">BaseModel</span><span style="color:#E6EDF3">):</span></span>
-<span class="line"><span style="color:#A5D6FF">    """Each news item is pre-processed for agent consumption."""</span></span>
-<span class="line"><span style="color:#E6EDF3">    headline: </span><span style="color:#79C0FF">str</span></span>
-<span class="line"><span style="color:#E6EDF3">    source: </span><span style="color:#79C0FF">str</span></span>
-<span class="line"><span style="color:#E6EDF3">    date: </span><span style="color:#79C0FF">str</span></span>
-<span class="line"><span style="color:#E6EDF3">    relevance_score: </span><span style="color:#79C0FF">float</span><span style="color:#8B949E">  # Pre-ranked so the agent doesn't waste tokens sorting</span></span>
-<span class="line"><span style="color:#E6EDF3">    key_points: list[</span><span style="color:#79C0FF">str</span><span style="color:#E6EDF3">]  </span><span style="color:#8B949E"># Extracted by the tool, not the agent</span></span></code></pre>
+<p>Los equipos informan que las fallas irreparables han disminuido del 23 % al menos del 2 % con este enfoque de cuatro capas, tal como se documenta en <a href="https://www.anthropic.com/engineering/writing-tools-for-agents">Patrones de resiliencia de las herramientas de Anthropic</a> ```python
+from tenacity import retry, stop_after_attempt, wait_exponential</p>
+<p>@retry(
+stop=stop_after_attempt(3),
+wait=wait_exponential(multiplier=1, min=2, max=10),
+)
+def call_stock_api(ticker: str) -> dict:
+"""Fetch stock data with automatic retry on transient failures.</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Layer 1: Exponential backoff handles rate limits and network blips.</span></span>
+<span class="line"><span>If all retries fail, the error propagates to the agent with</span></span>
+<span class="line"><span>enough context to decide whether to try a different approach.</span></span>
+<span class="line"><span>"""</span></span>
+<span class="line"><span>response = httpx.get(</span></span>
+<span class="line"><span>    f"https://api.example.com/v1/quotes/{ticker}",</span></span>
+<span class="line"><span>    timeout=10.0,</span></span>
+<span class="line"><span>)</span></span>
+<span class="line"><span>response.raise_for_status()</span></span>
+<span class="line"><span>return response.json()</span></span></code></pre>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span></span></span>
+<span class="line"><span>---</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>## Aplicación de estos patrones: El agente analista de mercado</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Permítanme mostrar cómo se combinan estos principios en la práctica. [Agente de Análisis de Mercado](https://github.com/slavadubrov/market-analyst-agent) desde [Parte 1](/es/blog/2026/01/31/ai-agent-reasoning-loops/) ### Consolidación de herramientas</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>El artículo de la Parte 1 muestra la superficie simplificada con 5 herramientas tras esta refactorización. Antes de esa limpieza, el diseño original contaba con más de 10 herramientas: `get_stock_price`, `get_company_metrics`, `get_market_cap`, `get_pe_ratio`, `get_volume`, y así sucesivamente. Cada uno de ellos era un envoltorio sencillo alrededor de un punto final de API. El agente tenía que determinar qué combinación llamar para cada solicitud.</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Consolidé estos en 5 herramientas de alto nivel, siguiendo el principio ACI de acciones compactas y eficientes:</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>| Antes (más de 10 herramientas)                             |                      | ¿Por qué?                                                            |</span></span>
+<span class="line"><span>| ---------------------------------------------------------- | -------------------- | -------------------------------------------------------------------- |</span></span>
+<span class="line"><span>| `get_stock_price` + `get_company_metrics` + `get_pe_ratio` | `get_stock_snapshot` | Una sola llamada devuelve todo lo necesario para el análisis básico. |</span></span>
+<span class="line"><span>| `get_price_history` + `get_volume_history`                 | `get_price_history`  | Combinado con un período e indicadores configurables                 |</span></span>
+<span class="line"><span>| `search_news` + `search_press_releases`                    | `search_news`        | Búsqueda unificada con filtrado por origen                           |</span></span>
+<span class="line"><span>| `search_competitors` + `get_sector_data`                   | `search_competitors` | Devuelve a los competidores con métricas relativas                   |</span></span>
+<span class="line"><span>| `get_financials` + `get_balance_sheet` + `get_cash_flow`   | `get_financials`     | Unificado con el parámetro statement_type                            |</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Esto redujo de forma significativa la sobrecarga asociada al esquema de herramientas y aumentó la fiabilidad en la selección de herramientas por parte del agente, ya que hay menos opciones ambiguas entre las que decidir.</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>### Salidas estructuradas para los resultados de la herramienta</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Cada herramienta del Market Analyst Agent devuelve una respuesta validada con Pydantic. Esto aplica el principio de límites de seguridad de ACI en los bordes de las herramientas:</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>```python</span></span>
+<span class="line"><span>class StockSnapshot(BaseModel):</span></span>
+<span class="line"><span>    """Structured tool response — the agent never sees raw API noise."""</span></span>
+<span class="line"><span>    ticker: str</span></span>
+<span class="line"><span>    price: float</span></span>
+<span class="line"><span>    change_pct: float</span></span>
+<span class="line"><span>    volume: int</span></span>
+<span class="line"><span>    market_cap_b: float</span></span>
+<span class="line"><span>    pe_ratio: float | None</span></span>
+<span class="line"><span>    summary: str  # Human-readable one-liner for direct use in reports</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>class NewsResult(BaseModel):</span></span>
+<span class="line"><span>    """Each news item is pre-processed for agent consumption."""</span></span>
+<span class="line"><span>    headline: str</span></span>
+<span class="line"><span>    source: str</span></span>
+<span class="line"><span>    date: str</span></span>
+<span class="line"><span>    relevance_score: float  # Pre-ranked so the agent doesn't waste tokens sorting</span></span>
+<span class="line"><span>    key_points: list[str]  # Extracted by the tool, not the agent</span></span></code></pre>
 <p>El <code>summary</code> El campo es el que más importancia tiene. Proporciona al agente una cadena lista para usar que puede incorporarse directamente en un informe sin necesidad de procesamiento adicional. <code>key_points</code> en <code>NewsResult</code> Se extraen del lado del servidor, lo que evita que el agente gaste tokens de inferencia en el análisis del contenido de los artículos.</p>
 <hr>
 <h2 id="compromisos-y-consideraciones">Compromisos y consideraciones</h2>
@@ -444,7 +424,7 @@ Este artículo se tradujo automáticamente a partir de la versión original en i
 <p>El código completo del agente Market Analyst, incluidos los diseños de herramientas descritos en esta publicación, se encuentra en <a href="https://github.com/slavadubrov/market-analyst-agent">GitHub</a>. <a href="/es/blog/2026/01/31/ai-agent-reasoning-loops/">Parte 1: Bucles de razonamiento de agentes de IA en 2026</a> — ReAct, ReWOO y Planificar-y-Ejecutar <a href="/es/blog/2026/02/14/ai-agent-memory-architecture/">Parte 2: Arquitectura de memoria de agentes de IA en 2026</a> — puntos de control, almacenes vectoriales y memoria de documentos</p>
 <ul>
 <li><strong>Parte 3: Uso de herramientas de agentes de IA en 2026</strong> (esta publicación)</li>
-<li><a href="/es/blog/2026/04/20/ai-agent-security/">Parte 4: Seguridad de los agentes de IA en 2026</a> — barreras de seguridad, permisos, entornos aislados, HITL y delimitación de alcance mediante MCP <a href="/es/blog/2026/05/26/ai-agent-runtime/">Parte 5: Entorno de ejecución de agentes de IA de larga duración en 2026</a> — sesiones, entornos aislados, puntos de control, plataformas de integración y configuraciones de despliegue</li>
+<li><a href="/es/blog/2026/04/20/ai-agent-security/">Parte 4: Seguridad de los agentes de IA en 2026</a>, — barreras de seguridad, permisos, entornos aislados, HITL y delimitación de alcance mediante MCP <a href="/es/blog/2026/05/26/ai-agent-runtime/">Parte 5: Entorno de ejecución de agentes de IA de larga duración en 2026</a> — sesiones, entornos aislados, puntos de control, plataformas de integración y configuraciones de despliegue</li>
 </ul> </article>  </main> <footer class="site-footer"> <p data-footer-tagline>Ingeniería práctica de IA por Slava Dubrov.</p> <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>
       document.querySelector("#locale-select")?.addEventListener("change", (event) => {
         const target = event.target;

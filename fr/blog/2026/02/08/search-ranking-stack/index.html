@@ -229,7 +229,7 @@ Cet article a été traduit automatiquement depuis la version originale en angla
 <p>Grâce aux embeddings normalisés, la similarité cosinus se réduit à un produit scalaire — une seule multiplication matricielle permet de récupérer l’ensemble des requêtes en même temps. Les 22 M de paramètres <code>all-MiniLM-L6-v2</code> Le modèle fonctionne sans problème sur CPU et atteint un score de Recall@100 de <strong>0,825</strong>, ce qui représente une amélioration de 11 % par rapport à BM25.</p>
 <h4 id="comment-les-bi-encodeurs-apprennent-de-bonnes-représentations">Comment les bi-encodeurs apprennent de bonnes représentations</h4>
 <p>La formation du bi-encodeur s’effectue généralement en <strong>deux phases</strong>. Tout d’abord, le modèle est pré-entraîné sur des ensembles de données de déduction en langage naturel (NLI) et de similarité textuelle sémantique (STS), qui lui enseignent une compréhension sémantique polyvalente — le modèle apprend que des expressions telles que « un chat est assis sur un tapis » et « un félin se repose sur un tapis » doivent générer des embeddings similaires. Ensuite, il est affiné à l’aide de données spécifiques à la récupération d’informations comme MS MARCO, où il apprend que une requête de recherche et son passage pertinent doivent être plus proches l’un de l’autre que la requête et les passages irrelevants.</p>
-<p>L’élément clé de la deuxième phase est l’<strong>extraction de négatifs difficiles</strong>. Les négatifs aléatoires (par exemple, un document sur la cuisine associé à une requête concernant des écouteurs) sont extrêmement faciles à distinguer — le modèle n’apprend rien d’eux. Au lieu de cela, on utilise le modèle actuel lui-même pour identifier des documents qu’il classe en haute position mais qui ne sont en réalité pas pertinents.<a href="https://arxiv.org/abs/2210.11773">SimANS</a>** (Simple Ambiguous Negatives Sampling) formalise ce processus : on classe tous les documents à l’aide de l’encodeur bilingue actuel, puis on exclut les négatifs évidents (classés trop bas — le modèle s’en occupe déjà) ainsi que les faux négatifs potentiels (classés trop haut — ils pourraient en réalité être pertinents mais non étiquetés). Le « terrain intermédiaire difficile » permet d’obtenir le signal d’apprentissage maximal.</p>
+<p>L’élément clé de la deuxième phase est l’<strong>extraction de négatifs difficiles</strong>. Les négatifs aléatoires (par exemple, un document sur la cuisine associé à une requête concernant des écouteurs) sont extrêmement faciles à distinguer — le modèle n’apprend rien d’eux. Au lieu de cela, on utilise le modèle actuel lui-même pour identifier des documents qu’il classe en haute position mais qui ne sont en réalité pas pertinents.<a href="https://arxiv.org/abs/2210.11773">SimANS</a>** ** (Simple Ambiguous Negatives Sampling) formalise ce processus : on classe tous les documents à l’aide de l’encodeur bilingue actuel, puis on exclut les négatifs évidents (classés trop bas — le modèle s’en occupe déjà) ainsi que les faux négatifs potentiels (classés trop haut — ils pourraient en réalité être pertinents mais non étiquetés). Le « terrain intermédiaire difficile » permet d’obtenir le signal d’apprentissage maximal.</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># What a training triplet looks like after hard negative mining</span></span>
 <span class="line"><span style="color:#E6EDF3">training_triplet </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {</span></span>
 <span class="line"><span style="color:#A5D6FF">    "query"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"wireless noise canceling headphones"</span><span style="color:#E6EDF3">,</span></span>
@@ -475,47 +475,17 @@ Cet article a été traduit automatiquement depuis la version originale en angla
 <p>Les embeddings denses ne deviennent utiles à grande échelle que lorsqu’on dispose d’un index de type Approximate Nearest Neighbor (ANN). La démonstration utilise la similarité cosinus par force brute (ce qui est suffisant pour environ 8 500 documents), mais les systèmes en production nécessitent des indices spécialisés.</p>
 <h3 id="hnsw-hierarchical-navigable-small-world">HNSW (Hierarchical Navigable Small World)</h3>
 <p><a href="https://arxiv.org/abs/1603.09320">HNSW</a> (Malkov &#x26; Yashunin, 2016) constitue un choix courant pour les environnements de production exigeant une latence inférieure à 100 ms. Ce modèle construit un graphe multicouche, où les couches supérieures offrent des connexions « express » permettant une navigation approximative, tandis que les couches inférieures fournissent des connexions denses pour un affinage précis. Paramètres clés de réglage : <code>M</code> (connexions par nœud, généralement de 16 à 64) et <code>efSearch</code> (Empattement de faisceau en temps de requête — utiliser au moins 512 pour des objectifs de rappel supérieurs à 0,95.)</p>
-<p>La faiblesse de HNSW réside dans le <strong>problème des tombstones</strong> : lorsqu’on supprime des enregistrements, ceux-ci laissent des nœuds fantômes dans le graphe. Avec le temps, ces derniers génèrent des régions inaccessibles, ce qui cache en pratique des parties de vos données aux recherches. Il ne s’agit pas d’une simple préoccupation théorique — même les bases de données vectorielles modernes comme Qdrant, qui utilise exclusivement HNSW, <a href="https://github.com/qdrant/qdrant/issues/7147">Signaler une dégradation de la qualité des recherches suite à des suppressions massives</a> ce qui nécessite des reconstructions complètes de l’index. Si votre ensemble de données fait l’objet d’actualisations ou de suppressions fréquentes, prévoyez un réindexage périodique ou envisagez des alternatives basées sur IVF.</p>
+<p>La faiblesse de HNSW réside dans le <strong>problème des tombstones</strong> : lorsqu’on supprime des enregistrements, ceux-ci laissent des nœuds fantômes dans le graphe. Avec le temps, ces derniers génèrent des régions inaccessibles, ce qui cache en pratique des parties de vos données aux recherches. Il ne s’agit pas d’une simple préoccupation théorique — même les bases de données vectorielles modernes comme Qdrant, qui utilise exclusivement HNSW, <a href="https://github.com/qdrant/qdrant/issues/7147">Signaler une dégradation de la qualité des recherches suite à des suppressions massives</a>, ce qui nécessite des reconstructions complètes de l’index. Si votre ensemble de données fait l’objet d’actualisations ou de suppressions fréquentes, prévoyez un réindexage périodique ou envisagez des alternatives basées sur IVF.</p>
 <h3 id="ivf-fichier-inversé">IVF (Fichier inversé)</h3>
 <p>Les index IVF partitionnent l’espace vectoriel en cellules de Voronoi à l’aide du clustering k-means. Lors de la consultation, seules les <code>nprobe</code> Les clusters les plus proches du centre de gravité de la requête sont scannés. L’IVF est plus économe en mémoire et plus résistant aux ensembles de données dynamiques : les suppressions s’effectuent proprement, sans création de nœuds inaccessibles. Les temps de construction sont 4 à 32 fois plus rapides que ceux de HNSW.</p>
-<p>Pour des volumes extrêmes, **<a href="https://arxiv.org/abs/2405.12497">IVF_RaBitQ</a></p>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<table tabindex="0"><thead><tr><th>Fonctionnalité</th><th>HNSW (Graphique)</th><th>IVF (Cluster)</th></tr></thead><tbody><tr><td><strong>Vitesse de requête</strong></td><td>Excellente</td><td>Modéré</td></tr><tr><td><strong>Vitesse de compilation</strong></td><td>Lent</td><td>Très rapide (de 4x à 32x plus rapide)</td></tr><tr><td><strong>Mémoire</strong></td><td>Élevé (limité par la RAM)</td><td>Faible</td></tr><tr><td><strong>Suppressions</strong></td><td>Problématique (tombstones)</td><td></td></tr><tr><td><strong>Meilleur usage</strong></td><td>Statique, critique en termes de latence</td><td>Dynamique, avec des contraintes de mémoire</td></tr></tbody></table>
-<p><strong>Conseils pratiques provenant de</strong> <a href="https://www.uber.com/blog/evolution-and-scale-of-ubers-delivery-search-platform/">Uber</a>:** Ils ont optimisé la récupération par réseau de neurones artificiels en réduisant le paramètre de recherche au niveau des shards, K, de 1 200 à 200, ce qui a permis une réduction de 34 % de la latence et d’économiser 17 % de ressources CPU, sans impact significatif sur le taux de rappel.**</p>
+<p>Pour des volumes extrêmes, **<a href="https://arxiv.org/abs/2405.12497">IVF_RaBitQ</a>** | Fonctionnalité             | HNSW (Graphique)                        | IVF (Cluster)                              |
+| -------------------------- | --------------------------------------- | ------------------------------------------ |
+| <strong>Vitesse de requête</strong>     | Excellente                              | Modéré                                     |
+| <strong>Vitesse de compilation</strong> | Lent                                    | Très rapide (de 4x à 32x plus rapide)      |
+| <strong>Mémoire</strong>                | Élevé (limité par la RAM)               | Faible                                     |
+| <strong>Suppressions</strong>           | Problématique (tombstones)              |                                            |
+| <strong>Meilleur usage</strong>         | Statique, critique en termes de latence | Dynamique, avec des contraintes de mémoire |</p>
+<p><strong>Conseils pratiques provenant de</strong> <a href="https://www.uber.com/blog/evolution-and-scale-of-ubers-delivery-search-platform/">Uber</a>, ** Ils ont optimisé la récupération par réseau de neurones artificiels en réduisant le paramètre de recherche au niveau des shards, K, de 1 200 à 200, ce qui a permis une réduction de 34 % de la latence et d’économiser 17 % de ressources CPU, sans impact significatif sur le taux de rappel.**</p>
 <hr>
 <h2 id="la-couche-llm--au-delà-du-reranking">La couche LLM : au-delà du reranking</h2>
 <p>Les modèles LLM améliorent non seulement l’étape de reranking, mais ils transforment également le reste du pipeline de recherche.</p>
@@ -527,8 +497,7 @@ Cet article a été traduit automatiquement depuis la version originale en angla
 <p>Facteurs qui rendent l’évaluation des LLM plus fiable :</p>
 <ul>
 <li>Demander aux modèles d’<strong>expliquer leurs évaluations</strong> (cela améliore considérablement l’alignement avec les attentes humaines)</li>
-<li>Utiliser <strong>des ensembles de modèles diversifiés</strong> pour réduire la variabilité (“<a href="https://arxiv.org/abs/2404.18796">remplacer les juges par des jurys</a>”)</li>
-<li>Prendre en compte le <strong>biais de tendance centrale</strong> dans les étiquettes générées par les LLM</li>
+<li>Utiliser <strong>des ensembles de modèles diversifiés</strong> pour réduire la variabilité (“<a href="https://arxiv.org/abs/2404.18796">remplacer les juges par des jurys</a> - Prendre en compte le <strong>biais de tendance centrale</strong> dans les étiquettes générées par les LLM</li>
 </ul>
 <h3 id="distillation-des-connaissances">Distillation des connaissances</h3>
 <p>Exécuter un LLM complet pour chaque requête est extrêmement coûteux. La solution réside dans la distillation :</p>
@@ -544,9 +513,9 @@ Cet article a été traduit automatiquement depuis la version originale en angla
 <p>Une pertinence générique n’est que partiellement efficace. Une recherche pour « apple » devrait afficher des iPhone pour un passionné de technologie et des recettes à base d’apple pour quelqu’un qui consulte régulièrement du contenu culinaire.</p>
 <h3 id="modèles-à-deux-tours-pour-la-personnalisation">Modèles à deux tours pour la personnalisation</h3>
 <p>Une architecture de récupération couramment utilisée pour la personnalisation repose sur un <strong>modèle d’incorporation à deux tours</strong> : le tour de la requête encode les requêtes de recherche ainsi que le profil de l’utilisateur en vecteurs d’incorporation ; le tour de l’élément encode les éléments eux-mêmes ainsi que leurs métadonnées. La similarité par produit scalaire détermine le degré de pertinence, ce qui permet de rester dans une plage de temps inférieure à 100 ms pour les recherches par annulation de proximité.</p>
-<p><a href="https://dl.acm.org/doi/10.1145/3219819.3219885">Airbnb</a> a été pionnier dans l’utilisation d’embeddings obtenus grâce à un entraînement de type Word2Vec sur les sessions de clics — leurs canaux « Recherches » et « Articles similaires » génèrent ensemble <strong>99 % des conversions de réservation</strong>. Pinterest’s <a href="https://arxiv.org/abs/2404.16260">OmniSearchSage</a> (WWW 2024) apprend conjointement des embeddings unifiés pour les requêtes, les étiquettes et les produits, ce qui permet d’obtenir <strong>une amélioration de la pertinence de plus de 8 %</strong> avec 300 K de requêtes par seconde. <a href="https://www.uber.com/blog/innovative-recommendation-applications-using-two-tower-embeddings/">Embeddings à deux tours d’Uber</a> Le traitement de l’alimentation en temps réel consomme environ 100 ms.</p>
+<p><a href="https://dl.acm.org/doi/10.1145/3219819.3219885">Airbnb</a>, a été pionnier dans l’utilisation d’embeddings obtenus grâce à un entraînement de type Word2Vec sur les sessions de clics — leurs canaux « Recherches » et « Articles similaires » génèrent ensemble <strong>99 % des conversions de réservation</strong>. Pinterest’s <a href="https://arxiv.org/abs/2404.16260">OmniSearchSage</a>, (WWW 2024) apprend conjointement des embeddings unifiés pour les requêtes, les étiquettes et les produits, ce qui permet d’obtenir <strong>une amélioration de la pertinence de plus de 8 %</strong> avec 300 K de requêtes par seconde. <a href="https://www.uber.com/blog/innovative-recommendation-applications-using-two-tower-embeddings/">Embeddings à deux tours d’Uber</a> Le traitement de l’alimentation en temps réel consomme environ 100 ms.</p>
 <h3 id="biais-de-position--la-distorsion-silencieuse">Biais de position : la distorsion silencieuse</h3>
-<p>Les utilisateurs cliquent sur des éléments ayant un rang plus élevé, indépendamment de leur pertinence réelle, ce qui crée un cycle de rétroaction auto-renforçant. La solution la plus pratique en environnement de production (<a href="https://dl.acm.org/doi/10.1145/3298689.3347033">PAL</a>, Guo et al., RecSys 2019) : il suffit d’inclure la position comme caractéristique d’entraînement, puis de définir position=1 pour tous les éléments au moment de la fourniture du résultat. Cela permet de corriger les biais du modèle sans avoir à modéliser explicitement la distribution des clics.</p>
+<p>Les utilisateurs cliquent sur des éléments ayant un rang plus élevé, indépendamment de leur pertinence réelle, ce qui crée un cycle de rétroaction auto-renforçant. La solution la plus pratique en environnement de production (<a href="https://dl.acm.org/doi/10.1145/3298689.3347033">PAL</a> Guo et al., RecSys 2019) : il suffit d’inclure la position comme caractéristique d’entraînement, puis de définir position=1 pour tous les éléments au moment de la fourniture du résultat. Cela permet de corriger les biais du modèle sans avoir à modéliser explicitement la distribution des clics.</p>
 <hr>
 <h2 id="compléter-le-fossé-entre-les-domaines">Compléter le fossé entre les domaines</h2>
 <p>Une erreur fréquente dans les stratégies de recherche consiste à supposer qu’un modèle entraîné sur des données web générales (comme MS MARCO) fonctionnera bien dans un domaine spécialisé. Il s’agit du <strong>problème hors domaine (OOD)</strong>.</p>
@@ -567,7 +536,7 @@ Cet article a été traduit automatiquement depuis la version originale en angla
 <p><strong>Niveau 1 (base de référence) :</strong> Postgres pgvector ou Elasticsearch. Recherche hybride utilisant BM25 en combinaison avec la récupération de vecteurs. Aucun rérankeur utilisé.</p>
 <p><strong>Niveau 2 (le rérankeur) :</strong> ajouter un encodeur croisé (par exemple, <code>bge-reranker-v2-m3</code> ou <code>ms-marco-MiniLM-L-12-v2</code>) afin de réclasser les 50 meilleurs résultats. Il s’agit généralement du <strong>meilleur retour sur investissement avec le moindre effort</strong>. Les <a href="https://www.elastic.co/search-labs/blog/elastic-semantic-reranker-part-2">Elasticité de ré-rangement</a> Le modèle (184 M de paramètres, DeBERTa v3) atteint une valeur moyenne de nDCG@10 de 0,565 sur BEIR — ce qui représente une amélioration de 39 % par rapport à BM25.</p>
 <p><strong>Niveau 3 (ajustement fin) :</strong> ajustez finement votre modèle d’embedding ainsi que le moteur de rérankage en utilisant des données de domaine accompagnées de requêtes synthétiques générées par un LLM (GPL/InPars). C’est à ce stade que les performances spécifiques au domaine commencent à distancer celles des modèles génériques.</p>
-<p><strong>Niveau 4 (technologie de pointe) :</strong> ajoutez un mécanisme de rérankage basé sur des LLM pour les 5 à 10 résultats les plus pertinents et intégrez des signaux de personnalisation. Expérimentez également des moteurs de rérankage fondés sur le raisonnement comme <a href="https://arxiv.org/abs/2502.18418">Rang 1</a>, qui génère des chaînes de raisonnement explicites avant de prendre des décisions de pertinence.</p>
+<p><strong>Niveau 4 (technologie de pointe) :</strong> ajoutez un mécanisme de rérankage basé sur des LLM pour les 5 à 10 résultats les plus pertinents et intégrez des signaux de personnalisation. Expérimentez également des moteurs de rérankage fondés sur le raisonnement comme <a href="https://arxiv.org/abs/2502.18418">Rang 1</a> qui génère des chaînes de raisonnement explicites avant de prendre des décisions de pertinence.</p>
 <p><strong>Le niveau 2 représente le point idéal pour la plupart des équipes.</strong> L’ajout d’un rérankeur à encodage croisé à une configuration de recherche hybride existante permet d’améliorer considérablement la précision sans avoir à modifier l’architecture globale.</p>
 <hr>
 <h2 id="la-frontière--les-rérankeurs-basés-sur-le-raisonnement-et-la-recherche-agente">La frontière : les rérankeurs basés sur le raisonnement et la recherche agente</h2>
