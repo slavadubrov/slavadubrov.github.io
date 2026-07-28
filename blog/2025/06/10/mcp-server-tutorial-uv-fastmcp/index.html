@@ -20,11 +20,11 @@
 <hr>
 <h2 id="what-is-an-mcp-server">What is an MCP server?</h2>
 <p>The <strong>Model Context Protocol (MCP)</strong> is an open standard for connecting AI assistants to external data and tools. It replaces a separate custom integration for every tool with one set of conventions.</p>
-<p>In this tutorial we’ll build a <strong>FeatureStoreLite</strong> MCP server. It sits between an LLM and a feature store (a database of precomputed ML features), and exposes tools for querying and writing feature vectors keyed by user, product, or document.</p>
+<p>In this tutorial we’ll build a <strong>FeatureStoreLite</strong> MCP server. It sits between an LLM and a feature store, meaning a database of precomputed ML features. The server exposes tools for querying and writing feature vectors keyed by user, product, or document.</p>
 <h3 id="why-build-this">Why build this?</h3>
-<p>You are an ML engineer debugging a pipeline. Instead of dropping into SQL or writing a quick script to check feature values, you ask Claude directly: <em>“What is the feature vector for user_123?”</em> or <em>“Show me the metadata for product_abc.”</em> The MCP server is what makes that possible.</p>
+<p>Debugging a feature pipeline usually means dropping into SQL or writing a throwaway script to check a value. With the server running, you ask Claude instead: <em>“What is the feature vector for user_123?”</em> or <em>“Show me the metadata for product_abc.”</em></p>
 <h3 id="why-use-uv">Why use <code>uv</code>?</h3>
-<p>We’ll use <strong><a href="https://docs.astral.sh/uv/">uv</a></strong> to install packages, resolve dependencies, and manage the virtual environment. Later, <code>uv run --with mcp[cli] ...</code> will also let the Claude Desktop configuration declare its dependency directly. That removes a separate environment that could drift out of sync.</p>
+<p>We’ll use <strong><a href="https://docs.astral.sh/uv/">uv</a></strong> to install packages, resolve dependencies, and manage the virtual environment. Later, <code>uv run --with mcp[cli] ...</code> will also let the Claude Desktop configuration declare its dependency directly. Declaring it there avoids keeping a second environment in sync.</p>
 <h3 id="architecture-overview">Architecture overview</h3>
 <p>The four pieces and how they fit together:</p>
 <p><img src="/blog/assets/2025-06-10-mcp-server-tutorial-with-uv/mcp_architecture.svg" alt="MCP Architecture"></p>
@@ -35,7 +35,7 @@
 <li>SQLite is the backing store for the feature vectors.</li>
 </ol>
 <hr>
-<h2 id="2-setup-and-installation">2. Setup and Installation</h2>
+<h2 id="2-setup-and-installation">2. Setup and installation</h2>
 <h3 id="21-install-uv">2.1. Install <code>uv</code></h3>
 <p>If you don’t already have <code>uv</code>, install it. The rest of the tutorial assumes it’s on your <code>PATH</code>.</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#8B949E"># macOS/Linux</span></span>
@@ -43,7 +43,7 @@
 <span class="line"></span>
 <span class="line"><span style="color:#8B949E"># Or via Homebrew</span></span>
 <span class="line"><span style="color:#FFA657">brew</span><span style="color:#A5D6FF"> install</span><span style="color:#A5D6FF"> uv</span></span></code></pre>
-<h3 id="22-initialize-the-project">2.2. Initialize the Project</h3>
+<h3 id="22-initialize-the-project">2.2. Initialize the project</h3>
 <p>Create a new directory and initialize a Python project. <code>uv init</code> creates a <code>pyproject.toml</code> for you.</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#8B949E"># Create project directory</span></span>
 <span class="line"><span style="color:#FFA657">mkdir</span><span style="color:#A5D6FF"> mcp-featurestore</span></span>
@@ -55,7 +55,7 @@
 <span class="line"><span style="color:#8B949E"># Add the MCP SDK with CLI tools</span></span>
 <span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> add</span><span style="color:#A5D6FF"> "mcp[cli]"</span></span></code></pre>
 <hr>
-<h2 id="3-building-the-server">3. Building the Server</h2>
+<h2 id="3-building-the-server">3. Building the server</h2>
 <p>Two files, split by concern:</p>
 <ol>
 <li><code>database.py</code> handles SQLite operations.</li>
@@ -127,7 +127,7 @@
 <p>Initialize the database:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> run</span><span style="color:#A5D6FF"> python</span><span style="color:#A5D6FF"> database.py</span></span></code></pre>
 <h3 id="32-the-mcp-server-featurestore_serverpy">3.2. The MCP server (<code>featurestore_server.py</code>)</h3>
-<p><code>FastMCP</code> does most of the work. Decorate a plain Python function and it gets registered as an MCP tool or resource. The docstring becomes the description the LLM sees, so write it for an LLM, not just for humans.</p>
+<p><code>FastMCP</code> does most of the work. Decorate a plain Python function and it gets registered as an MCP tool or resource. The docstring becomes the description the LLM sees. Write it for that reader.</p>
 <p>Create <code>featurestore_server.py</code>:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># featurestore_server.py</span></span>
 <span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> json</span></span>
@@ -255,7 +255,7 @@
 <span class="line"><span style="color:#E6EDF3">    }</span></span>
 <span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
 <blockquote>
-<p><strong>Important</strong>: the path to <code>featurestore_server.py</code> has to be absolute. A relative path will fail silently because Claude Desktop runs from a different working directory.</p>
+<p><strong>Important</strong>: the path to <code>featurestore_server.py</code> has to be absolute. A relative path usually fails silently, because Claude Desktop runs from a different working directory.</p>
 </blockquote>
 <h3 id="52-how-the-interaction-works">5.2. How the interaction works</h3>
 <p>Here’s what runs end to end when Claude needs a feature lookup:</p>
@@ -298,13 +298,13 @@
 <p>“Tool execution error”:</p>
 <ul>
 <li>Reproduce it in the Inspector with <code>uv run mcp dev featurestore_server.py</code>. The Inspector shows the raw error, which Claude Desktop usually swallows.</li>
-<li>Check that <code>features.db</code> is being created next to <code>database.py</code>. If your working directory shifts, the script-relative path in <code>get_db_path()</code> is what saves you.</li>
+<li>Check that <code>features.db</code> is being created next to <code>database.py</code>. The path comes from <code>get_db_path()</code>, which resolves it relative to the script, so a shifting working directory should not move the file.</li>
 </ul>
 </li>
 </ul>
 <hr>
 <h2 id="7-conclusion">7. Conclusion</h2>
-<p>That’s the whole thing: a <code>FastMCP</code> server, a SQLite backing store, and a Claude Desktop config that points at a <code>uv run</code> command. The same shape works for anything you can wrap in a Python function. Swap the SQLite calls for a real feature store, an internal API, or a model registry, and the server stays small.</p>
+<p>That’s the whole thing: a <code>FastMCP</code> server, a SQLite backing store, and a Claude Desktop config that points at a <code>uv run</code> command. The same shape works for most things you can wrap in a Python function. Swap the SQLite calls for a real feature store, an internal API, or a model registry, and the server stays small.</p>
 <h2 id="key-takeaways">Key Takeaways</h2>
 <ol>
 <li>MCP is a tool boundary, not a reason to expose every internal function.</li>

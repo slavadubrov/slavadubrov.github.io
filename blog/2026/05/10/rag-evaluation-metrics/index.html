@@ -24,7 +24,7 @@
 </blockquote>
 <p><strong>TL;DR</strong></p>
 <ul>
-<li>Evaluation defines the system. A stage without a metric is a stage that fails silently.</li>
+<li>A stage without a metric is a stage that fails silently.</li>
 <li>A useful evaluation stack covers ingestion, retrieval, generation grounding, ontology conformance, and system signals. <a href="https://docs.ragas.io/">RAGAS</a>, <a href="https://www.trulens.org/">TruLens</a>, <a href="https://deepeval.com/">DeepEval</a>, <a href="https://phoenix.arize.com/">Arize Phoenix</a>, and the <a href="https://trec.nist.gov/data/rag2024.html">TREC 2024 RAG Track</a> give you tooling. They do not choose your metrics for you.</li>
 <li>For metadata- and ontology-grounded RAG, a wrong tag or brittle hard predicate can collapse recall to zero. Standard Recall@k catches the loss when it retains the original gold set. A filter false-exclusion metric identifies the cause, while faithfulness can still look fine because the model faithfully said “I don’t know.”</li>
 </ul>
@@ -137,7 +137,7 @@
 <p><img src="/blog/assets/2026-05-10-rag-evaluation/rag-pipeline-eval-points.svg" alt="The full RAG pipeline with metric badges at every stage"></p>
 <p>Each stage in the diagram has at least one metric. A stage with no metric can fail without anyone noticing.</p>
 <p>The three lanes match where evidence can be lost. The ingestion lane covers parsing, cleaning, chunking, embedding, and indexing. The query-time lane covers rewriting, filtering, retrieval, reranking, and context assembly. The answer and production lane covers faithfulness, citation verification, user signals, drift, latency, and cost.</p>
-<p>Errors compound down the chain. Bad parsing limits chunking. Bad chunking limits retrieval. Bad retrieval limits reranking. Bad reranking limits generation. Faithfulness only measures the final answer, never the upstream cause.</p>
+<p>Errors compound down the chain: bad parsing caps what chunking can do, bad chunking caps retrieval, and bad retrieval caps both reranking and generation. Faithfulness only measures the final answer, never the upstream cause.</p>
 <hr>
 <h2 id="part-3-ingestion-evaluation">Part 3: Ingestion evaluation</h2>
 <p>Many production RAG failures start in ingestion. The system works on clean test documents, then fails on real PDFs, scans, tables, and messy corpus pages.</p>
@@ -172,10 +172,10 @@
 <h3 id="cleaning-and-normalization">Cleaning and normalization</h3>
 <ul>
 <li>
-<p><strong>Boilerplate removal accuracy</strong>: precision/recall against human-labeled boilerplate spans. Aggressive removal kills relevant content; lazy removal pollutes embeddings. Tools to compare: <a href="https://github.com/adbar/trafilatura"><code>trafilatura</code></a>, <a href="https://github.com/miso-belica/jusText"><code>jusText</code></a>, <a href="https://github.com/chatnoir-eu/chatnoir-resiliparse"><code>Resiliparse</code></a>. <a href="https://aclanthology.org/2021.acl-demo.15/">Barbaresi (2021)</a> benchmarks these head-to-head.</p>
+<p><strong>Boilerplate removal accuracy</strong>: precision/recall against human-labeled boilerplate spans. Aggressive removal drops relevant content; lazy removal pollutes embeddings. Tools to compare: <a href="https://github.com/adbar/trafilatura"><code>trafilatura</code></a>, <a href="https://github.com/miso-belica/jusText"><code>jusText</code></a>, <a href="https://github.com/chatnoir-eu/chatnoir-resiliparse"><code>Resiliparse</code></a>. <a href="https://aclanthology.org/2021.acl-demo.15/">Barbaresi (2021)</a> benchmarks these head-to-head.</p>
 </li>
 <li>
-<p><strong>Unicode normalization</strong>: percent of documents producing identical NFC and NFKC outputs (computed with the stdlib <a href="https://docs.python.org/3/library/unicodedata.html"><code>unicodedata.normalize</code></a>) is a useful drift signal. Mismatches are how zero-width joiners and lookalike characters destroy retrieval recall.</p>
+<p><strong>Unicode normalization</strong>: percent of documents producing identical NFC and NFKC outputs (computed with the stdlib <a href="https://docs.python.org/3/library/unicodedata.html"><code>unicodedata.normalize</code></a>) is a useful drift signal. Mismatches are how zero-width joiners and lookalike characters break retrieval recall.</p>
 </li>
 <li>
 <p><strong>Language detection accuracy</strong>: F1 on a labeled multilingual sample. Critical for multilingual indexes. Use <a href="https://github.com/zafercavdar/fasttext-langdetect"><code>fasttext-langdetect</code></a> (Facebook’s <code>lid.176</code>), <a href="https://github.com/pemistahl/lingua-py"><code>lingua-py</code></a>, or <a href="https://github.com/google/cld3"><code>cld3</code></a>. <a href="https://arxiv.org/abs/2207.04672">FLORES-200</a> supplies evaluation text across 200 languages, but your production language mix should determine the test slice.</p>
@@ -398,7 +398,7 @@
 <p>Hybrid + RRF on SciFact: <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/notebooks/02_hybrid_and_rrf.ipynb">notebook 02</a> compares dense vs BM25 vs RRF with per-query deltas. The production-shaped fuser is in <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/src/rag_evals/retrieval/hybrid_rrf.py"><code>retrieval/hybrid_rrf.py</code></a>; <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/tests/test_rrf.py"><code>tests/test_rrf.py</code></a> pins the canonical <code>d3 / d2 / d1</code> ordering at <code>k=60</code>.</p>
 <h3 id="reranking">Reranking</h3>
 <ul>
-<li><strong>ΔnDCG / ΔMRR</strong>: the only honest reranker metric — uplift over no-rerank, on your golden set, at the depth your application actually uses. Compute by running your retrieval metrics with and without the reranker on identical candidate sets.</li>
+<li><strong>ΔnDCG / ΔMRR</strong>: uplift over no-rerank, on your golden set, at the depth your application actually uses. Compute by running your retrieval metrics with and without the reranker on identical candidate sets.</li>
 <li><strong>Cross-encoder vs. bi-encoder</strong>: a bi-encoder embeds query and doc independently (one vector per side) and scores by dot product; a cross-encoder concatenates query+doc and runs a single forward pass that attends jointly across both. Cross-encoders trade a forward pass per candidate for richer query–document interaction. Reference implementation: <a href="https://www.sbert.net/"><code>sentence-transformers</code></a> <code>CrossEncoder</code>. Benchmark relevance and latency on named hardware, batch size, and candidate depth; do not transfer one model or managed service’s result into another environment.</li>
 <li><strong>Listwise vs. pointwise</strong>: pointwise scores each (query, doc) pair independently; listwise scores the whole candidate list jointly so the model can compare candidates. Evaluate both on the same candidate sets. Calibrate any score threshold per model and corpus rather than treating a published example as portable.</li>
 </ul>
@@ -417,10 +417,10 @@
 <span class="line"><span style="color:#E6EDF3">ranked </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> sorted</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">zip</span><span style="color:#E6EDF3">(candidates, scores), </span><span style="color:#FFA657">key</span><span style="color:#FF7B72">=lambda</span><span style="color:#E6EDF3"> x: </span><span style="color:#FF7B72">-</span><span style="color:#E6EDF3">x[</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">])</span></span>
 <span class="line"><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> doc, score </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> ranked:</span></span>
 <span class="line"><span style="color:#79C0FF">    print</span><span style="color:#E6EDF3">(</span><span style="color:#FF7B72">f</span><span style="color:#A5D6FF">"</span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">score</span><span style="color:#FF7B72">:+.3f}</span><span style="color:#FF7B72">  {</span><span style="color:#E6EDF3">doc</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">"</span><span style="color:#E6EDF3">)</span></span></code></pre>
-<p>A reranker is a high-leverage candidate for a basic RAG pipeline, not a guaranteed win. Measure its ΔPrecision@1 and ΔnDCG on your golden set, then keep it only if the gain clears its latency and cost budget. Compare that measured gain with smaller retrieval changes before choosing the next optimization.</p>
+<p>A reranker often helps a basic RAG pipeline, but it is not a guaranteed win. Measure its ΔPrecision@1 and ΔnDCG on your golden set, then keep it only if the gain clears its latency and cost budget. Compare that measured gain with smaller retrieval changes before choosing the next optimization.</p>
 <p>ΔnDCG and ΔPrecision@1 from a cross-encoder on SciFact: <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/notebooks/03_reranking.ipynb">notebook 03</a>; module: <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/src/rag_evals/retrieval/reranker.py"><code>retrieval/reranker.py</code></a>.</p>
 <h3 id="context-construction-and-lost-in-the-middle">Context construction and lost-in-the-middle</h3>
-<p>This is where many “good retrieval, bad answer” failures come from.</p>
+<p>Many “good retrieval, bad answer” failures start in context construction.</p>
 <ul>
 <li><strong>Context relevance</strong>: per-chunk relevance score from <a href="https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_relevance/">RAGAS <code>ContextRelevancy</code></a> or a cross-encoder, aggregated as mean and as percent of chunks below a threshold.</li>
 <li><strong>Context utilization</strong>: of the chunks placed in context, how many were actually cited or used in the answer. Compute as <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mfrac><mrow><mi mathvariant="normal">∣</mi><mtext>cited chunks</mtext><mi mathvariant="normal">∣</mi></mrow><mrow><mi mathvariant="normal">∣</mi><mtext>retrieved chunks</mtext><mi mathvariant="normal">∣</mi></mrow></mfrac></mrow><annotation encoding="application/x-tex">\frac{|\text{cited chunks}|}{|\text{retrieved chunks}|}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1.53em;vertical-align:-0.52em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.01em;"><span style="top:-2.655em;"><span class="pstrut" style="height:3em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">∣</span><span class="mord text mtight"><span class="mord mtight">retrieved chunks</span></span><span class="mord mtight">∣</span></span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.485em;"><span class="pstrut" style="height:3em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">∣</span><span class="mord text mtight"><span class="mord mtight">cited chunks</span></span><span class="mord mtight">∣</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.52em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span></span></span></span> over a labeled sample. Set the operating threshold from answer quality and token cost rather than using a universal percentage.</li>
@@ -609,7 +609,7 @@
 </ul>
 <hr>
 <h2 id="part-7-ontology-grounded-rag-evaluation">Part 7: Ontology-grounded RAG evaluation</h2>
-<p>The standard metrics above cover open-corpus RAG. Ontology-grounded systems need more. If your RAG retrieves against a structured ontology, taxonomy, or knowledge graph (products in a catalog, conditions in SNOMED, components in a BOM, security techniques in MITRE ATT&#x26;CK), standard RAG metrics are necessary but not sufficient. You also need to measure the ontology layer.</p>
+<p>The standard metrics above cover open-corpus RAG. If your RAG retrieves against a structured ontology, taxonomy, or knowledge graph (products in a catalog, conditions in SNOMED, components in a BOM, security techniques in MITRE ATT&#x26;CK), those metrics are necessary but not sufficient. You also need to measure the ontology layer.</p>
 <h3 id="entity-linking-accuracy">Entity linking accuracy</h3>
 <p>The first task is mapping a query mention to an ontology entity (“Aspirin” → <code>wikidata:Q18216</code>, “the 737” → <code>aircraft:Boeing_737</code>).</p>
 <ul>
@@ -643,7 +643,7 @@
 <ul>
 <li><strong>Schema validity rate</strong>: percent of outputs that parse and validate against the ontology schema. Validate with <a href="https://github.com/python-jsonschema/jsonschema"><code>jsonschema</code></a> or <a href="https://docs.pydantic.dev/"><code>pydantic</code></a>. <a href="https://arxiv.org/abs/2501.10868">JSONSchemaBench</a> is the public benchmark for general structured output; for ontology-specific schemas, build your own validator.</li>
 <li><strong>Vocabulary conformance</strong>: percent of named entities in the output that are valid ontology IDs — a one-line set-membership check against the closed vocabulary.</li>
-<li><strong>Semantic conformance</strong>: validity is necessary but insufficient. A syntactically valid output can pick the wrong-but-valid entity. Pair conformance with downstream answer correctness.</li>
+<li><strong>Semantic conformance</strong>: a syntactically valid output can still pick the wrong-but-valid entity. Pair conformance with downstream answer correctness.</li>
 </ul>
 <p>Constrained decoding frameworks (<a href="https://github.com/dottxt-ai/outlines">Outlines</a>, <a href="https://github.com/mlc-ai/xgrammar">XGrammar</a>, <a href="https://github.com/guidance-ai/guidance">Guidance</a>, <a href="https://platform.openai.com/docs/guides/structured-outputs">OpenAI Structured Outputs</a>) are designed to enforce schema validity. <a href="https://arxiv.org/abs/2501.10868">JSONSchemaBench</a> compares efficiency, coverage, and quality across implementations. Re-run its cases that match your schemas and serving backend because coverage and latency depend on both.</p>
 <h3 id="auditability">Auditability</h3>
@@ -690,7 +690,7 @@
 <span class="line"><span style="color:#E6EDF3">    rationale: </span><span style="color:#79C0FF">str</span></span></code></pre>
 <p>The structured fields make the score recoverable as <code>len(supported) / len(extracted)</code> and show exactly which claims two judges disagreed about. The Pydantic model also makes a rubric change visible as a code diff. Constrained output guarantees the shape, not an unbiased verdict, so position randomization, cross-family judges, and human calibration still apply.</p>
 <p>This works for any rubric-based judge, not just faithfulness. Pairwise preference, citation support, and refusal correctness all benefit from the same treatment.</p>
-<p>A G-Eval / pairwise / position-bias / cross-family judge harness lives in <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/notebooks/07_llm_as_judge.ipynb">notebook 07</a>; module: <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/src/rag_evals/evaluation/llm_judge.py"><code>evaluation/llm_judge.py</code></a>. The benchmark sweep (<code>make benchmark</code> in the repo) wires three frontier-tier models — <code>gpt-5-mini</code>, <code>claude-haiku-4-5</code>, <code>gemini-2.5-flash</code> — into a rotating-judge pairwise A/B so every model judges the other two, surfacing self-preference numerically.</p>
+<p>A G-Eval / pairwise / position-bias / cross-family judge harness lives in <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/notebooks/07_llm_as_judge.ipynb">notebook 07</a>; module: <a href="https://github.com/slavadubrov/rag-evals-demo/blob/main/src/rag_evals/evaluation/llm_judge.py"><code>evaluation/llm_judge.py</code></a>. The benchmark sweep (<code>make benchmark</code> in the repo) wires three models (<code>gpt-5-mini</code>, <code>claude-haiku-4-5</code>, <code>gemini-2.5-flash</code>) into a rotating-judge pairwise A/B, so every model judges the other two and self-preference shows up as a number.</p>
 <h3 id="latency-and-cost">Latency and cost</h3>
 <ul>
 <li><strong>p50, p95, p99</strong> at every pipeline stage. Choose the SLO percentile and alert threshold from the user journey, traffic volume, and error budget.</li>
@@ -751,12 +751,12 @@
 <li><strong>Regeneration rate</strong>: percent of answers the user re-asks or asks the system to redo. Treat it as one dissatisfaction signal and calibrate it against reviewed conversations.</li>
 <li><strong>Copy / share / export</strong> rates — strong positive signal.</li>
 <li><strong>Follow-up patterns</strong>: “Are you sure?” or “But what about X?” patterns suggest distrust.</li>
-<li><strong>Thumbs up/down</strong> with optional reason categories (wrong, incomplete, off-topic, harmful, slow). Inline edits, when your UI allows them, are the highest-information feedback signal there is.</li>
+<li><strong>Thumbs up/down</strong> with optional reason categories (wrong, incomplete, off-topic, harmful, slow). Inline edits, when your UI allows them, usually carry the most information of any feedback signal.</li>
 </ul>
 <h3 id="drift-detection">Drift detection</h3>
 <ul>
 <li><strong>Query drift</strong>: track query embedding distribution vs. a reference window using KL divergence, MMD, or a model-based detector. Alert on shift, then segment-debug.</li>
-<li><strong>Embedding drift</strong>: pin a probe set of fixed documents; periodically re-embed and measure cosine to the original embeddings. Even small drift between provider model versions silently breaks retrieval. Versioned embedding storage (immutable per-version snapshots) is the cheapest mitigation.</li>
+<li><strong>Embedding drift</strong>: pin a probe set of fixed documents; periodically re-embed and measure cosine to the original embeddings. Even small drift between provider model versions can silently break retrieval. Versioned embedding storage (immutable per-version snapshots) is the cheapest mitigation.</li>
 <li><strong>Performance drift</strong>: track production-equivalent metrics (regeneration rate by intent) over time. Sudden jumps mean something broke; slow drifts mean the world changed.</li>
 </ul>
 <h3 id="shadow-evaluation-and-human-in-the-loop">Shadow evaluation and human-in-the-loop</h3>

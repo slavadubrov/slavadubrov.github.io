@@ -40,7 +40,7 @@
 <p>Profile the exact architecture, precision, sequence length, micro-batch, optimizer, checkpointing policy, and runtime. Record peak allocated and reserved memory, tokens per second, time in kernels, and time exposed in collectives.</p>
 <p><img src="/blog/assets/2025-05-04-scaling-llms/scaling_decision_tree.svg" alt="Distributed scaling starts from a measured bottleneck"></p>
 <h2 id="every-parallel-dimension-makes-a-trade">Every parallel dimension makes a trade</h2>
-<p>The useful question is not “Which technique is best?” It is “Which tensor dimension is split, which state is replicated, and which collective enters the critical path?”</p>
+<p>For each strategy, ask which tensor dimension is split, which state is replicated, and which collective enters the critical path.</p>
 
 
 
@@ -92,8 +92,8 @@
 <p>Memory relief is not a fixed multiplier. It depends on sharding degree, what remains replicated, transient unsharded state, activation policy, padding, imbalance, and buffers.</p>
 <h2 id="replicated-data-parallelism-throughput-without-capacity">Replicated data parallelism: throughput without capacity</h2>
 <p><img src="/blog/assets/2025-05-04-scaling-llms/data_parallelism.svg" alt="Replicated data parallel training"></p>
-<p>Distributed data parallelism keeps a full training replica on every rank. Each rank handles a different micro-batch, and gradients are synchronized before the optimizer step.</p>
-<p>Use it when the full training state fits with safe headroom and the global batch can grow or gradient accumulation can adjust. Its main advantages are simple semantics and mature overlap between backward computation and bucketed gradient reduction.</p>
+<p>Replicated data parallelism, usually called distributed data parallel, keeps a full training replica on every rank. Each rank handles a different micro-batch, and gradients are synchronized before the optimizer step.</p>
+<p>Use it when the full training state fits with safe headroom and the global batch can grow or gradient accumulation can adjust. Its main advantages are simple semantics and a mature implementation that overlaps backward computation with bucketed gradient reduction.</p>
 <p>Adding ranks can hurt if the local batch becomes too small, the network cannot hide the all-reduce, input delivery stalls, or the desired optimization batch does not scale.</p>
 <h2 id="fully-sharded-data-parallelism-state-memory-for-collectives">Fully sharded data parallelism: state memory for collectives</h2>
 <p><img src="/blog/assets/2025-05-04-scaling-llms/fsdp.svg" alt="Fully sharded data parallel execution"></p>
@@ -116,7 +116,7 @@
 <h2 id="tensor-parallelism-partition-layer-math">Tensor parallelism: partition layer math</h2>
 <p><img src="/blog/assets/2025-05-04-scaling-llms/tensor_parallelism.svg" alt="Tensor parallel layer partition"></p>
 <p>Tensor parallelism partitions linear algebra inside a layer—for example, column-parallel and row-parallel projections. Partial results require collectives within transformer blocks, so latency and bandwidth matter repeatedly throughout the forward and backward passes.</p>
-<p>Use it when a layer or its activations do not fit, or when the matmuls are large enough for partitioned kernels to outperform one rank. Map the tensor-parallel group to the fastest communication domain available, then measure. High degree can shrink each local matrix until kernel efficiency falls while collective overhead grows.</p>
+<p>Use it when a layer or its activations do not fit, or when the matmuls are large enough for partitioned kernels to outperform one rank. Map the tensor-parallel group to the fastest communication domain available, then measure. A high tensor-parallel degree can shrink each local matrix until kernel efficiency falls while collective overhead grows.</p>
 <p>Sequence parallelism is often paired with tensor parallelism to avoid replicating some activation work; it is distinct from context parallelism over the model’s full input sequence.</p>
 <h2 id="pipeline-parallelism-partition-depth-and-schedule-time">Pipeline parallelism: partition depth and schedule time</h2>
 <p><img src="/blog/assets/2025-05-04-scaling-llms/pipeline_parallelism.svg" alt="Pipeline parallel stages and micro-batches"></p>
@@ -133,7 +133,7 @@
 <h2 id="expert-parallelism-only-for-an-moe-architecture">Expert parallelism: only for an MoE architecture</h2>
 <p><img src="/blog/assets/2025-05-04-scaling-llms/moe.svg" alt="Expert-parallel token routing"></p>
 <p>Expert parallelism distributes experts in mixture-of-experts layers. The router sends token representations to selected experts and combines their results. Only selected experts compute for each token, but total expert weights still require storage and serving placement.</p>
-<p>This is not an optimization switch for a dense model. It is part of an MoE architecture and brings load balance, capacity, token all-to-all, dropped or padded tokens, auxiliary losses, and failure skew. Track tokens per expert, routing entropy, capacity overflow, communication time, and quality by route.</p>
+<p>Expert parallelism is not an optimization switch for a dense model. It is part of an MoE architecture, with its own concerns: load balance, capacity limits, token all-to-all, dropped or padded tokens, auxiliary losses, and failure skew. Track tokens per expert, routing entropy, capacity overflow, communication time, and quality by route.</p>
 <h2 id="compose-a-layout-from-the-topology">Compose a layout from the topology</h2>
 <p>Large training systems combine dimensions. The total world size commonly follows a product such as:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="text"><code><span class="line"><span>world size = DP × TP × PP × CP</span></span></code></pre>

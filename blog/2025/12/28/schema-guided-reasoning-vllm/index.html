@@ -18,7 +18,7 @@
 <p>Schema-Guided Reasoning (SGR) enforces a schema while the model generates each token. You define the required fields with Pydantic, and the inference engine blocks tokens that would violate that structure. The result is syntactically valid by construction rather than by retry.</p>
 <!-- more -->
 <blockquote>
-<p><strong>TL;DR.</strong> SGR uses constrained decoding to pin an LLM’s output to a Pydantic schema you control. Pair it with vLLM’s xgrammar backend and you get valid JSON every time, with negligible latency overhead.</p>
+<p><strong>TL;DR.</strong> SGR uses constrained decoding to pin an LLM’s output to a Pydantic schema you control. Pair it with vLLM’s xgrammar backend and the schema is enforced at decode time, with negligible latency overhead.</p>
 </blockquote>
 <hr>
 <h2 id="what-is-schema-guided-reasoning">What is Schema-Guided Reasoning?</h2>
@@ -26,7 +26,7 @@
 <ul>
 <li>what steps it must go through, so it cannot skip the analysis</li>
 <li>the order of those steps, so the reasoning runs from data to decision</li>
-<li>where it should focus attention, so the depth lands where it matters</li>
+<li>where it should focus attention</li>
 </ul>
 <p>Think of it as a cognitive checklist the model has to follow.</p>
 <p><img src="/blog/assets/2025-12-25-sgr-vllm/sgr_overview.svg" alt="SGR Overview"></p>
@@ -37,8 +37,8 @@
 <li>reproducible reasoning across repeated runs</li>
 <li>auditable outputs where every step is inspectable</li>
 <li>intermediate fields you can grade against a test dataset</li>
-<li>smaller models that become workable, since the schema enforces what the model would otherwise have to learn</li>
-<li>a reported 5–10% accuracy improvement in the <a href="https://abdullin.com/schema-guided-reasoning/">original practitioner’s production workloads</a>, which you should verify on your own data</li>
+<li>smaller models that become workable, since the schema supplies the structure the model would otherwise have to learn</li>
+<li>a reported 5–10% accuracy improvement in <a href="https://abdullin.com/schema-guided-reasoning/">Abdullin’s production workloads</a>, which you should verify on your own data</li>
 </ul>
 <hr>
 <h2 id="sgr-vs-chain-of-thought-vs-prompt-engineering">SGR vs Chain of Thought vs prompt engineering</h2>
@@ -108,7 +108,7 @@
 <span class="line"><span>1. First, I'll analyze the customer's churn risk...</span></span>
 <span class="line"><span>2. Then I'll calculate the margin...</span></span>
 <span class="line"><span>3. Therefore, I recommend a 15% discount.</span></span></code></pre>
-<p>CoT improves reasoning accuracy but makes structure worse. The output is unpredictable prose that is nearly impossible to parse reliably. You usually end up making a second LLM call just to extract the structured data.</p>
+<p>CoT improves reasoning accuracy but makes structure worse. The output is unpredictable prose that is hard to parse reliably. You usually end up making a second LLM call just to extract the structured data.</p>
 <h3 id="sgr-structured-chain-of-thought">SGR: structured chain of thought</h3>
 <p>SGR keeps CoT’s intuition that intermediate reasoning improves accuracy. It just formalizes the steps:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> PricingLogic</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">BaseModel</span><span style="color:#E6EDF3">):</span></span>
@@ -125,7 +125,7 @@
 <span class="line"><span style="color:#8B949E">    # 4. Final Output</span></span>
 <span class="line"><span style="color:#E6EDF3">    offer_code: </span><span style="color:#79C0FF">str</span></span>
 <span class="line"><span style="color:#E6EDF3">    customer_message: </span><span style="color:#79C0FF">str</span></span></code></pre>
-<p>The model cannot output <code>max_discount_percent</code> until <code>churn_analysis</code>, <code>financial_analysis</code>, and <code>margin_math</code> are populated. The schema enforces the reasoning order.</p>
+<p>The model cannot output <code>max_discount_percent</code> until <code>churn_analysis</code>, <code>financial_analysis</code>, and <code>margin_math</code> are populated.</p>
 <hr>
 <h2 id="sgr-patterns">SGR patterns</h2>
 <p>SGR has three core patterns that compose into bigger workflows.</p>
@@ -148,7 +148,7 @@
 <span class="line"><span style="color:#8B949E">    # Step 3: Decide (constrained choices)</span></span>
 <span class="line"><span style="color:#E6EDF3">    final_recommendation: Literal[</span><span style="color:#A5D6FF">"hire"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"reject"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"hold"</span><span style="color:#E6EDF3">]</span></span></code></pre>
 <p>Good fits: candidate evaluation, document classification, compliance analysis, medical diagnosis.</p>
-<p>The model has to write <code>brief_candidate_summary</code> before it can rate, and rate before it can recommend. There is no shortcut.</p>
+<p>The model has to write <code>brief_candidate_summary</code> before it can rate, and rate before it can recommend.</p>
 <hr>
 <h3 id="2-routing-a-semantic-switch-statement">2. Routing: a semantic switch statement</h3>
 <p>Routing makes the model commit to one path from a set of options, implemented with <code>Union</code> types.</p>
@@ -266,15 +266,13 @@ SGR does not require “reasoning models” like o1 or DeepSeek-R1. It works fin
 <h3 id="why-this-article-focuses-on-vllm-and-xgrammar">Why this article focuses on vLLM and xgrammar</h3>
 <p>A few reasons:</p>
 <ul>
-<li>vLLM is the most widely deployed open-source LLM inference engine, so what you build here ports easily.</li>
+<li>vLLM is one of the most widely deployed open-source LLM inference engines, so what you build here ports easily.</li>
 <li>xgrammar is implemented in C++ and adds negligible latency.</li>
 <li>vLLM’s API is OpenAI-compatible, which keeps migration from cloud providers cheap.</li>
 <li>xgrammar handles complex nested schemas, unions, and recursive structures.</li>
 </ul>
-<p>The next section walks through how xgrammar actually enforces a schema at the token level.</p>
 <hr>
 <h2 id="how-xgrammar-enforces-schemas">How xgrammar enforces schemas</h2>
-<p>This part is worth understanding precisely, because it changes how you debug and tune SGR workflows.</p>
 <p><img src="/blog/assets/2025-12-25-sgr-vllm/xgrammar_enforcement.svg" alt="xgrammar Enforcement"></p>
 <h3 id="where-the-masking-happens">Where the masking happens</h3>
 <p>xgrammar modifies the output logits after the model’s forward pass and before sampling. It does not change the model itself; it filters which tokens can be selected.</p>
@@ -457,7 +455,8 @@ About 99% of tokens turn out to be context-independent and end up cached (<a hre
 <span class="line"><span style="color:#E6EDF3">        raw_response </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> completion.choices[</span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">].message.content</span></span>
 <span class="line"><span style="color:#FF7B72">        return</span><span style="color:#E6EDF3"> schema_class.model_validate_json(raw_response)</span></span></code></pre>
 <blockquote>
-<p>[!NOTE] > <code>guided_json</code> accepts a JSON Schema dict. With <code>guided_decoding_backend: "xgrammar"</code>, the LLM can only generate tokens that form valid JSON matching your schema.</p>
+<p>[!NOTE]
+<code>guided_json</code> accepts a JSON Schema dict. With <code>guided_decoding_backend: "xgrammar"</code>, the LLM can only generate tokens that form valid JSON matching your schema.</p>
 </blockquote>
 <h3 id="step-3-orchestrate-the-agent">Step 3: orchestrate the agent</h3>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># sgr/agent.py</span></span>
@@ -547,9 +546,9 @@ About 99% of tokens turn out to be context-independent and end up cached (<a hre
 <span class="line"><span>💬 Final Reply: We value your loyalty! Here's a special 15% discount</span></span>
 <span class="line"><span>   with code SAVE15. This reflects our appreciation for your continued</span></span>
 <span class="line"><span>   business with us.</span></span></code></pre>
-<p>The audit log shows the model’s actual work: it computed the margin (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>40</mn><mi>o</mi><mi>n</mi><mi>a</mi></mrow><annotation encoding="application/x-tex">40 on a </annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">40</span><span class="mord mathnormal">o</span><span class="mord mathnormal">na</span></span></span></span>200 cart at 20%) and bounded the discount so the offer stays within the profit constraint.</p>
+<p>The audit log shows the model’s actual work. It computed the margin (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>40</mn><mi>o</mi><mi>n</mi><mi>a</mi></mrow><annotation encoding="application/x-tex">40 on a </annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">40</span><span class="mord mathnormal">o</span><span class="mord mathnormal">na</span></span></span></span>200 cart at 20%), then bounded the discount so the offer stays within the profit constraint.</p>
 <hr>
-<h2 id="best-practices">Best practices</h2>
+<h2 id="schema-vllm-and-production-checklist">Schema, vLLM, and production checklist</h2>
 <h3 id="schema-design">Schema design</h3>
 <ol>
 <li>Order fields by reasoning flow. Analysis fields go before decision fields.</li>
@@ -559,7 +558,7 @@ About 99% of tokens turn out to be context-independent and end up cached (<a hre
 </ol>
 <h3 id="vllm-configuration">vLLM configuration</h3>
 <ol>
-<li>Use a low temperature (0.1-0.3) for deterministic reasoning.</li>
+<li>Use a low temperature (0.1-0.3) for more repeatable reasoning.</li>
 <li>Let xgrammar handle the structure. Do not fight it with formatting instructions in the prompt.</li>
 <li>Watch token usage. SGR usually uses fewer tokens than CoT because there is no verbose prose.</li>
 </ol>
@@ -572,9 +571,9 @@ About 99% of tokens turn out to be context-independent and end up cached (<a hre
 </ol>
 <hr>
 <h2 id="conclusion">Conclusion</h2>
-<p>SGR is what gets you from “works in a demo” to “works in production.” You define the reasoning topology in Pydantic, let xgrammar enforce it at decode time, and the output is:</p>
+<p>You define the reasoning topology in Pydantic, let xgrammar enforce it at decode time, and the output is:</p>
 <ul>
-<li>valid every time, with no retry loops or parsing failures</li>
+<li>syntactically valid by construction, which removes the retry-and-reparse loop</li>
 <li>auditable at the field level</li>
 <li>usable with smaller models, because they no longer have to nail the format on their own</li>
 <li>cheaper to run, since you use fewer tokens, fewer retries, and smaller models</li>

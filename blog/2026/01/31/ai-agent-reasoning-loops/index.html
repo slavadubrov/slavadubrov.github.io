@@ -17,13 +17,12 @@
 <p><a href="/blog/#engineering-the-agentic-stack"><strong>Part 1 of the Engineering the Agentic Stack series</strong></a></p>
 <p>An <strong>agent reasoning loop</strong> controls how a system plans, calls tools, reads results, and decides when to stop. That control flow shapes cost, latency, and recovery after a tool returns something unexpected.</p>
 <p>This post compares the three AI agent loop patterns worth knowing in 2026: <strong>ReAct</strong>, <strong>ReWOO</strong>, and <strong>Plan-and-Execute</strong>. The running example is a Market Analyst Agent I built in LangGraph, with the full code on GitHub.</p>
-<p>This is the inner layer of the series. The later parts add the state the loop resumes from, the tools it can call, the policy around those calls, the runtime that keeps a run alive, and the harness checks that decide whether the work is actually finished.</p>
+<p>This is the inner layer of the series. Later parts add the state the loop resumes from, the tools it can call, and the policy around those calls. After that come the runtime that keeps a run alive and the harness checks that decide whether the work is finished.</p>
 <!-- more -->
 <p><strong>TL;DR</strong>: ReAct is flexible but expensive, ReWOO is fast when the workflow is predictable, and Plan-and-Execute fits multi-step analysis. A production AI agent can route between reasoning loops per request, using shared state and checkpointed LangGraph nodes so each task gets the loop that matches its shape.</p>
 <hr>
 <h2 id="the-loop-controls-cost-latency-and-recovery">The loop controls cost, latency, and recovery</h2>
-<p>A useful agent needs more than a good prompt. Its control graph must connect reasoning, tools, and memory while handling failures.</p>
-<p>The reasoning loop controls when the model plans, calls a tool, reads the result, and stops. A poor choice creates unnecessary model calls and latency. It can also leave the agent unable to recover from an unexpected tool result.</p>
+<p>A useful agent needs more than a good prompt. The control graph around the model decides when it plans, calls a tool, reads the result, and stops. A poor choice creates unnecessary model calls and latency. It can also leave the agent unable to recover from an unexpected tool result.</p>
 <h2 id="three-ai-agent-reasoning-patterns">Three AI agent reasoning patterns</h2>
 <p><img src="/blog/assets/2026-01-31-cognitive-engine/reasoning-patterns-comparison.svg" alt="Reasoning Patterns Comparison"></p>
 <h3 id="react-think-act-observe-repeat">ReAct: think, act, observe, repeat</h3>
@@ -43,7 +42,7 @@
 <p>Cons:</p>
 <ul>
 <li>History accumulates and gets re-processed at every step, so latency and cost grow with the loop length.</li>
-<li>Wasteful when the tool calls could have been planned upfront, which is exactly the niche ReWOO fills.</li>
+<li>Wasteful when the tool calls could have been planned upfront, which is the niche ReWOO fills.</li>
 <li>Without a stop condition or step limit, the loop will run indefinitely.</li>
 </ul>
 <p>Best for: exploratory tasks, debugging, situations where you can’t predict what comes next.</p>
@@ -69,12 +68,12 @@
 </ul>
 <p>Best for: quick snapshots, status checks, dashboards. Anything where the tools behave predictably.</p>
 <h3 id="plan-and-execute-a-hybrid">Plan-and-Execute: a hybrid</h3>
-<p><a href="https://arxiv.org/abs/2305.04091">Plan-and-Execute</a> sits between the two. The paper sketches a simple split that most modern agents have adopted:</p>
+<p><a href="https://arxiv.org/abs/2305.04091">Plan-and-Execute</a> sits between the two. The paper sketches a simple split that many modern agents use:</p>
 <ol>
 <li><strong>Planning phase</strong>: the agent first generates a plan that breaks the task into smaller sub-tasks.</li>
 <li><strong>Execution phase</strong>: the agent then carries out those sub-tasks.</li>
 </ol>
-<p>The original paper focused on zero-shot prompting. Modern frameworks like LangGraph have grown it into a full orchestration pattern with sequential execution and per-step model choice (a strong reasoning model for planning, a cheaper one for execution).</p>
+<p>The original paper focused on zero-shot prompting. Frameworks like LangGraph have grown it into an orchestration pattern with sequential execution and per-step model choice. You can use a strong reasoning model for planning and a cheaper one for execution.</p>
 <p><img src="/blog/assets/2026-01-31-cognitive-engine/plan-execute-pattern.svg" alt="Plan-and-Execute Pattern"></p>
 <p>Pros:</p>
 <ul>
@@ -180,7 +179,7 @@
 <span class="line"><span style="color:#E6EDF3">    draft_report: DraftReport </span><span style="color:#FF7B72">|</span><span style="color:#79C0FF"> None</span><span style="color:#FF7B72"> =</span><span style="color:#79C0FF"> None</span></span>
 <span class="line"><span style="color:#E6EDF3">    report_approved: </span><span style="color:#79C0FF">bool</span><span style="color:#FF7B72"> =</span><span style="color:#79C0FF"> False</span></span></code></pre>
 <h3 id="pattern-1-plan-and-execute-implementation">Pattern 1: Plan-and-Execute implementation</h3>
-<p>Plan-and-Execute is the right fit for tasks that need multi-step synthesis. The trick is keeping planning and execution separate: a strong model for the upfront plan, then a ReAct loop to execute each step with room to react to tool results.</p>
+<p>Plan-and-Execute fits tasks that need multi-step synthesis. Planning and execution stay separate: a strong model writes the plan, then a ReAct loop runs each step and reacts to what the tools return.</p>
 <p>How it lines up with the pattern:</p>
 <ol>
 <li>One upfront planning phase. A single LLM call produces the whole plan as a list of step descriptions.</li>
@@ -316,7 +315,6 @@
 <span class="line"><span style="color:#A5D6FF">        "plan"</span><span style="color:#E6EDF3">: updated_plan,</span></span>
 <span class="line"><span style="color:#A5D6FF">        "current_step_index"</span><span style="color:#E6EDF3">: state.current_step_index </span><span style="color:#FF7B72">+</span><span style="color:#79C0FF"> 1</span><span style="color:#E6EDF3">,</span></span>
 <span class="line"><span style="color:#E6EDF3">    }</span></span></code></pre>
-<p>That’s the core Plan-and-Execute flow: a powerful model writes the plan, then ReAct executes each step with full adaptability.</p>
 <h3 id="pattern-3-rewoo-for-fast-snapshots">Pattern 3: ReWOO for fast snapshots</h3>
 <p>For quick briefings, ReWOO skips the interleaved reasoning and runs the tools in parallel. The planner emits a compiled script of tool calls upfront, and the worker runs it without any further LLM involvement.</p>
 <p>The shape of it:</p>
@@ -384,7 +382,7 @@
 <span class="line"><span style="color:#A5D6FF">    """Execute all planned tools in parallel (no LLM calls).</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#A5D6FF">    This is the key efficiency: Worker is "dumb" - it just runs tools</span></span>
-<span class="line"><span style="color:#A5D6FF">    according to the plan. No LLM calls = massive token savings.</span></span>
+<span class="line"><span style="color:#A5D6FF">    according to the plan. No LLM calls means no tokens spent here.</span></span>
 <span class="line"><span style="color:#A5D6FF">    """</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#E6EDF3">    results </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {}  </span><span style="color:#8B949E"># Store results keyed by step_id (e.g., "#E1": "$150.23")</span></span>
@@ -431,9 +429,8 @@
 <span class="line"><span style="color:#E6EDF3">    ])</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> {</span><span style="color:#A5D6FF">"draft_report"</span><span style="color:#E6EDF3">: result}</span></span></code></pre>
-<p>ReWOO plans every tool call up front and stores dependencies in placeholders such as <code>#E1</code> and <code>#E2</code>. The executor can run independent calls in parallel without asking the model what to do next. One final model call combines the results, which keeps predictable workflows cheap.</p>
+<p>ReWOO plans every tool call up front and stores dependencies in placeholders such as <code>#E1</code> and <code>#E2</code>. The executor runs independent calls in parallel without asking the model what to do next. One final model call combines the results.</p>
 <h4 id="where-each-pattern-calls-the-model">Where each pattern calls the model</h4>
-<p>The three patterns differ in when and how they call the LLM:</p>
 
 
 
@@ -464,7 +461,7 @@
 
 
 <table tabindex="0"><thead><tr><th>Pattern</th><th><strong>LLM calls during execution</strong></th><th><strong>State updates</strong></th><th><strong>Key code pattern</strong></th></tr></thead><tbody><tr><td><strong>Plan-and-Execute</strong></td><td>1 for planning + 1 per step</td><td>Sequential step completion</td><td><code>planner_node()</code> → loop: <code>executor_node()</code> → <code>reporter_node()</code></td></tr><tr><td><strong>ReAct</strong> (within each step)</td><td>Multiple per step (thought-action cycles)</td><td>Accumulated message history</td><td><code>create_react_agent()</code> loops internally until step complete</td></tr><tr><td><strong>ReWOO</strong></td><td>1 for planning + 0 during execution + 1 for synthesis</td><td>Parallel tool completion</td><td><code>rewoo_planner_node()</code> → <code>rewoo_worker_node()</code> → <code>rewoo_solver_node()</code></td></tr></tbody></table>
-<p>What changes between them is what the planner produces. That decides everything downstream.</p>
+<p>What changes between them is what the planner produces. That output determines what the rest of the graph can do.</p>
 <ol>
 <li>
 <p>Plan-and-Execute creates human-readable step descriptions:</p>
@@ -586,7 +583,7 @@
 <span class="line"><span style="color:#A5D6FF">Default to deep_research if unclear."""</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#E6EDF3">structured_llm </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> llm.with_structured_output(RouterOutput)</span></span></code></pre>
-<p>With this in place, users don’t pick a mode. The router routes “current price” to ReWOO and “investment thesis” to Plan-and-Execute on its own.</p>
+<p>With this in place, users don’t pick a mode. “Current price” goes to ReWOO, “investment thesis” to Plan-and-Execute.</p>
 <h2 id="key-takeaways">Key takeaways</h2>
 <ol>
 <li>ReAct offers the most frequent feedback points, at the cost of repeated model calls.</li>

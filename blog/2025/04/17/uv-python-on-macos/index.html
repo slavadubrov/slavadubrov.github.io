@@ -50,7 +50,7 @@
 <p>Managed Python installations, persistent tools, and disposable cache entries have separate directories. The cache may be deleted and rebuilt; it is not a source of truth.</p>
 <p><img src="/blog/assets/2025-04-17-uv-on-macos/uv-ecosystem.svg" alt="The four uv workflow boundaries"></p>
 <h2 id="projects-declarations-resolution-and-environment">Projects: declarations, resolution, and environment</h2>
-<p>A uv project normally has three different artifacts:</p>
+<p>A uv project normally has three artifacts:</p>
 <ul>
 <li><code>pyproject.toml</code> declares project metadata and direct requirements.</li>
 <li><code>uv.lock</code> stores uv’s cross-platform resolution.</li>
@@ -76,10 +76,11 @@
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> lock</span><span style="color:#79C0FF"> --check</span></span>
 <span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> sync</span><span style="color:#79C0FF"> --locked</span></span>
 <span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> run</span><span style="color:#79C0FF"> --locked</span><span style="color:#A5D6FF"> pytest</span></span></code></pre>
-<p>If <code>pyproject.toml</code> and <code>uv.lock</code> disagree, these commands fail instead of resolving a new lock. This is usually the useful CI gate.</p>
+<p>If <code>pyproject.toml</code> and <code>uv.lock</code> disagree, these commands fail instead of resolving a new lock. That failure is usually the CI gate you want.</p>
 <p>Use <code>--frozen</code> only when you intentionally want uv to use the existing lock without checking whether it is current:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> sync</span><span style="color:#79C0FF"> --frozen</span></span></code></pre>
-<p>That can be useful in a controlled build stage where the lock was already validated, but it is not a stale-lock detector. <code>uv sync</code> is exact by default and removes extraneous packages; <code>uv run</code> uses an inexact sync by default unless <code>--exact</code> is requested.</p>
+<p>That can be useful in a controlled build stage where the lock was already validated, but it is not a stale-lock detector.</p>
+<p>Exactness is a separate setting from freshness. <code>uv sync</code> is exact by default and removes extraneous packages; <code>uv run</code> uses an inexact sync by default unless <code>--exact</code> is requested.</p>
 <h2 id="managed-python-a-version-request-not-a-universal-binary">Managed Python: a version request, not a universal binary</h2>
 <p>uv can download and manage Python distributions:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> python</span><span style="color:#A5D6FF"> install</span><span style="color:#79C0FF"> 3.12</span><span style="color:#79C0FF"> 3.13</span></span>
@@ -89,7 +90,7 @@
 <p><code>.python-version</code> is a version request discovered by uv and other compatible tools. <code>requires-python</code> in <code>pyproject.toml</code> is the project’s compatibility contract. Keep both intentional:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="toml"><code><span class="line"><span style="color:#E6EDF3">[</span><span style="color:#FFA657">project</span><span style="color:#E6EDF3">]</span></span>
 <span class="line"><span style="color:#E6EDF3">requires-python = </span><span style="color:#A5D6FF">">=3.12,&#x3C;3.14"</span></span></code></pre>
-<p>Pinning <code>3.12</code> does not guarantee the same patch build forever or the same artifact on every operating system. Request an exact patch when that is truly required, and make CI select and report the interpreter explicitly.</p>
+<p>Pinning <code>3.12</code> does not guarantee the same patch build forever or the same artifact on every operating system. Request an exact patch when you need one, and make CI select and report the interpreter explicitly.</p>
 <p>Use another Python manager when a project needs a distribution or build configuration uv does not supply. uv can still use that interpreter via <code>--python</code> or normal discovery.</p>
 <h2 id="choose-among-uv-run-uvx-and-installed-tools">Choose among <code>uv run</code>, <code>uvx</code>, and installed tools</h2>
 <p><img src="/blog/assets/2025-04-17-uv-on-macos/uvx-vs-tool-install.svg" alt="Choosing a project, ephemeral, or persistent tool environment"></p>
@@ -105,7 +106,7 @@
 <span class="line"><span style="color:#FFA657">uvx</span><span style="color:#79C0FF"> --with</span><span style="color:#A5D6FF"> mkdocs-material</span><span style="color:#A5D6FF"> mkdocs</span><span style="color:#79C0FF"> --help</span></span></code></pre>
 <p>Pin the tool version in CI or documentation. An unversioned first invocation selects a current release and later invocations may reuse cache state.</p>
 <h3 id="persistent-executables-uv-tool-install">Persistent executables: <code>uv tool install</code></h3>
-<p>Install a tool when scripts outside your control need its command on <code>PATH</code>, or when the machine manifest intentionally owns it:</p>
+<p>Install a tool when scripts outside your control need its command on <code>PATH</code>, or when your machine setup manifest should own it:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> tool</span><span style="color:#A5D6FF"> install</span><span style="color:#A5D6FF"> 'ruff==0.12.0'</span></span>
 <span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> tool</span><span style="color:#A5D6FF"> list</span></span>
 <span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> tool</span><span style="color:#A5D6FF"> upgrade</span><span style="color:#A5D6FF"> ruff</span></span>
@@ -158,7 +159,7 @@
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> cache</span><span style="color:#A5D6FF"> prune</span></span>
 <span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> cache</span><span style="color:#A5D6FF"> clean</span></span></code></pre>
 <p>Prefer <code>prune</code> for routine cleanup. <code>clean</code> removes all cache entries and forces later downloads and builds.</p>
-<p>A lockfile improves repeatability; it does not make dependencies trustworthy. Review package sources, index configuration, Git revisions, build backends, licenses, and credentials. Keep authenticated index configuration out of committed files unless the repository stores only non-secret references to an approved credential mechanism.</p>
+<p>A lockfile improves repeatability; it does not make dependencies trustworthy. Review package sources, index configuration, Git revisions, build backends, licenses, and credentials. Keep authenticated index configuration out of committed files. The exception is a non-secret reference to an approved credential mechanism.</p>
 <p>For native packages, record the deployment architecture and test wheel availability. A resolver may otherwise fall back to a source build that needs compilers and system libraries absent from CI or production.</p>
 <h2 id="a-compact-operating-checklist">A compact operating checklist</h2>
 <p>For each project:</p>
@@ -172,7 +173,7 @@
 <li>Export compatibility formats only for named downstream consumers.</li>
 <li>Review source and credential policy independently of resolution.</li>
 </ol>
-<p>uv is most useful when these ownership boundaries stay visible. One binary can manage them all without turning them into one environment. That combination—fewer tools, without pretending every workflow is the same—is why I still use it as my default Python project tool on macOS.</p>
+<p>uv is most useful when these ownership boundaries stay visible. One binary can manage them all without turning them into one environment. Fewer tools, and the four workflows stay separate. That is why I still use it as my default Python project tool on macOS.</p>
 <h2 id="references">References</h2>
 <ul>
 <li><a href="https://docs.astral.sh/uv/concepts/projects/layout/">uv project structure</a></li>

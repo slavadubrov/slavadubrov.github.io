@@ -19,7 +19,7 @@
 <p>The practical job is to assemble the smallest sufficient working set for each decision while preserving scope, provenance, and permissions. This article walks through the patterns I use and the limits that keep them honest.</p>
 <!-- more -->
 <blockquote>
-<p><strong>TL;DR.</strong> Treat context as a typed, provenance-carrying runtime artifact. Select it per step, enforce tenant and permission scope before retrieval, separate trusted instructions from untrusted data, budget by utility, validate actions outside the model, and evaluate task outcomes rather than context length alone.</p>
+<p><strong>TL;DR.</strong> Treat context as a typed, provenance-carrying runtime artifact. Select it per step, enforce tenant and permission scope before retrieval, and separate trusted instructions from untrusted data. Budget by utility, validate actions outside the model, and evaluate task outcomes rather than context length alone.</p>
 </blockquote>
 <hr>
 <h2 id="context-is-a-decision-input-not-memory">Context is a decision input, not memory</h2>
@@ -104,9 +104,9 @@
 <span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
 <p>MCP standardizes how clients discover tools, resources, and prompts; it does not authorize their use or make returned content trustworthy. Keep gateway, credential, and policy checks outside the model and protocol description.</p>
 <h2 id="how-context-degrades">How context degrades</h2>
-<p>Poor context does not fail in only one way. The original version of this guide separated several patterns that remain useful during debugging:</p>
+<p>Poor context does not fail in only one way. Five patterns are worth separating during debugging:</p>
 <ul>
-<li><strong>Position loss:</strong> the required evidence is present, but the model uses it inconsistently because of its position and the surrounding sequence. Long-context evaluations show that this varies by model and task; there is no universal “bad middle” range.</li>
+<li><strong>Position loss:</strong> the required evidence is present, but the model uses it inconsistently because of its position and the surrounding sequence. Long-context evaluations show that the effect varies by model and task; there is no universal “bad middle” range.</li>
 <li><strong>Poisoning:</strong> an incorrect memory, stale document, malicious instruction, or bad tool observation enters the working set and influences later decisions.</li>
 <li><strong>Distraction:</strong> relevant evidence competes with material that is recent or semantically similar but unnecessary for the current step.</li>
 <li><strong>Confusion:</strong> overlapping instructions, examples, or tool descriptions leave the model with several plausible interpretations of the task.</li>
@@ -119,7 +119,7 @@
 <p>Score candidates with features your evaluations can challenge:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="text"><code><span class="line"><span>utility = relevance × authority × freshness × scope_match</span></span>
 <span class="line"><span>          − redundancy_penalty − injection_risk</span></span></code></pre>
-<p>The formula is a design prompt, not universal mathematics. In a policy answer, authority may dominate semantic similarity. In debugging, a recent failing log may outrank general documentation.</p>
+<p>Treat the formula as a design prompt. In a policy answer, authority may dominate semantic similarity. In debugging, a recent failing log may outrank general documentation.</p>
 <p>Order also matters. Keep stable trusted instructions first when the provider’s cache semantics benefit from a shared prefix. Put the current task and decision close to the evidence it references. Avoid timestamps or request IDs in stable prefixes when they are not needed there.</p>
 <h2 id="compress-without-losing-state">Compress without losing state</h2>
 <p><img src="/blog/assets/2025-10-05-context-engineering/compression_strategies.svg" alt="Loss-aware context compression with separate canonical state and artifact indexes"></p>
@@ -143,7 +143,7 @@
 </ul>
 <p>Run the same task with and without compression. Compare success, incorrect actions, re-fetches, latency, and total tokens.</p>
 <h2 id="optimize-the-context-path">Optimize the context path</h2>
-<p>Optimization should preserve the decision contract. Four techniques from the original guide are still useful when applied to a measured bottleneck:</p>
+<p>Optimization should preserve the decision contract. Four techniques are useful once you have a measured bottleneck:</p>
 <h3 id="compact-completed-history">Compact completed history</h3>
 <p>Replace old conversation turns with a structured handoff that records decisions, unresolved questions, changed artifacts, and test state. Keep the original transcript or artifacts addressable when review or recovery requires them.</p>
 <h3 id="mask-verbose-observations">Mask verbose observations</h3>
@@ -151,7 +151,7 @@
 <h3 id="preserve-cacheable-prefixes">Preserve cacheable prefixes</h3>
 <p>Providers and runtimes can reuse work when the beginning of a request remains stable. Keep durable instructions and tool schemas in a consistent order, and move timestamps, request IDs, retrieved evidence, and current state into the dynamic suffix. Confirm the provider’s cache semantics before designing around them.</p>
 <h3 id="partition-by-decision">Partition by decision</h3>
-<p>A planner, retriever, tool caller, and final-answer step do not need the same material. Give each step the minimum trusted instructions, state, evidence, and tools it needs. This reduces token use and capability exposure at the same time, but only task-level evaluations can show whether the partition removed necessary information.</p>
+<p>A planner, retriever, tool caller, and final-answer step do not need the same material. Give each step the minimum trusted instructions, state, evidence, and tools it needs. Partitioning reduces token use and capability exposure at the same time, but only task-level evaluations can show whether it removed necessary information.</p>
 <h2 id="secure-the-context-supply-chain">Secure the context supply chain</h2>
 <p>Context poisoning can arrive through documents, memories, tool results, skills, or prior assistant messages. Marking text “untrusted” helps the model, but enforcement must be architectural.</p>
 <p>Use these boundaries:</p>
@@ -166,7 +166,7 @@
 </ol>
 <p>Automatic “repair” is appropriate only for changes that preserve meaning, such as parsing a known date format. Filling missing tool arguments with “sensible defaults” can change the operation. Ask for clarification or reject when meaning is uncertain.</p>
 <h2 id="worked-example-an-api-key-support-request">Worked example: an API-key support request</h2>
-<p>For “Why is my API key not working?”, the next decision is diagnostic evidence collection—not final answer generation. The assembler might include:</p>
+<p>For “Why is my API key not working?”, the next decision is diagnostic evidence collection, not final answer generation. The assembler might include:</p>
 <ul>
 <li>trusted support policy and response contract</li>
 <li>authenticated account ID and plan from application state</li>
@@ -234,7 +234,7 @@
 <p>Use ablations to find causal value: remove memory, reranking, examples, or compression one at a time. A component that adds tokens without improving the relevant slice should not load by default.</p>
 <h2 id="conclusion">Conclusion</h2>
 <p>Good context engineering is selective and accountable. It does not fill a large window because capacity is available. It constructs a step-specific working set from trusted instructions, canonical task state, scoped evidence, reviewed memory, and permitted tools.</p>
-<p>The durable loop is simple: assemble, manifest, propose, validate, execute, and evaluate. When a decision fails, that loop tells you whether the missing piece was evidence, freshness, authority, state, or policy—and gives you a test for the next change.</p>
+<p>The loop is short: assemble, manifest, propose, validate, execute, and evaluate. When a decision fails, that loop tells you whether the missing piece was evidence, freshness, authority, state, or policy. It also gives you a test for the next change.</p>
 <h2 id="references">References</h2>
 <ul>
 <li><a href="https://arxiv.org/abs/2307.03172">Lost in the Middle</a> — position-dependent use of long context</li>
