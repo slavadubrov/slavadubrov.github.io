@@ -19,6 +19,7 @@
 <p>I’ll walk through the memory architecture of the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>, showing how hot checkpoints, cold vector stores, and file-based document memory work together for long-running agents. Then I’ll cover when PostgreSQL, Redis, Qdrant, key-value stores, and plain Markdown files each make sense.</p>
 <!-- more -->
 <p><strong>TL;DR</strong>: Separate memory by access pattern. <strong>Hot memory</strong> is thread-level checkpoint state for pause and resume. <strong>Cold memory</strong> holds cross-session facts in a key-value or vector store. <strong>Document memory</strong> keeps project knowledge in inspectable files. Start with the failure you need to fix, then choose the store. Do not put exact facts in a fuzzy retrieval system or treat a checkpoint as an audit log.</p>
+<p>Every store below is read by the harness, the code that drives the loop around the model. Which of their contents reaches the context window is the harness’s decision, not the store’s. <a href="/blog/2026/07/22/ai-agent-harness-engineering/">Part 6</a> takes up that decision; <a href="/blog/2026/03/24/ai-agent-tool-use/">Part 3</a> and <a href="/blog/2026/04/20/ai-agent-security/">Part 4</a> cover what the harness does with the prompt next.</p>
 <hr>
 <h2 id="what-is-ai-agent-memory">What is AI agent memory?</h2>
 <p><strong>AI agent memory</strong> is the state layer that lets an agent preserve task progress, retrieve prior knowledge, and update what it knows across runs. In production it is not one vector database. It is a mix of hot checkpoints, cold semantic or structured stores, and human-readable document memory.</p>
@@ -503,6 +504,7 @@
 <p>Most of the value of document memory comes from how the directory is laid out. Here’s the structure I use for the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="text"><code><span class="line"><span>.agent-memory/</span></span>
 <span class="line"><span>    README.md                  # What this directory is, for human readers</span></span>
+<span class="line"><span>    PROGRESS.md                # Handoff for the next session: what is done, what is next</span></span>
 <span class="line"><span>    user-profiles/</span></span>
 <span class="line"><span>        user-123.md            # Preferences, history, risk profile</span></span>
 <span class="line"><span>        user-456.md</span></span>
@@ -873,7 +875,8 @@
 </ol>
 <hr>
 <h2 id="the-next-layer-is-action">The next layer is action</h2>
-<p>Part 3, <a href="/blog/2026/03/24/ai-agent-tool-use/"><strong>AI Agent Tool Use in 2026</strong></a>, moves from stored state to action. It asks how an agent discovers and calls tools, and how the tool boundary returns errors that the reasoning loop can use. Parts 5 and 6 return to memory from the operational side: the runtime restores a checkpoint, while the harness decides what belongs in the handoff to the next model session.</p>
+<p>Part 3, <a href="/blog/2026/03/24/ai-agent-tool-use/"><strong>AI Agent Tool Use in 2026</strong></a>, moves from stored state to action. It asks how an agent discovers and calls tools, and how the tool boundary returns errors that the reasoning loop can use.</p>
+<p>Parts 5 and 6 return to memory from the operational side, and they take different halves of it. The <a href="/blog/2026/05/26/ai-agent-runtime/">runtime</a> owns the checkpoint: where execution stopped and how to restart it. The <a href="/blog/2026/07/22/ai-agent-harness-engineering/">harness</a> owns the handoff: what the work means and what is left, written as document memory for the next model session. Restoring the process is not the same as restoring the task.</p>
 <h2 id="references">References</h2>
 <h3 id="papers">Papers</h3>
 <ul>

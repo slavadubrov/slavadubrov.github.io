@@ -8,9 +8,9 @@ Evaluation can detect the failure only when each pipeline stage has its own metr
 
 [**Part 5 of the Engineering the Agentic Stack series**](/blog/#engineering-the-agentic-stack)
 
-The previous four posts covered the agent&apos;s internal design: [reasoning loops](/blog/2026/01/31/ai-agent-reasoning-loops/), [memory](/blog/2026/02/14/ai-agent-memory-architecture/), [tool use](/blog/2026/03/24/ai-agent-tool-use/), and [security](/blog/2026/04/20/ai-agent-security/). This article covers the runtime that keeps those parts working across long sessions and process failures.
+The previous four posts covered what happens inside one turn: [reasoning loops](/blog/2026/01/31/ai-agent-reasoning-loops/) choose the next action, [memory](/blog/2026/02/14/ai-agent-memory-architecture/) supplies the state that turn reads, [tool use](/blog/2026/03/24/ai-agent-tool-use/) defines the actions it can take, and [security](/blog/2026/04/20/ai-agent-security/) decides which of them may run. This article covers the layer underneath all four: the runtime that keeps a run alive across long sessions and process failures.
 
-An agent run may last for hours, while its worker process may restart at any time. The model still chooses the next action, but the runtime must preserve state, control execution, and recover from a failure in the middle of a tool call. This post defines the runtime boundary. Part 6 will examine the harness inside it: the feedback, retry, handoff, and acceptance logic that determines whether the agent keeps working or stops.</description><pubDate>Wed, 22 Jul 2026 00:00:00 GMT</pubDate><enclosure url="https://slavadubrov.github.io/assets/og-image.png" type="image/svg+xml" /></item><item><title>Evaluating AI Agents in Production: From Traces to Test Suites</title><link>https://slavadubrov.github.io/blog/2026/06/10/agent-evals-traces-to-test-suites/</link><guid isPermaLink="true">https://slavadubrov.github.io/blog/2026/06/10/agent-evals-traces-to-test-suites/</guid><description># Evaluating AI Agents in Production: From Traces to Test Suites
+An agent run may last for hours, while its worker process may restart at any time. The model still chooses the next action, but the runtime must preserve state, control execution, and recover from a failure in the middle of a tool call. This post defines the runtime boundary. Part 6 then opens the one component in it that decides — the harness, which is where memory, tool contracts, and permission checks stop being three topics and become one program.</description><pubDate>Wed, 22 Jul 2026 00:00:00 GMT</pubDate><enclosure url="https://slavadubrov.github.io/assets/og-image.png" type="image/svg+xml" /></item><item><title>Evaluating AI Agents in Production: From Traces to Test Suites</title><link>https://slavadubrov.github.io/blog/2026/06/10/agent-evals-traces-to-test-suites/</link><guid isPermaLink="true">https://slavadubrov.github.io/blog/2026/06/10/agent-evals-traces-to-test-suites/</guid><description># Evaluating AI Agents in Production: From Traces to Test Suites
 
 A chatbot hands you one answer to grade. An agent hands you a whole tree of decisions: plans, tool calls, retries, and the moment it decided it was done.
 
@@ -27,15 +27,25 @@ Choose the target from the current bottleneck: [weight memory, activation comput
 [**Part 6 of the Engineering the Agentic Stack series**](/blog/#engineering-the-agentic-stack)
 
 An agent&apos;s reasoning loop chooses the next action. Its **harness** supplies
-context, validates and authorizes proposed tool calls, dispatches accepted calls
-to the runtime, records the results, and decides whether the task is complete.
+context, validates proposed tool calls, authorizes them, dispatches what it
+accepts, records the results, and decides whether the task is complete.
 
-Models propose edits and may declare tasks complete, while the harness enforces
-permissions and interprets the acceptance checks that decide whether the loop
-can stop. [Part 5](/blog/2026/05/26/ai-agent-runtime/) covered the runtime that
-keeps the process alive. This article focuses on the control code inside that
-runtime: how to measure whether each addition helps and how to keep the
-resulting controls locatable as the harness changes.
+The first three of those jobs already have an article.
+[Memory](/blog/2026/02/14/ai-agent-memory-architecture/) supplies the context,
+[tool use](/blog/2026/03/24/ai-agent-tool-use/) defines what can be proposed,
+and [security](/blog/2026/04/20/ai-agent-security/) decides what runs. They ran
+as separate posts because they are separate engineering problems. Choosing
+between Qdrant and pgvector has nothing to do with writing a PreToolUse deny
+rule.
+
+They also share a moment: the gap between the model naming an action and the
+machine performing it. Each answers a question about that gap, and the harness is
+the code that holds it open long enough to ask all three.
+
+This article covers what is left after those three: deciding whether the
+finished work is actually finished, and proving that each control in the loop
+earns what it costs. [Part 5](/blog/2026/05/26/ai-agent-runtime/) covered the
+runtime that keeps the process alive underneath.
 
 Beyond the first explicit acceptance check, every added retry, handoff, or
 evaluator is a hypothesis about an observed failure. It earns a place only when
@@ -179,7 +189,7 @@ An **agent reasoning loop** controls how a system plans, calls tools, reads resu
 
 This post compares the three AI agent loop patterns worth knowing in 2026: **ReAct**, **ReWOO**, and **Plan-and-Execute**. The running example is a Market Analyst Agent I built in LangGraph, with the full code on GitHub.
 
-This is the inner layer of the series. Later parts add the state the loop resumes from, the tools it can call, and the policy around those calls. After that come the runtime that keeps a run alive and the harness checks that decide whether the work is finished.</description><pubDate>Tue, 14 Jul 2026 00:00:00 GMT</pubDate><enclosure url="https://slavadubrov.github.io/assets/og-image.png" type="image/svg+xml" /></item><item><title>AI Agent Memory Architecture in 2026: Checkpoints, Vector Stores, and File-Based Memory</title><link>https://slavadubrov.github.io/blog/2026/02/14/ai-agent-memory-architecture/</link><guid isPermaLink="true">https://slavadubrov.github.io/blog/2026/02/14/ai-agent-memory-architecture/</guid><description># AI Agent Memory Architecture in 2026: Checkpoints, Vector Stores, and File-Based Memory
+This is the innermost layer of the series. Everything the later parts add is code wrapped around this loop.</description><pubDate>Tue, 14 Jul 2026 00:00:00 GMT</pubDate><enclosure url="https://slavadubrov.github.io/assets/og-image.png" type="image/svg+xml" /></item><item><title>AI Agent Memory Architecture in 2026: Checkpoints, Vector Stores, and File-Based Memory</title><link>https://slavadubrov.github.io/blog/2026/02/14/ai-agent-memory-architecture/</link><guid isPermaLink="true">https://slavadubrov.github.io/blog/2026/02/14/ai-agent-memory-architecture/</guid><description># AI Agent Memory Architecture in 2026: Checkpoints, Vector Stores, and File-Based Memory
 
 [**Part 2 of the Engineering the Agentic Stack series**](/blog/#engineering-the-agentic-stack)
 
@@ -189,7 +199,7 @@ I&apos;ll walk through the memory architecture of the [Market Analyst Agent](htt
 
 [**Part 3 of the Engineering the Agentic Stack series**](/blog/#engineering-the-agentic-stack)
 
-[Part 1](/blog/2026/01/31/ai-agent-reasoning-loops/) covered reasoning loops, and [Part 2](/blog/2026/02/14/ai-agent-memory-architecture/) covered memory. This article adds the action layer: how an agent exposes, selects, and runs tools.
+[Part 1](/blog/2026/01/31/ai-agent-reasoning-loops/) covered reasoning loops, and [Part 2](/blog/2026/02/14/ai-agent-memory-architecture/) covered memory. This article adds the action layer: how an agent exposes, selects, and runs tools. Memory feeds the prompt; the tool contract is what the agent consults next. [Part 4](/blog/2026/04/20/ai-agent-security/) covers the check that decides whether a named call runs at all, and [Part 6](/blog/2026/07/22/ai-agent-harness-engineering/) covers the harness that runs both stages.
 
 The tooling story changed in 2025–2026. **MCP** gave vendors a shared protocol for external services. Code-executing agents showed that a model can sometimes compose a small program more efficiently than it can issue a long sequence of JSON calls. Anthropic reported a **98.7% token reduction** for one expense-analysis workflow, and the CodeAct paper reported gains of up to **20%** across its benchmark setup. Those results describe their tasks and harnesses, not a universal advantage for code execution.
 
@@ -197,7 +207,9 @@ I compare JSON tool calling, MCP, Skills, CLI tools, and code execution in that 
 
 [**Part 4 of the Engineering the Agentic Stack series**](/blog/#engineering-the-agentic-stack)
 
-[Part 3](/blog/2026/03/24/ai-agent-tool-use/) ended at the tool boundary: the model proposes an action and the tool returns an observation. This article inserts policy between those two events and follows the action into credentials, files, networks, and external side effects.
+[Part 3](/blog/2026/03/24/ai-agent-tool-use/) ended at the tool boundary: the model proposes an action, the boundary validates it, and an observation comes back. This article inserts policy between those two events and follows the action into credentials, files, networks, and external side effects.
+
+Everything below runs in one narrow window: after the model names an action, before the machine performs it. That window is held open by the harness ([Part 6](/blog/2026/07/22/ai-agent-harness-engineering/)), and Part 3 defined what the model can name inside it. This article covers what decides whether it happens, which is the last point at which a check is still cheap. After that you are relying on the sandbox and on cleanup.
 
 AI agent security is broader than LLM safety. Early guardrail products inspected the input and output of one model call. They could filter toxic text, redact personal data, block jailbreaks, and reject off-topic answers. That boundary was useful while the model could only return text.
 
