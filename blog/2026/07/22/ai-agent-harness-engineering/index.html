@@ -41,7 +41,7 @@ it does not improve the measured result.</p>
 <p>Beyond the first explicit acceptance check, every added retry, handoff, or
 evaluator is a hypothesis about an observed failure. It earns a place only when
 a controlled comparison shows that it helps.</p>
-<p>The simplest version of this idea is already running in the small research agent
+<p>The simplest version of the acceptance check is already running in the small research agent
 this series has been building — a LangGraph agent that fetches market data and
 writes an analyst report. Before it can call that report finished, a hook outside
 the model validates the output against a schema and checks that it actually
@@ -219,7 +219,7 @@ A final <code>done</code> message without those records does not prove that this
 passed its required checks.</p>
 <hr>
 <h2 id="decide-where-each-rule-is-enforced">Decide where each rule is enforced</h2>
-<p>Put <code>tests/checkout_discount.spec.ts</code> in normal program logic. The harness
+<p>Enforce <code>tests/checkout_discount.spec.ts</code> in normal program logic, not in the prompt. The harness
 dispatches the Playwright command to the runtime, reads its exit code, and
 refuses to end the run while it fails. A prompt can remind the model to run the
 test. It cannot stop the model from declaring success without evidence.</p>
@@ -254,7 +254,7 @@ test. It cannot stop the model from declaring success without evidence.</p>
 
 
 
-<table tabindex="0"><thead><tr><th>Put the rule in</th><th>Good fit</th><th>Example</th></tr></thead><tbody><tr><td><strong>Prompt or skill</strong></td><td>Search order, coding conventions, and plan format</td><td>Read <code>AGENTS.md</code> before editing checkout code</td></tr><tr><td><strong>Tool boundary</strong></td><td>Argument validation, allowed paths, approvals, and tool access</td><td>Permit writes only under <code>src/</code></td></tr><tr><td><strong>Deterministic code</strong></td><td>Budgets, timeouts, retries, test exit codes, and release gates</td><td>Keep the run open while the Playwright test fails</td></tr><tr><td><strong>Fresh-context evaluator</strong></td><td>Visual review or criteria that need human-like judgment</td><td>Compare a generated diagram with a written rubric</td></tr></tbody></table>
+<table tabindex="0"><thead><tr><th>Put the rule in</th><th>Good fit</th><th>Example</th></tr></thead><tbody><tr><td><strong>Prompt or skill</strong></td><td>Search order, coding conventions, and plan format</td><td>Read <code>AGENTS.md</code> before editing checkout code</td></tr><tr><td><strong>Tool boundary</strong></td><td>Argument validation, allowed paths, approvals, and tool access</td><td>Permit writes only under <code>src/</code></td></tr><tr><td><strong>Deterministic code</strong></td><td>Budgets, timeouts, retries, test exit codes, and release gates</td><td>Keep the run open while the Playwright test fails</td></tr><tr><td><strong>Fresh-context evaluator</strong></td><td>Visual review or criteria that need human-like judgment (a second model session with no run history)</td><td>Compare a generated diagram with a written rubric</td></tr></tbody></table>
 <h3 id="tool-contracts-separate-proposal-from-permission">Tool contracts separate proposal from permission</h3>
 <p>The discount task only needs file edits and test commands. A state-changing API
 has a different failure mode, so switch examples for this section. Suppose the
@@ -288,8 +288,8 @@ decide when to propose <code>create_test_order</code>. It does not authorize the
 this example, the harness’s Model Context Protocol (MCP) client validates the
 arguments, applies its own
 rules, and checks server trust, approval requirements, and retry safety before
-dispatching anything. That check is the permission ladder from
-<a href="/blog/2026/04/20/ai-agent-security/">Part 4</a> with one question added: whether a
+dispatching anything. That check is the ordered deny/ask/allow gate sequence from
+<a href="/blog/2026/04/20/ai-agent-security/">Part 4</a>, with one question added: whether a
 call that already failed may be sent again.</p>
 <p>An MCP server publishes tool descriptions and optional behavior annotations to
 the client. A faulty or malicious server could describe a state-changing tool as
@@ -387,8 +387,9 @@ session must reconstruct both the workspace and the task status.</p>
 <a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">long-running coding agents</a>
 used git history and a progress file between sessions. Its later
 <a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">harness-design report</a>
-separates compaction from a fresh-context handoff and reports the additional
-orchestration, token use, and wall time that handoffs require.</p>
+separates compaction from a fresh-context handoff and notes the additional
+orchestration, token use, and wall time that handoffs require, without
+publishing figures for them.</p>
 <hr>
 <h2 id="use-traces-to-distinguish-three-failures">Use traces to distinguish three failures</h2>
 <p>The next three rows are illustrative trace sketches, not measured runs or output
@@ -542,10 +543,9 @@ also changed individual interface features:</p>
 
 
 
-<table tabindex="0"><thead><tr><th>Interface change</th><th align="right">Resolved</th></tr></thead><tbody><tr><td>Full SWE-agent interface</td><td align="right">18.0%</td></tr><tr><td>Editor without linting</td><td align="right">15.0%</td></tr><tr><td>Full file instead of a 100-line viewer</td><td align="right">12.7%</td></tr><tr><td>Full observation history instead of the last five</td><td align="right">15.0%</td></tr></tbody></table>
-<p>These numbers belong to that model, benchmark, and $4 per-task cap. The
-<code>without linting</code>, <code>full file</code>, and <code>full history</code> rows are the useful
-one-feature tests: each changed an interface feature while the model and
+<table tabindex="0"><thead><tr><th>Interface change</th><th align="right">Resolved</th></tr></thead><tbody><tr><td>Full SWE-agent interface (reference, unchanged)</td><td align="right">18.0%</td></tr><tr><td>Editor without linting</td><td align="right">15.0%</td></tr><tr><td>Full file instead of a 100-line viewer</td><td align="right">12.7%</td></tr><tr><td>Full observation history instead of the last five</td><td align="right">15.0%</td></tr></tbody></table>
+<p>These numbers belong to that model, benchmark, and $4 per-task cap. The three
+rows below the reference are the useful one-feature tests: each changed an interface feature while the model and
 evaluation setup stayed fixed.</p>
 <p>LangChain published a broader <a href="https://www.langchain.com/blog/improving-deep-agents-with-harness-engineering">fixed-model comparison for
 <code>deepagents-cli</code></a>.
@@ -556,7 +556,7 @@ fixed-total-budget comparison, and per-change ablation table. That result cannot
 identify the useful change.</p>
 <p>Anthropic’s <a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">long-running application report</a>
 is a qualitative, product-specific case study rather than a controlled
-benchmark. Its evaluator checked 27 level-editor criteria in Sprint 3. The team
+benchmark. Its evaluator checked 27 criteria for the game’s level editor in Sprint 3. The team
 reports that evaluator calls became overhead on tasks Opus 4.6 could complete
 reliably alone, but still helped near the model’s edge. After the model upgrade,
 it removed harness components one at a time. The example is a reason to
@@ -572,14 +572,14 @@ implementation site — and so does the coding agent you delegate it to.</p>
 <p>A 2026 preprint from Wang et al., the
 <a href="https://arxiv.org/pdf/2607.13285">Harness Handbook</a>, calls that search
 <em>behavior localization</em>. The handbook builds a behavior-centric map from the
-harness codebase. Static analysis extracts a program graph without model calls,
-then an LLM organizes its units into execution stages.</p>
+harness codebase. Static analysis, which needs no model calls, extracts a program
+graph, and an LLM then organizes its units into execution stages.</p>
 <p>The maintainer or coding agent starts with a system overview, opens the relevant
 execution stage, and descends to source-grounded entries for a function or file.
-A register view records where shared state is written and read between stages.
+A state register records where shared state is written and read between stages.
 This hierarchy keeps the overview small while preserving a path to source.</p>
 <p>Freshness is a separate rule. Every locator must resolve against the live
-repository. The handbook excludes stale entries instead of guessing, and each
+repository. The handbook freezes stale entries instead of guessing, and each
 non-empty diff resynchronizes the entries it affects.</p>
 <p>The diagram compresses the modification loop: a behavior-only request descends
 the handbook’s levels, every candidate locator is verified against the live
@@ -587,12 +587,13 @@ repository before the plan is written, and each applied diff resynchronizes the
 map.</p>
 <p><img src="/blog/assets/2026-07-22-harness-engineering/harness-behavior-localization.svg" alt="Routing a behavior change through a harness handbook"></p>
 <p>The <a href="https://arxiv.org/pdf/2607.13285">Handbook evaluation</a> follows the protocol
-this article argues for. It covers two open-source harnesses: Terminus-2, six
-Python files, and the Codex monorepo, 2,267 Rust files. In each, a read-only
+this article argues for. It covers two open-source harnesses: Terminus-2 (six
+Python files) and the Codex monorepo (2,267 Rust files). In each, a read-only
 planner powered by DeepSeek-V4-Pro either explored the repository directly or
 routed through the handbook. Requests, repository, tool permissions, and decoding
 were identical in both arms. Three judges (GPT-5.5, Opus 4.8, DeepSeek-V4-Pro)
-scored each edit plan on localization, scope control, and reasoning:</p>
+scored each edit plan on localization, scope control, and reasoning — note that
+one judge is the same model that produced the plans:</p>
 
 
 
@@ -637,7 +638,7 @@ handles every applicable condition. No model or external service runs.</p>
 <p>The commands answer different questions:</p>
 <ul>
 <li><code>make check</code> runs Ruff and seven unit tests, including the validator that
-rejects any ablation pair which changes more than one component.</li>
+rejects any ablation pair that changes more than one component.</li>
 <li><code>make run</code> prints a cumulative teaching matrix, then five valid
 leave-one-component-out comparisons.</li>
 <li><code>make failures</code> names the unhandled condition for every failed task. The full
@@ -753,8 +754,9 @@ tools and a <code>checkpointer=</code> parameter; the rest of the series filled 
 real Postgres checkpoint store, tool contracts an acceptance check can read, a
 deny hook, an MCP sidecar that keeps its tokens out of the worker, and a Stop
 hook that refuses a malformed report. Even the router turned out to be harness
-code. It is still a model call, but one the harness makes about the model before
-the task loop starts. Every one of those is ordinary code wrapped around a model
+code — the model call from Part 1 that picks which reasoning pattern runs for a
+given request. It is still a model call, but one the harness makes before the
+task loop starts. Every one of those is ordinary code wrapped around a model
 call. That was the claim in Part 1. The harness is just the name for all of it
 once you stop writing it by accident.</p>
 <hr>
