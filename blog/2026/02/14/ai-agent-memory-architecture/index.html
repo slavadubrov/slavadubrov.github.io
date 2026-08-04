@@ -75,11 +75,11 @@
 </ul>
 <p>In the <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a> from <a href="/blog/2026/01/31/ai-agent-reasoning-loops/">Part 1</a>, the request “Analyze NVDA” produces a plan, five tool calls, gathered data, and a draft report. When the user replies “looks good, but add competitor analysis,” a checkpoint store lets the agent load the state from the last node and add the competitor step. Without checkpointed state, it cannot resolve what “looks good” refers to and has to start over.</p>
 <p>Long-term memory handles a different case. If the user returns a week later and asks, “Update my NVDA analysis,” the agent may need to recall a preference for conservative risk assessments and an interest in semiconductor stocks. A vector-backed memory store can retrieve those facts across sessions without asking for them again.</p>
-<p>LangGraph splits this by scope. Every graph execution runs inside a <strong>thread</strong>, meaning one conversation or task. Persisted state within that thread is <strong>short-term memory</strong>. State shared across threads is <strong>long-term memory</strong>. I use “thread” and “session” interchangeably below for a user’s conversation; <a href="/blog/2026/05/26/ai-agent-runtime/">Part 5</a> narrows “session” to the durable run log, which is a different thing. The model’s current context and in-process variables form the working-memory layer above both stores.</p>
+<p>The implementation examples below use <strong>LangGraph</strong>, LangChain’s open-source library for building agents as explicit state graphs; the storage boundaries it draws generalize to any framework. LangGraph splits memory by scope. Every graph execution runs inside a <strong>thread</strong>, meaning one conversation or task. Persisted state within that thread is <strong>short-term memory</strong>. State shared across threads is <strong>long-term memory</strong>. I use “thread” and “session” interchangeably below for a user’s conversation; <a href="/blog/2026/05/26/ai-agent-runtime/">Part 5</a> narrows “session” to the durable run log, which is a different thing. The model’s current context and in-process variables form the working-memory layer above both stores.</p>
 <p><img src="/blog/assets/2026-02-14-memory/memory-taxonomy.svg" alt="Memory Taxonomy"></p>
 <hr>
 <h2 id="a-taxonomy-of-ai-agent-memory">A taxonomy of AI agent memory</h2>
-<p>Before getting into implementation, it helps to classify what agents need to remember. The <a href="https://arxiv.org/abs/2309.02427">CoALA framework</a> (Sumers, Yao et al., 2023) is a widely cited taxonomy and draws on cognitive science. I introduced memory scoping in my <a href="/blog/2025/10/05/context-engineering-ai-agents/">context engineering post</a>; here I expand it into six categories:</p>
+<p>Before getting into implementation, it helps to classify what agents need to remember. The <a href="https://arxiv.org/abs/2309.02427">CoALA framework</a> — Cognitive Architectures for Language Agents (Sumers, Yao et al., 2023) — is a widely cited taxonomy that draws on cognitive science. I introduced memory scoping in my <a href="/blog/2025/10/05/context-engineering-ai-agents/">context engineering post</a>; here I expand it into six categories:</p>
 
 
 
@@ -139,7 +139,7 @@
 <p><strong>Short-term memory</strong> is the checkpoint LangGraph writes at each super-step boundary. <strong>Episodic</strong> and <strong>semantic</strong> memories persist across threads. <strong>Document memory</strong> stores project notes, research summaries, and learned conventions in files that people and agents can inspect. <strong>Procedural memory</strong> lives in system instructions and tool definitions rather than changing for each user.</p>
 <p>For implementation, these categories collapse into three tiers. Hot memory holds the current session. Cold memory supports recall across sessions. Document memory keeps accumulated project knowledge readable and directly editable.</p>
 <p>CoALA classifies working, episodic, semantic, and procedural memory. The <a href="https://arxiv.org/abs/2512.13564">Memory in the Age of AI Agents survey</a> emphasizes vector stores and knowledge graphs, while LangGraph documents checkpoints and its Store interface. File-backed project knowledge sits outside those taxonomies even though Claude Code, Cursor, and Devin Desktop all load persistent project files.</p>
-<p>The same storage pattern appears in other domains. Voyager stores reusable game skills as code libraries, ERC3 teams iterated on procedural prompt documents, and Agent Workflow Memory induces reusable web workflows from successful episodes. Files make that knowledge inspectable and versionable without a separate embedding service.</p>
+<p>The same storage pattern appears in other domains. A Minecraft agent (Voyager) stores reusable game skills as code libraries, teams in an enterprise document-QA competition iterated on procedural prompt documents, and web agents induce reusable browsing workflows from successful runs. I come back to all three later; the point here is that files make that knowledge inspectable and versionable without a separate embedding service.</p>
 <p>Agent-managed memory also differs from a fixed RAG pipeline in who performs the write. The agent or its harness selects what to store, update, and delete, then later chooses when to retrieve it.</p>
 <p>The <a href="https://arxiv.org/abs/2304.03442">Generative Agents paper</a> (Park et al., 2023) showed how far this can go: simulated agents stored, reflected on, and retrieved their own memories. Its <strong>memory stream</strong> ranked candidates by recency, importance, and relevance, a design that still provides a useful reference point for agent-memory retrieval.</p>
 <hr>
@@ -416,7 +416,7 @@
 <span class="line"><span style="color:#E6EDF3">)</span></span></code></pre>
 <h3 id="choosing-a-long-term-memory-strategy">Choosing a long-term memory strategy</h3>
 <p><strong>Start with key-value</strong> if your memory is structured and well-defined (user profiles, settings, named entities). Add vector search when you need semantic retrieval over unstructured facts or when the query phrasing varies unpredictably.</p>
-<p><strong>Knowledge graphs</strong> earn their keep when relationships between entities matter, e.g. “Which companies did the user ask about that are competitors of NVDA?” The most interesting recent project here is <a href="https://github.com/getzep/graphiti">Graphiti</a> (by Zep), which builds a <strong>temporally-aware knowledge graph</strong> that tracks <em>when</em> facts were true, not just <em>what</em> was true. Every edge carries validity intervals, so a change to the user’s risk tolerance invalidates the old value rather than silently overwriting it. Graphiti reports <a href="https://arxiv.org/abs/2501.13956">94.8% accuracy on the DMR benchmark</a>, and its bi-temporal model handles the stale memory problem at the data layer.</p>
+<p><strong>Knowledge graphs</strong> earn their keep when relationships between entities matter, e.g. “Which companies did the user ask about that are competitors of NVDA?” The most interesting recent project here is <a href="https://github.com/getzep/graphiti">Graphiti</a> (by Zep), which builds a <strong>temporally-aware knowledge graph</strong> that tracks <em>when</em> facts were true, not just <em>what</em> was true. Every edge carries validity intervals, so a change to the user’s risk tolerance invalidates the old value rather than silently overwriting it. Graphiti reports <a href="https://arxiv.org/abs/2501.13956">94.8% accuracy on the DMR benchmark</a> — Deep Memory Retrieval, a long-conversation recall test — and its bi-temporal model handles the stale memory problem at the data layer.</p>
 <p>The catch is operational. Running a graph database is non-trivial, and for most agent applications vector search with metadata filtering covers the same ground with less infrastructure.</p>
 <p><strong>Managed memory frameworks</strong> like <a href="https://mem0.ai/research">Mem0</a> and <a href="https://docs.letta.com/concepts/memgpt/">Letta</a> (formerly MemGPT) handle the extraction-consolidation-retrieval pipeline for you. Mem0’s approach is notable: an LLM extracts candidate memories, a decision engine compares each new fact against existing entries in the vector store, and a resolver decides to add, update, or delete. That keeps the memory store coherent and non-redundant. Letta takes an operating-systems angle: agents manage their own context window using memory management tools, autonomously moving data between “core memory” (in-context) and “archival memory” (out-of-context). Both are worth evaluating if you want faster time-to-production and don’t need full control over the memory pipeline.</p>
 <hr>
@@ -525,7 +525,7 @@
 <span class="line"><span>    learnings/</span></span>
 <span class="line"><span>        common-errors.md       # Mistakes the agent has learned to avoid</span></span>
 <span class="line"><span>        tool-patterns.md       # Effective tool call sequences</span></span></code></pre>
-<p><img src="/blog/assets/2026-02-14-memory/document-memory-structure.svg" alt="The document memory directory and the two operations an agent runs against it"></p>
+<p><img src="/blog/assets/2026-02-14-memory/document-memory-structure.svg" alt="The document memory directory and the four operations an agent runs against it: read, write, list, and search"></p>
 <p>Every file is Markdown. Every file’s purpose is obvious from its path. You can <code>git diff</code> the entire memory directory to see what the agent learned in a session, <code>git revert</code> a bad learning, or copy the directory to another project. Try doing any of that with a Qdrant collection.</p>
 <h3 id="when-to-use-document-memory-vs-vector-vs-key-value">When to use document memory vs vector vs key-value</h3>
 <p>The three memory backends serve different access patterns:</p>
@@ -626,7 +626,7 @@
 <p>One distinction worth making here: skill libraries are <strong>executable</strong> memory (code files imported and run), while document memory in coding assistants is <strong>declarative</strong> (Markdown injected into prompts). The failure modes differ. Bad executable code crashes the agent; bad declarative text leads to reasoning errors. But the storage pattern and the operational benefits (debuggability, version control) are the same.</p>
 </li>
 <li>
-<p><strong>Enterprise workflow automation</strong>: The <a href="/blog/2026/01/11/enterprise-rag-challenge-agent-architectures/">ERC3 competition</a> winners used document memory for iterative prompt refinement. One winning team’s Analyzer and Versioner agents iterated through 80 prompt versions stored as procedural documents. Another top team built 20+ enricher modules as document-style procedural knowledge. <a href="https://arxiv.org/abs/2510.04851">LEGOMem</a> (2025) formalizes this as a modular memory framework for multi-agent systems, with specialized memory types (sensory, short-term, long-term) that agents compose like building blocks.</p>
+<p><strong>Enterprise workflow automation</strong>: The <a href="/blog/2026/01/11/enterprise-rag-challenge-agent-architectures/">ERC3 competition</a> — the third Enterprise RAG Challenge — had winners who used document memory for iterative prompt refinement. One winning team’s Analyzer and Versioner agents iterated through 80 prompt versions stored as procedural documents. Another top team built 20+ enricher modules as document-style procedural knowledge. <a href="https://arxiv.org/abs/2510.04851">LEGOMem</a> (2025) formalizes this as a modular memory framework for multi-agent systems, with specialized memory types (sensory, short-term, long-term) that agents compose like building blocks.</p>
 </li>
 <li>
 <p><strong>Web automation</strong>: <a href="https://arxiv.org/abs/2409.07429">Agent Workflow Memory</a> (Wang et al., 2024) lets web agents induce reusable workflows from successful episodes, with a 51% success rate improvement on WebArena. <a href="https://arxiv.org/abs/2504.07079">SkillWeaver</a> (2025) goes further: agents synthesize reusable API tools from exploration, with a 31.8% success rate gain. The learned skills also transfer to weaker models (54.3% improvement), so a stronger agent’s accumulated memory can lift a smaller one.</p>
@@ -725,7 +725,8 @@
 <span class="line"><span style="color:#A5D6FF">                            0.4 * (1 - (embedding &#x3C;=> $3))) AS score</span></span>
 <span class="line"><span style="color:#A5D6FF">                    FROM documents</span></span>
 <span class="line"><span style="color:#A5D6FF">                    WHERE tenant_id = $1</span></span>
-<span class="line"><span style="color:#A5D6FF">                      AND ts_vector @@ plainto_tsquery('english', $2)</span></span>
+<span class="line"><span style="color:#A5D6FF">                      AND (ts_vector @@ plainto_tsquery('english', $2)</span></span>
+<span class="line"><span style="color:#A5D6FF">                           OR (embedding &#x3C;=> $3) &#x3C; 0.5)</span></span>
 <span class="line"><span style="color:#A5D6FF">                    ORDER BY score DESC</span></span>
 <span class="line"><span style="color:#A5D6FF">                    LIMIT $4</span></span>
 <span class="line"><span style="color:#A5D6FF">                    """</span><span style="color:#E6EDF3">,</span></span>
@@ -746,6 +747,7 @@
 <span class="line"><span style="color:#E6EDF3">                    tenant_id, query, limit,</span></span>
 <span class="line"><span style="color:#E6EDF3">                )</span></span>
 <span class="line"><span style="color:#FF7B72">            return</span><span style="color:#E6EDF3"> [</span><span style="color:#79C0FF">dict</span><span style="color:#E6EDF3">(row) </span><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> row </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> rows]</span></span></code></pre>
+<p>The <code>OR</code> in the first branch is what makes it hybrid. With only the <code>@@</code> predicate, a document that means the right thing but shares no keywords with the query gets filtered out before scoring ever runs — that is keyword retrieval with semantic re-ranking, not hybrid retrieval. The distance threshold is a knob: tighten it if the vector arm floods the results, loosen it if semantic matches never surface.</p>
 <p>What you get:</p>
 <ul>
 <li><strong>Hybrid search</strong>: keyword matching (GIN index) + semantic similarity (pgvector) scored together</li>
@@ -772,11 +774,7 @@
 </li>
 </ol>
 <p>The wiring in LangGraph is straightforward — the checkpoint store and long-term store are passed at graph compilation, while the document store is injected as a dependency. The local sketch below uses <code>InMemoryStore</code> so the snippet stays small; the reference Docker topology uses Qdrant for the same semantic-recall role.</p>
-<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> langgraph.checkpoint.postgres.aio </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> AsyncPostgresSaver</span></span>
-<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> langgraph.store.memory </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> InMemoryStore</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#8B949E"># Hot memory: PostgreSQL for durable checkpoints</span></span>
-<span class="line"><span style="color:#E6EDF3">checkpointer </span><span style="color:#FF7B72">=</span><span style="color:#FF7B72"> await</span><span style="color:#E6EDF3"> create_postgres_checkpointer(pg_connection_string)</span></span>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> langgraph.store.memory </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> InMemoryStore</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#8B949E"># Cold memory: local sketch with vector search</span></span>
 <span class="line"><span style="color:#8B949E"># (The reference Docker topology uses Qdrant for persistent recall.)</span></span>
@@ -787,11 +785,14 @@
 <span class="line"><span style="color:#8B949E"># Document memory: file-based store for project knowledge</span></span>
 <span class="line"><span style="color:#E6EDF3">doc_memory </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> FileMemory(</span><span style="color:#FFA657">base_dir</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">".agent-memory"</span><span style="color:#E6EDF3">)</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#8B949E"># Checkpoint store and long-term store wired into the graph</span></span>
-<span class="line"><span style="color:#E6EDF3">graph </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> create_graph(</span></span>
-<span class="line"><span style="color:#FFA657">    checkpointer</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">checkpointer,</span></span>
-<span class="line"><span style="color:#FFA657">    store</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">memory_store,</span></span>
-<span class="line"><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#8B949E"># Hot memory: PostgreSQL for durable checkpoints. postgres_checkpointer() is</span></span>
+<span class="line"><span style="color:#8B949E"># the async context manager defined earlier, so the graph runs inside it.</span></span>
+<span class="line"><span style="color:#FF7B72">async</span><span style="color:#FF7B72"> with</span><span style="color:#E6EDF3"> postgres_checkpointer(pg_connection_string) </span><span style="color:#FF7B72">as</span><span style="color:#E6EDF3"> checkpointer:</span></span>
+<span class="line"><span style="color:#E6EDF3">    graph </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> create_graph(</span></span>
+<span class="line"><span style="color:#FFA657">        checkpointer</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">checkpointer,</span></span>
+<span class="line"><span style="color:#FFA657">        store</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">memory_store,</span></span>
+<span class="line"><span style="color:#E6EDF3">    )</span></span>
+<span class="line"><span style="color:#8B949E">    # ... run the graph here, while the connection is still open</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#8B949E"># The store is accessible inside any node via the store parameter</span></span>
 <span class="line"><span style="color:#FF7B72">def</span><span style="color:#D2A8FF"> planner_node</span><span style="color:#E6EDF3">(state: AgentState, </span><span style="color:#FF7B72">*</span><span style="color:#E6EDF3">, store: BaseStore) -> </span><span style="color:#79C0FF">dict</span><span style="color:#E6EDF3">:</span></span>
