@@ -35,7 +35,7 @@ runtime that keeps the process alive underneath.</p>
 <!-- more -->
 <p><strong>TL;DR</strong>: Start with one model, a few narrow tools, and an explicit acceptance
 check. Add retries after traces show transient call failures. Add a progress
-handoff when resumed sessions repeat work. When you test either change, keep the
+handoff when resumed sessions repeat work. When you test either one, keep the
 model version, tasks, grader, and total budget fixed. Remove the component when
 it does not improve the measured result.</p>
 <p>Beyond the first explicit acceptance check, every added retry, handoff, or
@@ -48,8 +48,8 @@ the model validates the output against a schema and checks that it actually
 contains stock tickers. A malformed report keeps the run open. Twelve lines of
 ordinary code, and the model gets no vote on whether its own work is done.
 (<a href="/blog/2026/04/20/ai-agent-security/">Part 4</a> builds that hook.)</p>
-<p>What it cannot show is the interesting part: what happens when the evidence is
-ambiguous, when a retry might double-charge someone, or when the work outlives
+<p>What that example cannot show is the interesting part: what happens when the
+evidence is ambiguous, when a retry might double-charge someone, or when the work outlives
 the session that started it. Those need a task with a sharper pass/fail boundary
 than a research report has, so I’ll use a small fictional store repository.
 The coding task is to lower the threshold for a 10% automatic discount from
@@ -161,8 +161,8 @@ Parts 2, 3, and 4 end up. Each of them decides one thing about a single turn:</p
 <table tabindex="0"><thead><tr><th>Earlier part</th><th>What it decides for this turn</th><th>Where it acts in the next section’s walkthrough</th></tr></thead><tbody><tr><td><a href="/blog/2026/02/14/ai-agent-memory-architecture/">Part 2 — memory</a></td><td>Which prior state enters the prompt</td><td>Step 1, the context builder</td></tr><tr><td><a href="/blog/2026/03/24/ai-agent-tool-use/">Part 3 — tool use</a></td><td>Which actions exist, and what a validated result looks like</td><td>Step 3’s argument validation, and the result shape in step 4</td></tr><tr><td><a href="/blog/2026/04/20/ai-agent-security/">Part 4 — security</a></td><td>Whether this specific call may run now</td><td>Step 3, the path check and the approval decision</td></tr><tr><td><strong>Part 6 — this article</strong></td><td>Whether the resulting evidence ends the run</td><td>Steps 5 to 7, the acceptance checks and trace</td></tr></tbody></table>
 <p><img src="/blog/assets/2026-07-22-harness-engineering/agentic-stack-layers.svg" alt="Where each part of the series sits"></p>
 <p>Parts 3 and 4 share step 3, and that overlap is the whole argument for treating
-them as one program. The same line of harness code that rejects a malformed
-argument also rejects a permitted-but-unapproved one. Split across two services,
+them as one program. The same layer of harness code that rejects a malformed
+argument also rejects a call that is permitted but not yet approved. Split across two services,
 those two rejections drift apart, and a call that passes schema validation in one
 place gets authorized somewhere that never saw the schema.</p>
 <p>The split still matters for debugging: a wrong-file edit is a Part 4 path rule, not
@@ -219,7 +219,7 @@ A final <code>done</code> message without those records does not prove that this
 passed its required checks.</p>
 <hr>
 <h2 id="decide-where-each-rule-is-enforced">Decide where each rule is enforced</h2>
-<p>Enforce <code>tests/checkout_discount.spec.ts</code> in normal program logic, not in the prompt. The harness
+<p>The requirement that <code>tests/checkout_discount.spec.ts</code> passes belongs in deterministic code, not in the prompt. The harness
 dispatches the Playwright command to the runtime, reads its exit code, and
 refuses to end the run while it fails. A prompt can remind the model to run the
 test. It cannot stop the model from declaring success without evidence.</p>
@@ -261,9 +261,9 @@ has a different failure mode, so switch examples for this section. Suppose the
 agent can call <code>create_test_order</code> against a staging order service while setting
 up test data. This tool is not one of the discount task’s acceptance checks. It
 is useful here because a timeout can hide whether the service created an order.</p>
-<p>The tool boundary needs more than a natural-language description.
-<a href="/blog/2026/03/24/ai-agent-tool-use/">Part 3</a> argued for that contract from the
-model’s side: clear actions, compact feedback, recoverable errors. The harness
+<p>The tool boundary needs more than a natural-language description. It needs an
+explicit tool contract. <a href="/blog/2026/03/24/ai-agent-tool-use/">Part 3</a> argued for
+one from the model’s side: clear actions, compact feedback, recoverable errors. The harness
 needs the same contract for a different reason. It has to decide, without asking
 the model, whether a call may run and whether a failed call may be repeated. For
 <code>create_test_order</code>, that means a contract with:</p>
@@ -274,8 +274,8 @@ later checks do not have to parse free-form text</li>
 <li>an effect category that records whether the call only fetches information or
 changes a file, database record, or external service. It also records whether
 repeating the call is safe. This label tells the harness whether an automatic
-retry could duplicate work. It can retry <code>get_order_status</code> when the service
-defines that lookup as read-only. It must not blindly retry
+retry could duplicate work. The harness can retry <code>get_order_status</code> when the
+service defines that lookup as read-only. It must not blindly retry
 <code>create_test_order</code>, because the first call may already have created the order</li>
 <li>a timeout and retry policy, so a lost response does not trigger an unlimited
 sequence of calls</li>
@@ -385,11 +385,11 @@ migration needs a handoff once work crosses sessions because the next model
 session must reconstruct both the workspace and the task status.</p>
 <p>Anthropic’s experiments with
 <a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">long-running coding agents</a>
-used git history and a progress file between sessions. Its later
+used git history and a progress file between sessions. Anthropic’s later
 <a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">harness-design report</a>
-separates compaction from a fresh-context handoff and notes the additional
-orchestration, token use, and wall time that handoffs require, without
-publishing figures for them.</p>
+separates compaction from a fresh-context handoff and reports that handoffs add
+orchestration, token use, and wall time, without publishing figures that
+attribute any of that overhead to the handoff itself.</p>
 <hr>
 <h2 id="use-traces-to-distinguish-three-failures">Use traces to distinguish three failures</h2>
 <p>The next three rows are illustrative trace sketches, not measured runs or output
@@ -553,14 +553,16 @@ It reports a Terminal-Bench 2.0 increase from 52.8% to 66.5% with
 <code>gpt-5.2-codex</code> fixed while its team changed the system prompt, tools, and
 middleware. The post bundles several changes and omits a confidence interval,
 fixed-total-budget comparison, and per-change ablation table. That result cannot
-identify the useful change.</p>
+identify which change helped.</p>
 <p>Anthropic’s <a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">long-running application report</a>
 is a qualitative, product-specific case study rather than a controlled
-benchmark. Its evaluator checked 27 criteria for the game’s level editor in Sprint 3. The team
-reports that evaluator calls became overhead on tasks Opus 4.6 could complete
-reliably alone, but still helped near the model’s edge. After the model upgrade,
-it removed harness components one at a time. The example is a reason to
-revalidate old scaffolding when the model changes; it does not estimate a
+benchmark. The application is RetroForge, a 2D retro game maker; in Sprint 3 the
+harness evaluator checked 27 criteria covering its level editor. The work began
+on earlier Opus models, and when Opus 4.6 shipped the team removed harness
+components one at a time to see which ones the newer model had made redundant.
+It reports that evaluator calls became overhead on tasks Opus 4.6 could complete
+reliably alone, but still helped near the model’s edge. The example is a reason
+to revalidate old scaffolding when the model changes; it does not estimate a
 general effect size.</p>
 <hr>
 <h2 id="keep-the-harness-editable-after-it-earns-its-place">Keep the harness editable after it earns its place</h2>
