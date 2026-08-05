@@ -209,7 +209,7 @@ completion candidate.</li>
 <li>A passing result becomes completion evidence only after the harness records
 the command, exit code, and tested artifact version in the trace.</li>
 </ol>
-<p>At step 2, no file has changed. The harness can reject <code>../../secrets.env</code>,
+<p>After step 2, no file has changed. The harness can reject <code>../../secrets.env</code>,
 require approval for a destructive command, or stop a run that has exhausted its
 budget. After the tests run, the harness reads their exit codes itself. The model
 cannot mark its own edit as passing.</p>
@@ -329,8 +329,8 @@ Check that evaluator against human reviews before you let it gate completion.</p
 <p>Switch tasks again, but stay in the fictional store repository. The agent now
 has to migrate checkout from payment adapter v1 to v2. The work spans the
 checkout handler, payment client, configuration, and tests, so it may outlast one
-model session — the span of one context window, before compaction or a restart
-resets it.</p>
+model session — one continuous stretch of model context, ended by a restart or
+by a deliberate fresh start rather than carried forward.</p>
 <p>Before the first session reaches its context limit, it has modified several
 files, started a local payment sandbox, and left
 <code>tests/payment_migration.spec.ts</code> failing. That browser acceptance test completes
@@ -421,7 +421,7 @@ different harness response.</p>
 
 
 <table tabindex="0"><thead><tr><th>What the trace records</th><th>What happened</th><th>Correct response</th></tr></thead><tbody><tr><td>The read-only <code>get_order_status</code> call returns <code>503</code>; no state-changing call is in flight</td><td>A transient lookup failed</td><td>Retry the lookup with a bound and backoff</td></tr><tr><td><code>create_test_order</code> times out, then a status lookup finds order <code>123</code> under idempotency key <code>checkout-42</code></td><td>The service created the order, but the response was lost</td><td>Return the existing order; do not create another one</td></tr><tr><td>The edit and unit test pass, but the trace has no result for <code>tests/checkout_discount.spec.ts</code> on the tested commit</td><td>Required acceptance evidence is missing</td><td>Keep the run open and dispatch the browser acceptance test</td></tr></tbody></table>
-<p>A <code>503</code> does not make every call safe to retry. The first row is a read-only
+<p>A transient-looking failure does not make every call safe to retry. The first row is a read-only
 lookup. The second row is a state-changing request, so the idempotency key and
 server-side status decide whether another creation attempt is allowed. The third
 row is not a tool failure at all; the harness has not yet collected the evidence
@@ -663,7 +663,7 @@ once and therefore cannot identify a cause.</p>
 <p>The lab validates every declared pair before running it. Its regression tests
 also include an intentionally invalid pair that changes retry policy and
 evaluator together; the validator rejects it.</p>
-<p>The lab’s configuration schema checks all five component fields. This runnable
+<p>The lab compares all five component fields when it validates a pair. This runnable
 excerpt shows the same guard on one valid progress-handoff pair:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> dataclasses </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> dataclass, fields</span></span>
 <span class="line"></span>
@@ -755,12 +755,12 @@ lived only as long as its worker process. Part 1 already had five consolidated
 tools and a <code>checkpointer=</code> parameter; the rest of the series filled them in — a
 real Postgres checkpoint store, tool contracts an acceptance check can read, a
 deny hook, an MCP sidecar that keeps its tokens out of the worker, and a Stop
-hook that refuses a malformed report. Even the router turned out to be harness
-code — the model call from Part 1 that picks which reasoning pattern runs for a
-given request. It is still a model call, but one the harness makes before the
-task loop starts. Every one of those is ordinary code wrapped around a model
-call. That was the claim in Part 1. The harness is just the name for all of it
-once you stop writing it by accident.</p>
+hook that refuses a malformed report. Every one of those additions is ordinary
+code wrapped around a model call. That was the claim in Part 1. Even the router
+turned out to be harness code — the model call from Part 1 that picks which
+reasoning pattern runs for a given request. It is still a model call, but one
+the harness makes before the task loop starts. The harness is just the name for
+all of it once you stop writing it by accident.</p>
 <hr>
 <h2 id="references">References</h2>
 <ul>
