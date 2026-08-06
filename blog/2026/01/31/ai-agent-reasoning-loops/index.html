@@ -490,7 +490,7 @@
 
 
 
-<table tabindex="0"><thead><tr><th>Pattern</th><th><strong>LLM calls during execution</strong></th><th><strong>State updates</strong></th><th><strong>Key code pattern</strong></th></tr></thead><tbody><tr><td><strong>Plan-and-Execute</strong></td><td>1 for planning + 1 per step</td><td>Sequential step completion</td><td><code>planner_node()</code> → loop: <code>executor_node()</code> → <code>reporter_node()</code></td></tr><tr><td><strong>ReAct</strong> (within each step)</td><td>Multiple per step (thought-action cycles)</td><td>Accumulated message history</td><td><code>create_react_agent()</code> loops internally until step complete</td></tr><tr><td><strong>ReWOO</strong></td><td>1 for planning + 0 during execution + 1 for synthesis</td><td>Parallel tool completion</td><td><code>rewoo_planner_node()</code> → <code>rewoo_worker_node()</code> → <code>rewoo_solver_node()</code></td></tr></tbody></table>
+<table tabindex="0"><thead><tr><th>Pattern</th><th><strong>LLM calls during execution</strong></th><th><strong>State updates</strong></th><th><strong>Key code pattern</strong></th></tr></thead><tbody><tr><td><strong>Plan-and-Execute</strong></td><td>1 for planning + a ReAct loop per step (several calls each) + 1 for the report</td><td>Sequential step completion</td><td><code>planner_node()</code> → loop: <code>executor_node()</code> → <code>reporter_node()</code></td></tr><tr><td><strong>ReAct</strong> (within each step)</td><td>Multiple per step (thought-action cycles)</td><td>Accumulated message history</td><td><code>create_react_agent()</code> loops internally until step complete</td></tr><tr><td><strong>ReWOO</strong></td><td>1 for planning + 0 during execution + 1 for synthesis</td><td>Parallel tool completion</td><td><code>rewoo_planner_node()</code> → <code>rewoo_worker_node()</code> → <code>rewoo_solver_node()</code></td></tr></tbody></table>
 <p>What changes between them is what the planner produces. That output determines what the rest of the graph can do.</p>
 <ol>
 <li>
@@ -509,7 +509,7 @@
 <span class="line"><span style="color:#E6EDF3">    ),</span></span>
 <span class="line"><span style="color:#8B949E">    # ... more steps</span></span>
 <span class="line"><span style="color:#E6EDF3">]</span></span></code></pre>
-<p>The executor reads each description and decides which tools to call. Flexible, but it costs an LLM call per step.</p>
+<p>The executor reads each description and decides which tools to call. Flexible, but each step is its own ReAct loop, so a step costs several model calls, not one.</p>
 </li>
 <li>
 <p>ReAct doesn’t have an upfront plan. It uses iterative reasoning:</p>
@@ -618,6 +618,7 @@
 <span class="line"></span>
 <span class="line"><span style="color:#A5D6FF">Default to deep_research if unclear."""</span></span>
 <span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">llm </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> ChatAnthropic(</span><span style="color:#FFA657">model</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"claude-sonnet-4-5-20250929"</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">temperature</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">)</span></span>
 <span class="line"><span style="color:#E6EDF3">structured_llm </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> llm.with_structured_output(RouterOutput)</span></span></code></pre>
 <p>With this in place, users don’t pick a mode. “Current price” goes to ReWOO, “investment thesis” to Plan-and-Execute.</p>
 <h2 id="key-takeaways">Key takeaways</h2>
