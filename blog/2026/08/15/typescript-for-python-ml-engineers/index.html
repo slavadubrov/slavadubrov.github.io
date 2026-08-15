@@ -1,0 +1,951 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><script>
+      (() => {
+        const stored = localStorage.getItem("theme");
+        const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const effective = stored === "light" || stored === "dark" ? stored : systemDark ? "dark" : "light";
+        document.documentElement.dataset.themeEffective = effective;
+        if (stored === "light" || stored === "dark") document.documentElement.dataset.theme = stored;
+      })();
+    </script><script async src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5"></script><script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        window.dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", "G-T51K83ENZ5");
+    </script><title>TypeScript for Python ML engineers: build an agent service</title><meta name="description" content="Map pydantic to Zod, FastAPI to Hono, and Celery to a Postgres queue, then build a streaming agent service in a pnpm TypeScript monorepo."><link rel="canonical" href="https://slavadubrov.github.io/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="en" href="https://slavadubrov.github.io/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="x-default" href="https://slavadubrov.github.io/blog/2026/08/15/typescript-for-python-ml-engineers/"><meta property="og:type" content="article"><meta property="og:title" content="TypeScript for Python ML engineers: build an agent service"><meta property="og:description" content="Map pydantic to Zod, FastAPI to Hono, and Celery to a Postgres queue, then build a streaming agent service in a pnpm TypeScript monorepo."><meta property="og:url" content="https://slavadubrov.github.io/blog/2026/08/15/typescript-for-python-ml-engineers/"><meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:type" content="image/png"><meta property="og:image:alt" content="Edge of Context — Practical AI engineering"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="TypeScript for Python ML engineers: build an agent service"><meta name="twitter:description" content="Map pydantic to Zod, FastAPI to Hono, and Celery to a Postgres queue, then build a streaming agent service in a pnpm TypeScript monorepo."><meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta name="twitter:image:alt" content="Edge of Context — Practical AI engineering"><meta property="article:published_time" content="2026-08-15"><meta property="article:modified_time" content="2026-08-15"><link rel="icon" href="/assets/favicon-eoc.svg" type="image/svg+xml"><link href="/pagefind/pagefind-component-ui.css" rel="stylesheet"><script src="/pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"TypeScript for Python ML engineers: build an agent service","description":"Map pydantic to Zod, FastAPI to Hono, and Celery to a Postgres queue, then build a streaming agent service in a pnpm TypeScript monorepo.","url":"https://slavadubrov.github.io/blog/2026/08/15/typescript-for-python-ml-engineers/","image":"https://slavadubrov.github.io/assets/og-image.png","datePublished":"2026-08-15","dateModified":"2026-08-15","author":{"@type":"Person","name":"Viacheslav Dubrov","url":"https://slavadubrov.github.io/about/"}}</script><link rel="stylesheet" href="/_astro/BaseLayout.OMGrDdzm.css"></head> <body> <a class="skip-link" href="#main-content">Skip to content</a> <header class="site-header"> <a class="brand" data-home-link href="/" aria-label="Edge of Context home"> <svg class="brand-mark" viewBox="0 0 64 64" width="36" height="36" aria-hidden="true" focusable="false" data-astro-cid-77qc4tpx> <rect class="brand-mark__frame" x="8.5" y="8.5" width="47" height="47" rx="11" stroke-width="5" data-astro-cid-77qc4tpx></rect> <line class="brand-mark__edge" x1="42" y1="8.5" x2="42" y2="55.5" stroke-width="5" data-astro-cid-77qc4tpx></line> <g class="brand-mark__token" data-astro-cid-77qc4tpx> <circle cx="16.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="16.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="16.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> </g> <g class="brand-mark__ghost" data-astro-cid-77qc4tpx> <circle cx="49" cy="20" r="3" data-astro-cid-77qc4tpx></circle> <circle cx="49" cy="32" r="3" data-astro-cid-77qc4tpx></circle> <circle cx="49" cy="44" r="3" data-astro-cid-77qc4tpx></circle> </g> </svg> <span>Edge of Context</span> </a> <nav aria-label="Primary navigation"> <ul> <li><a data-nav="home" href="/">Home</a></li><li><a data-nav="blog" href="/blog/">Blog</a></li><li><a data-nav="fastAnswers" href="/blog/fast-answers/">Fast Answers</a></li><li><a data-nav="about" href="/about/">About</a></li> </ul> </nav> <div class="header-actions"> <nav class="header-social" aria-label="Social profiles"> <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" title="LinkedIn"> <svg class="social-icon" data-social-icon="fontawesome-brands-linkedin" viewBox="0 0 448 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3C448 46.5 433.6 32 416 32zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"></path></svg> </a><a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener noreferrer" aria-label="Substack" title="Substack"> <svg class="social-icon" data-social-icon="simple-substack" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"></path></svg> </a><a href="https://www.tiktok.com/@edge.of.context" target="_blank" rel="noopener noreferrer" aria-label="TikTok" title="TikTok"> <svg class="social-icon" data-social-icon="fontawesome-brands-tiktok" viewBox="0 0 448 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M448 209.9a210.1 210.1 0 0 1-122.8-39.2v178.7A162.6 162.6 0 1 1 185 188.3v89.9a74.6 74.6 0 1 0 52.2 71.2V0h88a121.2 121.2 0 0 0 1.9 22.2 122.2 122.2 0 0 0 53.9 80.2 121.4 121.4 0 0 0 67 20.1v87.4z"></path></svg> </a><a href="https://github.com/slavadubrov" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub"> <svg class="social-icon" data-social-icon="fontawesome-brands-github" viewBox="0 0 496 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"></path></svg> </a><a href="/feed_rss_created.xml" target="_blank" rel="noopener noreferrer" aria-label="RSS feed" title="RSS feed"> <svg class="social-icon" data-social-icon="material-rss" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6.18 15.64a2.18 2.18 0 1 0 0 4.36 2.18 2.18 0 0 0 0-4.36zM4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83C19.56 11.4 12.6 4.44 4 4.44zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z"></path></svg> </a> </nav> <button class="theme-toggle" type="button" aria-label="Switch color theme" title="Switch color theme"> <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"> <circle cx="12" cy="12" r="4"></circle> <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path> </svg> <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"> <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path> </svg> </button> <pagefind-modal-trigger data-search-label="true">Search</pagefind-modal-trigger>  </div> </header> <main id="main-content" tabindex="-1">  <article class="prose" data-pagefind-body> <p class="article-meta"> <time datetime="2026-08-15">2026-08-15</time>  · Updated <time datetime="2026-08-15">2026-08-15</time> </p> <h1 id="typescript-for-python-ml-engineers-build-an-agent-service">TypeScript for Python ML engineers: build an agent service</h1>
+<p>This is a fast onboarding guide for experienced Python engineers who need to
+ship AI services in TypeScript and Node. It is written for ML engineers, data
+scientists, and backend developers who do not need a beginner JavaScript course.</p>
+<p>I did that onboarding myself over the past few months after working in Python
+and Java. Most guides I found started with basic programming or front-end DOM
+work. This article starts from Python service concepts. By the end, you can map
+a Python service stack to TypeScript and recognize the Python habits that cause
+JavaScript bugs. The running example follows a streaming agent service from
+schema to deployment.</p>
+<!-- more -->
+<p><strong>Summary</strong>: Install Node 24 and pnpm. Then use the repository’s <code>pnpm</code>
+commands. Run <code>pnpm demo</code> for the offline example, <code>pnpm dev:api</code> and <code>pnpm dev:worker</code>
+for development, and <code>pnpm check</code> before a commit. You do not need to run
+<code>node</code>, <code>tsx</code>, or the TypeScript checker yourself. The package scripts do that.</p>
+<p>The service uses Zod, Hono, Drizzle, Vitest, and Biome. They cover much of the
+same ground as pydantic, FastAPI, SQLAlchemy, pytest, and Ruff. Keep heavy
+numerics in Python. Use this TypeScript service for orchestration, HTTP, and
+streaming.</p>
+<p>Everything here is a file in
+<a href="https://github.com/slavadubrov/typescript-agent-service"><strong>slavadubrov/typescript-agent-service</strong></a>,
+the companion repository published with this article. It contains an HTTP API,
+two versions of the same agent loop, Postgres run history, a worker, and an MCP
+server. <code>pnpm install &#x26;&#x26; pnpm demo</code> runs the offline HTTP/SSE agent path and the
+worker’s sweep computation with no API key.</p>
+<p>I’m covering backend and AI work only. No React. There is no browser bundler
+either.</p>
+<hr>
+<h2 id="run-the-companion-first">Run the companion first</h2>
+<p>Install <a href="https://nodejs.org/en/download">Node 24</a> and pnpm using the
+<a href="https://pnpm.io/installation">official pnpm installation instructions</a>. Then
+clone the companion repository and run:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> install</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> demo</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> check</span></span></code></pre>
+<p><code>pnpm demo</code> exercises the HTTP handler, agent loop, and SSE stream with a
+scripted model. It also calls the worker’s <code>runSweep</code> computation. It does not
+start the worker process or its database queue. The demo needs no API key,
+database, or Docker. <code>pnpm check</code> runs the type checker, linter, formatter
+check, and tests.</p>
+<p>To run the real API and worker:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">cp</span><span style="color:#A5D6FF"> .env.example</span><span style="color:#A5D6FF"> .env</span><span style="color:#8B949E">          # add OPENAI_API_KEY or an OpenAI-compatible URL</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> db:up</span><span style="color:#8B949E">                    # start Postgres in Docker</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> db:push</span><span style="color:#8B949E">                  # create the database schema</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> dev:api</span><span style="color:#8B949E">                  # API at http://localhost:8080</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> dev:worker</span><span style="color:#8B949E">               # run this in a second terminal</span></span></code></pre>
+<p>Those are the commands I use in the rest of this article. The repository puts
+the lower-level Node and TypeScript commands behind named <code>pnpm</code> scripts, much
+as a Python project might put <code>uv run</code> commands behind <code>make</code> targets. Do not
+mix <code>npm install</code> into this pnpm repository. Use <code>pnpm install</code> so
+<code>pnpm-lock.yaml</code> remains the single lockfile.</p>
+<hr>
+<h2 id="what-node-npm-pnpm-typescript-and-tsx-do">What Node, npm, pnpm, TypeScript, and tsx do</h2>
+<p>The similar names hide separate jobs:</p>
+<ul>
+<li><strong>JavaScript</strong> is the language.</li>
+<li><strong>Node.js</strong> is the runtime, roughly CPython for JavaScript. Install Node 24
+for this project.</li>
+<li>The <strong>npm registry</strong> is the package index, roughly PyPI. The <code>npm</code> command
+comes with Node and can install packages from that registry.</li>
+<li><strong>pnpm</strong> is the package manager this repository chose. It installs from the
+npm registry, manages the monorepo workspace, and runs the commands declared
+in <code>package.json</code>.</li>
+<li><strong><code>package.json</code></strong> is the project manifest, closest to <code>pyproject.toml</code>. Its
+<code>scripts</code> section gives names such as <code>demo</code>, <code>check</code>, and <code>dev:api</code> to longer
+commands.</li>
+<li><strong>TypeScript</strong> is JavaScript with static types. Its <code>tsc</code> command checks those
+types. The repository runs it through <code>pnpm check</code> or <code>pnpm typecheck</code>.</li>
+<li><strong>tsx</strong> runs <code>.ts</code> files without a separate build. The development scripts
+use its <code>watch</code> mode to restart the API or worker after a source change. You
+do not invoke it directly in this guide.</li>
+</ul>
+<p>For this repository, run the <code>pnpm</code> scripts. Node is the runtime inside those
+scripts, and the supplied Dockerfile handles production.</p>
+<hr>
+<h2 id="the-stack-mapped-from-python">The stack, mapped from Python</h2>
+<p><img src="/blog/assets/2026-08-15-typescript-for-python-ml-engineers/python-typescript-stack-map.svg" alt="Two columns map each concern in a Python AI service to its TypeScript replacement. The rows cover project metadata, packages, validation, HTTP, SQL, queues, tests, linting, and type checks. Three rows are not drop-in swaps."></p>
+<p>Most of the map is boring, which is the good news. Three rows are not:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Concern</th><th>Python</th><th>TypeScript</th><th>Why it is not a swap</th></tr></thead><tbody><tr><td>Validation</td><td><code>pydantic</code></td><td><code>zod</code></td><td>The schema is the source. The type is generated from it, not the reverse</td></tr><tr><td>Type check</td><td><code>mypy</code></td><td>TypeScript (<code>pnpm typecheck</code>)</td><td>Both check source without validating data that arrives at runtime</td></tr><tr><td>Job queue</td><td><code>celery</code> + Redis</td><td><code>bullmq</code> (Redis-backed queue) or SQL</td><td>Postgres can implement an at-least-once queue. You may not need a broker</td></tr></tbody></table>
+<p>The companion uses four libraries worth explaining.</p>
+<h3 id="hono-for-the-http-layer">Hono for the HTTP layer</h3>
+<p>Express and Fastify are Node-focused alternatives. <a href="https://hono.dev/docs/concepts/web-standard">Hono uses the Web-standard
+<code>Request</code> and <code>Response</code> APIs</a> and
+provides adapters for Node and serverless runtimes. That portability is useful
+for this small streaming API, so I chose Hono.</p>
+<h3 id="drizzle-for-sql">Drizzle for SQL</h3>
+<p><a href="https://orm.drizzle.team/docs/overview">Drizzle</a> keeps the schema in TypeScript
+and does not require a client-generation step. It also makes raw SQL available
+when the query builder cannot express a Postgres clause cleanly. I would choose
+Prisma instead when its generated client and surrounding tooling fit the team
+better.</p>
+<h3 id="biome-for-linting-and-formatting">Biome for linting and formatting</h3>
+<p><a href="https://biomejs.dev/guides/getting-started/">Biome</a> handles linting, formatting,
+and import sorting with one binary and one configuration file. Keep ESLint when
+the project depends on custom rules that Biome does not provide.</p>
+<h3 id="vitest-for-tests">Vitest for tests</h3>
+<p><a href="https://vitest.dev/guide/">Vitest</a> runs the companion’s <code>.ts</code> tests without
+separate transform configuration.</p>
+<hr>
+<h2 id="read-the-typescript-syntax-used-below">Read the TypeScript syntax used below</h2>
+<p>Keep this table beside the service examples for reference.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>TypeScript</th><th>Python / note</th></tr></thead><tbody><tr><td><code>(x) => expression</code></td><td>anonymous function with an expression body, similar to <code>lambda x: expression</code></td></tr><tr><td><code>(x) => { statements }</code></td><td>anonymous function with a statement body</td></tr><tr><td><code>async (x) => { statements }</code></td><td>async anonymous function</td></tr><tr><td><code>const { model, seqLen } = request</code></td><td>extract the <code>model</code> and <code>seqLen</code> properties from <code>request</code></td></tr><tr><td><code>const [first] = xs</code></td><td><code>first = xs[0]</code>. It yields <code>undefined</code>, not <code>IndexError</code>, when empty</td></tr><tr><td><code>{ type: "error", message }</code></td><td><code>{"type": "error", "message": message}</code>. A bare name becomes that field</td></tr><tr><td><code>`text ${x}`</code></td><td>f-string</td></tr><tr><td><code>cond ? a : b</code></td><td><code>a if cond else b</code></td></tr><tr><td><code>const</code> / <code>let</code></td><td>Both bind a name. <code>const</code> forbids rebinding, while <code>let</code> allows it</td></tr><tr><td><code>export</code></td><td>makes a name importable</td></tr><tr><td><code>switch</code> / <code>case</code></td><td><code>match</code>, except cases fall through unless they end in <code>break</code> or <code>return</code></td></tr><tr><td><code>for await</code></td><td>iterating an async generator</td></tr><tr><td><code>i++</code></td><td>increments and returns the old value</td></tr><tr><td><code>/^https?$/</code></td><td>a regex literal, no <code>re.compile</code> needed</td></tr><tr><td><code>T[]</code>, <code>Map&#x3C;K, V></code></td><td><code>list[T]</code>, <code>dict[K, V]</code></td></tr></tbody></table>
+<p>Use <code>const</code> unless the binding must change. Use <code>let</code> for a counter,
+accumulator, or another binding you will reassign.</p>
+<h3 id="a-short-enum-translation">A short enum translation</h3>
+<p>For string-valued states, this repository uses an object plus an inferred
+string-union type:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> Status</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> { Queued: </span><span style="color:#A5D6FF">"queued"</span><span style="color:#E6EDF3">, Running: </span><span style="color:#A5D6FF">"running"</span><span style="color:#E6EDF3"> } </span><span style="color:#FF7B72">as</span><span style="color:#FF7B72"> const</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#FF7B72">type</span><span style="color:#FFA657"> Status</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">typeof</span><span style="color:#E6EDF3"> Status)[</span><span style="color:#FF7B72">keyof</span><span style="color:#FF7B72"> typeof</span><span style="color:#E6EDF3"> Status]; </span><span style="color:#8B949E">// "queued" | "running"</span></span></code></pre>
+<p>The object provides <code>Status.Queued</code> while the program runs. The <code>type</code> line
+allows only <code>"queued"</code> or <code>"running"</code> during type checking. Together they fill
+the two roles of this Python declaration:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> Status</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">str</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">Enum</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#79C0FF">    QUEUED</span><span style="color:#FF7B72"> =</span><span style="color:#A5D6FF"> "queued"</span></span>
+<span class="line"><span style="color:#79C0FF">    RUNNING</span><span style="color:#FF7B72"> =</span><span style="color:#A5D6FF"> "running"</span></span></code></pre>
+<p>You only need to recognize the pattern. <code>as const</code> keeps the object’s values as
+the exact strings rather than widening them to any <code>string</code>.</p>
+<hr>
+<h2 id="the-seven-semantic-differences-that-cost-time">The seven semantic differences that cost time</h2>
+<p>The syntax table gets you through the examples. These semantic differences are
+where Python habits cause bugs.</p>
+<h3 id="1-empty-arrays-and-objects-are-truthy">1. Empty arrays and objects are truthy</h3>
+<p>Python’s “empty container is falsy” is the
+habit that transfers worst. <code>if (results)</code> is true for an empty array. Write
+<code>if (results.length)</code>.</p>
+<h3 id="2-null-and-undefined-are-different">2. <code>null</code> and <code>undefined</code> are different</h3>
+<p><code>null</code> usually marks a deliberate absence. <code>undefined</code> usually means that a
+value is missing or unassigned, although code can assign it explicitly. Library
+code returns <code>undefined</code> constantly. The difference bites when you write a
+default. <code>||</code> substitutes the right side whenever the left side is falsy. That
+includes <code>0</code>, <code>""</code>, and <code>false</code>. <code>??</code> substitutes only for <code>null</code> and
+<code>undefined</code>. Thus, <code>0 || 10</code> is <code>10</code>, while <code>0 ?? 10</code> is <code>0</code>. That difference is
+how a batch size of zero silently becomes ten.</p>
+<h3 id="3-a-catch-block-receives-unknown">3. A catch block receives <code>unknown</code></h3>
+<p>There is no <code>except ValueError:</code>. One <code>catch</code> block gets everything. Because
+JavaScript lets you throw a
+string, a number, or <code>null</code>, TypeScript types the caught value as <code>unknown</code>, its
+“could be literally anything” type under <code>strict</code>. The companion enables
+<code>strict</code>, and new projects generally should. To inspect the error, narrow the
+value first:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">try</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">    await</span><span style="color:#D2A8FF"> risky</span><span style="color:#E6EDF3">();</span></span>
+<span class="line"><span style="color:#E6EDF3">} </span><span style="color:#FF7B72">catch</span><span style="color:#E6EDF3"> (error) {</span></span>
+<span class="line"><span style="color:#8B949E">    // `error` is `unknown` until you prove otherwise. This line is the</span></span>
+<span class="line"><span style="color:#8B949E">    // TypeScript equivalent of `except ValueError as e:` and it is not</span></span>
+<span class="line"><span style="color:#8B949E">    // optional.</span></span>
+<span class="line"><span style="color:#FF7B72">    const</span><span style="color:#79C0FF"> message</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> error </span><span style="color:#FF7B72">instanceof</span><span style="color:#FFA657"> Error</span><span style="color:#FF7B72"> ?</span><span style="color:#E6EDF3"> error.message </span><span style="color:#FF7B72">:</span><span style="color:#D2A8FF"> String</span><span style="color:#E6EDF3">(error);</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
+<h3 id="4-promises-start-immediately">4. Promises start immediately</h3>
+<p>Calling an <code>async</code> function starts executing its body and returns a promise. A
+Python coroutine object does nothing until you await or schedule it.
+<code>Promise.all</code> is close to <code>asyncio.gather</code>. <code>Promise.allSettled</code> is close to
+<code>gather(..., return_exceptions=True)</code>, except each result is wrapped as
+<code>{ status, value }</code> or <code>{ status, reason }</code>.</p>
+<p>Node owns runtime scheduling. It keeps the process alive while active handles or
+requests, such as timers and sockets, still exist. An ordinary pending promise
+alone does not keep Node alive. You do not wrap the program in <code>asyncio.run</code>.
+In an ES module, you can use <code>await</code> at the top level when startup must wait for
+an async operation.</p>
+<h3 id="5-javascript-has-one-ordinary-numeric-type">5. JavaScript has one ordinary numeric type</h3>
+<p>JavaScript’s <code>number</code> type stores values as 64-bit floating-point numbers, roughly
+the same as Python’s <code>float</code>. The technical standard for this format is called
+IEEE 754. Decimal values are approximate, so <code>0.1 + 0.2</code> is not exactly <code>0.3</code>, and
+integers remain exact only up to <code>2**53 - 1</code>, or <code>9,007,199,254,740,991</code>.</p>
+<p>Keep 64-bit IDs as strings at service boundaries. Converting a Postgres <code>bigint</code>
+to a JavaScript <code>number</code> can round it. For larger exact integers, JavaScript
+provides the separate <code>BigInt</code> type, which does not mix with ordinary numbers.</p>
+<h3 id="6-use-map-when-you-need-a-python-style-dictionary">6. Use <code>Map</code> when you need a Python-style dictionary</h3>
+<p>In JavaScript, <code>{}</code> creates an <strong>object</strong>. Objects usually represent records with
+named fields:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> request</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> { model: </span><span style="color:#A5D6FF">"gpt-5"</span><span style="color:#E6EDF3">, seqLen: </span><span style="color:#79C0FF">4096</span><span style="color:#E6EDF3"> };</span></span>
+<span class="line"><span style="color:#E6EDF3">console.</span><span style="color:#D2A8FF">log</span><span style="color:#E6EDF3">(request.model);</span></span></code></pre>
+<p>An object is not a clean key-value table like a Python <code>dict</code>. It inherits some
+names from JavaScript itself. This can produce a surprising result:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> tools</span><span style="color:#FF7B72">:</span><span style="color:#FFA657"> Record</span><span style="color:#E6EDF3">&#x3C;</span><span style="color:#79C0FF">string</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">unknown</span><span style="color:#E6EDF3">> </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {};</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">tools[</span><span style="color:#A5D6FF">"constructor"</span><span style="color:#E6EDF3">]; </span><span style="color:#8B949E">// a built-in function, not a missing value</span></span>
+<span class="line"><span style="color:#E6EDF3">Object.</span><span style="color:#D2A8FF">hasOwn</span><span style="color:#E6EDF3">(tools, </span><span style="color:#A5D6FF">"constructor"</span><span style="color:#E6EDF3">); </span><span style="color:#8B949E">// false</span></span></code></pre>
+<p>If an external string selects a field from an object, call <code>Object.hasOwn</code> before
+reading it. If you need a general-purpose dictionary, use <code>Map</code>. <code>Map</code> is closer to
+Python’s <code>dict</code>: a key exists only when your code adds it.</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> tools</span><span style="color:#FF7B72"> =</span><span style="color:#FF7B72"> new</span><span style="color:#D2A8FF"> Map</span><span style="color:#E6EDF3">&#x3C;</span><span style="color:#79C0FF">string</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">unknown</span><span style="color:#E6EDF3">>();</span></span>
+<span class="line"><span style="color:#E6EDF3">tools.</span><span style="color:#D2A8FF">get</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"constructor"</span><span style="color:#E6EDF3">); </span><span style="color:#8B949E">// undefined</span></span></code></pre>
+<h3 id="7-include-the-extension-in-relative-imports">7. Include the extension in relative imports</h3>
+<p>A JavaScript source file that shares code with other files is called a <strong>module</strong>.
+This project uses the modern module format, <strong>ES modules</strong>, usually shortened to
+<strong>ESM</strong>. ES stands for ECMAScript, the formal name of the JavaScript language. In
+practice, ESM is the <code>import</code> and <code>export</code> syntax used throughout this project.</p>
+<p>For a relative import, Node requires the exact filename. It will not guess whether
+<code>./env</code> means <code>./env.ts</code> or <code>./env.js</code>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> { loadEnv } </span><span style="color:#FF7B72">from</span><span style="color:#A5D6FF"> "./env.ts"</span><span style="color:#E6EDF3">;</span></span></code></pre>
+<p>Imports from installed or workspace packages still use the package name, with no
+file extension:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> { z } </span><span style="color:#FF7B72">from</span><span style="color:#A5D6FF"> "zod"</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> { runAgent } </span><span style="color:#FF7B72">from</span><span style="color:#A5D6FF"> "@agent/core"</span><span style="color:#E6EDF3">;</span></span></code></pre>
+<hr>
+<h2 id="zod-is-pydantic-with-the-arrow-reversed">Zod is pydantic with the arrow reversed</h2>
+<p>In pydantic you declare a class and get a validator. In Zod you declare a
+validator and derive the type from it. Same single source of truth, opposite
+direction.</p>
+<p>From <a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/schemas/src/env.ts"><code>packages/schemas/src/env.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> { z } </span><span style="color:#FF7B72">from</span><span style="color:#A5D6FF"> "zod"</span><span style="color:#E6EDF3">; </span><span style="color:#8B949E">// `z` is Zod's whole API, the way `pd` is pandas</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> EnvSchema</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> z.</span><span style="color:#D2A8FF">object</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">    PORT: z.coerce.</span><span style="color:#D2A8FF">number</span><span style="color:#E6EDF3">().</span><span style="color:#D2A8FF">int</span><span style="color:#E6EDF3">().</span><span style="color:#D2A8FF">positive</span><span style="color:#E6EDF3">().</span><span style="color:#D2A8FF">default</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">8080</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#8B949E">    // See the note below: a bare z.url() would accept "localhost:8000".</span></span>
+<span class="line"><span style="color:#E6EDF3">    OPENAI_BASE_URL: z</span></span>
+<span class="line"><span style="color:#E6EDF3">        .</span><span style="color:#D2A8FF">url</span><span style="color:#E6EDF3">({ protocol:</span><span style="color:#A5D6FF"> /</span><span style="color:#FF7B72">^</span><span style="color:#A5D6FF">https</span><span style="color:#FF7B72">?$</span><span style="color:#A5D6FF">/</span><span style="color:#E6EDF3"> })</span></span>
+<span class="line"><span style="color:#E6EDF3">        .</span><span style="color:#D2A8FF">default</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"https://api.openai.com/v1"</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#E6EDF3">    DATABASE_URL: z.</span><span style="color:#D2A8FF">string</span><span style="color:#E6EDF3">().</span><span style="color:#D2A8FF">optional</span><span style="color:#E6EDF3">(),</span></span>
+<span class="line"><span style="color:#E6EDF3">});</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">export</span><span style="color:#FF7B72"> type</span><span style="color:#FFA657"> Env</span><span style="color:#FF7B72"> =</span><span style="color:#FFA657"> z</span><span style="color:#E6EDF3">.</span><span style="color:#FFA657">infer</span><span style="color:#E6EDF3">&#x3C;</span><span style="color:#FF7B72">typeof</span><span style="color:#E6EDF3"> EnvSchema>;</span></span></code></pre>
+<p><code>z.infer&#x3C;typeof EnvSchema></code> reads a static type back out of the runtime schema.
+<code>z.coerce.number()</code> handles the fact that each defined value in <code>process.env</code>
+(Node’s <code>os.environ</code>) is a string. It serves the same role as pydantic’s numeric
+settings coercion, though the exact strings each accepts differ. This follows
+the <code>pydantic-settings</code> pattern and runs once at startup. An invalid environment
+then produces a readable startup error instead of a <code>TypeError</code> inside a
+handler.</p>
+<p>A bare <code>z.url()</code> accepts <code>localhost:8000</code>. The URL standard treats everything
+before the first colon as the scheme. It therefore reads <code>localhost:</code> as a
+protocol named “localhost” and accepts the string. The value then reaches the
+HTTP client and fails with less context. Schema validation moves failures
+earlier, but it will enforce a permissive schema if that is what you wrote.</p>
+<p>Zod 4 also ships <code>z.toJSONSchema</code>, so this project does not need the
+<code>zod-to-json-schema</code> dependency common in older tutorials. That matters once one
+schema has to feed three consumers, which is what the “One tool, three
+consumers” section below is about.</p>
+<hr>
+<h2 id="the-service">The service</h2>
+<p><img src="/blog/assets/2026-08-15-typescript-for-python-ml-engineers/workspace-layout.svg" alt="A pnpm workspace has packages and apps. The packages contain schemas, agent code, and observability. One schema feeds the hand-written loop, the Vercel AI SDK, and the MCP server. The apps contain a Hono API, a worker, and an MCP server. The API and worker share one Postgres runs table."></p>
+<p>The demo service sizes LLM deployments. One tool looks up a model’s architecture
+constants. The other estimates its KV-cache footprint: the GPU memory used to
+hold attention keys and values for in-flight requests.
+Both tools are deliberately dull arithmetic. They need no network and give the
+same answer every time. That makes the service testable without an API key. The
+KV-cache estimator is also published over the Model Context Protocol (MCP), so
+other AI clients can call it.</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="text"><code><span class="line"><span>typescript-agent-service/</span></span>
+<span class="line"><span>├── apps/</span></span>
+<span class="line"><span>│   ├── api/           @agent/api: Hono API, streams Server-Sent Events (below)</span></span>
+<span class="line"><span>│   ├── worker/        polls Postgres for long-running jobs</span></span>
+<span class="line"><span>│   └── mcp/           MCP server: exposes one tool to outside AI clients</span></span>
+<span class="line"><span>├── packages/</span></span>
+<span class="line"><span>│   ├── schemas/       package name @agent/schemas: env, API, and tool schemas</span></span>
+<span class="line"><span>│   ├── agent-core/    package name @agent/core: the loop (twice), tools, storage</span></span>
+<span class="line"><span>│   └── observability/ Pino logging, OpenTelemetry tracing</span></span>
+<span class="line"><span>├── pnpm-workspace.yaml</span></span>
+<span class="line"><span>└── package.json</span></span></code></pre>
+<p><code>pnpm-workspace.yaml</code> is the file that declares the workspace. Internal packages
+get a scoped name like <code>@agent/core</code>, where the <code>@agent/</code> prefix is a naming
+convention, not a language feature. Each package declares its public entry point
+in <code>package.json</code>. That package boundary does not depend on which command starts
+the application.</p>
+<p>This private workspace points those entries at <code>.ts</code> source because every
+consumer is part of the same repository. Public npm packages normally publish
+JavaScript plus <code>.d.ts</code> type declarations so ordinary Node consumers do not
+need the package author’s TypeScript runner or build setup.</p>
+<hr>
+<h2 id="write-the-tool-loop-by-hand-once">Write the tool loop by hand, once</h2>
+<p><img src="/blog/assets/2026-08-15-typescript-for-python-ml-engineers/agent-loop-event-stream.svg" alt="One step of an agent loop. The model streams chunks. The loop assembles tool calls by index, parses their JSON, and validates them with Zod. Valid calls run the tool. Invalid calls produce an error that the model reads before the loop repeats. The loop yields typed AgentEvent values. The HTTP route emits one SSE frame per event, accumulates text, and calls storage after the stream. Tests consume the generator separately."></p>
+<p>Tool-calling agent frameworks wrap the same basic loop:</p>
+<ol>
+<li>Call the model with tool definitions.</li>
+<li>Validate and run the requested tools.</li>
+<li>Append the results to the messages.</li>
+<li>Call the model again.</li>
+</ol>
+<p>Write this loop once. Framework behavior then becomes an engineering choice you
+can defend.</p>
+<p>The loop is an <code>async function*</code>, an async generator, the exact shape of
+Python’s <code>async def</code> with <code>yield</code>. The HTTP route iterates that generator, turns
+each event into a Server-Sent Events frame, and accumulates the text. After the
+stream ends, the route calls <code>storage.createRun</code> once with the final text. Tests
+invoke the loop separately and collect its events into an array. An SSE frame is
+one chunk of a long-lived HTTP response. The section below explains the format.</p>
+<p>From <a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/agent-core/src/loop.ts"><code>packages/agent-core/src/loop.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">let</span><span style="color:#E6EDF3"> text </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> ""</span><span style="color:#E6EDF3">; </span><span style="color:#8B949E">// the assistant text produced during this model step</span></span>
+<span class="line"><span style="color:#8B949E">// Keyed by the `index` field, because a streamed response interleaves</span></span>
+<span class="line"><span style="color:#8B949E">// fragments of several parallel tool calls and only `index` is present</span></span>
+<span class="line"><span style="color:#8B949E">// on every fragment. `id` and `name` arrive once, `arguments` arrives</span></span>
+<span class="line"><span style="color:#8B949E">// in pieces. `a?.b` below reads `b` only if `a` exists, and gives back</span></span>
+<span class="line"><span style="color:#8B949E">// `undefined` instead of throwing if it doesn't.</span></span>
+<span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> partial</span><span style="color:#FF7B72"> =</span><span style="color:#FF7B72"> new</span><span style="color:#D2A8FF"> Map</span><span style="color:#E6EDF3">&#x3C;</span><span style="color:#79C0FF">number</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">PartialToolCall</span><span style="color:#E6EDF3">>();</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">for</span><span style="color:#FF7B72"> await</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> chunk</span><span style="color:#FF7B72"> of</span><span style="color:#E6EDF3"> stream) {</span></span>
+<span class="line"><span style="color:#FF7B72">    const</span><span style="color:#79C0FF"> choice</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> chunk.choices[</span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">];</span></span>
+<span class="line"><span style="color:#FF7B72">    if</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">!</span><span style="color:#E6EDF3">choice) </span><span style="color:#FF7B72">continue</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    if</span><span style="color:#E6EDF3"> (choice.delta.content) {</span></span>
+<span class="line"><span style="color:#E6EDF3">        text </span><span style="color:#FF7B72">+=</span><span style="color:#E6EDF3"> choice.delta.content;</span></span>
+<span class="line"><span style="color:#FF7B72">        yield</span><span style="color:#E6EDF3"> { type: </span><span style="color:#A5D6FF">"text"</span><span style="color:#E6EDF3">, delta: choice.delta.content };</span></span>
+<span class="line"><span style="color:#E6EDF3">    }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    for</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> fragment</span><span style="color:#FF7B72"> of</span><span style="color:#E6EDF3"> choice.delta.tool_calls </span><span style="color:#FF7B72">??</span><span style="color:#E6EDF3"> []) {</span></span>
+<span class="line"><span style="color:#FF7B72">        const</span><span style="color:#79C0FF"> slot</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> partial.</span><span style="color:#D2A8FF">get</span><span style="color:#E6EDF3">(fragment.index) </span><span style="color:#FF7B72">??</span><span style="color:#E6EDF3"> { id: </span><span style="color:#A5D6FF">""</span><span style="color:#E6EDF3">, name: </span><span style="color:#A5D6FF">""</span><span style="color:#E6EDF3">, args: </span><span style="color:#A5D6FF">""</span><span style="color:#E6EDF3"> };</span></span>
+<span class="line"><span style="color:#FF7B72">        if</span><span style="color:#E6EDF3"> (fragment.id) slot.id </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> fragment.id;</span></span>
+<span class="line"><span style="color:#FF7B72">        if</span><span style="color:#E6EDF3"> (fragment.function?.name) slot.name </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> fragment.function.name;</span></span>
+<span class="line"><span style="color:#FF7B72">        if</span><span style="color:#E6EDF3"> (fragment.function?.arguments) slot.args </span><span style="color:#FF7B72">+=</span><span style="color:#E6EDF3"> fragment.function.arguments;</span></span>
+<span class="line"><span style="color:#E6EDF3">        partial.</span><span style="color:#D2A8FF">set</span><span style="color:#E6EDF3">(fragment.index, slot);</span></span>
+<span class="line"><span style="color:#E6EDF3">    }</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
+<p>The loop-local <code>text</code> variable holds one model step. The loop uses it in the
+assistant message for the next step or in the final <code>done</code> event. It is not the
+route-level accumulator that is later persisted.</p>
+<p>The <code>partial</code> map is the part frameworks hide. The SDK exposes string fragments
+of the function arguments, and they may split the serialized JSON at arbitrary
+positions. Several parallel calls can also interleave. The repo has a test that
+splits <code>{"model":"llama-3.1-8b",...}</code> across four chunks.</p>
+<p>The second thing worth writing yourself is what happens when validation fails:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#8B949E">// `tool.parse` is this repo's wrapper, not Zod's. Zod's own `.parse` throws and</span></span>
+<span class="line"><span style="color:#8B949E">// `.safeParse` returns `{ success, data, error }`; this returns</span></span>
+<span class="line"><span style="color:#8B949E">// `{ ok: true, value }` on success and `{ ok: false, error }` on failure, so no</span></span>
+<span class="line"><span style="color:#8B949E">// caller has to catch.</span></span>
+<span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> parsed</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> tool.</span><span style="color:#D2A8FF">parse</span><span style="color:#E6EDF3">(raw);</span></span>
+<span class="line"><span style="color:#FF7B72">if</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">!</span><span style="color:#E6EDF3">parsed.ok) {</span></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#E6EDF3">        ok: </span><span style="color:#79C0FF">false</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">        value: { error: </span><span style="color:#A5D6FF">`Invalid arguments: ${</span><span style="color:#E6EDF3">parsed</span><span style="color:#A5D6FF">.</span><span style="color:#E6EDF3">error</span><span style="color:#A5D6FF">}`</span><span style="color:#E6EDF3"> },</span></span>
+<span class="line"><span style="color:#E6EDF3">        parsedArgs: raw,</span></span>
+<span class="line"><span style="color:#E6EDF3">    };</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
+<p>Before execution, the lookup can miss the tool, <code>JSON.parse</code> can reject the
+arguments, or Zod can reject their shape. Each failure becomes a message the
+model reads. During execution, an expected <code>ToolError</code> also becomes a tool
+result so the model can correct its call. An unexpected exception propagates to
+the HTTP error path instead of being presented as a domain failure.
+<code>z.prettifyError</code> turns Zod’s issue tree into a message the model can act on
+instead of a stack trace.</p>
+<p><a href="https://developers.openai.com/api/docs/guides/structured-outputs"><code>strict: true</code> on an OpenAI function
+definition</a>
+asks the provider to constrain decoding to the schema. It has no relation to
+TypeScript’s <code>strict</code> tsconfig flag. This resembles vLLM’s guided decoding,
+although supported schemas and enforcement details differ. It removes one
+failure mode, but a self-hosted endpoint may ignore the flag. The arguments must
+also survive <code>JSON.parse</code>.</p>
+<p>The loop calls <code>/chat/completions</code> because the companion targets
+OpenAI-compatible servers. <a href="https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/">vLLM</a>,
+<a href="https://docs.sglang.io/docs/basic_usage/openai_api_completions">SGLang</a>, and
+<a href="https://docs.ollama.com/api/openai-compatibility">Ollama</a> document that
+endpoint, so <code>OPENAI_BASE_URL</code> can point the same client at any of them. Their
+Responses API coverage differs and changes by release. If you control both
+sides, check the server’s current compatibility page before choosing between
+the two APIs.</p>
+<hr>
+<h2 id="then-switch-to-the-ai-sdk-and-know-what-you-traded">Then switch to the AI SDK, and know what you traded</h2>
+<p>For later projects, I would use the Vercel AI SDK. The companion implements the
+same agent twice so the trade is visible. Both versions emit the same
+<code>AgentEvent</code> stream, so the HTTP layer cannot tell them apart.</p>
+<p>The companion pins AI SDK 7.0.42 in
+<a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/agent-core/package.json"><code>packages/agent-core/package.json</code></a>.
+Its framework implementation lives in
+<a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/agent-core/src/loop-ai-sdk.ts"><code>packages/agent-core/src/loop-ai-sdk.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> result</span><span style="color:#FF7B72"> =</span><span style="color:#D2A8FF"> streamText</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">    model: provider.</span><span style="color:#D2A8FF">chatModel</span><span style="color:#E6EDF3">(options.model),</span></span>
+<span class="line"><span style="color:#E6EDF3">    prompt: options.message,</span></span>
+<span class="line"><span style="color:#E6EDF3">    tools: aiSdkTools,          </span><span style="color:#8B949E">// Zod schemas passed straight through</span></span>
+<span class="line"><span style="color:#E6EDF3">    stopWhen: </span><span style="color:#D2A8FF">stepCountIs</span><span style="color:#E6EDF3">(options.maxSteps </span><span style="color:#FF7B72">??</span><span style="color:#79C0FF"> 6</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#E6EDF3">});</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">for</span><span style="color:#FF7B72"> await</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> part</span><span style="color:#FF7B72"> of</span><span style="color:#E6EDF3"> result.fullStream) {</span></span>
+<span class="line"><span style="color:#FF7B72">    switch</span><span style="color:#E6EDF3"> (part.type) {</span></span>
+<span class="line"><span style="color:#FF7B72">        case</span><span style="color:#A5D6FF"> "text-delta"</span><span style="color:#E6EDF3">: </span><span style="color:#FF7B72">yield</span><span style="color:#E6EDF3"> { type: </span><span style="color:#A5D6FF">"text"</span><span style="color:#E6EDF3">, delta: part.text }; </span><span style="color:#FF7B72">break</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#FF7B72">        case</span><span style="color:#A5D6FF"> "tool-call"</span><span style="color:#E6EDF3">:  </span><span style="color:#FF7B72">yield</span><span style="color:#E6EDF3"> { type: </span><span style="color:#A5D6FF">"tool_call"</span><span style="color:#E6EDF3">, callId: part.toolCallId, </span><span style="color:#8B949E">/* ... */</span><span style="color:#E6EDF3"> }; </span><span style="color:#FF7B72">break</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#8B949E">        // ...</span></span>
+<span class="line"><span style="color:#E6EDF3">    }</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
+<p>The SDK removes five pieces of application code:</p>
+<ul>
+<li>the fragment accumulator</li>
+<li><code>JSON.parse</code> and its error path</li>
+<li>the call that runs Zod over the parsed arguments</li>
+<li>provider-specific message assembly</li>
+<li>the step counter</li>
+</ul>
+<p><code>stopWhen</code> accepts several conditions, including a step limit or a specific
+tool call. The <code>for await</code> loop does not change when the stop policy changes.</p>
+<p>What you give up is direct control over validation failure. The hand-written
+loop decides what the model sees after a rejected call. In the SDK version, you
+configure that behavior through <code>repairToolCall</code>.
+The trade runs the other way too. In the SDK version, a provider change is
+localized to the provider adapter. It still requires the matching provider
+package, credentials, configuration, and integration tests. In the raw loop,
+provider-specific request and stream handling are your code to change.</p>
+<p>I hand-write the loop on the first project and use the SDK on later ones. You
+pay for that lesson once. The alternative is reading a framework’s internals
+for the first time while it fails in production.</p>
+<hr>
+<h2 id="streaming-over-http-hono-and-sse">Streaming over HTTP: Hono and SSE</h2>
+<p>Hono routes read like FastAPI routes. The one addition is <code>zValidator</code>, which
+does the job FastAPI gets for free from the type annotations on a handler’s
+signature. The <code>c</code> in the handler below is Hono’s request context, the object
+FastAPI splits across your parameters. <code>deps</code> is a bag of dependencies the app
+is constructed with instead of importing them directly. <code>runAgent</code> is one of
+them, and the testing section shows what that buys you.</p>
+<p>From <a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/apps/api/src/app.ts"><code>apps/api/src/app.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#E6EDF3">app.</span><span style="color:#D2A8FF">post</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"/v1/chat"</span><span style="color:#E6EDF3">, </span><span style="color:#D2A8FF">zValidator</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"json"</span><span style="color:#E6EDF3">, ChatRequestSchema), (</span><span style="color:#FFA657">c</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">    const</span><span style="color:#79C0FF"> body</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> c.req.</span><span style="color:#D2A8FF">valid</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"json"</span><span style="color:#E6EDF3">);</span></span>
+<span class="line"><span style="color:#FF7B72">    const</span><span style="color:#79C0FF"> log</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> deps.logger.</span><span style="color:#D2A8FF">child</span><span style="color:#E6EDF3">({ route: </span><span style="color:#A5D6FF">"chat"</span><span style="color:#E6EDF3"> });</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#D2A8FF"> streamSSE</span><span style="color:#E6EDF3">(c, </span><span style="color:#FF7B72">async</span><span style="color:#E6EDF3"> (</span><span style="color:#FFA657">stream</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">        let</span><span style="color:#E6EDF3"> text </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> ""</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#FF7B72">        try</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">            await</span><span style="color:#D2A8FF"> withSpan</span><span style="color:#E6EDF3">(</span></span>
+<span class="line"><span style="color:#A5D6FF">                "agent.run"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">                { </span><span style="color:#A5D6FF">"agent.max_steps"</span><span style="color:#E6EDF3">: body.maxSteps },</span></span>
+<span class="line"><span style="color:#FF7B72">                async</span><span style="color:#E6EDF3"> () </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">                    for</span><span style="color:#FF7B72"> await</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> event</span><span style="color:#FF7B72"> of</span><span style="color:#E6EDF3"> deps.</span><span style="color:#D2A8FF">runAgent</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">                        message: body.message,</span></span>
+<span class="line"><span style="color:#E6EDF3">                        maxSteps: body.maxSteps,</span></span>
+<span class="line"><span style="color:#E6EDF3">                    })) {</span></span>
+<span class="line"><span style="color:#FF7B72">                        if</span><span style="color:#E6EDF3"> (event.type </span><span style="color:#FF7B72">===</span><span style="color:#A5D6FF"> "text"</span><span style="color:#E6EDF3">) text </span><span style="color:#FF7B72">+=</span><span style="color:#E6EDF3"> event.delta;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">                        await</span><span style="color:#E6EDF3"> stream.</span><span style="color:#D2A8FF">writeSSE</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">                            event: event.type,</span></span>
+<span class="line"><span style="color:#E6EDF3">                            data: </span><span style="color:#79C0FF">JSON</span><span style="color:#E6EDF3">.</span><span style="color:#D2A8FF">stringify</span><span style="color:#E6EDF3">(event),</span></span>
+<span class="line"><span style="color:#E6EDF3">                        });</span></span>
+<span class="line"><span style="color:#E6EDF3">                    }</span></span>
+<span class="line"><span style="color:#E6EDF3">                },</span></span>
+<span class="line"><span style="color:#E6EDF3">            );</span></span>
+<span class="line"><span style="color:#E6EDF3">        } </span><span style="color:#FF7B72">catch</span><span style="color:#E6EDF3"> (error) {</span></span>
+<span class="line"><span style="color:#E6EDF3">            log.</span><span style="color:#D2A8FF">error</span><span style="color:#E6EDF3">({ err: error }, </span><span style="color:#A5D6FF">"agent run failed"</span><span style="color:#E6EDF3">);</span></span>
+<span class="line"><span style="color:#FF7B72">            await</span><span style="color:#E6EDF3"> stream.</span><span style="color:#D2A8FF">writeSSE</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">                event: </span><span style="color:#A5D6FF">"error"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">                data: </span><span style="color:#79C0FF">JSON</span><span style="color:#E6EDF3">.</span><span style="color:#D2A8FF">stringify</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">                    type: </span><span style="color:#A5D6FF">"error"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">                    message: </span><span style="color:#A5D6FF">"Agent run failed"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">                }),</span></span>
+<span class="line"><span style="color:#E6EDF3">            });</span></span>
+<span class="line"><span style="color:#FF7B72">            return</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#E6EDF3">        }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">        await</span><span style="color:#E6EDF3"> deps.storage.</span><span style="color:#D2A8FF">createRun</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">            kind: </span><span style="color:#A5D6FF">"chat"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">            status: </span><span style="color:#A5D6FF">"succeeded"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">            input: { message: body.message },</span></span>
+<span class="line"><span style="color:#E6EDF3">            output: { text },</span></span>
+<span class="line"><span style="color:#E6EDF3">        });</span></span>
+<span class="line"><span style="color:#E6EDF3">    });</span></span>
+<span class="line"><span style="color:#E6EDF3">});</span></span></code></pre>
+<p><code>zValidator</code> validates the body and gives <code>c.req.valid("json")</code> the type the
+schema produces. Skip it and the body is typed <code>any</code>, TypeScript’s opt-out,
+where every property access compiles and nothing is checked. That disables the
+schema’s type-safety benefit.</p>
+<p>This route uses Server-Sent Events instead of WebSockets. The server keeps an
+HTTP response open while it writes <code>event: &#x3C;name></code> and <code>data: &#x3C;json></code> frames,
+then closes it after the final event. Traffic flows from server to client, which
+matches this agent stream. A WebSocket would add bidirectional messaging and a
+protocol upgrade that this route does not need.</p>
+<p>A midstream failure changes HTTP error reporting. Once the first frame has been
+sent with status 200, the server cannot replace that response with a 500. The
+<code>catch</code> block logs the caught error, sends a constant error event to the client,
+and returns. That return matters: only a successfully completed stream reaches
+<code>storage.createRun</code>.</p>
+<p>A test covers this path. A generator yields one text delta and then throws. The
+response remains 200, and its last frame is an <code>error</code> event with the constant
+message <code>Agent run failed</code>. The logger keeps the caught error for server-side
+diagnosis. Any client that only checks the status code reports success on a
+failed run.</p>
+<p><code>app.ts</code> makes two smaller decisions worth explaining. It treats <code>/healthz</code> as a
+liveness endpoint, so that route deliberately does not touch Postgres. A
+liveness failure during a database outage could restart every replica without
+repairing the dependency. Add a separate readiness check when the orchestrator
+must stop routing traffic to an instance that cannot reach Postgres. The error
+paths log the caught error but return a constant string. Echoing <code>error.message</code>
+into a response body is how connection strings end up in someone else’s
+browser.</p>
+<hr>
+<h2 id="the-celery-shaped-part-without-celery">The Celery-shaped part, without Celery</h2>
+<p>Long jobs do not belong in a request handler. The API inserts a row and returns 202. A worker claims the row.</p>
+<p>There is no Redis here, and no BullMQ. PostgreSQL documents <code>SKIP LOCKED</code> for
+<a href="https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE">multiple consumers of a queue-like table</a>.
+The clause gives this small service an at-least-once queue in one table. It is
+transactional with the rest of your writes, and it is one fewer service in
+<code>docker-compose.yml</code>.</p>
+<p>The claim query in
+<a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/agent-core/src/db/storage.ts"><code>packages/agent-core/src/db/storage.ts</code></a>
+is:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#E6EDF3"> [</span><span style="color:#79C0FF">candidate</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">=</span><span style="color:#FF7B72"> await</span><span style="color:#E6EDF3"> tx</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">select</span><span style="color:#E6EDF3">({ id: runs.id })</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">from</span><span style="color:#E6EDF3">(runs)</span></span>
+<span class="line"><span style="color:#8B949E">    // The real query also picks up rows whose lock went stale; trimmed here.</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">where</span><span style="color:#E6EDF3">(</span><span style="color:#D2A8FF">and</span><span style="color:#E6EDF3">(</span><span style="color:#D2A8FF">eq</span><span style="color:#E6EDF3">(runs.kind, kind), </span><span style="color:#D2A8FF">eq</span><span style="color:#E6EDF3">(runs.status, </span><span style="color:#A5D6FF">"queued"</span><span style="color:#E6EDF3">)))</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">orderBy</span><span style="color:#E6EDF3">(runs.createdAt)</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">limit</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#8B949E">    // `.for()` exists but is undocumented; SKIP LOCKED rides in its second</span></span>
+<span class="line"><span style="color:#8B949E">    // argument.</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">for</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"update"</span><span style="color:#E6EDF3">, { skipLocked: </span><span style="color:#79C0FF">true</span><span style="color:#E6EDF3"> });</span></span></code></pre>
+<p>The row is locked for the transaction, and any concurrent worker running the
+same query skips it instead of blocking. Two simultaneous claims therefore do
+not receive the same non-stale row. An integration test fires two claims at once
+through <code>Promise.all</code> and asserts they return different rows. The naive version,
+<code>SELECT ... LIMIT 1</code> followed by <code>UPDATE</code>, fails that test: both transactions
+read the same row before either writes, so both start the same job.</p>
+<p>This is at-least-once execution, not exactly-once execution. The full query also
+reclaims a <code>running</code> row when its lock is more than five minutes old, and the
+demo worker does not renew that lease. A live job that runs longer than five
+minutes can therefore be claimed twice. Make jobs idempotent. For long-running
+work, add a lease heartbeat or set the stale-lock threshold above the maximum
+runtime.</p>
+<p><a href="https://github.com/taskforcesh/bullmq">Add BullMQ</a> when you need delayed jobs,
+repeatable schedules, priorities, rate limits, or a dashboard. I would make the
+same move from a database table to Celery in Python. Before that, Redis is one
+more service to run, monitor, and explain to whoever is on call.</p>
+<p>The worker re-validates what it reads from <code>jsonb</code>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#8B949E">// The row was validated on the way in, but it has been through a database.</span></span>
+<span class="line"><span style="color:#8B949E">// A stored row can outlive the schema version that accepted it.</span></span>
+<span class="line"><span style="color:#8B949E">// The job is a batch-size sweep. Zod's own `.parse` throws; the poll loop</span></span>
+<span class="line"><span style="color:#8B949E">// catches that and marks the run failed.</span></span>
+<span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> input</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> SweepRequestSchema.</span><span style="color:#D2A8FF">parse</span><span style="color:#E6EDF3">(run.input);</span></span></code></pre>
+<p>The test suite also feeds the worker a row whose <code>seqLen</code> is a string. The
+worker fails the run and keeps polling, instead of crashing and retrying the
+same poison row forever.</p>
+<p>CPU work exposes another Node constraint. A synchronous callback runs on the
+event-loop thread and is not preempted. A <code>for</code> loop grinding through arithmetic
+for two seconds blocks every request, timer, and liveness check on that process
+for two seconds. A tight loop inside an <code>async def</code> blocks asyncio in the same
+way. Both runtimes require you to offload CPU work explicitly.</p>
+<p><code>await setTimeout(0)</code> from <code>node:timers/promises</code> (the <code>node:</code> prefix means
+standard library, so <code>node:timers</code> is to Node what <code>os</code> is to Python) is
+<code>await asyncio.sleep(0)</code>. The sweep yields after each batch size so the worker
+process can service timers and other callbacks. Yielding does not make CPU work
+parallel. Node
+<a href="https://nodejs.org/api/worker_threads.html"><code>worker_threads</code></a> can execute
+JavaScript in parallel. For pure Python CPU work under the usual GIL-enabled
+CPython build, use a process pool rather than a thread pool. This service uses
+neither. Keep heavy numerics in Python where the supporting libraries already
+live, and move them off the API event loop.</p>
+<hr>
+<h2 id="one-tool-three-consumers">One tool, three consumers</h2>
+<p><code>EstimateKvCacheInput</code> has three consumers:</p>
+<ul>
+<li>The hand-written loop converts it with <code>z.toJSONSchema</code>.</li>
+<li>The AI SDK receives it unchanged.</li>
+<li>The MCP server publishes its shape.</li>
+</ul>
+<p>That reuse is why <code>packages/schemas</code> exists.</p>
+<p>From <a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/apps/mcp/src/index.ts"><code>apps/mcp/src/index.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#E6EDF3">server.</span><span style="color:#D2A8FF">registerTool</span><span style="color:#E6EDF3">(</span></span>
+<span class="line"><span style="color:#A5D6FF">    "estimate_kv_cache"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">    {</span></span>
+<span class="line"><span style="color:#E6EDF3">        description: </span><span style="color:#A5D6FF">"Estimate KV-cache VRAM in GiB for a served model..."</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#8B949E">        // A Zod object schema keeps the map of fields you passed in on</span></span>
+<span class="line"><span style="color:#8B949E">        // `.shape`. This SDK wants that map, not the schema wrapped around it.</span></span>
+<span class="line"><span style="color:#E6EDF3">        inputSchema: EstimateKvCacheInput.shape,</span></span>
+<span class="line"><span style="color:#E6EDF3">    },</span></span>
+<span class="line"><span style="color:#FF7B72">    async</span><span style="color:#E6EDF3"> ({ </span><span style="color:#FFA657">model</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">seqLen</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">batchSize</span><span style="color:#E6EDF3"> }) </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#8B949E">        /* ... */</span></span>
+<span class="line"><span style="color:#E6EDF3">    },</span></span>
+<span class="line"><span style="color:#E6EDF3">);</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">await</span><span style="color:#E6EDF3"> server.</span><span style="color:#D2A8FF">connect</span><span style="color:#E6EDF3">(</span><span style="color:#FF7B72">new</span><span style="color:#D2A8FF"> StdioServerTransport</span><span style="color:#E6EDF3">());</span></span></code></pre>
+<p>Two details matter before you connect a client. First, <strong>a server started this
+way uses its own stdin and stdout to communicate with the client.</strong> Each line is
+<a href="https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#stdio">a JSON-RPC message</a>.
+A stray <code>console.log</code>, the JavaScript equivalent of <code>print</code>, then corrupts a
+message. The client disconnects with a parse error that names no file. Send all
+diagnostics to stderr instead.</p>
+<p>Second, a domain failure should return <code>isError: true</code> with a message. The
+calling model can then correct the call, just as it can after invalid tool
+arguments in the agent loop.</p>
+<p>You can drive the server with <code>printf</code> and a pipe, which is worth doing once
+before you point a real client at it:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#79C0FF">printf</span><span style="color:#A5D6FF"> '%s\n'</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#A5D6FF">  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}'</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#A5D6FF">  '{"jsonrpc":"2.0","method":"notifications/initialized"}'</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#A5D6FF">  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"estimate_kv_cache","arguments":{"model":"llama-3.1-70b","seqLen":8192,"batchSize":4}}}'</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#FF7B72">  |</span><span style="color:#FFA657"> pnpm</span><span style="color:#79C0FF"> -s</span><span style="color:#A5D6FF"> mcp</span><span style="color:#8B949E">   # -s suppresses pnpm's own output so only JSON-RPC comes back</span></span></code></pre>
+<p>The probe matches the protocol version used by the companion README. For a real
+client, use the SDK rather than maintaining JSON-RPC messages by hand.</p>
+<hr>
+<h2 id="testing-an-agent-with-no-api-key">Testing an agent with no API key</h2>
+<p>Vitest fills pytest’s role, but the structure is different. <code>describe</code> groups
+related tests. <code>it</code> and <code>test</code> each define one test case. <code>test.each</code> is close to
+<code>parametrize</code>, <code>beforeEach</code> provides per-test setup, <code>vi.fn()</code> creates a mock
+function, and <code>describe.skipIf</code> conditionally skips a group.</p>
+<p>Agent tests depend on one decision: <code>runAgent</code> takes an OpenAI client as a
+parameter instead of constructing one. The fake is an object with a
+<code>chat.completions.create</code> method returning a scripted async iterable:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">function</span><span style="color:#D2A8FF"> fakeClient</span><span style="color:#E6EDF3">(</span><span style="color:#FFA657">scripts</span><span style="color:#FF7B72">:</span><span style="color:#FFA657"> Chunk</span><span style="color:#E6EDF3">[][])</span><span style="color:#FF7B72">:</span><span style="color:#FFA657"> OpenAI</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">    let</span><span style="color:#E6EDF3"> call </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> 0</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#E6EDF3">        chat: {</span></span>
+<span class="line"><span style="color:#E6EDF3">            completions: {</span></span>
+<span class="line"><span style="color:#D2A8FF">                create</span><span style="color:#E6EDF3">: </span><span style="color:#FF7B72">async</span><span style="color:#E6EDF3"> () </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">                    const</span><span style="color:#79C0FF"> script</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> scripts[call</span><span style="color:#FF7B72">++</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">??</span><span style="color:#E6EDF3"> [];</span></span>
+<span class="line"><span style="color:#8B949E">                    // Defines an async generator and calls it on the same</span></span>
+<span class="line"><span style="color:#8B949E">                    // line, so `create` hands back something you can</span></span>
+<span class="line"><span style="color:#8B949E">                    // `for await` over, which is the shape a real streaming</span></span>
+<span class="line"><span style="color:#8B949E">                    // response has.</span></span>
+<span class="line"><span style="color:#FF7B72">                    return</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">async</span><span style="color:#FF7B72"> function*</span><span style="color:#E6EDF3"> () {</span></span>
+<span class="line"><span style="color:#FF7B72">                        for</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> chunk</span><span style="color:#FF7B72"> of</span><span style="color:#E6EDF3"> script) </span><span style="color:#FF7B72">yield</span><span style="color:#E6EDF3"> chunk;</span></span>
+<span class="line"><span style="color:#E6EDF3">                    })();</span></span>
+<span class="line"><span style="color:#E6EDF3">                },</span></span>
+<span class="line"><span style="color:#E6EDF3">            },</span></span>
+<span class="line"><span style="color:#E6EDF3">        },</span></span>
+<span class="line"><span style="color:#8B949E">        // TypeScript refuses a direct cast between unrelated shapes, so you</span></span>
+<span class="line"><span style="color:#8B949E">        // launder it through `unknown` first. A lie to the compiler, confined</span></span>
+<span class="line"><span style="color:#8B949E">        // to one line in a test file, which is the only place it belongs.</span></span>
+<span class="line"><span style="color:#E6EDF3">    } </span><span style="color:#FF7B72">as</span><span style="color:#79C0FF"> unknown</span><span style="color:#FF7B72"> as</span><span style="color:#FFA657"> OpenAI</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
+<p>The tests split one JSON argument string across chunks and handle two tool calls
+in one response. They also cover invalid <code>batchSize</code>, malformed JSON, unknown
+tool names, and a model that keeps calling tools until <code>maxSteps</code> stops it. The
+test file runs in well under a second, with no network and no key.</p>
+<p>Integration tests against Postgres use
+<code>describe.skipIf(!process.env.DATABASE_URL)</code>, so <code>pnpm test</code> works on a fresh
+clone with no Postgres running, and CI turns them on by supplying the variable.
+The repo has 40 tests. Thirty-six run without Postgres or an API key.</p>
+<hr>
+<h2 id="log-structured-events-with-pino">Log structured events with Pino</h2>
+<p>Pino fills the same role as <code>structlog</code>: one JSON object per line, child
+loggers with bound fields, and explicit redaction. The companion configures it
+in <a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/observability/src/logger.ts"><code>packages/observability/src/logger.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> log</span><span style="color:#FF7B72"> =</span><span style="color:#D2A8FF"> pino</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">    redact: {</span></span>
+<span class="line"><span style="color:#E6EDF3">        paths: [</span></span>
+<span class="line"><span style="color:#A5D6FF">            "req.headers.authorization"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#A5D6FF">            "apiKey"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#A5D6FF">            "OPENAI_API_KEY"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#A5D6FF">            "*.apiKey"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">        ],</span></span>
+<span class="line"><span style="color:#E6EDF3">        censor: </span><span style="color:#A5D6FF">"[redacted]"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">    },</span></span>
+<span class="line"><span style="color:#E6EDF3">});</span></span></code></pre>
+<p>Without redaction, <code>log.info({ req }, "...")</code> can copy an Authorization header
+into the log backend.</p>
+<hr>
+<h2 id="trace-application-work-with-manual-spans">Trace application work with manual spans</h2>
+<p>The companion uses OpenTelemetry for three application-level spans:
+<code>agent.run</code>, <code>agent.tool</code>, and <code>worker.sweep</code>. It does not install automatic
+HTTP or Postgres instrumentation. <code>startTracing()</code> in
+<a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/observability/src/tracing.ts"><code>packages/observability/src/tracing.ts</code></a>
+creates a <code>NodeSDK</code> with an OTLP trace exporter. If
+<code>OTEL_EXPORTER_OTLP_ENDPOINT</code> is absent, it leaves tracing off.</p>
+<p>The work itself is wrapped by <code>withSpan()</code> from the same file:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">return</span><span style="color:#E6EDF3"> tracer.</span><span style="color:#D2A8FF">startActiveSpan</span><span style="color:#E6EDF3">(name, { attributes }, </span><span style="color:#FF7B72">async</span><span style="color:#E6EDF3"> (</span><span style="color:#FFA657">span</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">    try</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">        return</span><span style="color:#FF7B72"> await</span><span style="color:#D2A8FF"> fn</span><span style="color:#E6EDF3">(span);</span></span>
+<span class="line"><span style="color:#E6EDF3">    } </span><span style="color:#FF7B72">finally</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#E6EDF3">        span.</span><span style="color:#D2A8FF">end</span><span style="color:#E6EDF3">();</span></span>
+<span class="line"><span style="color:#E6EDF3">    }</span></span>
+<span class="line"><span style="color:#E6EDF3">});</span></span></code></pre>
+<p>JavaScript has no Python-style context manager syntax. Here, the callback is the
+block that a Python context manager would surround. The full helper also records
+exceptions and sets the span status before rethrowing.</p>
+<p>Automatic HTTP and database spans are a separate feature. They require the
+matching instrumentation packages and initialization before the instrumented
+modules load. Add that only when those spans are useful, then follow the
+<a href="https://github.com/open-telemetry/opentelemetry-js/blob/main/experimental/packages/opentelemetry-sdk-node/README.md">OpenTelemetry Node SDK setup</a>
+for the exact package versions you deploy.</p>
+<hr>
+<h2 id="ship-the-monorepo-in-docker">Ship the monorepo in Docker</h2>
+<p>Use the supplied
+<a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/Dockerfile"><code>Dockerfile</code></a>.
+The container starts the API with the <code>tsx</code> loader. You do not need to choose or
+invoke a TypeScript runner when you deploy it.</p>
+<p>The build uses <code>pnpm fetch</code> so dependency downloads stay cached until the
+lockfile changes. It then uses <code>pnpm deploy</code> to copy the API and its production
+dependencies into a self-contained directory. The runtime stage runs as the
+non-root <code>node</code> user, and its exec-form <code>CMD</code> lets the API receive <code>SIGTERM</code>
+directly for graceful shutdown.</p>
+<details>
+<summary>Why the Dockerfile loads tsx</summary>
+<p>Node 24 can run a limited TypeScript subset by stripping type annotations. It
+does not type-check the code or perform the transformations that a full
+TypeScript runner supports. The repository’s package scripts hide that detail.
+<code>pnpm check</code> performs the separate static check.</p>
+<p>The container exposes another limit. <code>pnpm deploy</code> copies the workspace
+packages under <code>node_modules</code>, and Node deliberately refuses to strip
+TypeScript there (<a href="https://nodejs.org/api/typescript.html">Node TypeScript
+documentation</a>). The first version of
+the image crashed with <code>ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING</code>. It works.
+I was discouraged.</p>
+<p>The Dockerfile fixes the problem by loading <code>tsx</code>, which handles those <code>.ts</code>
+files before Node executes them. A team that wants only <code>.js</code> files in its
+runtime image can add a compile step instead. That is an alternative production
+design, not an extra step required to run this companion.</p>
+</details>
+<hr>
+<h2 id="a-three-week-path">A three-week path</h2>
+<p>Experienced Python engineers can skip material that teaches variables and loops.
+This sequence focuses on the parts that differ from Python. The build column is
+the point of each row. The reading supports it.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Week</th><th>Read</th><th>Build</th></tr></thead><tbody><tr><td>1</td><td><a href="https://javascript.info">javascript.info</a>: modules, promises, and objects only. Keep <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide">MDN’s JS Guide</a> as a reference.</td><td>Rewrite one Python CLI in TypeScript. Add a <code>package.json</code> script. Run the script and <code>pnpm typecheck</code>.</td></tr><tr><td>1-2</td><td>Read <a href="https://www.typescriptlang.org/tsconfig">TypeScript’s tsconfig reference</a>, the free <a href="https://www.totaltypescript.com">Total TypeScript</a> tutorials, and the <a href="https://zod.dev">Zod docs</a>.</td><td>Build a Zod-validated config module and one tagged union. After checking the tag, the compiler knows which variant the block contains.</td></tr><tr><td>2</td><td>Read the <a href="https://hono.dev">Hono</a>, <a href="https://orm.drizzle.team">Drizzle</a>, <a href="https://vitest.dev">Vitest</a>, and <a href="https://biomejs.dev">Biome</a> documentation.</td><td>Build a streaming proxy to an OpenAI-compatible endpoint with a Drizzle-backed log.</td></tr><tr><td>3</td><td>Read the <a href="https://ai-sdk.dev">AI SDK</a> and <a href="https://github.com/modelcontextprotocol/typescript-sdk">MCP TypeScript SDK</a> documentation.</td><td>Build a tool-calling agent. Then build an MCP server that exposes one of its tools.</td></tr></tbody></table>
+<p>Start with the free Total TypeScript tutorials. Pay for the advanced material
+only when working with library-grade generics and conditional types. Skip every
+“intro to JavaScript” course, and skip anything React-shaped unless the product
+requires it.</p>
+<p>For a survey of production conventions,
+<a href="https://github.com/goldbergyoni/nodebestpractices">goldbergyoni/nodebestpractices</a>
+is a broad community-maintained checklist. Verify advice that affects runtime
+behavior or security against the current Node documentation.</p>
+<hr>
+<h2 id="trade-offs">Trade-offs</h2>
+<h3 id="keep-numerics-in-python">Keep numerics in Python</h3>
+<p>Node works well for orchestration, HTTP serving, and streaming. Sustained
+CPU-bound math blocks its main event-loop thread. Keep vLLM and training code in
+Python unless a measured workload justifies moving them.</p>
+<h3 id="validate-every-boundary-at-runtime">Validate every boundary at runtime</h3>
+<p>A TypeScript annotation does not check an HTTP body, environment variable,
+model-generated tool argument, or row read from <code>jsonb</code>. Each boundary needs a
+runtime schema.</p>
+<h3 id="isolate-sdk-churn">Isolate SDK churn</h3>
+<p>AI SDK 6 replaced <code>Experimental_Agent</code> with <code>ToolLoopAgent</code> and renamed the
+agent setting <code>system</code> to <code>instructions</code> (<a href="https://ai-sdk.dev/docs/migration-guides/migration-guide-6-0">AI SDK 6 migration
+guide</a>). The
+companion calls <code>streamText</code> directly on AI SDK 7 and exposes its own
+<code>AgentEvent</code> stream. That boundary keeps the HTTP route unchanged when SDK code
+changes.</p>
+<h3 id="skip-the-hand-written-loop-when-the-deadline-matters-more">Skip the hand-written loop when the deadline matters more</h3>
+<p>Writing the loop once teaches you which behavior the SDK owns. If you need to
+ship first and have no reason to customize validation failures, start with the
+SDK.</p>
+<hr>
+<h2 id="key-takeaways">Key takeaways</h2>
+<ol>
+<li>Install Node 24 and pnpm. Then use the repository’s scripts: <code>pnpm demo</code>,
+<code>pnpm dev:api</code>, <code>pnpm dev:worker</code>, and <code>pnpm check</code>. The scripts hide the
+lower-level runtime and type-checker commands.</li>
+<li>Runtime validation is structurally necessary. Zod is this project’s chosen
+validator. Static types do not inspect HTTP bodies, environment variables,
+model output, or database rows. With Zod, declare a runtime schema and derive
+the TypeScript type with <code>z.infer</code>.</li>
+<li>The stack mostly maps cleanly: pnpm for uv, Hono for FastAPI, Drizzle for
+SQLAlchemy, Vitest for pytest, Biome for Ruff. Three rows are not swaps:
+validation, type checking, and the job queue.</li>
+<li>Write one agent loop by hand if you need to learn or customize the hidden
+paths: fragment accumulation, validation, and tool-error feedback.</li>
+<li>Make the loop an async generator. The HTTP route consumes its <code>AgentEvent</code>
+values, emits SSE frames, accumulates the text, and persists it after the
+stream. Tests consume the generator separately with no network or API key.</li>
+<li>Postgres can provide an at-least-once queue. Make handlers idempotent, and
+renew the lease or size it above the maximum runtime for long jobs. Add
+BullMQ when you need delays, priorities, or schedules.</li>
+<li>Use the supplied Dockerfile for production. It packages the selected app,
+loads TypeScript with <code>tsx</code>, runs as a non-root user, and forwards shutdown
+signals to the API process.</li>
+</ol>
+<hr>
+<h2 id="references">References</h2>
+<p><strong>Demo repository</strong></p>
+<ul>
+<li><a href="https://github.com/slavadubrov/typescript-agent-service">slavadubrov/typescript-agent-service</a> - the monorepo used throughout this article: Hono API with SSE, two agent loop implementations, Drizzle storage, worker, MCP server, and 40 tests</li>
+</ul>
+<p><strong>Runtime and language</strong></p>
+<ul>
+<li><a href="https://nodejs.org/api/typescript.html">Running TypeScript natively in Node.js</a> - Node’s limited TypeScript support and its <code>node_modules</code> restriction</li>
+<li><a href="https://www.typescriptlang.org/tsconfig">TypeScript compiler options</a> - <code>strict</code> and the other checks configured by the companion</li>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide">MDN JavaScript Guide</a> - the language reference worth keeping open</li>
+<li><a href="https://javascript.info">javascript.info</a> - modern JavaScript tutorial. Read the modules and promises chapters.</li>
+</ul>
+<p><strong>Tooling</strong></p>
+<ul>
+<li><a href="https://pnpm.io">pnpm</a> and <a href="https://pnpm.io/installation">pnpm installation</a> - package manager, workspaces, and setup</li>
+<li><a href="https://biomejs.dev">Biome</a> - lint, format, and import sorting in one binary</li>
+<li><a href="https://vitest.dev">Vitest</a> - test runner that needs no transform configuration</li>
+<li><a href="https://www.totaltypescript.com">Total TypeScript</a> - free tutorials plus a paid track for advanced types</li>
+</ul>
+<p><strong>Libraries</strong></p>
+<ul>
+<li><a href="https://zod.dev">Zod</a> - schema validation and type inference. Version 4 includes <code>z.toJSONSchema</code>.</li>
+<li><a href="https://hono.dev">Hono</a> - Web-standard HTTP framework</li>
+<li><a href="https://orm.drizzle.team">Drizzle ORM</a> - SQL-first TypeScript ORM with <code>drizzle-kit</code> migrations</li>
+<li><a href="https://www.postgresql.org/docs/current/sql-select.html">PostgreSQL SELECT documentation</a> - the <code>FOR UPDATE ... SKIP LOCKED</code> locking clause</li>
+<li><a href="https://github.com/taskforcesh/bullmq">BullMQ</a> - Redis-backed queue for when the database table is not enough</li>
+</ul>
+<p><strong>AI and agents</strong></p>
+<ul>
+<li><a href="https://ai-sdk.dev">Vercel AI SDK</a> - <code>streamText</code>, <code>tool</code>, <code>stopWhen</code>, and provider adapters</li>
+<li><a href="https://github.com/openai/openai-node">openai/openai-node</a> - the official TypeScript client</li>
+<li><a href="https://github.com/modelcontextprotocol/typescript-sdk">MCP TypeScript SDK</a> and <a href="https://modelcontextprotocol.io">the MCP specification</a> - building servers and clients</li>
+</ul>
+<p><strong>Conventions</strong></p>
+<ul>
+<li><a href="https://github.com/goldbergyoni/nodebestpractices">goldbergyoni/nodebestpractices</a> - community-maintained checklist for production conventions</li>
+</ul> </article>  </main> <footer class="site-footer"> <p data-footer-tagline>Practical AI engineering by Slava Dubrov.</p>  <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>
+      document.querySelector(".theme-toggle")?.addEventListener("click", () => {
+        const root = document.documentElement;
+        const next = root.dataset.themeEffective === "dark" ? "light" : "dark";
+        root.dataset.theme = next;
+        root.dataset.themeEffective = next;
+        localStorage.setItem("theme", next);
+      });
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (event) => {
+        if (localStorage.getItem("theme")) return;
+        document.documentElement.dataset.themeEffective = event.matches ? "dark" : "light";
+      });
+      document.querySelector("#locale-select")?.addEventListener("change", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLSelectElement && target.value) location.assign(target.value);
+      });
+      document.querySelectorAll("pre").forEach((pre) => {
+        if (pre.closest(".mermaid-diagram")) return;
+        const code = pre.textContent || "";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-code";
+        button.textContent = "Copy";
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(code);
+          button.textContent = "Copied";
+          setTimeout(() => { button.textContent = "Copy"; }, 1500);
+        });
+        pre.append(button);
+      });
+    </script> </body> </html>

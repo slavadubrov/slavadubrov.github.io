@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 724" width="1120" height="724" role="img" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" font-family="Inter, system-ui, sans-serif" data-visual-system="evidence-plate-v1">
+  <title>How one Zod schema reaches three consumers in a pnpm workspace</title>
+  <desc>Three layers. The top layer is packages: agent-schemas holding the Zod declarations, agent-core holding both agent loops and Drizzle storage, and agent-observability holding the Pino logger and OpenTelemetry setup. From agent-schemas, one declaration named EstimateKvCacheInput fans out to three call sites in the middle layer: loop.ts converts it with z.toJSONSchema into an OpenAI tools array, loop-ai-sdk.ts passes the schema to the Vercel AI SDK unchanged, and the MCP server publishes its shape to any MCP client. The bottom layer is apps: the Hono API, the worker, and the MCP server. The API inserts a queued row into the Postgres runs table and returns 202; the worker claims that row with FOR UPDATE SKIP LOCKED and writes the result back. The MCP server touches neither HTTP nor the database.</desc>
+  <style data-visual-system="evidence-plate-v1">
+    * { animation: none !important; }
+    .anim-box, .bar, .bar-text, .seq-item, .t-box, .flow { opacity: 1 !important; transform: none !important; }
+    path, line, polyline { stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+
+  <rect x="0" y="0" width="1120" height="724" rx="14" fill="#f8fafc"/>
+
+  <text x="48" y="58" font-size="24" font-weight="700" fill="#0f172a">One schema, three consumers</text>
+  <text x="48" y="82" font-size="12" fill="#64748b">Why a schemas package earns its place: the tool's input shape is declared once and reaches a model three different ways.</text>
+
+  <!-- packages layer -->
+  <rect x="48" y="104" width="1024" height="150" rx="12" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="68" y="130" font-size="14" font-weight="700" fill="#0f172a">packages/</text>
+  <text x="152" y="130" font-size="11" fill="#64748b">shared libraries, never deployed on their own</text>
+
+  <rect x="68" y="146" width="300" height="92" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="1.5"/>
+  <text x="88" y="170" font-size="13" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">@agent/schemas</text>
+  <text x="88" y="192" font-size="11" fill="#9a3412">Env config, API contracts, tool</text>
+  <text x="88" y="208" font-size="11" fill="#9a3412">inputs, the AgentEvent union</text>
+  <text x="88" y="228" font-size="11" fill="#64748b">Depends on nothing but zod</text>
+
+  <rect x="388" y="146" width="332" height="92" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="408" y="170" font-size="13" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">@agent/core</text>
+  <text x="408" y="192" font-size="11" fill="#1d4ed8">Two agent loops, the tools,</text>
+  <text x="408" y="208" font-size="11" fill="#1d4ed8">the sweep, Drizzle storage</text>
+  <text x="408" y="228" font-size="11" fill="#64748b">The only package that talks to a model</text>
+
+  <rect x="740" y="146" width="312" height="92" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="760" y="170" font-size="13" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">@agent/observability</text>
+  <text x="760" y="192" font-size="11" fill="#64748b">Pino logger with redaction;</text>
+  <text x="760" y="208" font-size="11" fill="#64748b">OpenTelemetry, off unless an</text>
+  <text x="760" y="224" font-size="11" fill="#64748b">endpoint is configured</text>
+
+  <!-- fan-out bus -->
+  <path d="M 218 238 L 218 268 L 888 268" stroke="#ea580c" stroke-width="2" fill="none"/>
+  <text x="240" y="262" font-size="11" font-weight="600" font-family="SFMono-Regular, Consolas, monospace" fill="#9a3412">EstimateKvCacheInput</text>
+  <path d="M 218 268 L 218 290" stroke="#ea580c" stroke-width="2" fill="none" marker-end="url(#w-warn)"/>
+  <path d="M 548 268 L 548 290" stroke="#ea580c" stroke-width="2" fill="none" marker-end="url(#w-warn)"/>
+  <path d="M 888 268 L 888 290" stroke="#ea580c" stroke-width="2" fill="none" marker-end="url(#w-warn)"/>
+
+  <!-- three call sites -->
+  <rect x="68" y="298" width="300" height="92" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="88" y="322" font-size="12" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">loop.ts</text>
+  <text x="88" y="344" font-size="11" font-family="SFMono-Regular, Consolas, monospace" fill="#0f172a">z.toJSONSchema(schema)</text>
+  <text x="88" y="364" font-size="11" fill="#64748b">Becomes an OpenAI tools array,</text>
+  <text x="88" y="380" font-size="11" fill="#64748b">with strict decoding requested</text>
+
+  <rect x="398" y="298" width="300" height="92" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="418" y="322" font-size="12" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">loop-ai-sdk.ts</text>
+  <text x="418" y="344" font-size="11" font-family="SFMono-Regular, Consolas, monospace" fill="#0f172a">inputSchema: schema</text>
+  <text x="418" y="364" font-size="11" fill="#64748b">Handed to the Vercel AI SDK</text>
+  <text x="418" y="380" font-size="11" fill="#64748b">unchanged; it converts internally</text>
+
+  <rect x="728" y="298" width="324" height="92" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="748" y="322" font-size="12" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">apps/mcp/src/index.ts</text>
+  <text x="748" y="344" font-size="11" font-family="SFMono-Regular, Consolas, monospace" fill="#0f172a">schema.shape</text>
+  <text x="748" y="364" font-size="11" fill="#64748b">Published over MCP to any client:</text>
+  <text x="748" y="380" font-size="11" fill="#64748b">Claude Code, Cursor, your own</text>
+
+  <!-- apps layer -->
+  <rect x="48" y="418" width="1024" height="250" rx="12" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="68" y="444" font-size="14" font-weight="700" fill="#0f172a">apps/</text>
+  <text x="124" y="444" font-size="11" fill="#64748b">each one ships as its own container or process</text>
+
+  <rect x="68" y="460" width="300" height="96" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="88" y="484" font-size="13" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">apps/api</text>
+  <text x="88" y="506" font-size="11" fill="#64748b">Hono routes with Zod validation</text>
+  <text x="88" y="522" font-size="11" fill="#64748b">POST /v1/chat streams SSE</text>
+  <text x="88" y="538" font-size="11" fill="#64748b">POST /v1/sweeps returns 202</text>
+
+  <rect x="398" y="460" width="300" height="96" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="418" y="484" font-size="13" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">apps/worker</text>
+  <text x="418" y="506" font-size="11" fill="#64748b">Polls for queued rows</text>
+  <text x="418" y="522" font-size="11" fill="#64748b">Re-validates the stored input</text>
+  <text x="418" y="538" font-size="11" fill="#64748b">Run as many copies as you like</text>
+
+  <rect x="728" y="460" width="324" height="96" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="748" y="484" font-size="13" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">apps/mcp</text>
+  <text x="748" y="506" font-size="11" fill="#64748b">One tool over stdio. No HTTP,</text>
+  <text x="748" y="522" font-size="11" fill="#64748b">no database, no model call.</text>
+  <text x="748" y="538" font-size="11" fill="#64748b">stdout is the protocol channel</text>
+
+  <path d="M 218 556 L 218 586" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#w-ok)"/>
+  <text x="230" y="578" font-size="10" fill="#166534">insert a queued row</text>
+  <path d="M 548 586 L 548 556" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#w-ok)"/>
+  <text x="560" y="578" font-size="10" fill="#166534">claim one row, then write the result back</text>
+
+  <rect x="180" y="588" width="692" height="60" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="200" y="612" font-size="13" font-weight="600" fill="#0f172a">Postgres — one runs table</text>
+  <text x="200" y="632" font-size="11" fill="#166534">Run storage and the job queue in the same rows. No Redis, no broker:</text>
+  <text x="626" y="632" font-size="11" font-family="SFMono-Regular, Consolas, monospace" fill="#166534">FOR UPDATE SKIP LOCKED</text>
+
+  <text x="48" y="700" font-size="11" fill="#64748b">Orange carries the schema. Green carries rows through Postgres. Nothing in apps/ imports anything from another app.</text>
+
+  <defs>
+    <marker id="w-warn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#ea580c"/>
+    </marker>
+    <marker id="w-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#16a34a"/>
+    </marker>
+  </defs>
+</svg>
