@@ -1,0 +1,902 @@
+<!DOCTYPE html><html lang="nl"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><script>
+      (() => {
+        const stored = localStorage.getItem("theme");
+        const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const effective = stored === "light" || stored === "dark" ? stored : systemDark ? "dark" : "light";
+        document.documentElement.dataset.themeEffective = effective;
+        if (stored === "light" || stored === "dark") document.documentElement.dataset.theme = stored;
+      })();
+    </script><script async src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5"></script><script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        window.dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", "G-T51K83ENZ5");
+    </script><title>TypeScript voor Python ML-engineers: bouw een agent service</title><meta name="description" content="Map pydantic naar Zod, FastAPI naar Hono en Celery naar een Postgres-queue, en bouw vervolgens een streaming agent service in een pnpm TypeScript-monorepo."><link rel="canonical" href="https://slavadubrov.github.io/nl/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="de" href="https://slavadubrov.github.io/de/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="en" href="https://slavadubrov.github.io/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="es" href="https://slavadubrov.github.io/es/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="fr" href="https://slavadubrov.github.io/fr/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="nl" href="https://slavadubrov.github.io/nl/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="pt" href="https://slavadubrov.github.io/pt/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="ru" href="https://slavadubrov.github.io/ru/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="x-default" href="https://slavadubrov.github.io/blog/2026/08/15/typescript-for-python-ml-engineers/"><meta property="og:type" content="article"><meta property="og:title" content="TypeScript voor Python ML-engineers: bouw een agent service"><meta property="og:description" content="Map pydantic naar Zod, FastAPI naar Hono en Celery naar een Postgres-queue, en bouw vervolgens een streaming agent service in een pnpm TypeScript-monorepo."><meta property="og:url" content="https://slavadubrov.github.io/nl/blog/2026/08/15/typescript-for-python-ml-engineers/"><meta property="og:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:type" content="image/png"><meta property="og:image:alt" content="Edge of Context — Practical AI engineering"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="TypeScript voor Python ML-engineers: bouw een agent service"><meta name="twitter:description" content="Map pydantic naar Zod, FastAPI naar Hono en Celery naar een Postgres-queue, en bouw vervolgens een streaming agent service in een pnpm TypeScript-monorepo."><meta name="twitter:image" content="https://slavadubrov.github.io/assets/og-image.png"><meta name="twitter:image:alt" content="Edge of Context — Practical AI engineering"><meta property="article:published_time" content="2026-08-15"><meta property="article:modified_time" content="2026-08-15"><link rel="icon" href="/assets/favicon-eoc.svg" type="image/svg+xml"><link href="/pagefind/pagefind-component-ui.css" rel="stylesheet"><script src="/pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"TypeScript voor Python ML-engineers: bouw een agent service","description":"Map pydantic naar Zod, FastAPI naar Hono en Celery naar een Postgres-queue, en bouw vervolgens een streaming agent service in een pnpm TypeScript-monorepo.","url":"https://slavadubrov.github.io/nl/blog/2026/08/15/typescript-for-python-ml-engineers/","image":"https://slavadubrov.github.io/assets/og-image.png","datePublished":"2026-08-15","dateModified":"2026-08-15","author":{"@type":"Person","name":"Viacheslav Dubrov","url":"https://slavadubrov.github.io/about/"}}</script><link rel="stylesheet" href="/_astro/BaseLayout.OMGrDdzm.css"></head> <body> <a class="skip-link" href="#main-content">Skip to content</a> <header class="site-header"> <a class="brand" data-home-link href="/nl/" aria-label="Edge of Context home"> <svg class="brand-mark" viewBox="0 0 64 64" width="36" height="36" aria-hidden="true" focusable="false" data-astro-cid-77qc4tpx> <rect class="brand-mark__frame" x="8.5" y="8.5" width="47" height="47" rx="11" stroke-width="5" data-astro-cid-77qc4tpx></rect> <line class="brand-mark__edge" x1="42" y1="8.5" x2="42" y2="55.5" stroke-width="5" data-astro-cid-77qc4tpx></line> <g class="brand-mark__token" data-astro-cid-77qc4tpx> <circle cx="16.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="16.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="16.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> </g> <g class="brand-mark__ghost" data-astro-cid-77qc4tpx> <circle cx="49" cy="20" r="3" data-astro-cid-77qc4tpx></circle> <circle cx="49" cy="32" r="3" data-astro-cid-77qc4tpx></circle> <circle cx="49" cy="44" r="3" data-astro-cid-77qc4tpx></circle> </g> </svg> <span>Edge of Context</span> </a> <nav aria-label="Primary navigation"> <ul> <li><a data-nav="home" href="/nl/">Start</a></li><li><a data-nav="blog" href="/nl/blog/">Blog</a></li><li><a data-nav="fastAnswers" href="/nl/blog/fast-answers/">Korte antwoorden</a></li><li><a data-nav="about" href="/nl/about/">Over</a></li> </ul> </nav> <div class="header-actions"> <nav class="header-social" aria-label="Social profiles"> <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" title="LinkedIn"> <svg class="social-icon" data-social-icon="fontawesome-brands-linkedin" viewBox="0 0 448 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3C448 46.5 433.6 32 416 32zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"></path></svg> </a><a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener noreferrer" aria-label="Substack" title="Substack"> <svg class="social-icon" data-social-icon="simple-substack" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"></path></svg> </a><a href="https://www.tiktok.com/@edge.of.context" target="_blank" rel="noopener noreferrer" aria-label="TikTok" title="TikTok"> <svg class="social-icon" data-social-icon="fontawesome-brands-tiktok" viewBox="0 0 448 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M448 209.9a210.1 210.1 0 0 1-122.8-39.2v178.7A162.6 162.6 0 1 1 185 188.3v89.9a74.6 74.6 0 1 0 52.2 71.2V0h88a121.2 121.2 0 0 0 1.9 22.2 122.2 122.2 0 0 0 53.9 80.2 121.4 121.4 0 0 0 67 20.1v87.4z"></path></svg> </a><a href="https://github.com/slavadubrov" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub"> <svg class="social-icon" data-social-icon="fontawesome-brands-github" viewBox="0 0 496 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"></path></svg> </a><a href="/feed_rss_created.xml" target="_blank" rel="noopener noreferrer" aria-label="RSS feed" title="RSS feed"> <svg class="social-icon" data-social-icon="material-rss" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6.18 15.64a2.18 2.18 0 1 0 0 4.36 2.18 2.18 0 0 0 0-4.36zM4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83C19.56 11.4 12.6 4.44 4 4.44zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z"></path></svg> </a> </nav> <button class="theme-toggle" type="button" aria-label="Switch color theme" title="Switch color theme"> <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"> <circle cx="12" cy="12" r="4"></circle> <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path> </svg> <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"> <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path> </svg> </button> <pagefind-modal-trigger data-search-label="true">Zoeken</pagefind-modal-trigger> <label class="locale-switcher"> <span class="visually-hidden">Taal</span> <select id="locale-select"> <option value="/de/blog/2026/08/15/typescript-for-python-ml-engineers/">Deutsch</option><option value="/blog/2026/08/15/typescript-for-python-ml-engineers/">English</option><option value="/es/blog/2026/08/15/typescript-for-python-ml-engineers/">Español</option><option value="/fr/blog/2026/08/15/typescript-for-python-ml-engineers/">Français</option><option value="/nl/blog/2026/08/15/typescript-for-python-ml-engineers/" selected>Nederlands</option><option value="/pt/blog/2026/08/15/typescript-for-python-ml-engineers/">Português</option><option value="/ru/blog/2026/08/15/typescript-for-python-ml-engineers/">Русский</option> </select> </label> </div> </header> <main id="main-content" tabindex="-1">  <article class="prose" data-pagefind-body> <p class="article-meta"> <time datetime="2026-08-15">2026-08-15</time>  · Bijgewerkt <time datetime="2026-08-15">2026-08-15</time> </p> <!-- automated-translation-notice:start -->
+<blockquote>
+<p><strong>Automatische vertaling</strong>
+Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p>
+</blockquote>
+<!-- automated-translation-notice:end -->
+<h1 id="typescript-voor-python-ml-engineers-bouw-een-agent-service">TypeScript voor Python ML-engineers: bouw een agent service</h1>
+<p>Dit is een snelle onboardinggids voor ervaren Python-engineers die
+AI-services in TypeScript en Node moeten opleveren. De gids is geschreven voor ML-engineers, data
+scientists en backend developers die geen beginnerscursus JavaScript nodig hebben.</p>
+<p>Ik heb deze onboarding de afgelopen maanden zelf doorlopen, na jarenlang met Python
+en Java te hebben gewerkt. De meeste gidsen die ik vond begonnen met basisprogrammeren of
+front-end DOM-werk. Dit artikel vertrekt vanuit concepten uit Python-services. Aan het einde kun je
+een Python-service-stack mappen naar TypeScript en herken je Python-gewoonten die JavaScript-bugs veroorzaken. Het doorlopende voorbeeld volgt een streaming agent service van
+schema tot deployment.</p>
+<!-- more -->
+<p><strong>Samenvatting</strong>: Installeer Node 24 en pnpm. Gebruik daarna de <code>pnpm</code>-commando’s
+van de repository. Voer <code>pnpm demo</code> uit voor het offlinevoorbeeld, <code>pnpm dev:api</code> en <code>pnpm dev:worker</code>
+voor development, en <code>pnpm check</code> vóór een commit. Je hoeft <code>node</code>,
+<code>tsx</code> of de TypeScript-checker niet zelf uit te voeren. De package scripts doen dat.</p>
+<p>De service gebruikt Zod, Hono, Drizzle, Vitest en Biome. Ze bestrijken grotendeels
+hetzelfde terrein als pydantic, FastAPI, SQLAlchemy, pytest en Ruff. Houd zware
+numerieke berekeningen in Python. Gebruik deze TypeScript-service voor orchestration, HTTP en
+streaming.</p>
+<p>Alles in dit artikel is een bestand uit
+<a href="https://github.com/slavadubrov/typescript-agent-service"><strong>slavadubrov/typescript-agent-service</strong></a>,
+de companion repository die samen met dit artikel is gepubliceerd. De repository bevat een HTTP API,
+twee versies van dezelfde agent loop, Postgres-runhistorie, een worker en een MCP-server. <code>pnpm install &#x26;&#x26; pnpm demo</code>
+start het offline HTTP/SSE-agentpad en de sweep-berekening van de worker zonder API-key.</p>
+<p>Ik behandel alleen backend- en AI-werk. Geen React. Er is ook geen browser bundler.</p>
+<hr>
+<h2 id="start-eerst-met-de-companion">Start eerst met de companion</h2>
+<p>Installeer <a href="https://nodejs.org/en/download">Node 24</a> en pnpm volgens de
+<a href="https://pnpm.io/installation">officiële pnpm-installatie-instructies</a>. Clone daarna
+de companion repository en voer uit:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> install</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> demo</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> check</span></span></code></pre>
+<p><code>pnpm demo</code> test de HTTP-handler, agent loop en SSE-stream met een
+gescript model. De opdracht roept ook de <code>runSweep</code>-berekening van de worker aan. De worker
+of diens database queue wordt niet gestart. De demo heeft geen API-key,
+database of Docker nodig. <code>pnpm check</code> voert de type checker, linter, formatter-check
+en tests uit.</p>
+<p>Voer het volgende uit om de echte API en worker te starten:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">cp</span><span style="color:#A5D6FF"> .env.example</span><span style="color:#A5D6FF"> .env</span><span style="color:#8B949E">          # add OPENAI_API_KEY or an OpenAI-compatible URL</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> db:up</span><span style="color:#8B949E">                    # start Postgres in Docker</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> db:push</span><span style="color:#8B949E">                  # create the database schema</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> dev:api</span><span style="color:#8B949E">                  # API at http://localhost:8080</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> dev:worker</span><span style="color:#8B949E">               # run this in a second terminal</span></span></code></pre>
+<p>Dit zijn de commando’s die ik in de rest van dit artikel gebruik. De repository verbergt
+de onderliggende Node- en TypeScript-commando’s achter benoemde <code>pnpm</code>-scripts, ongeveer
+zoals een Python-project <code>uv run</code>-commando’s achter <code>make</code>-targets kan zetten. Voeg
+<code>npm install</code> niet toe aan deze pnpm-repository. Gebruik <code>pnpm install</code>, zodat
+<code>pnpm-lock.yaml</code> het enige lockfile blijft.</p>
+<hr>
+<h2 id="wat-node-npm-pnpm-typescript-en-tsx-doen">Wat Node, npm, pnpm, TypeScript en tsx doen</h2>
+<p>De vergelijkbare namen verbergen verschillende taken:</p>
+<ul>
+<li><strong>JavaScript</strong> is de taal.</li>
+<li><strong>Node.js</strong> is de runtime, grofweg CPython voor JavaScript. Installeer voor dit project Node 24.</li>
+<li>Het <strong>npm registry</strong> is de package-index, ongeveer het equivalent van PyPI. Het <code>npm</code>-commando
+wordt met Node meegeleverd en kan packages uit dat registry installeren.</li>
+<li><strong>pnpm</strong> is de package manager die deze repository gebruikt. Het installeert packages uit het
+npm registry, beheert de monorepo-workspace en voert de commando’s uit die in <code>package.json</code> zijn gedeclareerd.</li>
+<li><strong><code>package.json</code></strong> is het projectmanifest, het dichtst bij <code>pyproject.toml</code>. De
+<code>scripts</code>-sectie geeft langere commando’s namen zoals <code>demo</code>, <code>check</code> en <code>dev:api</code>.</li>
+<li><strong>TypeScript</strong> is JavaScript met statische types. Het <code>tsc</code>-commando controleert die
+types. De repository voert dit uit via <code>pnpm check</code> of <code>pnpm typecheck</code>.</li>
+<li><strong>tsx</strong> voert <code>.ts</code>-bestanden uit zonder aparte build. De developmentscripts
+gebruiken de <code>watch</code>-modus om de API of worker na een sourcewijziging opnieuw te starten. Je
+roept het in deze gids niet rechtstreeks aan.</li>
+</ul>
+<p>Gebruik in deze repository de <code>pnpm</code>-scripts. Node is de runtime binnen die scripts,
+en het meegeleverde Dockerfile handelt production af.</p>
+<hr>
+<h2 id="de-stack-gemapt-vanuit-python">De stack, gemapt vanuit Python</h2>
+<p><img src="/nl/blog/assets/2026-08-15-typescript-for-python-ml-engineers/python-typescript-stack-map.svg" alt="Twee kolommen mappen elk onderdeel van een Python AI-service naar de TypeScript-vervanger. De rijen behandelen projectmetadata, packages, validatie, HTTP, SQL, queues, tests, linting en typechecks. Drie rijen zijn geen directe vervangingen."></p>
+<p>Het grootste deel van de mapping is saai, en dat is goed nieuws. Drie rijen zijn dat niet:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Onderdeel</th><th>Python</th><th>TypeScript</th><th>Waarom het geen directe vervanging is</th></tr></thead><tbody><tr><td>Validatie</td><td><code>pydantic</code></td><td><code>zod</code></td><td>Het schema is de bron. Het type wordt ervan afgeleid, niet andersom</td></tr><tr><td>Typecheck</td><td><code>mypy</code></td><td>TypeScript (<code>pnpm typecheck</code>)</td><td>Beide controleren sourcecode zonder data te valideren die runtime binnenkomt</td></tr><tr><td>Job queue</td><td><code>celery</code> + Redis</td><td><code>bullmq</code> (Redis-backed queue) of SQL</td><td>Postgres kan een at-least-once queue implementeren. Mogelijk heb je geen broker nodig</td></tr></tbody></table>
+<p>De companion gebruikt vier libraries die uitleg verdienen.</p>
+<h3 id="hono-voor-de-http-laag">Hono voor de HTTP-laag</h3>
+<p>Express en Fastify zijn Node-gerichte alternatieven. <a href="https://hono.dev/docs/concepts/web-standard">Hono gebruikt de Web-standard
+<code>Request</code>- en <code>Response</code>-APIs</a> en
+biedt adapters voor Node en serverless runtimes. Die portability is nuttig voor deze kleine
+streaming API, dus koos ik Hono.</p>
+<h3 id="drizzle-voor-sql">Drizzle voor SQL</h3>
+<p><a href="https://orm.drizzle.team/docs/overview">Drizzle</a> houdt het schema in TypeScript
+en vereist geen client-generation step. Raw SQL blijft beschikbaar wanneer de query builder een
+Postgres-clause niet netjes kan uitdrukken. Ik zou Prisma kiezen wanneer de generated client en
+bijbehorende tooling beter bij het team passen.</p>
+<h3 id="biome-voor-linting-en-formatting">Biome voor linting en formatting</h3>
+<p><a href="https://biomejs.dev/guides/getting-started/">Biome</a> verzorgt linting, formatting
+en import sorting met één binary en één configuratiebestand. Houd ESLint wanneer het project
+afhankelijk is van custom rules die Biome niet biedt.</p>
+<h3 id="vitest-voor-tests">Vitest voor tests</h3>
+<p><a href="https://vitest.dev/guide/">Vitest</a> voert de <code>.ts</code>-tests van de companion uit zonder
+aparte transformconfiguratie.</p>
+<hr>
+<h2 id="lees-de-typescript-syntax-hieronder">Lees de TypeScript-syntax hieronder</h2>
+<p>Houd deze tabel naast de servicevoorbeelden als naslagwerk.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>TypeScript</th><th>Python / opmerking</th></tr></thead><tbody><tr><td><code>(x) => expression</code></td><td>anonieme functie met een expression body, vergelijkbaar met <code>lambda x: expression</code></td></tr><tr><td><code>(x) => { statements }</code></td><td>anonieme functie met een statement body</td></tr><tr><td><code>async (x) => { statements }</code></td><td>async anonieme functie</td></tr><tr><td><code>const { model, seqLen } = request</code></td><td>de eigenschappen <code>model</code> en <code>seqLen</code> uit <code>request</code> halen</td></tr><tr><td><code>const [first] = xs</code></td><td><code>first = xs[0]</code>. Levert bij leegte <code>undefined</code> op, niet <code>IndexError</code></td></tr><tr><td><code>{ type: "error", message }</code></td><td><code>{"type": "error", "message": message}</code>. Een kale naam wordt dat veld</td></tr><tr><td><code>text ${x}</code></td><td>f-string</td></tr><tr><td><code>cond ? a : b</code></td><td><code>a if cond else b</code></td></tr><tr><td><code>const</code> / <code>let</code></td><td>Beide binden een naam. <code>const</code> verbiedt rebinding, terwijl <code>let</code> dit toestaat</td></tr><tr><td><code>export</code></td><td>maakt een naam importeerbaar</td></tr><tr><td><code>switch</code> / <code>case</code></td><td><code>match</code>, behalve dat cases doorvallen tenzij ze eindigen met <code>break</code> of <code>return</code></td></tr><tr><td><code>for await</code></td><td>itereren over een async generator</td></tr><tr><td><code>i++</code></td><td>verhoogt en retourneert de oude waarde</td></tr><tr><td><code>/^https?$/</code></td><td>een regex literal, geen <code>re.compile</code> nodig</td></tr><tr><td><code>T[]</code>, <code>Map&#x3C;K, V></code></td><td><code>list[T]</code>, <code>dict[K, V]</code></td></tr></tbody></table>
+<p>Gebruik <code>const</code> tenzij de binding moet veranderen. Gebruik <code>let</code> voor een counter,
+accumulator of andere binding die je opnieuw toewijst.</p>
+<h3 id="een-korte-enum-vertaling">Een korte enum-vertaling</h3>
+<p>Voor states met stringwaarden gebruikt deze repository een object plus een afgeleid
+string-uniontype:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> Status</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> { Queued: </span><span style="color:#A5D6FF">"queued"</span><span style="color:#E6EDF3">, Running: </span><span style="color:#A5D6FF">"running"</span><span style="color:#E6EDF3"> } </span><span style="color:#FF7B72">as</span><span style="color:#FF7B72"> const</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#FF7B72">type</span><span style="color:#FFA657"> Status</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">typeof</span><span style="color:#E6EDF3"> Status)[</span><span style="color:#FF7B72">keyof</span><span style="color:#FF7B72"> typeof</span><span style="color:#E6EDF3"> Status]; </span><span style="color:#8B949E">// "queued" | "running"</span></span></code></pre>
+<p>Het object levert <code>Status.Queued</code> terwijl het programma draait. De regel <code>type</code>
+staat tijdens typechecking alleen <code>"queued"</code> of <code>"running"</code> toe. Samen vullen
+ze de twee rollen van deze Python-declaratie:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> Status</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">str</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">Enum</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#79C0FF">    QUEUED</span><span style="color:#FF7B72"> =</span><span style="color:#A5D6FF"> "queued"</span></span>
+<span class="line"><span style="color:#79C0FF">    RUNNING</span><span style="color:#FF7B72"> =</span><span style="color:#A5D6FF"> "running"</span></span></code></pre>
+<p>Je hoeft alleen het patroon te herkennen. <code>as const</code> behoudt de waarden van het object als
+exacte strings in plaats van ze te verbreden naar een willekeurig <code>string</code>.</p>
+<hr>
+<h2 id="de-zeven-semantische-verschillen-die-tijd-kosten">De zeven semantische verschillen die tijd kosten</h2>
+<p>De syntax-tabel helpt je door de voorbeelden heen. Deze semantische verschillen zijn
+waar Python-gewoonten bugs veroorzaken.</p>
+<h3 id="1-lege-arrays-en-objects-zijn-truthy">1. Lege arrays en objects zijn truthy</h3>
+<p>Python’s gewoonte dat een “lege container falsy is” draagt het slechtst over.
+<code>if (results)</code> is true voor een lege array. Schrijf <code>if (results.length)</code>.</p>
+<h3 id="2-null-en-undefined-zijn-verschillend">2. <code>null</code> en <code>undefined</code> zijn verschillend</h3>
+<p><code>null</code> markeert meestal een bewuste afwezigheid. <code>undefined</code> betekent meestal dat
+een waarde ontbreekt of niet toegewezen is, hoewel code dit expliciet kan toewijzen. Librarycode
+retourneert voortdurend <code>undefined</code>. Het verschil wordt zichtbaar wanneer je een default
+schrijft. <code>||</code> vervangt de linkerzijde telkens wanneer die falsy is. Dat omvat
+<code>0</code>, <code>""</code> en <code>false</code>. <code>??</code> vervangt alleen <code>null</code> en
+<code>undefined</code>. Daarom is <code>0 || 10</code> gelijk aan <code>10</code>, terwijl <code>0 ?? 10</code>
+gelijk is aan <code>0</code>. Zo verandert een batch size van nul ongemerkt in tien.</p>
+<h3 id="3-een-catch-block-ontvangt-unknown">3. Een catch-block ontvangt <code>unknown</code></h3>
+<p>Er is geen <code>except ValueError:</code>. Eén <code>catch</code>-block vangt alles op. Omdat JavaScript een
+string, getal of <code>null</code> kan throwen, typecheckt TypeScript de gevangen waarde als
+<code>unknown</code>, het type “dit kan letterlijk alles zijn” onder <code>strict</code>. De companion
+schakelt <code>strict</code> in, wat voor nieuwe projecten algemeen wordt aanbevolen. Om de
+error te inspecteren, narrow je de waarde eerst:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">try</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">    await</span><span style="color:#D2A8FF"> risky</span><span style="color:#E6EDF3">();</span></span>
+<span class="line"><span style="color:#E6EDF3">} </span><span style="color:#FF7B72">catch</span><span style="color:#E6EDF3"> (error) {</span></span>
+<span class="line"><span style="color:#8B949E">    // `error` is `unknown` until you prove otherwise. This line is the</span></span>
+<span class="line"><span style="color:#8B949E">    // TypeScript equivalent of `except ValueError as e:` and it is not</span></span>
+<span class="line"><span style="color:#8B949E">    // optional.</span></span>
+<span class="line"><span style="color:#FF7B72">    const</span><span style="color:#79C0FF"> message</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> error </span><span style="color:#FF7B72">instanceof</span><span style="color:#FFA657"> Error</span><span style="color:#FF7B72"> ?</span><span style="color:#E6EDF3"> error.message </span><span style="color:#FF7B72">:</span><span style="color:#D2A8FF"> String</span><span style="color:#E6EDF3">(error);</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
+<h3 id="4-promises-starten-direct">4. Promises starten direct</h3>
+<p>Het aanroepen van een <code>async</code>-functie start de uitvoering van de body en retourneert een promise.
+Een Python coroutine object doet niets totdat je het await of scheduled. <code>Promise.all</code> komt in
+de buurt van <code>asyncio.gather</code>. <code>Promise.allSettled</code> komt in de buurt van <code>gather(..., return_exceptions=True)</code>, behalve dat elk
+resultaat wordt verpakt als <code>{ status, value }</code> of <code>{ status, reason }</code>.</p>
+<p>Node beheert de runtime scheduling. Het proces blijft actief zolang er actieve handles of
+requests bestaan, zoals timers en sockets. Alleen een gewone pending promise houdt Node niet in leven.
+Je wikkelt het programma niet in <code>asyncio.run</code>. In een ES-module kun je op top-level
+<code>await</code> gebruiken wanneer de startup op een async operatie moet wachten.</p>
+<h3 id="5-javascript-heeft-één-regulier-numeriek-type">5. JavaScript heeft één regulier numeriek type</h3>
+<p>JavaScript’s <code>number</code>-type slaat waarden op als 64-bit floating-pointgetallen, ongeveer
+hetzelfde als Python’s <code>float</code>. De technische standaard voor dit formaat heet IEEE 754.
+Decimalen zijn approximaties: <code>0.1 + 0.2</code> is niet exact <code>0.3</code>, en integers blijven
+alleen exact tot <code>2**53 - 1</code>, oftewel <code>9,007,199,254,740,991</code>.</p>
+<p>Houd 64-bit-ID’s als strings bij service boundaries. Een Postgres-<code>bigint</code> converteren naar
+een JavaScript-<code>number</code> kan afronding veroorzaken. Voor grotere exacte integers biedt JavaScript
+het afzonderlijke <code>BigInt</code>-type, dat niet met gewone numbers kan worden gemengd.</p>
+<h3 id="6-gebruik-map-voor-een-python-style-dictionary">6. Gebruik <code>Map</code> voor een Python-style dictionary</h3>
+<p>In JavaScript maakt <code>{}</code> een <strong>object</strong>. Objects representeren meestal records met
+benoemde velden:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> request</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> { model: </span><span style="color:#A5D6FF">"gpt-5"</span><span style="color:#E6EDF3">, seqLen: </span><span style="color:#79C0FF">4096</span><span style="color:#E6EDF3"> };</span></span>
+<span class="line"><span style="color:#E6EDF3">console.</span><span style="color:#D2A8FF">log</span><span style="color:#E6EDF3">(request.model);</span></span></code></pre>
+<p>Een object is geen nette key-value-tabel zoals een Python-<code>dict</code>. Het erft enkele
+namen van JavaScript zelf. Dat kan een verrassend resultaat opleveren:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> tools</span><span style="color:#FF7B72">:</span><span style="color:#FFA657"> Record</span><span style="color:#E6EDF3">&#x3C;</span><span style="color:#79C0FF">string</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">unknown</span><span style="color:#E6EDF3">> </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {};</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">tools[</span><span style="color:#A5D6FF">"constructor"</span><span style="color:#E6EDF3">]; </span><span style="color:#8B949E">// a built-in function, not a missing value</span></span>
+<span class="line"><span style="color:#E6EDF3">Object.</span><span style="color:#D2A8FF">hasOwn</span><span style="color:#E6EDF3">(tools, </span><span style="color:#A5D6FF">"constructor"</span><span style="color:#E6EDF3">); </span><span style="color:#8B949E">// false</span></span></code></pre>
+<p>Als een externe string een veld uit een object selecteert, roep dan <code>Object.hasOwn</code> aan voordat
+je het leest. Gebruik <code>Map</code> als je een algemene dictionary nodig hebt. <code>Map</code>
+komt dichter bij Python’s <code>dict</code>: een key bestaat alleen wanneer je code die toevoegt.</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> tools</span><span style="color:#FF7B72"> =</span><span style="color:#FF7B72"> new</span><span style="color:#D2A8FF"> Map</span><span style="color:#E6EDF3">&#x3C;</span><span style="color:#79C0FF">string</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">unknown</span><span style="color:#E6EDF3">>();</span></span>
+<span class="line"><span style="color:#E6EDF3">tools.</span><span style="color:#D2A8FF">get</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"constructor"</span><span style="color:#E6EDF3">); </span><span style="color:#8B949E">// undefined</span></span></code></pre>
+<h3 id="7-neem-de-extensie-op-in-relative-imports">7. Neem de extensie op in relative imports</h3>
+<p>Een JavaScript-sourcebestand dat code deelt met andere bestanden heet een <strong>module</strong>.
+Dit project gebruikt het moderne moduleformaat, <strong>ES modules</strong>, meestal afgekort tot <strong>ESM</strong>.
+ES staat voor ECMAScript, de formele naam van de JavaScript-taal. In de praktijk is ESM de <code>import</code>- en
+<code>export</code>-syntax die overal in dit project wordt gebruikt.</p>
+<p>Voor een relative import vereist Node de exacte bestandsnaam. Het raadt niet of
+<code>./env</code> <code>./env.ts</code> of <code>./env.js</code> betekent:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> { loadEnv } </span><span style="color:#FF7B72">from</span><span style="color:#A5D6FF"> "./env.ts"</span><span style="color:#E6EDF3">;</span></span></code></pre>
+<p>Imports uit geïnstalleerde of workspace-packages gebruiken nog steeds de packagenaam, zonder
+file extension:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> { z } </span><span style="color:#FF7B72">from</span><span style="color:#A5D6FF"> "zod"</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> { runAgent } </span><span style="color:#FF7B72">from</span><span style="color:#A5D6FF"> "@agent/core"</span><span style="color:#E6EDF3">;</span></span></code></pre>
+<hr>
+<h2 id="zod-is-pydantic-met-de-pijl-omgekeerd">Zod is pydantic met de pijl omgekeerd</h2>
+<p>In pydantic declareer je een class en krijg je een validator. In Zod declareer je een
+validator en leid je het type daarvan af. Dezelfde single source of truth, maar in de tegenovergestelde
+richting.</p>
+<p>Uit <a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/schemas/src/env.ts"><code>packages/schemas/src/env.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> { z } </span><span style="color:#FF7B72">from</span><span style="color:#A5D6FF"> "zod"</span><span style="color:#E6EDF3">; </span><span style="color:#8B949E">// `z` is Zod's whole API, the way `pd` is pandas</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> EnvSchema</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> z.</span><span style="color:#D2A8FF">object</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">    PORT: z.coerce.</span><span style="color:#D2A8FF">number</span><span style="color:#E6EDF3">().</span><span style="color:#D2A8FF">int</span><span style="color:#E6EDF3">().</span><span style="color:#D2A8FF">positive</span><span style="color:#E6EDF3">().</span><span style="color:#D2A8FF">default</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">8080</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#8B949E">    // See the note below: a bare z.url() would accept "localhost:8000".</span></span>
+<span class="line"><span style="color:#E6EDF3">    OPENAI_BASE_URL: z</span></span>
+<span class="line"><span style="color:#E6EDF3">        .</span><span style="color:#D2A8FF">url</span><span style="color:#E6EDF3">({ protocol:</span><span style="color:#A5D6FF"> /</span><span style="color:#FF7B72">^</span><span style="color:#A5D6FF">https</span><span style="color:#FF7B72">?$</span><span style="color:#A5D6FF">/</span><span style="color:#E6EDF3"> })</span></span>
+<span class="line"><span style="color:#E6EDF3">        .</span><span style="color:#D2A8FF">default</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"https://api.openai.com/v1"</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#E6EDF3">    DATABASE_URL: z.</span><span style="color:#D2A8FF">string</span><span style="color:#E6EDF3">().</span><span style="color:#D2A8FF">optional</span><span style="color:#E6EDF3">(),</span></span>
+<span class="line"><span style="color:#E6EDF3">});</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">export</span><span style="color:#FF7B72"> type</span><span style="color:#FFA657"> Env</span><span style="color:#FF7B72"> =</span><span style="color:#FFA657"> z</span><span style="color:#E6EDF3">.</span><span style="color:#FFA657">infer</span><span style="color:#E6EDF3">&#x3C;</span><span style="color:#FF7B72">typeof</span><span style="color:#E6EDF3"> EnvSchema>;</span></span></code></pre>
+<p><code>z.infer&#x3C;typeof EnvSchema></code> leest een static type uit het runtime-schema. <code>z.coerce.number()</code> handelt het
+feit af dat elke gedefinieerde waarde in <code>process.env</code> (Node’s <code>os.environ</code>) een string
+is. Het vervult dezelfde rol als pydantic’s numeric settings coercion, hoewel de exacte strings die
+elk accepteert verschillen. Dit volgt het <code>pydantic-settings</code>-patroon en draait één keer bij startup.
+Een ongeldige environment levert dan een leesbare startup-fout op in plaats van een <code>TypeError</code>
+binnen een handler.</p>
+<p>Een kale <code>z.url()</code> accepteert <code>localhost:8000</code>. De URL-standaard behandelt alles vóór de eerste
+dubbele punt als het scheme. Daardoor leest de standaard <code>localhost:</code> als een protocol met de
+naam “localhost” en accepteert de string. De waarde bereikt vervolgens de HTTP-client en faalt met
+minder context. Schema-validatie verplaatst fouten naar voren, maar handhaaft een permissief schema als
+dat is wat je hebt geschreven.</p>
+<p>Zod 4 levert ook <code>z.toJSONSchema</code>, dus dit project heeft de in oudere tutorials veelgebruikte
+<code>zod-to-json-schema</code>-dependency niet nodig. Dat is belangrijk zodra één schema drie consumers moet
+bedienen, zoals in de sectie “Eén tool, drie consumers” hieronder.</p>
+<hr>
+<h2 id="de-service">De service</h2>
+<p><img src="/nl/blog/assets/2026-08-15-typescript-for-python-ml-engineers/workspace-layout.svg" alt="Een pnpm-workspace heeft packages en apps. De packages bevatten schemas, agentcode en observability. Eén schema voedt de handgeschreven loop, de Vercel AI SDK en de MCP-server. De apps bevatten een Hono-API, een worker en een MCP-server. De API en worker delen één Postgres-runs-tabel."></p>
+<p>De demo-service schat LLM-deployments. Eén tool zoekt architectuurconstanten van een model op.
+De andere schat de omvang van de KV cache: het GPU-geheugen dat wordt gebruikt om de attention-keys
+en -values voor in-flight requests vast te houden.
+Beide tools doen bewust saaie rekenkunde. Ze hebben geen netwerk nodig en geven altijd hetzelfde
+antwoord. Daardoor is de service zonder API-key te testen. De KV-cache-estimator wordt ook via het
+Model Context Protocol (MCP) gepubliceerd, zodat andere AI-clients hem kunnen aanroepen.</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="text"><code><span class="line"><span>typescript-agent-service/</span></span>
+<span class="line"><span>├── apps/</span></span>
+<span class="line"><span>│   ├── api/           @agent/api: Hono API, streams Server-Sent Events (below)</span></span>
+<span class="line"><span>│   ├── worker/        polls Postgres for long-running jobs</span></span>
+<span class="line"><span>│   └── mcp/           MCP server: exposes one tool to outside AI clients</span></span>
+<span class="line"><span>├── packages/</span></span>
+<span class="line"><span>│   ├── schemas/       package name @agent/schemas: env, API, and tool schemas</span></span>
+<span class="line"><span>│   ├── agent-core/    package name @agent/core: the loop (twice), tools, storage</span></span>
+<span class="line"><span>│   └── observability/ Pino logging, OpenTelemetry tracing</span></span>
+<span class="line"><span>├── pnpm-workspace.yaml</span></span>
+<span class="line"><span>└── package.json</span></span></code></pre>
+<p><code>pnpm-workspace.yaml</code> is het bestand dat de workspace declareert. Interne packages krijgen een scoped naam zoals
+<code>@agent/core</code>, waarbij het <code>@agent/</code>-prefix een naming convention is, geen
+taalfunctie. Elke package declareert zijn publieke entry point in <code>package.json</code>. Die package boundary
+hangt niet af van het commando waarmee de applicatie wordt gestart.</p>
+<p>Deze private workspace wijst die entries naar <code>.ts</code>-source, omdat elke consumer onderdeel
+is van dezelfde repository. Publieke npm-packages publiceren normaal JavaScript plus <code>.d.ts</code>-type
+declarations, zodat gewone Node-consumers de TypeScript runner of build setup van de package-auteur niet
+nodig hebben.</p>
+<hr>
+<h2 id="schrijf-de-tool-loop-één-keer-zelf">Schrijf de tool loop één keer zelf</h2>
+<p><img src="/nl/blog/assets/2026-08-15-typescript-for-python-ml-engineers/agent-loop-event-stream.svg" alt="Eén stap uit een agent loop. Het model streamt chunks. De loop assembleert tool calls op index, parsed hun JSON en valideert die met Zod. Geldige calls voeren de tool uit. Ongeldige calls produceren een fout die het model leest voordat de loop herhaalt. De loop yieldt getypeerde AgentEvent-waarden. De HTTP-route emit één SSE-frame per event, accumuleert tekst en roept storage na de stream aan. Tests consumeren de generator afzonderlijk."></p>
+<p>Tool-calling agent-frameworks verpakken dezelfde basisloop:</p>
+<ol>
+<li>Roep het model aan met tool definitions.</li>
+<li>Valideer en voer de gevraagde tools uit.</li>
+<li>Voeg de resultaten toe aan de messages.</li>
+<li>Roep het model opnieuw aan.</li>
+</ol>
+<p>Schrijf deze loop één keer zelf. Frameworkgedrag wordt dan een engineeringkeuze die je
+kunt onderbouwen.</p>
+<p>De loop is een <code>async function*</code>, een async generator, exact de vorm van Python’s <code>async def</code>
+met <code>yield</code>. De HTTP-route itereert over die generator, zet elk event om in een Server-Sent
+Events-frame en accumuleert de tekst. Nadat de stream eindigt, roept de route <code>storage.createRun</code>
+één keer aan met de uiteindelijke tekst. Tests roepen de loop afzonderlijk aan en verzamelen de events
+in een array. Een SSE-frame is één chunk van een langlevende HTTP-response. De volgende sectie legt het
+formaat uit.</p>
+<p>Uit <a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/agent-core/src/loop.ts"><code>packages/agent-core/src/loop.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">let</span><span style="color:#E6EDF3"> text </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> ""</span><span style="color:#E6EDF3">; </span><span style="color:#8B949E">// the assistant text produced during this model step</span></span>
+<span class="line"><span style="color:#8B949E">// Keyed by the `index` field, because a streamed response interleaves</span></span>
+<span class="line"><span style="color:#8B949E">// fragments of several parallel tool calls and only `index` is present</span></span>
+<span class="line"><span style="color:#8B949E">// on every fragment. `id` and `name` arrive once, `arguments` arrives</span></span>
+<span class="line"><span style="color:#8B949E">// in pieces. `a?.b` below reads `b` only if `a` exists, and gives back</span></span>
+<span class="line"><span style="color:#8B949E">// `undefined` instead of throwing if it doesn't.</span></span>
+<span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> partial</span><span style="color:#FF7B72"> =</span><span style="color:#FF7B72"> new</span><span style="color:#D2A8FF"> Map</span><span style="color:#E6EDF3">&#x3C;</span><span style="color:#79C0FF">number</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">PartialToolCall</span><span style="color:#E6EDF3">>();</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">for</span><span style="color:#FF7B72"> await</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> chunk</span><span style="color:#FF7B72"> of</span><span style="color:#E6EDF3"> stream) {</span></span>
+<span class="line"><span style="color:#FF7B72">    const</span><span style="color:#79C0FF"> choice</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> chunk.choices[</span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">];</span></span>
+<span class="line"><span style="color:#FF7B72">    if</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">!</span><span style="color:#E6EDF3">choice) </span><span style="color:#FF7B72">continue</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    if</span><span style="color:#E6EDF3"> (choice.delta.content) {</span></span>
+<span class="line"><span style="color:#E6EDF3">        text </span><span style="color:#FF7B72">+=</span><span style="color:#E6EDF3"> choice.delta.content;</span></span>
+<span class="line"><span style="color:#FF7B72">        yield</span><span style="color:#E6EDF3"> { type: </span><span style="color:#A5D6FF">"text"</span><span style="color:#E6EDF3">, delta: choice.delta.content };</span></span>
+<span class="line"><span style="color:#E6EDF3">    }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    for</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> fragment</span><span style="color:#FF7B72"> of</span><span style="color:#E6EDF3"> choice.delta.tool_calls </span><span style="color:#FF7B72">??</span><span style="color:#E6EDF3"> []) {</span></span>
+<span class="line"><span style="color:#FF7B72">        const</span><span style="color:#79C0FF"> slot</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> partial.</span><span style="color:#D2A8FF">get</span><span style="color:#E6EDF3">(fragment.index) </span><span style="color:#FF7B72">??</span><span style="color:#E6EDF3"> { id: </span><span style="color:#A5D6FF">""</span><span style="color:#E6EDF3">, name: </span><span style="color:#A5D6FF">""</span><span style="color:#E6EDF3">, args: </span><span style="color:#A5D6FF">""</span><span style="color:#E6EDF3"> };</span></span>
+<span class="line"><span style="color:#FF7B72">        if</span><span style="color:#E6EDF3"> (fragment.id) slot.id </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> fragment.id;</span></span>
+<span class="line"><span style="color:#FF7B72">        if</span><span style="color:#E6EDF3"> (fragment.function?.name) slot.name </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> fragment.function.name;</span></span>
+<span class="line"><span style="color:#FF7B72">        if</span><span style="color:#E6EDF3"> (fragment.function?.arguments) slot.args </span><span style="color:#FF7B72">+=</span><span style="color:#E6EDF3"> fragment.function.arguments;</span></span>
+<span class="line"><span style="color:#E6EDF3">        partial.</span><span style="color:#D2A8FF">set</span><span style="color:#E6EDF3">(fragment.index, slot);</span></span>
+<span class="line"><span style="color:#E6EDF3">    }</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
+<p>De lokale variabele <code>text</code> bevat één modelstap. De loop gebruikt deze in het assistant
+message voor de volgende stap of in het uiteindelijke <code>done</code>-event. Dit is niet de
+route-level accumulator die later wordt opgeslagen.</p>
+<p>De <code>partial</code>-map is het deel dat frameworks verbergen. De SDK stelt stringfragmenten van de
+function arguments beschikbaar, en die kunnen de geserialiseerde JSON op willekeurige posities splitsen.
+Meerdere parallelle calls kunnen bovendien interleaven. De repository bevat een test die <code>{"model":"llama-3.1-8b",...}</code>
+over vier chunks splitst.</p>
+<p>Het tweede dat je zelf zou moeten schrijven, is wat er gebeurt wanneer validatie faalt:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#8B949E">// `tool.parse` is this repo's wrapper, not Zod's. Zod's own `.parse` throws and</span></span>
+<span class="line"><span style="color:#8B949E">// `.safeParse` returns `{ success, data, error }`; this returns</span></span>
+<span class="line"><span style="color:#8B949E">// `{ ok: true, value }` on success and `{ ok: false, error }` on failure, so no</span></span>
+<span class="line"><span style="color:#8B949E">// caller has to catch.</span></span>
+<span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> parsed</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> tool.</span><span style="color:#D2A8FF">parse</span><span style="color:#E6EDF3">(raw);</span></span>
+<span class="line"><span style="color:#FF7B72">if</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">!</span><span style="color:#E6EDF3">parsed.ok) {</span></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#E6EDF3">        ok: </span><span style="color:#79C0FF">false</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">        value: { error: </span><span style="color:#A5D6FF">`Invalid arguments: ${</span><span style="color:#E6EDF3">parsed</span><span style="color:#A5D6FF">.</span><span style="color:#E6EDF3">error</span><span style="color:#A5D6FF">}`</span><span style="color:#E6EDF3"> },</span></span>
+<span class="line"><span style="color:#E6EDF3">        parsedArgs: raw,</span></span>
+<span class="line"><span style="color:#E6EDF3">    };</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
+<p>Voor execution kan de lookup de tool niet vinden, kan <code>JSON.parse</code> de arguments afwijzen of kan
+Zod hun vorm afwijzen. Elke fout wordt een message die het model leest. Tijdens execution wordt ook een
+verwachte <code>ToolError</code> een tool result, zodat het model zijn call kan corrigeren. Een onverwachte
+exception propageert naar het HTTP-errorpad in plaats van als domain failure te worden gepresenteerd.
+<code>z.prettifyError</code> zet Zod’s issue tree om in een message waarmee het model kan handelen, in plaats van
+in een stack trace.</p>
+<p><a href="https://developers.openai.com/api/docs/guides/structured-outputs"><code>strict: true</code> op een OpenAI-function
+definition</a> vraagt de provider om constrained decoding volgens het schema.
+Dit heeft geen relatie met TypeScript’s <code>strict</code>-tsconfigflag. Het lijkt op vLLM’s guided
+decoding, hoewel ondersteunde schemas en enforcementdetails verschillen. Het verwijdert één failure mode,
+maar een self-hosted endpoint kan de flag negeren. De arguments moeten ook <code>JSON.parse</code> overleven.</p>
+<p>De loop roept <code>/chat/completions</code> aan omdat de companion OpenAI-compatible servers target. <a href="https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/">vLLM</a>,
+<a href="https://docs.sglang.io/docs/basic_usage/openai_api_completions">SGLang</a> en <a href="https://docs.ollama.com/api/openai-compatibility">Ollama</a> documenteren dat endpoint, dus <code>OPENAI_BASE_URL</code> kan
+dezelfde client naar elk van deze systemen laten wijzen. Hun Responses API-ondersteuning verschilt en
+verandert per release. Als je beide kanten beheert, controleer dan de huidige compatibility-pagina van
+de server voordat je tussen de twee APIs kiest.</p>
+<hr>
+<h2 id="schakel-daarna-over-naar-de-ai-sdk-en-weet-wat-je-inruilt">Schakel daarna over naar de AI SDK en weet wat je inruilt</h2>
+<p>Voor latere projecten zou ik de Vercel AI SDK gebruiken. De companion implementeert dezelfde
+agent twee keer, zodat de trade-off zichtbaar is. Beide versies emitten dezelfde <code>AgentEvent</code>-stream,
+waardoor de HTTP-laag geen verschil ziet.</p>
+<p>De companion pint AI SDK 7.0.42 in
+<a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/agent-core/package.json"><code>packages/agent-core/package.json</code></a>.
+De frameworkimplementatie staat in
+<a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/agent-core/src/loop-ai-sdk.ts"><code>packages/agent-core/src/loop-ai-sdk.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> result</span><span style="color:#FF7B72"> =</span><span style="color:#D2A8FF"> streamText</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">    model: provider.</span><span style="color:#D2A8FF">chatModel</span><span style="color:#E6EDF3">(options.model),</span></span>
+<span class="line"><span style="color:#E6EDF3">    prompt: options.message,</span></span>
+<span class="line"><span style="color:#E6EDF3">    tools: aiSdkTools,          </span><span style="color:#8B949E">// Zod schemas passed straight through</span></span>
+<span class="line"><span style="color:#E6EDF3">    stopWhen: </span><span style="color:#D2A8FF">stepCountIs</span><span style="color:#E6EDF3">(options.maxSteps </span><span style="color:#FF7B72">??</span><span style="color:#79C0FF"> 6</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#E6EDF3">});</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">for</span><span style="color:#FF7B72"> await</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> part</span><span style="color:#FF7B72"> of</span><span style="color:#E6EDF3"> result.fullStream) {</span></span>
+<span class="line"><span style="color:#FF7B72">    switch</span><span style="color:#E6EDF3"> (part.type) {</span></span>
+<span class="line"><span style="color:#FF7B72">        case</span><span style="color:#A5D6FF"> "text-delta"</span><span style="color:#E6EDF3">: </span><span style="color:#FF7B72">yield</span><span style="color:#E6EDF3"> { type: </span><span style="color:#A5D6FF">"text"</span><span style="color:#E6EDF3">, delta: part.text }; </span><span style="color:#FF7B72">break</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#FF7B72">        case</span><span style="color:#A5D6FF"> "tool-call"</span><span style="color:#E6EDF3">:  </span><span style="color:#FF7B72">yield</span><span style="color:#E6EDF3"> { type: </span><span style="color:#A5D6FF">"tool_call"</span><span style="color:#E6EDF3">, callId: part.toolCallId, </span><span style="color:#8B949E">/* ... */</span><span style="color:#E6EDF3"> }; </span><span style="color:#FF7B72">break</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#8B949E">        // ...</span></span>
+<span class="line"><span style="color:#E6EDF3">    }</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
+<p>De SDK verwijdert vijf stukken application code:</p>
+<ul>
+<li>de fragment accumulator</li>
+<li><code>JSON.parse</code> en het error path daarvan</li>
+<li>de call die Zod over de geparste arguments uitvoert</li>
+<li>provider-specifieke message assembly</li>
+<li>de step counter</li>
+</ul>
+<p><code>stopWhen</code> accepteert verschillende voorwaarden, waaronder een step limit of een specifieke
+tool call. De <code>for await</code>-loop verandert niet wanneer de stop policy verandert.</p>
+<p>Wat je opgeeft, is directe controle over validation failures. De handgeschreven loop bepaalt wat het model
+ziet na een afgewezen call. In de SDK-versie configureer je dat gedrag via <code>repairToolCall</code>.
+De trade-off werkt ook andersom. In de SDK-versie is een providerwijziging beperkt tot de provider adapter.
+Daarvoor zijn nog steeds het bijbehorende provider package, credentials, configuratie en integration tests
+nodig. In de raw loop zijn provider-specifieke request- en stream-handling jouw code om te wijzigen.</p>
+<p>Ik schrijf de loop in het eerste project zelf en gebruik de SDK in latere projecten. Die les betaal je één
+keer. Het alternatief is voor het eerst de internals van een framework lezen terwijl het in productie faalt.</p>
+<hr>
+<h2 id="streaming-over-http-hono-en-sse">Streaming over HTTP: Hono en SSE</h2>
+<p>Hono-routes lezen als FastAPI-routes. De toevoeging is <code>zValidator</code>, dat doet wat FastAPI
+gratis krijgt uit de type annotations op de signature van een handler. De <code>c</code> in de
+onderstaande handler is Hono’s request context, het object dat FastAPI over je parameters verdeelt.
+<code>deps</code> is een dependency-bag waarmee de app wordt geconstrueerd, in plaats van dependencies
+direct te importeren. <code>runAgent</code> is er één van; de testsectie laat zien wat dat oplevert.</p>
+<p>Uit <a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/apps/api/src/app.ts"><code>apps/api/src/app.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#E6EDF3">app.</span><span style="color:#D2A8FF">post</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"/v1/chat"</span><span style="color:#E6EDF3">, </span><span style="color:#D2A8FF">zValidator</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"json"</span><span style="color:#E6EDF3">, ChatRequestSchema), (</span><span style="color:#FFA657">c</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">    const</span><span style="color:#79C0FF"> body</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> c.req.</span><span style="color:#D2A8FF">valid</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"json"</span><span style="color:#E6EDF3">);</span></span>
+<span class="line"><span style="color:#FF7B72">    const</span><span style="color:#79C0FF"> log</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> deps.logger.</span><span style="color:#D2A8FF">child</span><span style="color:#E6EDF3">({ route: </span><span style="color:#A5D6FF">"chat"</span><span style="color:#E6EDF3"> });</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#D2A8FF"> streamSSE</span><span style="color:#E6EDF3">(c, </span><span style="color:#FF7B72">async</span><span style="color:#E6EDF3"> (</span><span style="color:#FFA657">stream</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">        let</span><span style="color:#E6EDF3"> text </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> ""</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#FF7B72">        try</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">            await</span><span style="color:#D2A8FF"> withSpan</span><span style="color:#E6EDF3">(</span></span>
+<span class="line"><span style="color:#A5D6FF">                "agent.run"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">                { </span><span style="color:#A5D6FF">"agent.max_steps"</span><span style="color:#E6EDF3">: body.maxSteps },</span></span>
+<span class="line"><span style="color:#FF7B72">                async</span><span style="color:#E6EDF3"> () </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">                    for</span><span style="color:#FF7B72"> await</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> event</span><span style="color:#FF7B72"> of</span><span style="color:#E6EDF3"> deps.</span><span style="color:#D2A8FF">runAgent</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">                        message: body.message,</span></span>
+<span class="line"><span style="color:#E6EDF3">                        maxSteps: body.maxSteps,</span></span>
+<span class="line"><span style="color:#E6EDF3">                    })) {</span></span>
+<span class="line"><span style="color:#FF7B72">                        if</span><span style="color:#E6EDF3"> (event.type </span><span style="color:#FF7B72">===</span><span style="color:#A5D6FF"> "text"</span><span style="color:#E6EDF3">) text </span><span style="color:#FF7B72">+=</span><span style="color:#E6EDF3"> event.delta;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">                        await</span><span style="color:#E6EDF3"> stream.</span><span style="color:#D2A8FF">writeSSE</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">                            event: event.type,</span></span>
+<span class="line"><span style="color:#E6EDF3">                            data: </span><span style="color:#79C0FF">JSON</span><span style="color:#E6EDF3">.</span><span style="color:#D2A8FF">stringify</span><span style="color:#E6EDF3">(event),</span></span>
+<span class="line"><span style="color:#E6EDF3">                        });</span></span>
+<span class="line"><span style="color:#E6EDF3">                    }</span></span>
+<span class="line"><span style="color:#E6EDF3">                },</span></span>
+<span class="line"><span style="color:#E6EDF3">            );</span></span>
+<span class="line"><span style="color:#E6EDF3">        } </span><span style="color:#FF7B72">catch</span><span style="color:#E6EDF3"> (error) {</span></span>
+<span class="line"><span style="color:#E6EDF3">            log.</span><span style="color:#D2A8FF">error</span><span style="color:#E6EDF3">({ err: error }, </span><span style="color:#A5D6FF">"agent run failed"</span><span style="color:#E6EDF3">);</span></span>
+<span class="line"><span style="color:#FF7B72">            await</span><span style="color:#E6EDF3"> stream.</span><span style="color:#D2A8FF">writeSSE</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">                event: </span><span style="color:#A5D6FF">"error"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">                data: </span><span style="color:#79C0FF">JSON</span><span style="color:#E6EDF3">.</span><span style="color:#D2A8FF">stringify</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">                    type: </span><span style="color:#A5D6FF">"error"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">                    message: </span><span style="color:#A5D6FF">"Agent run failed"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">                }),</span></span>
+<span class="line"><span style="color:#E6EDF3">            });</span></span>
+<span class="line"><span style="color:#FF7B72">            return</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#E6EDF3">        }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">        await</span><span style="color:#E6EDF3"> deps.storage.</span><span style="color:#D2A8FF">createRun</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">            kind: </span><span style="color:#A5D6FF">"chat"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">            status: </span><span style="color:#A5D6FF">"succeeded"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">            input: { message: body.message },</span></span>
+<span class="line"><span style="color:#E6EDF3">            output: { text },</span></span>
+<span class="line"><span style="color:#E6EDF3">        });</span></span>
+<span class="line"><span style="color:#E6EDF3">    });</span></span>
+<span class="line"><span style="color:#E6EDF3">});</span></span></code></pre>
+<p><code>zValidator</code> valideert de body en geeft <code>c.req.valid("json")</code> het type dat het schema produceert.
+Sla dit over en de body krijgt type <code>any</code>, TypeScript’s opt-outtype, waarbij elke
+property access compileert en niets wordt gecontroleerd. Daarmee schakel je het type-safetyvoordeel van
+het schema uit.</p>
+<p>Deze route gebruikt Server-Sent Events in plaats van WebSockets. De server houdt een HTTP-response open
+terwijl hij <code>event: &#x3C;name></code>- en <code>data: &#x3C;json></code>-frames schrijft, en sluit die na het laatste
+event. Het verkeer stroomt van server naar client, wat bij deze agentstream past. Een WebSocket zou
+bidirectionele messaging en een protocolupgrade toevoegen die deze route niet nodig heeft.</p>
+<p>Een failure midstream verandert de HTTP-error reporting. Zodra het eerste frame met status 200 is verzonden,
+kan de server die response niet meer vervangen door een 500. Het <code>catch</code>-block logt de
+opgevangen error, stuurt een constant error-event naar de client en retourneert. Die return is belangrijk:
+alleen een succesvol voltooide stream bereikt <code>storage.createRun</code>.</p>
+<p>Een test dekt dit pad. Een generator yieldt één text delta en gooit daarna een exception. De response blijft
+200 en het laatste frame is een <code>error</code>-event met de constante message <code>Agent run failed</code>.
+De logger bewaart de opgevangen error voor diagnose aan de serverzijde. Elke client die alleen de statuscode
+controleert, rapporteert succes bij een mislukte run.</p>
+<p><code>app.ts</code> maakt twee kleinere keuzes die uitleg verdienen. Het behandelt <code>/healthz</code> als
+liveness-endpoint, zodat die route Postgres bewust niet aanraakt. Een liveness-failure tijdens een
+database-outage kan elke replica herstarten zonder de dependency te herstellen. Voeg een afzonderlijke
+readiness-check toe wanneer de orchestrator verkeer moet stoppen naar een instance die Postgres niet kan
+bereiken. De error paths loggen de opgevangen error, maar retourneren een constante string. <code>error.message</code>
+in een response body echoën is hoe connection strings in de browser van iemand anders belanden.</p>
+<hr>
+<h2 id="het-celery-achtige-onderdeel-zonder-celery">Het Celery-achtige onderdeel, zonder Celery</h2>
+<p>Lange jobs horen niet in een request handler. De API voegt een rij toe en retourneert 202. Een worker
+claimt de rij.</p>
+<p>Hier is geen Redis en geen BullMQ. PostgreSQL documenteert <code>SKIP LOCKED</code> voor
+<a href="https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE">meerdere consumers van een queue-achtige tabel</a>.
+De clause geeft deze kleine service een at-least-once queue in één tabel. De queue is transactioneel met
+de rest van je writes, en één service minder in <code>docker-compose.yml</code>.</p>
+<p>De claim-query in
+<a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/agent-core/src/db/storage.ts"><code>packages/agent-core/src/db/storage.ts</code></a>
+is:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#E6EDF3"> [</span><span style="color:#79C0FF">candidate</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">=</span><span style="color:#FF7B72"> await</span><span style="color:#E6EDF3"> tx</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">select</span><span style="color:#E6EDF3">({ id: runs.id })</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">from</span><span style="color:#E6EDF3">(runs)</span></span>
+<span class="line"><span style="color:#8B949E">    // The real query also picks up rows whose lock went stale; trimmed here.</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">where</span><span style="color:#E6EDF3">(</span><span style="color:#D2A8FF">and</span><span style="color:#E6EDF3">(</span><span style="color:#D2A8FF">eq</span><span style="color:#E6EDF3">(runs.kind, kind), </span><span style="color:#D2A8FF">eq</span><span style="color:#E6EDF3">(runs.status, </span><span style="color:#A5D6FF">"queued"</span><span style="color:#E6EDF3">)))</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">orderBy</span><span style="color:#E6EDF3">(runs.createdAt)</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">limit</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#8B949E">    // `.for()` exists but is undocumented; SKIP LOCKED rides in its second</span></span>
+<span class="line"><span style="color:#8B949E">    // argument.</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">for</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"update"</span><span style="color:#E6EDF3">, { skipLocked: </span><span style="color:#79C0FF">true</span><span style="color:#E6EDF3"> });</span></span></code></pre>
+<p>De rij wordt voor de transactie gelockt en een gelijktijdige worker die dezelfde query uitvoert, slaat de
+rij over in plaats van te blokkeren. Twee gelijktijdige claims ontvangen daardoor niet dezelfde niet-stale
+rij. Een integration test voert twee claims tegelijk uit via <code>Promise.all</code> en controleert dat ze
+verschillende rijen retourneren. De naïeve versie, <code>SELECT ... LIMIT 1</code> gevolgd door <code>UPDATE</code>,
+faalt voor deze test: beide transacties lezen dezelfde rij voordat een van beide schrijft, zodat ze dezelfde
+job starten.</p>
+<p>Dit is at-least-once execution, geen exactly-once execution. De volledige query claimt ook een <code>running</code>-rij
+opnieuw wanneer de lock meer dan vijf minuten oud is; de demo-worker vernieuwt die lease niet. Een actieve job
+die langer dan vijf minuten draait kan daardoor tweemaal worden geclaimd. Maak jobs idempotent. Voeg voor
+langlopende werkzaamheden een lease-heartbeat toe of zet de stale-lockdrempel boven de maximale runtime.</p>
+<p><a href="https://github.com/taskforcesh/bullmq">Voeg BullMQ toe</a> wanneer je delayed jobs, repeatable schedules, priorities, rate limits
+of een dashboard nodig hebt. In Python zou ik dezelfde stap maken van een databasetabel naar Celery. Daarvoor
+is Redis echter nog een service om te draaien, monitoren en uit te leggen aan degene die on-call is.</p>
+<p>De worker valideert opnieuw wat hij uit <code>jsonb</code> leest:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#8B949E">// The row was validated on the way in, but it has been through a database.</span></span>
+<span class="line"><span style="color:#8B949E">// A stored row can outlive the schema version that accepted it.</span></span>
+<span class="line"><span style="color:#8B949E">// The job is a batch-size sweep. Zod's own `.parse` throws; the poll loop</span></span>
+<span class="line"><span style="color:#8B949E">// catches that and marks the run failed.</span></span>
+<span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> input</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> SweepRequestSchema.</span><span style="color:#D2A8FF">parse</span><span style="color:#E6EDF3">(run.input);</span></span></code></pre>
+<p>De testsuite geeft de worker ook een rij waarvan <code>seqLen</code> een string is. De worker faalt de run
+en blijft pollen, in plaats van te crashen en dezelfde poison row eindeloos opnieuw te proberen.</p>
+<p>CPU-werk legt een andere Node-beperking bloot. Een synchrone callback draait op de event-loop-thread en wordt
+niet gepreëmpt. Een <code>for</code>-loop die twee seconden lang rekenwerk uitvoert, blokkeert
+gedurende die twee seconden elke request, timer en liveness-check in dat proces. Een tight loop binnen een
+<code>async def</code> blokkeert asyncio op dezelfde manier. Beide runtimes vereisen dat je CPU-werk expliciet
+offloadt.</p>
+<p><code>await setTimeout(0)</code> uit <code>node:timers/promises</code> (het <code>node:</code>-prefix betekent
+standard library, dus <code>node:timers</code> is voor Node wat <code>os</code> is voor Python) is
+<code>await asyncio.sleep(0)</code>. De sweep yieldt na elke batch size, zodat het workerproces timers en andere callbacks
+kan afhandelen. Yielding maakt CPU-werk niet parallel. Node
+<a href="https://nodejs.org/api/worker_threads.html"><code>worker_threads</code></a> kan JavaScript parallel uitvoeren. Gebruik voor pure
+Python CPU-workloads onder de gebruikelijke GIL-enabled CPython-build een process pool in plaats van een
+thread pool. Deze service gebruikt geen van beide. Houd zware numerieke berekeningen in Python, waar de
+ondersteunende libraries al aanwezig zijn, en verplaats ze weg van de API-event-loop.</p>
+<hr>
+<h2 id="eén-tool-drie-consumers">Eén tool, drie consumers</h2>
+<p><code>EstimateKvCacheInput</code> heeft drie consumers:</p>
+<ul>
+<li>De handgeschreven loop converteert het met <code>z.toJSONSchema</code>.</li>
+<li>De AI SDK ontvangt het ongewijzigd.</li>
+<li>De MCP-server publiceert de vorm ervan.</li>
+</ul>
+<p>Die reuse is waarom <code>packages/schemas</code> bestaat.</p>
+<p>Uit <a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/apps/mcp/src/index.ts"><code>apps/mcp/src/index.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#E6EDF3">server.</span><span style="color:#D2A8FF">registerTool</span><span style="color:#E6EDF3">(</span></span>
+<span class="line"><span style="color:#A5D6FF">    "estimate_kv_cache"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">    {</span></span>
+<span class="line"><span style="color:#E6EDF3">        description: </span><span style="color:#A5D6FF">"Estimate KV-cache VRAM in GiB for a served model..."</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#8B949E">        // A Zod object schema keeps the map of fields you passed in on</span></span>
+<span class="line"><span style="color:#8B949E">        // `.shape`. This SDK wants that map, not the schema wrapped around it.</span></span>
+<span class="line"><span style="color:#E6EDF3">        inputSchema: EstimateKvCacheInput.shape,</span></span>
+<span class="line"><span style="color:#E6EDF3">    },</span></span>
+<span class="line"><span style="color:#FF7B72">    async</span><span style="color:#E6EDF3"> ({ </span><span style="color:#FFA657">model</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">seqLen</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">batchSize</span><span style="color:#E6EDF3"> }) </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#8B949E">        /* ... */</span></span>
+<span class="line"><span style="color:#E6EDF3">    },</span></span>
+<span class="line"><span style="color:#E6EDF3">);</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">await</span><span style="color:#E6EDF3"> server.</span><span style="color:#D2A8FF">connect</span><span style="color:#E6EDF3">(</span><span style="color:#FF7B72">new</span><span style="color:#D2A8FF"> StdioServerTransport</span><span style="color:#E6EDF3">());</span></span></code></pre>
+<p>Twee details zijn belangrijk voordat je een client koppelt. Ten eerste: <strong>een server die op deze manier
+wordt gestart, gebruikt zijn eigen stdin en stdout om met de client te communiceren.</strong> Elke regel is
+<a href="https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#stdio">een JSON-RPC-message</a>. Een verdwaalde <code>console.log</code>, het JavaScript-equivalent
+van <code>print</code>, corrumpeert vervolgens een message. De client verbreekt de verbinding met een
+parse error waarin geen bestandsnaam staat. Stuur alle diagnostiek naar stderr.</p>
+<p>Ten tweede hoort een domain failure <code>isError: true</code> met een message te retourneren. Het aanroepende
+model kan de call dan corrigeren, net zoals na ongeldige tool arguments in de agent loop.</p>
+<p>Je kunt de server aansturen met <code>printf</code> en een pipe. Doe dat één keer voordat je een echte client
+erop richt:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#79C0FF">printf</span><span style="color:#A5D6FF"> '%s\n'</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#A5D6FF">  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}'</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#A5D6FF">  '{"jsonrpc":"2.0","method":"notifications/initialized"}'</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#A5D6FF">  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"estimate_kv_cache","arguments":{"model":"llama-3.1-70b","seqLen":8192,"batchSize":4}}}'</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#FF7B72">  |</span><span style="color:#FFA657"> pnpm</span><span style="color:#79C0FF"> -s</span><span style="color:#A5D6FF"> mcp</span><span style="color:#8B949E">   # -s suppresses pnpm's own output so only JSON-RPC comes back</span></span></code></pre>
+<p>De probe komt overeen met de protocolversie die in de README van de companion wordt gebruikt. Gebruik voor
+een echte client de SDK in plaats van JSON-RPC-messages met de hand te onderhouden.</p>
+<hr>
+<h2 id="een-agent-testen-zonder-api-key">Een agent testen zonder API-key</h2>
+<p>Vitest vervult de rol van pytest, maar de structuur verschilt. <code>describe</code> groepeert
+gerelateerde tests. <code>it</code> en <code>test</code> definiëren elk één testcase. <code>test.each</code>
+lijkt op <code>parametrize</code>, <code>beforeEach</code> verzorgt per-test setup, <code>vi.fn()</code> maakt een mock
+function en <code>describe.skipIf</code> skipt conditioneel een groep.</p>
+<p>Agent-tests hangen af van één keuze: <code>runAgent</code> ontvangt een OpenAI-client als parameter in
+plaats van er zelf één te construeren. De fake is een object met een <code>chat.completions.create</code>-methode die een
+gescripte async iterable retourneert:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">function</span><span style="color:#D2A8FF"> fakeClient</span><span style="color:#E6EDF3">(</span><span style="color:#FFA657">scripts</span><span style="color:#FF7B72">:</span><span style="color:#FFA657"> Chunk</span><span style="color:#E6EDF3">[][])</span><span style="color:#FF7B72">:</span><span style="color:#FFA657"> OpenAI</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">    let</span><span style="color:#E6EDF3"> call </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> 0</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#E6EDF3">        chat: {</span></span>
+<span class="line"><span style="color:#E6EDF3">            completions: {</span></span>
+<span class="line"><span style="color:#D2A8FF">                create</span><span style="color:#E6EDF3">: </span><span style="color:#FF7B72">async</span><span style="color:#E6EDF3"> () </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">                    const</span><span style="color:#79C0FF"> script</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> scripts[call</span><span style="color:#FF7B72">++</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">??</span><span style="color:#E6EDF3"> [];</span></span>
+<span class="line"><span style="color:#8B949E">                    // Defines an async generator and calls it on the same</span></span>
+<span class="line"><span style="color:#8B949E">                    // line, so `create` hands back something you can</span></span>
+<span class="line"><span style="color:#8B949E">                    // `for await` over, which is the shape a real streaming</span></span>
+<span class="line"><span style="color:#8B949E">                    // response has.</span></span>
+<span class="line"><span style="color:#FF7B72">                    return</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">async</span><span style="color:#FF7B72"> function*</span><span style="color:#E6EDF3"> () {</span></span>
+<span class="line"><span style="color:#FF7B72">                        for</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> chunk</span><span style="color:#FF7B72"> of</span><span style="color:#E6EDF3"> script) </span><span style="color:#FF7B72">yield</span><span style="color:#E6EDF3"> chunk;</span></span>
+<span class="line"><span style="color:#E6EDF3">                    })();</span></span>
+<span class="line"><span style="color:#E6EDF3">                },</span></span>
+<span class="line"><span style="color:#E6EDF3">            },</span></span>
+<span class="line"><span style="color:#E6EDF3">        },</span></span>
+<span class="line"><span style="color:#8B949E">        // TypeScript refuses a direct cast between unrelated shapes, so you</span></span>
+<span class="line"><span style="color:#8B949E">        // launder it through `unknown` first. A lie to the compiler, confined</span></span>
+<span class="line"><span style="color:#8B949E">        // to one line in a test file, which is the only place it belongs.</span></span>
+<span class="line"><span style="color:#E6EDF3">    } </span><span style="color:#FF7B72">as</span><span style="color:#79C0FF"> unknown</span><span style="color:#FF7B72"> as</span><span style="color:#FFA657"> OpenAI</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
+<p>De tests splitsen één JSON-argumentstring over chunks en verwerken twee tool calls in één response. Ze
+dekken ook ongeldige <code>batchSize</code>, malformed JSON, onbekende toolnamen en een model dat tools
+blijft aanroepen totdat <code>maxSteps</code> het stopt. Het testbestand draait ruim binnen één seconde,
+zonder netwerk en zonder key.</p>
+<p>Integration tests tegen Postgres gebruiken <code>describe.skipIf(!process.env.DATABASE_URL)</code>, zodat <code>pnpm test</code> werkt op een
+verse clone zonder draaiende Postgres; CI schakelt ze in door de variabele aan te leveren. De repository heeft
+40 tests. Zesendertig draaien zonder Postgres of API-key.</p>
+<hr>
+<h2 id="structured-events-loggen-met-pino">Structured events loggen met Pino</h2>
+<p>Pino vervult dezelfde rol als <code>structlog</code>: één JSON-object per regel, child loggers
+met gebonden fields en expliciete redaction. De companion configureert dit in
+<a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/observability/src/logger.ts"><code>packages/observability/src/logger.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> log</span><span style="color:#FF7B72"> =</span><span style="color:#D2A8FF"> pino</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">    redact: {</span></span>
+<span class="line"><span style="color:#E6EDF3">        paths: [</span></span>
+<span class="line"><span style="color:#A5D6FF">            "req.headers.authorization"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#A5D6FF">            "apiKey"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#A5D6FF">            "OPENAI_API_KEY"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#A5D6FF">            "*.apiKey"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">        ],</span></span>
+<span class="line"><span style="color:#E6EDF3">        censor: </span><span style="color:#A5D6FF">"[redacted]"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">    },</span></span>
+<span class="line"><span style="color:#E6EDF3">});</span></span></code></pre>
+<p>Zonder redaction kan <code>log.info({ req }, "...")</code> een Authorization-header naar de log-backend kopiëren.</p>
+<hr>
+<h2 id="application-work-tracen-met-manual-spans">Application work tracen met manual spans</h2>
+<p>De companion gebruikt OpenTelemetry voor drie application-level spans:
+<code>agent.run</code>, <code>agent.tool</code> en <code>worker.sweep</code>. Er wordt geen automatische HTTP- of
+Postgres-instrumentation geïnstalleerd. <code>startTracing()</code> in
+<a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/observability/src/tracing.ts"><code>packages/observability/src/tracing.ts</code></a> maakt een <code>NodeSDK</code> met een OTLP trace exporter.
+Als <code>OTEL_EXPORTER_OTLP_ENDPOINT</code> ontbreekt, blijft tracing uitgeschakeld.</p>
+<p>Het werk zelf wordt omwikkeld door <code>withSpan()</code> uit hetzelfde bestand:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">return</span><span style="color:#E6EDF3"> tracer.</span><span style="color:#D2A8FF">startActiveSpan</span><span style="color:#E6EDF3">(name, { attributes }, </span><span style="color:#FF7B72">async</span><span style="color:#E6EDF3"> (</span><span style="color:#FFA657">span</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">    try</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">        return</span><span style="color:#FF7B72"> await</span><span style="color:#D2A8FF"> fn</span><span style="color:#E6EDF3">(span);</span></span>
+<span class="line"><span style="color:#E6EDF3">    } </span><span style="color:#FF7B72">finally</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#E6EDF3">        span.</span><span style="color:#D2A8FF">end</span><span style="color:#E6EDF3">();</span></span>
+<span class="line"><span style="color:#E6EDF3">    }</span></span>
+<span class="line"><span style="color:#E6EDF3">});</span></span></code></pre>
+<p>JavaScript heeft geen Python-style context-manager-syntax. Hier is de callback het block dat een Python
+context manager zou omringen. De volledige helper registreert ook exceptions en zet de spanstatus voordat
+de exception opnieuw wordt gegooid.</p>
+<p>Automatische HTTP- en databasespans zijn een aparte feature. Ze vereisen de bijbehorende instrumentation
+packages en initialisatie voordat de geïnstrumenteerde modules worden geladen. Voeg dit alleen toe wanneer
+die spans nuttig zijn en volg voor de exacte packageversies die je deployt de
+<a href="https://github.com/open-telemetry/opentelemetry-js/blob/main/experimental/packages/opentelemetry-sdk-node/README.md">OpenTelemetry Node SDK setup</a>.</p>
+<hr>
+<h2 id="de-monorepo-shippen-in-docker">De monorepo shippen in Docker</h2>
+<p>Gebruik de meegeleverde
+<a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/Dockerfile"><code>Dockerfile</code></a>.
+De container start de API met de <code>tsx</code>-loader. Bij deployment hoef je geen TypeScript
+runner te kiezen of aan te roepen.</p>
+<p>De build gebruikt <code>pnpm fetch</code>, zodat dependency downloads gecachet blijven totdat het lockfile
+verandert. Daarna gebruikt de build <code>pnpm deploy</code> om de API en de production dependencies naar
+een self-contained directory te kopiëren. De runtime stage draait als de non-root <code>node</code>-user.
+De exec-form <code>CMD</code> laat de API <code>SIGTERM</code> rechtstreeks ontvangen voor graceful shutdown.</p>
+<details>
+<summary>Waarom de Dockerfile tsx laadt</summary>
+<p>Node 24 kan een beperkte TypeScript-subset uitvoeren door type annotations te strippen. Het voert geen
+typecheck uit en doet niet de transformaties die een volledige TypeScript runner ondersteunt. De package
+scripts van de repository verbergen dat detail. <code>pnpm check</code> voert de afzonderlijke static check uit.</p>
+<p>De container legt nog een beperking bloot. <code>pnpm deploy</code> kopieert de workspace-packages onder
+<code>node_modules</code>, en Node weigert daar bewust TypeScript te strippen (<a href="https://nodejs.org/api/typescript.html">Node TypeScript
+documentation</a>). De eerste image crashte met <code>ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING</code>. Het werkt.
+Ik raakte ontmoedigd.</p>
+<p>De Dockerfile verhelpt dit door <code>tsx</code> te laden, dat deze <code>.ts</code>-bestanden
+afhandelt voordat Node ze uitvoert. Een team dat alleen <code>.js</code>-bestanden in zijn runtime-image
+wil, kan in plaats daarvan een compile step toevoegen. Dat is een alternatief production design, geen extra
+stap die nodig is om deze companion te draaien.</p>
+</details>
+<hr>
+<h2 id="een-traject-van-drie-weken">Een traject van drie weken</h2>
+<p>Ervaren Python-engineers kunnen materiaal over variables en loops overslaan. Deze sequence focust op
+de onderdelen die van Python verschillen. De build-kolom is het doel van elke rij. De reading ondersteunt dat.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Week</th><th>Lezen</th><th>Bouwen</th></tr></thead><tbody><tr><td>1</td><td><a href="https://javascript.info">javascript.info</a>: alleen modules, promises en objects. Houd <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide">MDN’s JS Guide</a> bij de hand als referentie.</td><td>Herschrijf één Python-CLI in TypeScript. Voeg een <code>package.json</code>-script toe. Voer het script en <code>pnpm typecheck</code> uit.</td></tr><tr><td>1-2</td><td>Lees <a href="https://www.typescriptlang.org/tsconfig">TypeScript’s tsconfig reference</a>, de gratis tutorials van <a href="https://www.totaltypescript.com">Total TypeScript</a> en de <a href="https://zod.dev">Zod-docs</a>.</td><td>Bouw een Zod-gevalideerde configmodule en één tagged union. Na controle van de tag weet de compiler welke variant het block bevat.</td></tr><tr><td>2</td><td>Lees de documentatie van <a href="https://hono.dev">Hono</a>, <a href="https://orm.drizzle.team">Drizzle</a>, <a href="https://vitest.dev">Vitest</a> en <a href="https://biomejs.dev">Biome</a>.</td><td>Bouw een streaming proxy naar een OpenAI-compatible endpoint met een door Drizzle ondersteunde log.</td></tr><tr><td>3</td><td>Lees de documentatie van de <a href="https://ai-sdk.dev">AI SDK</a> en de <a href="https://github.com/modelcontextprotocol/typescript-sdk">MCP TypeScript SDK</a>.</td><td>Bouw een tool-calling agent. Bouw daarna een MCP-server die één van zijn tools exposeert.</td></tr></tbody></table>
+<p>Begin met de gratis Total TypeScript-tutorials. Betaal pas voor het advanced materiaal wanneer je werkt
+met library-grade generics en conditional types. Sla elke “introductie tot JavaScript”-cursus over, en ook
+alles wat React-gericht is tenzij het product dat vereist.</p>
+<p>Voor een overzicht van production conventions is
+<a href="https://github.com/goldbergyoni/nodebestpractices">goldbergyoni/nodebestpractices</a>
+een brede, door de community onderhouden checklist. Controleer advies dat runtimegedrag of security
+beïnvloedt aan de hand van de actuele Node-documentatie.</p>
+<hr>
+<h2 id="trade-offs">Trade-offs</h2>
+<h3 id="houd-numerieke-berekeningen-in-python">Houd numerieke berekeningen in Python</h3>
+<p>Node werkt goed voor orchestration, HTTP-serving en streaming. Aanhoudend CPU-bound rekenwerk
+blokkeert de main event-loop-thread. Houd vLLM en trainingscode in Python, tenzij een gemeten workload
+verplaatsing rechtvaardigt.</p>
+<h3 id="valideer-elke-boundary-tijdens-runtime">Valideer elke boundary tijdens runtime</h3>
+<p>Een TypeScript-annotatie controleert geen HTTP-body, environment variable, door het model gegenereerde
+tool argument of rij die uit <code>jsonb</code> wordt gelezen. Elke boundary heeft een runtime-schema nodig.</p>
+<h3 id="isoleer-sdk-churn">Isoleer SDK-churn</h3>
+<p>AI SDK 6 verving <code>Experimental_Agent</code> door <code>ToolLoopAgent</code> en hernoemde de agentsetting
+<code>system</code> naar <code>instructions</code> (<a href="https://ai-sdk.dev/docs/migration-guides/migration-guide-6-0">AI SDK 6 migration guide</a>).
+De companion roept <code>streamText</code> rechtstreeks aan op AI SDK 7 en exposeert zijn eigen
+<code>AgentEvent</code>-stream. Die boundary houdt de HTTP-route ongewijzigd wanneer SDK-code verandert.</p>
+<h3 id="sla-de-handgeschreven-loop-over-wanneer-de-deadline-belangrijker-is">Sla de handgeschreven loop over wanneer de deadline belangrijker is</h3>
+<p>De loop één keer schrijven leert je welk gedrag de SDK beheert. Als je eerst moet shippen en
+geen reden hebt om validation failures aan te passen, begin dan met de SDK.</p>
+<hr>
+<h2 id="belangrijkste-takeaways">Belangrijkste takeaways</h2>
+<ol>
+<li>Installeer Node 24 en pnpm. Gebruik daarna de repository-scripts: <code>pnpm demo</code>,
+<code>pnpm dev:api</code>, <code>pnpm dev:worker</code> en <code>pnpm check</code>. De scripts verbergen de
+onderliggende runtime- en typecheckercommando’s.</li>
+<li>Runtime-validatie is structureel noodzakelijk. Zod is de gekozen validator van dit project.
+Static types inspecteren geen HTTP-bodies, environment variables, modeloutput of databaseryen. Met Zod
+declareer je een runtime-schema en leid je het TypeScript-type af met <code>z.infer</code>.</li>
+<li>De stack mapt grotendeels netjes: pnpm voor uv, Hono voor FastAPI, Drizzle voor SQLAlchemy, Vitest voor
+pytest en Biome voor Ruff. Drie rijen zijn geen vervangingen: validatie, typechecking en de job queue.</li>
+<li>Schrijf één agent loop zelf wanneer je de verborgen paden wilt leren of aanpassen: fragment accumulation,
+validatie en feedback over tool-errors.</li>
+<li>Maak de loop een async generator. De HTTP-route consumeert de <code>AgentEvent</code>-waarden, emit SSE-frames,
+accumuleert de tekst en persist deze na de stream. Tests consumeren de generator afzonderlijk, zonder
+netwerk of API-key.</li>
+<li>Postgres kan een at-least-once queue leveren. Maak handlers idempotent en vernieuw de lease, of maak die
+langer dan de maximale runtime voor lange jobs. Voeg BullMQ toe wanneer je delays, priorities of schedules
+nodig hebt.</li>
+<li>Gebruik de meegeleverde Dockerfile voor production. Die verpakt de geselecteerde app, laadt TypeScript met
+<code>tsx</code>, draait als non-root-user en stuurt shutdown-signalen door naar het API-proces.</li>
+</ol>
+<hr>
+<h2 id="referenties">Referenties</h2>
+<p><strong>Demo repository</strong></p>
+<ul>
+<li><a href="https://github.com/slavadubrov/typescript-agent-service">slavadubrov/typescript-agent-service</a> - de monorepo die in dit artikel wordt gebruikt: Hono-API met SSE, twee agent-loopimplementaties, Drizzle-storage, worker, MCP-server en 40 tests</li>
+</ul>
+<p><strong>Runtime en taal</strong></p>
+<ul>
+<li><a href="https://nodejs.org/api/typescript.html">Running TypeScript natively in Node.js</a> - Node’s beperkte TypeScript-ondersteuning en de <code>node_modules</code>-restrictie</li>
+<li><a href="https://www.typescriptlang.org/tsconfig">TypeScript compiler options</a> - <code>strict</code> en de andere checks die door de companion zijn geconfigureerd</li>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide">MDN JavaScript Guide</a> - de taalreferentie die je open wilt houden</li>
+<li><a href="https://javascript.info">javascript.info</a> - moderne JavaScript-tutorial. Lees de hoofdstukken over modules en promises.</li>
+</ul>
+<p><strong>Tooling</strong></p>
+<ul>
+<li><a href="https://pnpm.io">pnpm</a> en <a href="https://pnpm.io/installation">pnpm installation</a> - package manager, workspaces en setup</li>
+<li><a href="https://biomejs.dev">Biome</a> - lint, format en import sorting in één binary</li>
+<li><a href="https://vitest.dev">Vitest</a> - test runner zonder transformconfiguratie</li>
+<li><a href="https://www.totaltypescript.com">Total TypeScript</a> - gratis tutorials plus een betaald traject voor advanced types</li>
+</ul>
+<p><strong>Libraries</strong></p>
+<ul>
+<li><a href="https://zod.dev">Zod</a> - schema-validatie en type inference. Versie 4 bevat <code>z.toJSONSchema</code>.</li>
+<li><a href="https://hono.dev">Hono</a> - Web-standard HTTP-framework</li>
+<li><a href="https://orm.drizzle.team">Drizzle ORM</a> - SQL-first TypeScript ORM met <code>drizzle-kit</code>-migrations</li>
+<li><a href="https://www.postgresql.org/docs/current/sql-select.html">PostgreSQL SELECT documentation</a> - de <code>FOR UPDATE ... SKIP LOCKED</code>-lockingclause</li>
+<li><a href="https://github.com/taskforcesh/bullmq">BullMQ</a> - Redis-backed queue wanneer de databasetabel niet volstaat</li>
+</ul>
+<p><strong>AI en agents</strong></p>
+<ul>
+<li><a href="https://ai-sdk.dev">Vercel AI SDK</a> - <code>streamText</code>, <code>tool</code>, <code>stopWhen</code> en provider adapters</li>
+<li><a href="https://github.com/openai/openai-node">openai/openai-node</a> - de officiële TypeScript-client</li>
+<li><a href="https://github.com/modelcontextprotocol/typescript-sdk">MCP TypeScript SDK</a> en <a href="https://modelcontextprotocol.io">de MCP-specificatie</a> - servers en clients bouwen</li>
+</ul>
+<p><strong>Conventies</strong></p>
+<ul>
+<li><a href="https://github.com/goldbergyoni/nodebestpractices">goldbergyoni/nodebestpractices</a> - door de community onderhouden checklist voor production conventions</li>
+</ul> </article>  </main> <footer class="site-footer"> <p data-footer-tagline>Praktische AI-engineering door Slava Dubrov.</p> <nav class="footer-locales" aria-label="Taal"> <a href="/blog/2026/08/15/typescript-for-python-ml-engineers/" hreflang="en" lang="en">English</a><a href="/de/blog/2026/08/15/typescript-for-python-ml-engineers/" hreflang="de" lang="de">Deutsch</a><a href="/ru/blog/2026/08/15/typescript-for-python-ml-engineers/" hreflang="ru" lang="ru">Русский</a><a href="/es/blog/2026/08/15/typescript-for-python-ml-engineers/" hreflang="es" lang="es">Español</a><a href="/pt/blog/2026/08/15/typescript-for-python-ml-engineers/" hreflang="pt" lang="pt">Português</a><a href="/fr/blog/2026/08/15/typescript-for-python-ml-engineers/" hreflang="fr" lang="fr">Français</a> </nav> <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>
+      document.querySelector(".theme-toggle")?.addEventListener("click", () => {
+        const root = document.documentElement;
+        const next = root.dataset.themeEffective === "dark" ? "light" : "dark";
+        root.dataset.theme = next;
+        root.dataset.themeEffective = next;
+        localStorage.setItem("theme", next);
+      });
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (event) => {
+        if (localStorage.getItem("theme")) return;
+        document.documentElement.dataset.themeEffective = event.matches ? "dark" : "light";
+      });
+      document.querySelector("#locale-select")?.addEventListener("change", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLSelectElement && target.value) location.assign(target.value);
+      });
+      document.querySelectorAll("pre").forEach((pre) => {
+        if (pre.closest(".mermaid-diagram")) return;
+        const code = pre.textContent || "";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-code";
+        button.textContent = "Copy";
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(code);
+          button.textContent = "Copied";
+          setTimeout(() => { button.textContent = "Copy"; }, 1500);
+        });
+        pre.append(button);
+      });
+    </script> </body> </html>
