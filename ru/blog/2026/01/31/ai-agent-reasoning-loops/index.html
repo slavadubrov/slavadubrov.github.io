@@ -21,86 +21,87 @@
 <!-- automated-translation-notice:end -->
 <h1 id="циклы-ризонинга-ии-агентов-react-rewoo-и-plan-and-execute">Циклы ризонинга ИИ-агентов: ReAct, ReWOO и Plan-and-Execute</h1>
 <p><a href="/ru/blog/#engineering-the-agentic-stack"><strong>Часть 1 серии «AI-инжиниринг агентного стека»</strong></a></p>
-<p><strong>Цикл ризонинга агента</strong> управляет тем, как система планирует, вызывает инструменты, читает результаты и решает, когда остановиться. Этот control flow определяет стоимость, латентность и восстановление после неожиданных результатов от инструмента.</p>
-<p>В этой статье сравниваются три паттерна циклов ИИ-агента, о которых стоит знать в 2026 году: <strong>ReAct</strong>, <strong>ReWOO</strong> и <strong>Plan-and-Execute</strong>. В качестве сквозного примера используется Market Analyst Agent, которого я собрал на LangGraph; полный код опубликован на GitHub.</p>
+<p><strong>Цикл ризонинга агента</strong> управляет тем, как система планирует, вызывает инструменты, читает результаты и решает, когда остановиться. Этот control flow определяет стоимость, латентность и способность восстановиться после неожиданного ответа инструмента.</p>
+<p>В этой статье сравниваются три паттерна циклов ИИ-агентов, которые важно знать в 2026 году: <strong>ReAct</strong>, <strong>ReWOO</strong> и <strong>Plan-and-Execute</strong>. В качестве сквозного примера используется Market Analyst Agent, которого я собрал на LangGraph; полный код опубликован на GitHub.</p>
 <p>Это самый внутренний слой серии. Всё, что добавляют последующие части, — это код, обёрнутый вокруг данного цикла.</p>
 <!-- more -->
-<p><strong>Коротко</strong>: ReAct гибок, но дорог, ReWOO быстр, когда workflow предсказуем, а Plan-and-Execute подходит для многошагового анализа. В production ИИ-агент может выбирать цикл ризонинга для каждого запроса, используя общее состояние и чекпоинты запусков LangGraph, чтобы каждая задача получала цикл, соответствующий её структуре.</p>
-<p>Цикл ризонинга решает, что делать дальше. Он не может ничего хранить, запускать или отклонять. Эти задачи выполняют два внешних по отношению к нему слоя.</p>
-<p><strong>Харнесс</strong> — это управляющая программа между моделью и машиной. Он собирает промпт из сохранённого состояния (<a href="/ru/blog/2026/02/14/ai-agent-memory-architecture/">часть 2</a>) и определяет действия, которые модель может назвать (<a href="/ru/blog/2026/03/24/ai-agent-tool-use/">часть 3</a>). Затем он решает, может ли выполняться каждый предложенный вызов (<a href="/ru/blog/2026/04/20/ai-agent-security/">часть 4</a>), и читает данные, по которым определяется завершённость задачи (<a href="/ru/blog/2026/07/22/ai-agent-harness-engineering/">часть 6</a>). Эти четыре темы вынесены в отдельные статьи, потому что это разные задачи. В работающей системе они представляют собой четыре этапа одного хода.</p>
-<p><strong>Рантайм</strong> (<a href="/ru/blog/2026/05/26/ai-agent-runtime/">часть 5</a>) — это слой, на котором работает харнесс: лог сессии, сэндбокс, хранилище чекпоинтов и трейсы, которые переживают отдельный процесс воркера.</p>
-<p><img src="/ru/blog/assets/2026-01-31-cognitive-engine/agentic-stack-layers.svg" alt="Расположение частей серии"></p>
-<p>Каждая статья самостоятельна. Если читать их по порядку, они идут от самого внутреннего цикла наружу.</p>
+<p><strong>Коротко</strong>: ReAct гибок, но дорог, ReWOO быстр, когда workflow предсказуем, а Plan-and-Execute подходит для многошагового анализа. В production-системе ИИ-агент может выбирать цикл ризонинга для каждого запроса, используя общее состояние и чекпоинты запусков LangGraph, чтобы каждая задача получала цикл, соответствующий её структуре.</p>
+<p>Краткое сравнение фреймворков см. в статье <a href="/ru/blog/fast-answers/ai-agent-frameworks/">Лучшие фреймворки для ИИ-агентов в 2026 году</a>.</p>
+<p>Цикл ризонинга решает, что делать дальше. Он не может ничего хранить, запускать или запрещать. Эти задачи относятся к двум внешним слоям.</p>
+<p><strong>Харнесс</strong> — это управляющая программа между моделью и машиной. Она собирает промпт из сохранённого состояния (<a href="/ru/blog/2026/02/14/ai-agent-memory-architecture/">часть 2</a>) и определяет действия, которые модель может назвать (<a href="/ru/blog/2026/03/24/ai-agent-tool-use/">часть 3</a>). Затем харнесс решает, можно ли выполнять каждый предложенный вызов (<a href="/ru/blog/2026/04/20/ai-agent-security/">часть 4</a>), и читает данные, по которым определяется завершённость задачи (<a href="/ru/blog/2026/07/22/ai-agent-harness-engineering/">часть 6</a>). Этим четырём темам посвящены отдельные статьи, потому что это разные задачи. В работающей системе они представляют собой четыре этапа одного хода.</p>
+<p><strong>Рантайм</strong> (<a href="/ru/blog/2026/05/26/ai-agent-runtime/">часть 5</a>) — это фундамент, на котором работает харнесс: лог сессии, сэндбокс, хранилище чекпоинтов и трейсы, сохраняющиеся дольше жизни отдельного worker-процесса.</p>
+<p><img src="/ru/blog/assets/2026-01-31-cognitive-engine/agentic-stack-layers.svg" alt="Место каждой части в серии"></p>
+<p>Каждая статья самостоятельна. В последовательности они идут от самого внутреннего цикла наружу.</p>
 <hr>
-<h2 id="цикл-управляет-стоимостью-латентностью-и-восстановлением">Цикл управляет стоимостью, латентностью и восстановлением</h2>
-<p>Хорошему агенту нужен не только качественный промпт. Три паттерна ниже различаются по одному признаку: какая доля работы определяется до первого вызова инструмента. От этого зависят количество вызовов модели, стоимость задачи, то, насколько рано обнаружится плохой план, и возможность агента изменить курс после неожиданного результата инструмента.</p>
+<h2 id="цикл-определяет-стоимость-латентность-и-восстановление">Цикл определяет стоимость, латентность и восстановление</h2>
+<p>Хорошему агенту нужен не только качественный промпт. Три паттерна ниже различаются одним параметром: какая доля работы определяется до первого tool call. От этого зависит, сколько вызовов модели будет стоить задача, насколько рано обнаружится плохой план и сможет ли агент изменить курс, если инструмент вернул неожиданный результат.</p>
 <h2 id="три-паттерна-ризонинга-ии-агентов">Три паттерна ризонинга ИИ-агентов</h2>
 <p><img src="/ru/blog/assets/2026-01-31-cognitive-engine/reasoning-patterns-comparison.svg" alt="Сравнение паттернов ризонинга"></p>
-<h3 id="react-думать-действовать-наблюдать-повторять">ReAct: думать, действовать, наблюдать, повторять</h3>
-<p><a href="https://arxiv.org/abs/2210.03629">ReAct</a> (Yao et al., 2022), сокращение от <strong>Reason + Act</strong>, — исходный паттерн для интерактивных агентов. Он работает по циклу:</p>
+<h3 id="react-думай-действуй-наблюдай-повторяй">ReAct: думай, действуй, наблюдай, повторяй</h3>
+<p><a href="https://arxiv.org/abs/2210.03629">ReAct</a> (Yao et al., 2022), сокращение от <strong>Reason + Act</strong>, — исходный паттерн для интерактивных агентов. Он выполняет цикл:</p>
 <ol>
 <li><strong>Thought</strong>: агент генерирует «мысль», чтобы разбить цель на части и спланировать следующий шаг.</li>
-<li><strong>Action</strong>: опираясь на эту мысль, он вызывает инструмент.</li>
-<li><strong>Observation</strong>: агент читает результат, который обновляет его понимание перед следующей мыслью.</li>
+<li><strong>Action</strong>: основываясь на этой мысли, он вызывает инструмент.</li>
+<li><strong>Observation</strong>: агент читает результат, обновляя своё понимание для следующей мысли.</li>
 </ol>
 <p><img src="/ru/blog/assets/2026-01-31-cognitive-engine/react-pattern.svg" alt="Паттерн ReAct"></p>
 <p>Плюсы:</p>
 <ul>
-<li>Граундинг на реальных наблюдениях уменьшает количество выдуманных фактов.</li>
-<li>Агент может менять стратегию на лету, опираясь на только что полученные данные.</li>
-<li>История вызовов инструментов и наблюдений даёт конкретный трейс выполнения.</li>
+<li>Граундинг на реальных наблюдениях снижает количество выдуманных фактов.</li>
+<li>Агент может менять стратегию на лету, основываясь на том, что только что увидел.</li>
+<li>История tool call и наблюдений даёт конкретный трейс выполнения.</li>
 </ul>
 <p>Минусы:</p>
 <ul>
 <li>История накапливается и повторно обрабатывается на каждом шаге, поэтому латентность и стоимость растут вместе с длиной цикла.</li>
-<li>Неэффективен, когда вызовы инструментов можно было спланировать заранее; именно эту нишу занимает ReWOO.</li>
+<li>Паттерн неэффективен, когда tool calls можно было спланировать заранее; именно эту нишу занимает ReWOO.</li>
 <li>Без условия остановки или лимита шагов цикл может выполняться бесконечно.</li>
 </ul>
-<p>Лучше всего подходит для: исследовательских задач, отладки и ситуаций, где невозможно заранее предсказать следующий шаг.</p>
-<h3 id="rewoo-спланировать-всё-заранее">ReWOO: спланировать всё заранее</h3>
-<p><a href="https://arxiv.org/abs/2305.18323">ReWOO</a> (Reasoning WithOut Observation) — более эффективный родственник ReAct. Его ключевая идея — разделить ризонинг и выполнение инструментов: вместо остановки для наблюдения после каждого действия ReWOO за один проход планирует всю последовательность вызовов инструментов.</p>
+<p>Лучше всего подходит для: исследовательских задач, отладки и ситуаций, когда нельзя предсказать, что произойдёт дальше.</p>
+<h3 id="rewoo-планирование-целиком-заранее">ReWOO: планирование целиком заранее</h3>
+<p><a href="https://arxiv.org/abs/2305.18323">ReWOO</a> (Reasoning WithOut Observation) — более эффективный родственник ReAct. Его ключевой приём — разделение ризонинга и выполнения инструментов: вместо остановки для наблюдения после каждого действия ReWOO за один проход планирует всю последовательность tool calls.</p>
 <ol>
-<li><strong>Plan</strong>: один вызов LLM записывает полный план вызовов инструментов, используя плейсхолдеры переменных (<code>#E1</code>, <code>#E2</code>) для результатов, которых пока нет.</li>
-<li><strong>Worker</strong>: экзекьютор без участия LLM запускает запланированные инструменты последовательно или параллельно и подставляет значения вместо плейсхолдеров.</li>
+<li><strong>Plan</strong>: один вызов LLM записывает полный план tool calls, используя placeholder-переменные (<code>#E1</code>, <code>#E2</code>) для ещё не существующих результатов.</li>
+<li><strong>Worker</strong>: экзекьютор без LLM запускает независимые запланированные инструменты параллельно, а затем — зависимые инструменты после выполнения их предусловий, подставляя значения вместо placeholder’ов.</li>
 <li><strong>Solver</strong>: финальный вызов LLM получает собранные наблюдения и формирует ответ.</li>
 </ol>
 <p><img src="/ru/blog/assets/2026-01-31-cognitive-engine/rewoo-pattern.svg" alt="Паттерн ReWOO"></p>
 <p>Плюсы:</p>
 <ul>
-<li>Меньше повторных вызовов модели, чем в ReAct, если исходный план остаётся актуальным.</li>
-<li>Ниже латентность: история не отправляется повторно на каждом шаге.</li>
+<li>Меньше повторных вызовов модели по сравнению с ReAct, если исходный план остаётся актуальным.</li>
+<li>Ниже латентность: историю не нужно отправлять заново на каждом шаге.</li>
 <li>Планировщик можно файн-тюнить отдельно, без live-окружения.</li>
 </ul>
 <p>Минусы:</p>
 <ul>
-<li>Паттерн хрупок при сбоях инструментов: план предполагает, что всё сработает.</li>
-<li>Требует предсказуемых workflow.</li>
+<li>Хрупкость при сбоях инструментов. План предполагает, что всё сработает.</li>
+<li>Нужны предсказуемые workflow.</li>
 <li>Без явной fallback-логики ошибочный план продолжает выполняться.</li>
 </ul>
-<p>Лучше всего подходит для: быстрых срезов, проверок статуса и дашбордов — всего, где инструменты ведут себя предсказуемо.</p>
-<h3 id="plan-and-execute-гибрид">Plan-and-Execute: гибрид</h3>
-<p><a href="https://arxiv.org/abs/2305.04091">Plan-and-Solve prompting</a>, обычно называемый Plan-and-Execute после появления инструментов, занимает промежуточное положение. В статье описано простое разделение, которое используют многие современные агенты:</p>
+<p>Лучше всего подходит для: быстрых сводок, проверок статуса и дашбордов. Для любых задач, где инструменты работают предсказуемо.</p>
+<h3 id="plan-and-execute-гибридный-подход">Plan-and-Execute: гибридный подход</h3>
+<p><a href="https://arxiv.org/abs/2305.04091">Plan-and-Solve prompting</a> — это метод промптинга, при котором сначала создаётся план, а затем решаются подзадачи. Связанный с ним паттерн оркестрации инструментов обычно называют Plan-and-Execute. В <a href="https://www.langchain.com/blog/plan-and-execute-agents">руководстве LangChain по Plan-and-Execute</a> этот паттерн описан так:</p>
 <ol>
-<li><strong>Фаза планирования</strong>: агент сначала создаёт план, разбивающий задачу на небольшие подзадачи.</li>
-<li><strong>Фаза выполнения</strong>: затем агент выполняет эти подзадачи одну за другой. Когда используются инструменты, каждая подзадача обычно запускается как собственный небольшой цикл ReAct, поэтому экзекьютор по-прежнему может реагировать на результат инструмента, даже если общий план зафиксирован.</li>
+<li><strong>Planning phase</strong>: агент сначала создаёт план, разбивающий задачу на более мелкие подзадачи.</li>
+<li><strong>Execution phase</strong>: затем агент выполняет эти подзадачи одну за другой. Когда появляются инструменты, каждая подзадача обычно запускается как отдельный небольшой цикл ReAct, поэтому экзекьютор всё ещё может реагировать на результат инструмента, даже если общий план фиксирован.</li>
 </ol>
-<p>Исходная статья была посвящена zero-shot prompting. Фреймворки вроде LangGraph развили эту идею в паттерн оркестрации с последовательным выполнением и выбором модели для каждого шага. Для планирования можно использовать сильную reasoning-модель, а для выполнения — более дешёвую.</p>
+<p>Исходная статья была посвящена zero-shot prompting. В реализации с использованием инструментов этот паттерн оркестрации может выполнять запланированные шаги последовательно и использовать разные модели для планирования и выполнения. Такое разделение моделей — выбор реализации, а не результат, установленный статьёй о Plan-and-Solve.</p>
 <p><img src="/ru/blog/assets/2026-01-31-cognitive-engine/plan-execute-pattern.svg" alt="Паттерн Plan-and-Execute"></p>
 <p>Плюсы:</p>
 <ul>
 <li>Иерархический ризонинг, отражающий то, как эксперт-человек разбивает проект на части.</li>
-<li>Возможность перепланирования: можно приостановиться и пересмотреть план, если результат шага оказался неожиданным.</li>
-<li>Специализация моделей: планировщик может быть дорогим, а экзекьютор — дешёвым.</li>
-<li>Явный чекпоинт после каждого шага: после сбоя выполнение возобновляется с последнего шага, а не с начала.</li>
+<li>Возможность перепланирования. Если результат шага оказался неожиданным, можно приостановиться и пересмотреть план.</li>
+<li>Специализация моделей. Планировщик может быть дорогим, а экзекьютор — дешёвым.</li>
+<li>Понятный чекпоинт после каждого шага: при сбое выполнение возобновляется с последнего шага, а не с начала.</li>
 </ul>
 <p>Минусы:</p>
 <ul>
-<li>Более высокая латентность, чем у ReWOO, поскольку шаги выполняются последовательно.</li>
+<li>Более высокая латентность по сравнению с ReWOO, поскольку шаги выполняются последовательно.</li>
 <li>Больше состояния, которым нужно управлять.</li>
-<li>Избыточен для одношаговых запросов.</li>
+<li>Избыточность для одношаговых запросов.</li>
 </ul>
-<p>Лучше всего подходит для: сложного многошагового анализа, исследовательских задач и всего, что требует финального синтеза.</p>
-<h2 id="выбирайте-по-тому-где-может-сломаться-план">Выбирайте по тому, где может сломаться план</h2>
+<p>Лучше всего подходит для: сложного многошагового анализа, исследовательских задач и любых сценариев, где в конце требуется синтез результатов.</p>
+<h2 id="выбирайте-по-месту-возможного-сбоя-плана">Выбирайте по месту возможного сбоя плана</h2>
 
 
 
@@ -142,11 +143,11 @@
 
 
 
-<table tabindex="0"><thead><tr><th>Характеристика</th><th><strong>ReAct</strong> (2022)</th><th><strong>Plan-and-Execute</strong> (2023)</th><th><strong>ReWOO</strong> (2023)</th></tr></thead><tbody><tr><td><strong>Основная идея</strong></td><td>Импровизатор: решает, что делать дальше, по последнему результату, по одному вызову за раз.</td><td>Архитектор: строит полную схему, выполняет её, а затем проверяет результат.</td><td>Оптимизатор: записывает «скрипт» с переменными и запускает его целиком.</td></tr><tr><td><strong>Workflow</strong></td><td>Итеративный цикл: Thought → Action → Observation.</td><td>Два этапа: фаза 1 (планирование), фаза 2 (выполнение).</td><td>Разделённый процесс: планировщик записывает граф вызовов инструментов, воркер выполняет их, solver формирует ответ.</td></tr><tr><td><strong>Адаптивность</strong></td><td>Максимальная: направление можно менять после каждого отдельного вызова инструмента.</td><td>Средняя: обычно перепланирование выполняется только после завершения набора шагов.</td><td>Минимальная: скрипт планировщика выполняется до конца; в процессе перепланирование не выполняется.</td></tr><tr><td><strong>Эффективность</strong></td><td>Низкая: высокий расход токенов; на каждом шаге нужно перечитывать всю историю.</td><td>Средняя: перепланирование происходит время от времени, а не после каждого шага; каждый цикл ReAct начинается с короткого контекста вместо полной истории запуска.</td><td>Высокая: минимум вызовов LLM; выполнение инструментов можно распараллелить для ускорения.</td></tr><tr><td><strong>Лучше всего подходит для</strong></td><td>Открытых исследовательских задач или задач с непредсказуемыми результатами.</td><td>Долгих задач, требующих стабильной цели (например, написания статьи).</td><td>Структурированных повторяемых workflow (например, проверки погоды в пяти городах).</td></tr></tbody></table>
-<p>Эта таблица — отправная точка, а не результат бенчмарка. Используйте ReAct, когда каждое наблюдение может изменить следующее действие. Выбирайте Plan-and-Execute, когда общую задачу можно декомпозировать, но отдельным шагам всё ещё нужна обратная связь. Используйте ReWOO, когда все зависимости между вызовами инструментов известны до начала выполнения. Именно известный граф зависимостей делает возможной отмену при сбое: можно пропустить шаги, зависевшие от неудачного вызова, вместо того чтобы передавать им строку с ошибкой. Саму эту проверку всё равно нужно реализовать — в приведённом ниже воркере её нет. Прежде чем выбирать решение только по стоимости, измерьте все три паттерна на собственных латентностях инструментов, модели, наборе задач и политике ретраев.</p>
+<table tabindex="0"><thead><tr><th>Характеристика</th><th><strong>ReAct</strong> (2022)</th><th><strong>Plan-and-Execute</strong> (2023)</th><th><strong>ReWOO</strong> (2023)</th></tr></thead><tbody><tr><td><strong>Основная идея</strong></td><td>Импровизатор: принимает решение о следующем шаге по последнему результату, по одному вызову за раз.</td><td>Архитектор: строит полную схему, выполняет её, а затем проверяет.</td><td>Оптимизатор: записывает «скрипт» с переменными и запускает его целиком.</td></tr><tr><td><strong>Workflow</strong></td><td>Итеративный цикл: Thought → Action → Observation.</td><td>Два этапа: Phase 1 (Planning), Phase 2 (Execution).</td><td>Разделённый процесс: Planner записывает граф tool calls; Worker запускает их; Solver собирает ответ.</td></tr><tr><td><strong>Адаптивность</strong></td><td>Максимальная: может менять направление после каждого отдельного tool call.</td><td>Средняя: обычно перепланирует только после завершения набора шагов.</td><td>Минимальная: скрипт планировщика выполняется до конца, без перепланирования во время запуска.</td></tr><tr><td><strong>Эффективность</strong></td><td>Низкая: большой расход токенов; на каждом шаге нужно перечитывать всю историю.</td><td>Средняя: перепланирование происходит время от времени, а цикл ReAct каждого шага стартует с короткого контекста, а не со всей историей запуска.</td><td>Высокая: минимум вызовов LLM; независимые tool calls можно выполнять параллельно.</td></tr><tr><td><strong>Лучше всего подходит для</strong></td><td>Открытого исследования или задач с непредсказуемыми результатами.</td><td>Длинных задач, требующих сохранения общей цели (например, написания статьи).</td><td>Структурированных повторяемых workflow (например, проверки погоды в 5 городах).</td></tr></tbody></table>
+<p>Таблица — отправная точка, а не результат бенчмарка. Используйте ReAct, когда каждое наблюдение может изменить следующее действие. Выбирайте Plan-and-Execute, когда общую задачу можно декомпозировать, но отдельным шагам всё ещё нужна обратная связь. Используйте ReWOO, когда все зависимости между tool calls известны до начала выполнения. Именно известный граф зависимостей делает возможной отмену при сбое: можно пропустить шаги, зависевшие от неудачного вызова, вместо передачи им строки с ошибкой. Worker ниже проверяет, что граф продолжает продвигаться, прежде чем запускать очередной batch. Перед выбором только по стоимости измерьте все три варианта на собственных latency инструментов, модели, наборе задач и политике повторных попыток.</p>
 <h2 id="практический-пример-market-analyst-agent">Практический пример: Market Analyst Agent</h2>
-<p>Чтобы сделать сравнение конкретным, я собрал <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>, который использует все три паттерна в одной кодовой базе для задачи анализа рынка.</p>
-<p>Для оркестрации используется <a href="https://langchain-ai.github.io/langgraph/">LangGraph</a>. Всё ниже строится на двух идеях: <strong>node</strong> — обычная Python-функция, которая принимает объект общего состояния и возвращает dict с полями для обновления. <strong>Edge</strong> объявляет, какая node запускается следующей, — условно, если ему передать функцию роутинга. LangGraph объединяет каждый возвращённый dict с состоянием и может сохранять снапшот после каждой node, благодаря чему запуск можно возобновить. Все три паттерна используют один объект состояния, поэтому роутер может переключать пути для каждого запроса без отдельной схемы для каждого паттерна:</p>
+<p>Чтобы сделать это конкретнее, я собрал <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>, который использует все три паттерна в одной кодовой базе для задачи маркетингового исследования.</p>
+<p>Для оркестрации используется <a href="https://langchain-ai.github.io/langgraph/">LangGraph</a>. Всё ниже строится на двух идеях: <strong>node</strong> — обычная Python-функция, принимающая объект общего состояния и возвращающая dict с полями для обновления. <strong>Edge</strong> объявляет, какая node запускается следующей — условно, если передать ему routing-функцию. LangGraph объединяет каждый возвращённый dict с состоянием и может сохранять снапшот после каждой node, благодаря чему запуск можно возобновить. Все три паттерна используют один объект состояния, поэтому роутер может выбирать путь для каждого запроса без отдельной схемы для каждого режима:</p>
 <p><img src="/ru/blog/assets/2026-01-31-cognitive-engine/plan-execute-architecture.svg" alt="Market Analyst Agent: оба маршрута в одном графе"></p>
 <h3 id="определение-состояния">Определение состояния</h3>
 <p>Общее состояние содержит всё, что нужно агенту в разных режимах:</p>
@@ -191,14 +192,14 @@
 <span class="line"><span style="color:#8B949E">    # a fresh-context evaluator has already voted on.</span></span>
 <span class="line"><span style="color:#E6EDF3">    draft_report: DraftReport </span><span style="color:#FF7B72">|</span><span style="color:#79C0FF"> None</span><span style="color:#FF7B72"> =</span><span style="color:#79C0FF"> None</span></span></code></pre>
 <h3 id="паттерн-1-реализация-plan-and-execute">Паттерн 1: реализация Plan-and-Execute</h3>
-<p>Plan-and-Execute подходит для задач, требующих многошагового синтеза. Планирование и выполнение разделены: сильная модель записывает план, а затем цикл ReAct выполняет каждый шаг и реагирует на результаты инструментов.</p>
-<p>В приведённом ниже коде зафиксирован <code>claude-sonnet-4-5-20250929</code> — именно его версия использовалась для этих примеров на момент публикации статьи в январе 2026 года. С тех пор поколения моделей сменились. Подставьте актуальную модель и заново проверьте поведение роутинга на собственных задачах — важен сам паттерн, а не ID модели.</p>
+<p>Plan-and-Execute подходит для задач, требующих многошагового синтеза. Планирование и выполнение разделены: сильная модель записывает план, затем цикл ReAct выполняет каждый шаг и реагирует на результаты инструментов.</p>
+<p>В коде ниже зафиксирована версия <code>claude-sonnet-4-5-20250929</code> — именно с ней я запускал эти примеры на момент публикации статьи в январе 2026 года. С тех пор поколения моделей сменились. Подставьте актуальную модель и заново проверьте поведение роутинга на собственных задачах — важен сам паттерн, а не ID модели.</p>
 <p>Соответствие паттерну:</p>
 <ol>
-<li>Одна предварительная фаза планирования. Один вызов LLM создаёт полный план в виде списка описаний шагов.</li>
-<li>Выход со Schema-guided структурой, который валидирует план до начала выполнения.</li>
-<li>Инструменты ещё не выполняются. Планировщик решает только, что делать, но не как.</li>
-<li>Понятные человеку шаги. Каждый шаг — это текст, который интерпретирует экзекьютор.</li>
+<li>Одна предварительная фаза планирования. Один вызов LLM формирует весь план в виде списка описаний шагов.</li>
+<li>Выход, управляемый схемой: план валидируется до начала выполнения.</li>
+<li>Инструменты ещё не запускаются. Планировщик решает только, что делать, но не как.</li>
+<li>Человекочитаемые шаги. Каждый шаг — это текст, который интерпретирует экзекьютор.</li>
 </ol>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># System prompt guides the LLM to think like a research analyst</span></span>
 <span class="line"><span style="color:#8B949E"># creating a strategic plan, not immediate tool calls</span></span>
@@ -256,14 +257,14 @@
 <span class="line"><span style="color:#A5D6FF">        "current_step_index"</span><span style="color:#E6EDF3">: </span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">,        </span><span style="color:#8B949E"># Start at step 0</span></span>
 <span class="line"><span style="color:#A5D6FF">        "research_data"</span><span style="color:#E6EDF3">: ResearchData(</span><span style="color:#FFA657">ticker</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">result.ticker),  </span><span style="color:#8B949E"># Initialize data container</span></span>
 <span class="line"><span style="color:#E6EDF3">    }</span></span></code></pre>
-<p>Строка <code>llm.with_structured_output(PlanOutput)</code> реализует <strong>Schema-Guided Reasoning (SGR)</strong>, о котором я писал в <a href="/ru/blog/2025/12/28/schema-guided-reasoning-vllm/">предыдущей статье</a>. Схема позволяет приложению отклонить некорректный план до того, как LangGraph использует провалидированные поля для построения условных рёбер.</p>
+<p>Строка <code>llm.with_structured_output(PlanOutput)</code> — это <strong>Schema-Guided Reasoning (SGR)</strong>, который я разбирал в <a href="/ru/blog/2025/12/28/schema-guided-reasoning-vllm/">предыдущей статье</a>. Схема позволяет приложению отклонить некорректный план до того, как LangGraph использует провалидированные поля для управления условными edge.</p>
 <h3 id="паттерн-2-выполнение-react">Паттерн 2: выполнение ReAct</h3>
-<p>После создания плана экзекьютор выполняет каждый шаг как отдельный цикл ReAct. Это фаза 2: каждый шаг достаточно мал, чтобы цикл Thought–Action–Observation оставался сфокусированным, а агент мог реагировать на любой результат инструмента.</p>
+<p>После создания плана экзекьютор запускает каждый шаг как отдельный цикл ReAct. Это Phase 2: каждый шаг достаточно мал, чтобы цикл Thought-Action-Observation оставался сфокусированным, а агент мог реагировать на любой результат инструмента.</p>
 <p>Как устроена часть ReAct:</p>
 <ol>
 <li>Итеративное выполнение: по одному шагу за раз, с обратной связью от наблюдений.</li>
-<li>Цикл Thought–Action–Observation выполняется внутри <code>create_react_agent</code>.</li>
-<li>Результаты предыдущих шагов передаются как контекст для текущего ризонинга.</li>
+<li>Цикл Thought-Action-Observation выполняется внутри <code>create_react_agent</code>.</li>
+<li>Результаты предыдущих шагов передаются в контексте текущего ризонинга.</li>
 <li>Агент выбирает инструменты на основе описания шага.</li>
 <li>Он может изменить подход в середине шага в зависимости от результата инструмента.</li>
 </ol>
@@ -298,7 +299,10 @@
 <span class="line"><span style="color:#E6EDF3">            previous_context </span><span style="color:#FF7B72">+=</span><span style="color:#FF7B72"> f</span><span style="color:#A5D6FF">"</span><span style="color:#FF7B72">\n</span><span style="color:#A5D6FF">Step </span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">step.step_number</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">: </span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">step.result</span><span style="color:#FF7B72">}\n</span><span style="color:#A5D6FF">"</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#8B949E">    # Create a ReAct agent for this step</span></span>
-<span class="line"><span style="color:#8B949E">    # LangGraph's create_react_agent implements the full Thought-Action-Observation loop:</span></span>
+<span class="line"><span style="color:#8B949E">    # This companion example pins LangGraph's deprecated create_react_agent API.</span></span>
+<span class="line"><span style="color:#8B949E">    # Current LangChain guidance recommends create_agent instead:</span></span>
+<span class="line"><span style="color:#8B949E">    # https://reference.langchain.com/python/langgraph.prebuilt/chat_agent_executor/create_react_agent</span></span>
+<span class="line"><span style="color:#8B949E">    # The factory name does not change the Thought-Action-Observation loop:</span></span>
 <span class="line"><span style="color:#8B949E">    # 1. Agent generates a "thought" about what tool to call</span></span>
 <span class="line"><span style="color:#8B949E">    # 2. Agent calls the tool ("action")</span></span>
 <span class="line"><span style="color:#8B949E">    # 3. Tool returns result ("observation")</span></span>
@@ -336,17 +340,17 @@
 <span class="line"><span style="color:#A5D6FF">        "plan"</span><span style="color:#E6EDF3">: updated_plan,</span></span>
 <span class="line"><span style="color:#A5D6FF">        "current_step_index"</span><span style="color:#E6EDF3">: state.current_step_index </span><span style="color:#FF7B72">+</span><span style="color:#79C0FF"> 1</span><span style="color:#E6EDF3">,</span></span>
 <span class="line"><span style="color:#E6EDF3">    }</span></span></code></pre>
-<h3 id="паттерн-3-rewoo-для-быстрых-срезов">Паттерн 3: ReWOO для быстрых срезов</h3>
-<p>Для быстрых брифингов ReWOO пропускает чередующийся ризонинг и запускает инструменты параллельно. Планировщик заранее выдаёт скомпилированный скрипт вызовов инструментов, а воркер выполняет его без дальнейшего участия LLM.</p>
+<h3 id="паттерн-3-rewoo-для-быстрых-сводок">Паттерн 3: ReWOO для быстрых сводок</h3>
+<p>Для быстрых брифингов ReWOO пропускает чередующийся ризонинг. Независимые tool calls выполняются параллельно, а зависимые — после выполнения предусловий. Планировщик заранее выдаёт скомпилированный скрипт tool calls, а worker запускает его без дальнейшего участия LLM.</p>
 <p>Структура выглядит так:</p>
 <ol>
 <li>Три фазы (Planner → Worker → Solver), без циклов.</li>
-<li>Вызовы инструментов ссылаются на плейсхолдеры <code>#E1</code> и <code>#E2</code>, обозначающие ещё не полученные результаты.</li>
-<li>Во время выполнения LLM не используется. Воркер просто запускает инструменты.</li>
+<li>Tool calls ссылаются на placeholder’ы <code>#E1</code>, <code>#E2</code> для ещё не существующих результатов.</li>
+<li>Во время выполнения LLM не используется. Worker просто запускает инструменты.</li>
 <li>Независимые инструменты выполняются параллельно.</li>
 <li>В конце выполняется один вызов для синтеза всех данных.</li>
 </ol>
-<p><strong>Фаза 1: планировщик ReWOO</strong> (заранее создаёт полный граф выполнения)</p>
+<p><strong>Phase 1: ReWOO planner</strong> (заранее создаёт полный граф выполнения)</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> ReWOOPlanStep</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">BaseModel</span><span style="color:#E6EDF3">):</span></span>
 <span class="line"><span style="color:#A5D6FF">    """A step in the ReWOO plan with variable placeholders.</span></span>
 <span class="line"></span>
@@ -400,47 +404,46 @@
 <span class="line"><span style="color:#8B949E">    # State update: Store the complete execution plan</span></span>
 <span class="line"><span style="color:#8B949E">    # Worker will execute this without any LLM involvement</span></span>
 <span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> {</span><span style="color:#A5D6FF">"rewoo_plan"</span><span style="color:#E6EDF3">: result.steps}</span></span></code></pre>
-<p><strong>Фаза 2: воркер ReWOO</strong> (выполняет инструменты без ризонинга LLM)</p>
+<p><strong>Phase 2: ReWOO worker</strong> (выполняет инструменты без ризонинга LLM)</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">def</span><span style="color:#D2A8FF"> rewoo_worker_node</span><span style="color:#E6EDF3">(state: AgentState) -> </span><span style="color:#79C0FF">dict</span><span style="color:#E6EDF3">:</span></span>
-<span class="line"><span style="color:#A5D6FF">    """Execute all planned tools in parallel (no LLM calls).</span></span>
+<span class="line"><span style="color:#A5D6FF">    """Execute dependency-ready tools in parallel batches (no LLM calls).</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#A5D6FF">    This is the key efficiency: Worker is "dumb" - it just runs tools</span></span>
-<span class="line"><span style="color:#A5D6FF">    according to the plan. No LLM calls means no tokens spent here.</span></span>
+<span class="line"><span style="color:#A5D6FF">    Independent tools share a batch. Dependent tools wait until their</span></span>
+<span class="line"><span style="color:#A5D6FF">    prerequisites complete. The worker follows the dependency graph and</span></span>
+<span class="line"><span style="color:#A5D6FF">    does not add LLM calls.</span></span>
 <span class="line"><span style="color:#A5D6FF">    """</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#E6EDF3">    results </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {}        </span><span style="color:#8B949E"># Results keyed by step_id (e.g., "#E1": "$150.23")</span></span>
 <span class="line"><span style="color:#E6EDF3">    updated_steps </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> []  </span><span style="color:#8B949E"># Plan steps with their result field filled in</span></span>
+<span class="line"><span style="color:#E6EDF3">    pending </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {step.step_id: step </span><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> step </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> state.rewoo_plan}</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#8B949E">    # Execute the independent steps in parallel using ThreadPoolExecutor.</span></span>
-<span class="line"><span style="color:#8B949E">    # This is where ReWOO gets its speed advantage.</span></span>
+<span class="line"><span style="color:#8B949E">    # Keep scheduling dependency-ready batches until the graph is complete.</span></span>
+<span class="line"><span style="color:#8B949E">    # This handles chains even when the planner does not list them topologically.</span></span>
 <span class="line"><span style="color:#FF7B72">    with</span><span style="color:#E6EDF3"> ThreadPoolExecutor(</span><span style="color:#FFA657">max_workers</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">5</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">as</span><span style="color:#E6EDF3"> executor:</span></span>
-<span class="line"><span style="color:#E6EDF3">        futures </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {</span></span>
-<span class="line"><span style="color:#E6EDF3">            executor.submit(execute_tool, step, results): step</span></span>
-<span class="line"><span style="color:#FF7B72">            for</span><span style="color:#E6EDF3"> step </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> state.rewoo_plan</span></span>
-<span class="line"><span style="color:#FF7B72">            if</span><span style="color:#FF7B72"> not</span><span style="color:#E6EDF3"> step.depends_on  </span><span style="color:#8B949E"># Only independent tools for parallel batch</span></span>
-<span class="line"><span style="color:#E6EDF3">        }</span></span>
+<span class="line"><span style="color:#FF7B72">        while</span><span style="color:#E6EDF3"> pending:</span></span>
+<span class="line"><span style="color:#E6EDF3">            ready </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> [</span></span>
+<span class="line"><span style="color:#E6EDF3">                step </span><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> step </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> pending.values()</span></span>
+<span class="line"><span style="color:#FF7B72">                if</span><span style="color:#79C0FF"> all</span><span style="color:#E6EDF3">(dep </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> results </span><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> dep </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> step.depends_on)</span></span>
+<span class="line"><span style="color:#E6EDF3">            ]</span></span>
+<span class="line"><span style="color:#FF7B72">            if</span><span style="color:#FF7B72"> not</span><span style="color:#E6EDF3"> ready:</span></span>
+<span class="line"><span style="color:#E6EDF3">                unresolved </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> ", "</span><span style="color:#E6EDF3">.join(pending)</span></span>
+<span class="line"><span style="color:#FF7B72">                return</span><span style="color:#E6EDF3"> {</span><span style="color:#A5D6FF">"error"</span><span style="color:#E6EDF3">: </span><span style="color:#FF7B72">f</span><span style="color:#A5D6FF">"Unresolvable ReWOO dependencies: </span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">unresolved</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">"</span><span style="color:#E6EDF3">}</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#8B949E">        # Collect results as they complete</span></span>
-<span class="line"><span style="color:#FF7B72">        for</span><span style="color:#E6EDF3"> future </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> as_completed(futures):</span></span>
-<span class="line"><span style="color:#E6EDF3">            step </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> futures[future]</span></span>
-<span class="line"><span style="color:#E6EDF3">            results[step.step_id] </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> future.result()</span></span>
-<span class="line"><span style="color:#E6EDF3">            updated_steps.append(step.model_copy(</span><span style="color:#FFA657">update</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">{</span><span style="color:#A5D6FF">"result"</span><span style="color:#E6EDF3">: results[step.step_id]}))</span></span>
-<span class="line"><span style="color:#8B949E">            # No LLM reasoning here - just store the raw tool output</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#8B949E">    # Dependent steps run afterwards, in plan order — which assumes the planner</span></span>
-<span class="line"><span style="color:#8B949E">    # listed each dependency before the step that uses it. execute_tool() swaps any</span></span>
-<span class="line"><span style="color:#8B949E">    # "#E1"-style argument for the matching entry in `results`, which is how</span></span>
-<span class="line"><span style="color:#8B949E">    # a placeholder written before execution turns into a real value.</span></span>
-<span class="line"><span style="color:#FF7B72">    for</span><span style="color:#E6EDF3"> step </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> state.rewoo_plan:</span></span>
-<span class="line"><span style="color:#FF7B72">        if</span><span style="color:#E6EDF3"> step.depends_on:</span></span>
-<span class="line"><span style="color:#E6EDF3">            results[step.step_id] </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> execute_tool(step, results)</span></span>
-<span class="line"><span style="color:#E6EDF3">            updated_steps.append(step.model_copy(</span><span style="color:#FFA657">update</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">{</span><span style="color:#A5D6FF">"result"</span><span style="color:#E6EDF3">: results[step.step_id]}))</span></span>
+<span class="line"><span style="color:#E6EDF3">            futures </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#E6EDF3">                executor.submit(execute_tool, step, results): step</span></span>
+<span class="line"><span style="color:#FF7B72">                for</span><span style="color:#E6EDF3"> step </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> ready</span></span>
+<span class="line"><span style="color:#E6EDF3">            }</span></span>
+<span class="line"><span style="color:#FF7B72">            for</span><span style="color:#E6EDF3"> future </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> as_completed(futures):</span></span>
+<span class="line"><span style="color:#E6EDF3">                step </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> futures[future]</span></span>
+<span class="line"><span style="color:#E6EDF3">                results[step.step_id] </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> future.result()</span></span>
+<span class="line"><span style="color:#E6EDF3">                updated_steps.append(step.model_copy(</span><span style="color:#FFA657">update</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">{</span><span style="color:#A5D6FF">"result"</span><span style="color:#E6EDF3">: results[step.step_id]}))</span></span>
+<span class="line"><span style="color:#FF7B72">                del</span><span style="color:#E6EDF3"> pending[step.step_id]</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#8B949E">    # State update: restore the planner's order (sorting on step_id would put</span></span>
 <span class="line"><span style="color:#8B949E">    # "#E10" before "#E2") and hand the filled-in plan to the Solver</span></span>
 <span class="line"><span style="color:#E6EDF3">    plan_order </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {s.step_id: i </span><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> i, s </span><span style="color:#FF7B72">in</span><span style="color:#79C0FF"> enumerate</span><span style="color:#E6EDF3">(state.rewoo_plan)}</span></span>
 <span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> {</span><span style="color:#A5D6FF">"rewoo_plan"</span><span style="color:#E6EDF3">: </span><span style="color:#79C0FF">sorted</span><span style="color:#E6EDF3">(updated_steps, </span><span style="color:#FFA657">key</span><span style="color:#FF7B72">=lambda</span><span style="color:#E6EDF3"> s: plan_order[s.step_id])}</span></span></code></pre>
-<p><strong>Фаза 3: solver ReWOO</strong> (синтезирует все результаты одним вызовом LLM)</p>
+<p><strong>Phase 3: ReWOO solver</strong> (синтезирует все результаты одним вызовом LLM)</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">def</span><span style="color:#D2A8FF"> rewoo_solver_node</span><span style="color:#E6EDF3">(state: AgentState) -> </span><span style="color:#79C0FF">dict</span><span style="color:#E6EDF3">:</span></span>
 <span class="line"><span style="color:#A5D6FF">    """Synthesize all tool results into a flash briefing.</span></span>
 <span class="line"></span>
@@ -468,7 +471,7 @@
 <span class="line"><span style="color:#8B949E">    # FlashBriefingOutput and DraftReport carry the same fields; the state</span></span>
 <span class="line"><span style="color:#8B949E">    # schema expects DraftReport, so convert before returning.</span></span>
 <span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> {</span><span style="color:#A5D6FF">"draft_report"</span><span style="color:#E6EDF3">: DraftReport(</span><span style="color:#FF7B72">**</span><span style="color:#E6EDF3">result.model_dump())}</span></span></code></pre>
-<p>ReWOO заранее планирует каждый вызов инструмента и записывает ещё неизвестный результат каждого шага как плейсхолдер, например <code>#E1</code> или <code>#E2</code>, на который ссылаются последующие шаги, выражая зависимость. Воркер параллельно запускает независимые вызовы, не спрашивая модель, что делать дальше. Один финальный вызов модели объединяет результаты.</p>
+<p>ReWOO заранее планирует каждый tool call и записывает ещё неизвестный результат каждого шага как placeholder, например <code>#E1</code> или <code>#E2</code>; последующие шаги ссылаются на него, выражая зависимость. Worker запускает готовые к выполнению вызовы пакетами, параллельно, не спрашивая модель, что делать дальше. Один финальный вызов модели объединяет результаты.</p>
 <h3 id="где-каждый-паттерн-вызывает-модель">Где каждый паттерн вызывает модель</h3>
 
 
@@ -499,11 +502,11 @@
 
 
 
-<table tabindex="0"><thead><tr><th>Паттерн</th><th><strong>Вызовы LLM во время выполнения</strong></th><th><strong>Обновления состояния</strong></th><th><strong>Ключевой паттерн кода</strong></th></tr></thead><tbody><tr><td><strong>Plan-and-Execute</strong></td><td>1 для планирования + цикл ReAct для каждого шага (несколько вызовов в каждом) + 1 для отчёта</td><td>Последовательное завершение шагов</td><td><code>planner_node()</code> → цикл: <code>executor_node()</code> → <code>reporter_node()</code></td></tr><tr><td><strong>ReAct</strong> (внутри каждого шага)</td><td>Несколько на шаг (циклы thought-action)</td><td>Накопленная история сообщений</td><td><code>create_react_agent()</code> выполняется во внутреннем цикле до завершения шага</td></tr><tr><td><strong>ReWOO</strong></td><td>1 для планирования + 0 во время выполнения + 1 для синтеза</td><td>Параллельное завершение инструментов</td><td><code>rewoo_planner_node()</code> → <code>rewoo_worker_node()</code> → <code>rewoo_solver_node()</code></td></tr></tbody></table>
-<p>Между паттернами меняется то, что — если вообще что-то — выдаёт планировщик. Этот результат определяет, что может делать остальная часть графа.</p>
+<table tabindex="0"><thead><tr><th>Паттерн</th><th><strong>Вызовы LLM во время выполнения</strong></th><th><strong>Обновления состояния</strong></th><th><strong>Ключевой паттерн кода</strong></th></tr></thead><tbody><tr><td><strong>Plan-and-Execute</strong></td><td>1 для планирования + цикл ReAct для каждого шага (несколько вызовов на шаг) + 1 для отчёта</td><td>Последовательное завершение шагов</td><td><code>planner_node()</code> → цикл: <code>executor_node()</code> → <code>reporter_node()</code></td></tr><tr><td><strong>ReAct</strong> (внутри каждого шага)</td><td>Несколько на шаг (циклы thought-action)</td><td>Накапливаемая история сообщений</td><td>В зафиксированной версии используется устаревший <code>create_react_agent()</code></td></tr><tr><td><strong>ReWOO</strong></td><td>1 для планирования + 0 во время выполнения + 1 для синтеза</td><td>Пакеты инструментов с учётом зависимостей</td><td><code>rewoo_planner_node()</code> → <code>rewoo_worker_node()</code> → <code>rewoo_solver_node()</code></td></tr></tbody></table>
+<p>Между паттернами меняется то, что именно — если вообще что-либо — создаёт планировщик. От этого результата зависит, что может делать остальной граф.</p>
 <ol>
 <li>
-<p>Plan-and-Execute создаёт понятные человеку описания шагов:</p>
+<p>Plan-and-Execute создаёт человекочитаемые описания шагов:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># Planner output (list of PlanStep objects)</span></span>
 <span class="line"><span style="color:#E6EDF3">plan </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> [</span></span>
 <span class="line"><span style="color:#E6EDF3">    PlanStep(</span></span>
@@ -518,10 +521,10 @@
 <span class="line"><span style="color:#E6EDF3">    ),</span></span>
 <span class="line"><span style="color:#8B949E">    # ... more steps</span></span>
 <span class="line"><span style="color:#E6EDF3">]</span></span></code></pre>
-<p>Экзекьютор читает каждое описание и решает, какие инструменты вызвать. Это гибко, но каждый шаг представляет собой собственный цикл ReAct, поэтому на шаг требуется несколько вызовов модели, а не один.</p>
+<p>Экзекьютор читает каждое описание и решает, какие инструменты вызвать. Подход гибкий, но каждый шаг — отдельный цикл ReAct, поэтому шаг стоит несколько вызовов модели, а не один.</p>
 </li>
 <li>
-<p>У ReAct нет предварительного плана. Он использует итеративный ризонинг:</p>
+<p>ReAct не создаёт предварительный план. Он использует итеративный ризонинг:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># No planning phase - ReAct works step-by-step with accumulated messages</span></span>
 <span class="line"><span style="color:#E6EDF3">messages </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> [</span></span>
 <span class="line"><span style="color:#E6EDF3">    HumanMessage(</span><span style="color:#FFA657">content</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"Execute Step 1: Get current price"</span><span style="color:#E6EDF3">),</span></span>
@@ -530,10 +533,10 @@
 <span class="line"><span style="color:#E6EDF3">    AIMessage(</span><span style="color:#FFA657">content</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"Now I need metrics..."</span><span style="color:#E6EDF3">),</span></span>
 <span class="line"><span style="color:#8B949E">    # ... agent continues until step complete</span></span>
 <span class="line"><span style="color:#E6EDF3">]</span></span></code></pre>
-<p>Вызовы модели, стоящие за этими сообщениями, адаптируются к наблюдениям, и каждый из них заново читает историю, растущую на протяжении всей задачи. Plan-and-Execute тоже запускает циклы ReAct, но каждый из них начинается с описания соответствующего шага и дайджеста предыдущих результатов, а не с полной истории вызовов инструментов.</p>
+<p>Вызовы модели, стоящие за этими сообщениями, адаптируются к наблюдениям, и каждый из них заново читает историю, растущую на протяжении всей задачи. Plan-and-Execute тоже запускает циклы ReAct, но каждый цикл начинается с описания шага и дайджеста предыдущих результатов, а не с полной истории tool calls.</p>
 </li>
 <li>
-<p>ReWOO создаёт явные исполнимые спецификации вызовов инструментов:</p>
+<p>ReWOO создаёт явные исполнимые спецификации tool calls:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># Planner output (list of ReWOOPlanStep objects)</span></span>
 <span class="line"><span style="color:#E6EDF3">rewoo_plan </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> [</span></span>
 <span class="line"><span style="color:#E6EDF3">    ReWOOPlanStep(</span></span>
@@ -548,19 +551,19 @@
 <span class="line"><span style="color:#E6EDF3">    ),</span></span>
 <span class="line"><span style="color:#8B949E">    # ... all tool calls planned upfront</span></span>
 <span class="line"><span style="color:#E6EDF3">]</span></span></code></pre>
-<p>Воркер работает вслепую, без участия LLM. Все вызовы модели выполняются в планировщике и solver, поэтому их количество предсказуемо.</p>
+<p>Worker работает вслепую, без участия LLM. Все вызовы модели находятся в planner и solver, поэтому количество вызовов предсказуемо.</p>
 </li>
 </ol>
 <p>Поток памяти и состояния:</p>
 <ul>
 <li>Plan-and-Execute: состояние проходит через <code>plan</code> → <code>current_step_index</code> → <code>research_data</code>.</li>
 <li>ReAct: состояние накапливается в массиве <code>messages</code> — полной истории диалога.</li>
-<li>ReWOO: состояние проходит через <code>rewoo_plan</code>, а поля <code>result</code> заполняются воркером.</li>
+<li>ReWOO: состояние проходит через <code>rewoo_plan</code>, а worker заполняет поля <code>result</code>.</li>
 </ul>
-<h3 id="всё-вместе-связываем-граф">Всё вместе: связываем граф</h3>
-<p>Вот как три паттерна сосуществуют в одной системе LangGraph. Они используют общий <code>AgentState</code> и находятся в одном графе. Роутер выбирает путь для каждого запроса, поэтому это один агент с двумя маршрутизируемыми режимами — глубоким исследованием и быстрым брифингом, — а не три агента в одном плаще. ReAct не является отдельным маршрутом: он выполняется внутри каждого шага глубокого исследования.</p>
-<p>На диаграмме Plan-and-Execute показан репланировщик, которого нет в этом графе. Plan-and-Execute допускает его использование, но данный агент доводит каждый план до конца и ничего не пересматривает в процессе. Чтобы добавить репланировщик, понадобится ещё одно условное ребро из <code>executor</code> обратно в <code>planner</code>, а также правило, определяющее, когда неожиданный результат шага оправдывает дополнительные затраты на вызов планировщика. Диаграмма показывает паттерн, а код — один из вариантов его реализации.</p>
-<p>LangGraph хранит схему связей в декларативном виде:</p>
+<h3 id="как-всё-соединить-сборка-графа">Как всё соединить: сборка графа</h3>
+<p>Вот как три паттерна сосуществуют в одной системе LangGraph. Они используют один <code>AgentState</code> и находятся в одном графе. Роутер выбирает путь для каждого запроса, поэтому это один агент с двумя маршрутизируемыми режимами — глубокое исследование и экспресс-брифинг, а не три агента в одном плаще. ReAct не является отдельным маршрутом: он выполняется внутри каждого шага глубокого исследования.</p>
+<p>На диаграмме Plan-and-Execute показан replanner, которого нет в этом графе. Plan-and-Execute допускает его использование, но этот агент выполняет каждый план до конца и ничего не пересматривает во время запуска. Добавление replanner означает ещё один условный edge из <code>executor</code> обратно в <code>planner</code>, а также правило, определяющее, когда неожиданный результат шага оправдывает дополнительные затраты на новый вызов планирования. Считайте диаграмму описанием паттерна, а код — одним из вариантов его реализации.</p>
+<p>LangGraph сохраняет wiring декларативным:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">def</span><span style="color:#D2A8FF"> create_graph</span><span style="color:#E6EDF3">(checkpointer</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">None</span><span style="color:#E6EDF3">):</span></span>
 <span class="line"><span style="color:#E6EDF3">    builder </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> StateGraph(AgentState)</span></span>
 <span class="line"></span>
@@ -611,7 +614,7 @@
 <span class="line"><span style="color:#FFA657">        interrupt_before</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">[</span><span style="color:#A5D6FF">"publish"</span><span style="color:#E6EDF3">],</span></span>
 <span class="line"><span style="color:#E6EDF3">    )</span></span></code></pre>
 <h3 id="автоматический-выбор-паттерна-с-помощью-роутера">Автоматический выбор паттерна с помощью роутера</h3>
-<p>Чтобы выбирать подходящий цикл для каждого запроса, я добавил классификатор-роутер. Для надёжности классификации он использует Schema-Guided Reasoning:</p>
+<p>Чтобы выбирать подходящий цикл для каждого запроса, я добавил классификатор-роутер. Он использует Schema-Guided Reasoning, чтобы повысить надёжность классификации:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> ExecutionMode</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">str</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">Enum</span><span style="color:#E6EDF3">):</span></span>
 <span class="line"><span style="color:#A5D6FF">    """Execution mode for the agent."""</span></span>
 <span class="line"></span>
@@ -637,18 +640,18 @@
 <span class="line"></span>
 <span class="line"><span style="color:#E6EDF3">llm </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> ChatAnthropic(</span><span style="color:#FFA657">model</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">"claude-sonnet-4-5-20250929"</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">temperature</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">)</span></span>
 <span class="line"><span style="color:#E6EDF3">structured_llm </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> llm.with_structured_output(RouterOutput)</span></span></code></pre>
-<p>После этого пользователю не нужно выбирать режим. Запрос «текущая цена» направляется в ReWOO, а «инвестиционный тезис» — в Plan-and-Execute.</p>
-<h2 id="главные-выводы">Главные выводы</h2>
+<p>Теперь пользователю не нужно выбирать режим. Запрос «текущая цена» направляется в ReWOO, а «инвестиционный тезис» — в Plan-and-Execute.</p>
+<h2 id="ключевые-выводы">Ключевые выводы</h2>
 <ol>
-<li>ReAct предоставляет обратную связь чаще всего, но требует повторных вызовов модели.</li>
-<li>ReWOO сокращает количество обращений к модели, когда инструменты надёжны, а зависимости предсказуемы.</li>
-<li>Plan-and-Execute подходит для сложного анализа, который можно декомпозировать до начала выполнения, но которому всё ещё нужна обратная связь по каждому шагу.</li>
+<li>ReAct чаще всего предоставляет обратную связь, но требует повторных вызовов модели.</li>
+<li>ReWOO сокращает количество round trip к модели, когда инструменты надёжны, а зависимости предсказуемы.</li>
+<li>Plan-and-Execute подходит для сложного анализа, который можно декомпозировать до начала выполнения, но которому всё ещё нужна обратная связь на каждом шаге.</li>
 <li>Роутер может выбирать между ними для каждого запроса, поэтому пользователю не приходится делать это самостоятельно.</li>
-<li>Чтобы пережить прерывание или перезапуск воркера, циклу нужно сохранённое состояние. Этой теме посвящена часть 2.</li>
+<li>Чтобы пережить прерывание или перезапуск worker, циклу нужно сохранённое состояние. Этой теме посвящена часть 2.</li>
 </ol>
 <p>Полная реализация, включая роутер и общее состояние, находится в <a href="https://github.com/slavadubrov/market-analyst-agent">репозитории Market Analyst Agent</a>.</p>
 <h2 id="следующий-слой--память">Следующий слой — память</h2>
-<p>В части 2, <a href="/ru/blog/2026/02/14/ai-agent-memory-architecture/"><strong>Архитектура памяти ИИ-агента</strong></a>, возобновляемые чекпоинты отделяются от знаний, общих для разных сессий, и документов проекта. Без этого слоя состояния роутер и экзекьютор выше работают только пока живы один процесс и одно контекстное окно.</p>
+<p>Часть 2, <a href="/ru/blog/2026/02/14/ai-agent-memory-architecture/"><strong>Архитектура памяти ИИ-агента</strong></a>, разделяет возобновляемые чекпоинты, знания между сессиями и документы проекта. Без этого слоя состояния роутер и экзекьютор выше работают только пока живы один процесс и одно контекстное окно.</p>
 <h2 id="ссылки">Ссылки</h2>
 <ul>
 <li><a href="https://arxiv.org/abs/2210.03629"><strong>ReAct: Synergizing Reasoning and Acting in Language Models</strong></a> (Yao et al., 2022)</li>
@@ -657,15 +660,15 @@
 <li><a href="https://github.com/slavadubrov/market-analyst-agent"><strong>Репозиторий Market Analyst Agent</strong></a></li>
 </ul>
 <hr>
-<p><em>Код Market Analyst Agent опубликован на <a href="https://github.com/slavadubrov/market-analyst-agent">GitHub</a>, если хотите следить за разбором.</em></p>
+<p><em>Код Market Analyst Agent опубликован на <a href="https://github.com/slavadubrov/market-analyst-agent">GitHub</a>, если хотите следить за разбором по коду.</em></p>
 <p><strong>Серия: AI-инжиниринг агентного стека</strong></p>
 <ul>
 <li><strong>Часть 1: Циклы ризонинга ИИ-агентов</strong> (эта статья)</li>
-<li><a href="/ru/blog/2026/02/14/ai-agent-memory-architecture/">Часть 2: Архитектура памяти ИИ-агента</a> — чекпоинты, векторные хранилища и память документов</li>
-<li><a href="/ru/blog/2026/03/24/ai-agent-tool-use/">Часть 3: Tool Use ИИ-агента</a> — MCP, CLI, Skills, выполнение кода и ACI</li>
-<li><a href="/ru/blog/2026/04/20/ai-agent-security/">Часть 4: Безопасность ИИ-агента</a> — гардрейлы, разрешения, сэндбоксы, HITL и область действия MCP</li>
-<li><a href="/ru/blog/2026/05/26/ai-agent-runtime/">Часть 5: Рантайм долгоживущего ИИ-агента</a> — сессии, сэндбоксы, чекпоинты, харнессы и варианты деплоя</li>
-<li><a href="/ru/blog/2026/07/22/ai-agent-harness-engineering/">Часть 6: Харнесс-инжиниринг для ИИ-агентов</a> — проверки приёмки, трейсы, ретраи, передачи управления и цикл вокруг модели</li>
+<li><a href="/ru/blog/2026/02/14/ai-agent-memory-architecture/">Часть 2: Архитектура памяти ИИ-агента</a> — чекпоинты, vector stores и память документов</li>
+<li><a href="/ru/blog/2026/03/24/ai-agent-tool-use/">Часть 3: Tool use ИИ-агента</a> — MCP, CLI, Skills, выполнение кода и ACI</li>
+<li><a href="/ru/blog/2026/04/20/ai-agent-security/">Часть 4: Безопасность ИИ-агента</a> — гардрейлы, permissions, сэндбоксы, HITL и scoping MCP</li>
+<li><a href="/ru/blog/2026/05/26/ai-agent-runtime/">Часть 5: Рантайм долгоживущего ИИ-агента</a> — сессии, сэндбоксы, чекпоинты, харнессы и формы деплоя</li>
+<li><a href="/ru/blog/2026/07/22/ai-agent-harness-engineering/">Часть 6: Харнесс-инжиниринг для ИИ-агентов</a> — acceptance checks, трейсы, retries, handoffs и цикл вокруг модели</li>
 </ul> </article>  </main> <footer class="site-footer"> <p data-footer-tagline>Практическая AI-инженерия от Славы Дуброва.</p> <nav class="footer-locales" aria-label="Язык"> <a href="/blog/2026/01/31/ai-agent-reasoning-loops/" hreflang="en" lang="en">English</a><a href="/de/blog/2026/01/31/ai-agent-reasoning-loops/" hreflang="de" lang="de">Deutsch</a><a href="/es/blog/2026/01/31/ai-agent-reasoning-loops/" hreflang="es" lang="es">Español</a><a href="/pt/blog/2026/01/31/ai-agent-reasoning-loops/" hreflang="pt" lang="pt">Português</a><a href="/fr/blog/2026/01/31/ai-agent-reasoning-loops/" hreflang="fr" lang="fr">Français</a><a href="/nl/blog/2026/01/31/ai-agent-reasoning-loops/" hreflang="nl" lang="nl">Nederlands</a> </nav> <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>
       document.querySelector(".theme-toggle")?.addEventListener("click", () => {
         const root = document.documentElement;

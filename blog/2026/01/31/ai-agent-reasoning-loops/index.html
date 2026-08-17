@@ -56,7 +56,7 @@
 <p><a href="https://arxiv.org/abs/2305.18323">ReWOO</a> (Reasoning WithOut Observation) is a more efficient cousin of ReAct. The trick is decoupling reasoning from tool execution: instead of stopping to observe each action, ReWOO plans the entire sequence of tool calls in one pass.</p>
 <ol>
 <li><strong>Plan</strong>: one LLM call writes the full plan of tool calls, using variable placeholders (<code>#E1</code>, <code>#E2</code>) for outputs that don’t exist yet.</li>
-<li><strong>Worker</strong>: a non-LLM executor runs the planned tools in sequence or in parallel, filling in the placeholders.</li>
+<li><strong>Worker</strong>: a non-LLM executor runs independent planned tools in parallel, then runs dependent tools after their prerequisites, filling in the placeholders.</li>
 <li><strong>Solver</strong>: a final LLM call takes the gathered observations and writes the answer.</li>
 </ol>
 <p><img src="/blog/assets/2026-01-31-cognitive-engine/rewoo-pattern.svg" alt="ReWOO Pattern"></p>
@@ -74,12 +74,12 @@
 </ul>
 <p>Best for: quick snapshots, status checks, dashboards. Anything where the tools behave predictably.</p>
 <h3 id="plan-and-execute-a-hybrid">Plan-and-Execute: a hybrid</h3>
-<p><a href="https://arxiv.org/abs/2305.04091">Plan-and-Solve prompting</a>, usually called Plan-and-Execute once tools are involved, sits between the two. The paper sketches a simple split that many modern agents use:</p>
+<p><a href="https://arxiv.org/abs/2305.04091">Plan-and-Solve prompting</a> describes a prompting method that first creates a plan and then solves the subtasks. A related tool-orchestration pattern is commonly called Plan-and-Execute. LangChain’s <a href="https://www.langchain.com/blog/plan-and-execute-agents">Plan-and-Execute guide</a> documents that pattern:</p>
 <ol>
 <li><strong>Planning phase</strong>: the agent first generates a plan that breaks the task into smaller sub-tasks.</li>
 <li><strong>Execution phase</strong>: the agent then carries out those sub-tasks one at a time. Once tools are involved, each sub-task usually runs as its own small ReAct loop, so the executor can still react to what a tool returns even though the overall plan is fixed.</li>
 </ol>
-<p>The original paper focused on zero-shot prompting. Frameworks like LangGraph have grown it into an orchestration pattern with sequential execution and per-step model choice. You can use a strong reasoning model for planning and a cheaper one for execution.</p>
+<p>The original paper focused on zero-shot prompting. In a tool-using implementation, the orchestration pattern can execute the planned steps sequentially and use different models for planning and execution. That model split is an implementation choice, not a result established by the Plan-and-Solve paper.</p>
 <p><img src="/blog/assets/2026-01-31-cognitive-engine/plan-execute-pattern.svg" alt="Plan-and-Execute Pattern"></p>
 <p>Pros:</p>
 <ul>
@@ -137,8 +137,8 @@
 
 
 
-<table tabindex="0"><thead><tr><th>Feature</th><th><strong>ReAct</strong> (2022)</th><th><strong>Plan-and-Execute</strong> (2023)</th><th><strong>ReWOO</strong> (2023)</th></tr></thead><tbody><tr><td><strong>Core philosophy</strong></td><td>Improviser: decide the next move from the last result, one call at a time.</td><td>Architect: build a full blueprint, execute it, then review.</td><td>Optimizer: write a “script” with variables and run it all at once.</td></tr><tr><td><strong>Workflow</strong></td><td>Iterative loop: Thought → Action → Observation.</td><td>Two-stage: Phase 1 (Planning), Phase 2 (Execution).</td><td>Decoupled: Planner writes a graph of tool calls; Worker runs them; Solver composes the answer.</td></tr><tr><td><strong>Adaptability</strong></td><td>Highest: can change direction after every single tool call.</td><td>Medium: typically re-plans only after a set of steps is completed.</td><td>Lowest: the planner’s script runs to completion; nothing re-plans mid-run.</td></tr><tr><td><strong>Efficiency</strong></td><td>Low: high token usage; must re-read entire history for every step.</td><td>Medium: re-planning is occasional rather than per-step, and each step’s ReAct loop starts from a short context instead of the whole run’s history.</td><td>High: minimal LLM calls; can parallelize tool execution for speed.</td></tr><tr><td><strong>Best for</strong></td><td>Open-ended exploration or tasks where results are unpredictable.</td><td>Long-horizon tasks that require a steady goal (e.g., writing a paper).</td><td>Structured, repeatable workflows (e.g., checking weather in 5 cities).</td></tr></tbody></table>
-<p>The table is a starting point, not a benchmark result. Use ReAct when each observation may change the next action. Use Plan-and-Execute when the overall task can be decomposed but individual steps still need feedback. Use ReWOO when every dependency between tool calls is known before execution starts. A known dependency graph is what makes cancel-on-failure possible: you can skip the steps that depended on a failed call instead of feeding them its error string. You still have to write that check — the worker below does not have one. Measure all three against your own tool latency, model, task set, and retry policy before choosing on cost alone.</p>
+<table tabindex="0"><thead><tr><th>Feature</th><th><strong>ReAct</strong> (2022)</th><th><strong>Plan-and-Execute</strong> (2023)</th><th><strong>ReWOO</strong> (2023)</th></tr></thead><tbody><tr><td><strong>Core philosophy</strong></td><td>Improviser: decide the next move from the last result, one call at a time.</td><td>Architect: build a full blueprint, execute it, then review.</td><td>Optimizer: write a “script” with variables and run it all at once.</td></tr><tr><td><strong>Workflow</strong></td><td>Iterative loop: Thought → Action → Observation.</td><td>Two-stage: Phase 1 (Planning), Phase 2 (Execution).</td><td>Decoupled: Planner writes a graph of tool calls; Worker runs them; Solver composes the answer.</td></tr><tr><td><strong>Adaptability</strong></td><td>Highest: can change direction after every single tool call.</td><td>Medium: typically re-plans only after a set of steps is completed.</td><td>Lowest: the planner’s script runs to completion; nothing re-plans mid-run.</td></tr><tr><td><strong>Efficiency</strong></td><td>Low: high token usage; must re-read entire history for every step.</td><td>Medium: re-planning is occasional rather than per-step, and each step’s ReAct loop starts from a short context instead of the whole run’s history.</td><td>High: minimal LLM calls; independent tool calls can run in parallel.</td></tr><tr><td><strong>Best for</strong></td><td>Open-ended exploration or tasks where results are unpredictable.</td><td>Long-horizon tasks that require a steady goal (e.g., writing a paper).</td><td>Structured, repeatable workflows (e.g., checking weather in 5 cities).</td></tr></tbody></table>
+<p>The table is a starting point, not a benchmark result. Use ReAct when each observation may change the next action. Use Plan-and-Execute when the overall task can be decomposed but individual steps still need feedback. Use ReWOO when every dependency between tool calls is known before execution starts. A known dependency graph is what makes cancel-on-failure possible: you can skip the steps that depended on a failed call instead of feeding them its error string. The worker below validates that the graph makes progress before it executes a batch. Measure all three against your own tool latency, model, task set, and retry policy before choosing on cost alone.</p>
 <h2 id="a-worked-example-the-market-analyst-agent">A worked example: the Market Analyst Agent</h2>
 <p>To make this concrete I built a <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a> that uses all three patterns in one codebase, on a market research task.</p>
 <p>It uses <a href="https://langchain-ai.github.io/langgraph/">LangGraph</a> for orchestration. Two ideas cover everything below: a <strong>node</strong> is a plain Python function that takes the shared state object and returns a dict of fields to update. An <strong>edge</strong> declares which node runs next — conditionally, if you give it a routing function. LangGraph merges each returned dict into the state and can save a snapshot after every node, which is what makes a run resumable. All three patterns share one state object, so the router can switch paths per request without a separate schema for each:</p>
@@ -293,7 +293,10 @@
 <span class="line"><span style="color:#E6EDF3">            previous_context </span><span style="color:#FF7B72">+=</span><span style="color:#FF7B72"> f</span><span style="color:#A5D6FF">"</span><span style="color:#FF7B72">\n</span><span style="color:#A5D6FF">Step </span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">step.step_number</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">: </span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">step.result</span><span style="color:#FF7B72">}\n</span><span style="color:#A5D6FF">"</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#8B949E">    # Create a ReAct agent for this step</span></span>
-<span class="line"><span style="color:#8B949E">    # LangGraph's create_react_agent implements the full Thought-Action-Observation loop:</span></span>
+<span class="line"><span style="color:#8B949E">    # This companion example pins LangGraph's deprecated create_react_agent API.</span></span>
+<span class="line"><span style="color:#8B949E">    # Current LangChain guidance recommends create_agent instead:</span></span>
+<span class="line"><span style="color:#8B949E">    # https://reference.langchain.com/python/langgraph.prebuilt/chat_agent_executor/create_react_agent</span></span>
+<span class="line"><span style="color:#8B949E">    # The factory name does not change the Thought-Action-Observation loop:</span></span>
 <span class="line"><span style="color:#8B949E">    # 1. Agent generates a "thought" about what tool to call</span></span>
 <span class="line"><span style="color:#8B949E">    # 2. Agent calls the tool ("action")</span></span>
 <span class="line"><span style="color:#8B949E">    # 3. Tool returns result ("observation")</span></span>
@@ -332,7 +335,7 @@
 <span class="line"><span style="color:#A5D6FF">        "current_step_index"</span><span style="color:#E6EDF3">: state.current_step_index </span><span style="color:#FF7B72">+</span><span style="color:#79C0FF"> 1</span><span style="color:#E6EDF3">,</span></span>
 <span class="line"><span style="color:#E6EDF3">    }</span></span></code></pre>
 <h3 id="pattern-3-rewoo-for-fast-snapshots">Pattern 3: ReWOO for fast snapshots</h3>
-<p>For quick briefings, ReWOO skips the interleaved reasoning and runs the tools in parallel. The planner emits a compiled script of tool calls upfront, and the worker runs it without any further LLM involvement.</p>
+<p>For quick briefings, ReWOO skips the interleaved reasoning. It runs independent tool calls in parallel and runs dependent calls after their prerequisites. The planner emits a compiled script of tool calls upfront, and the worker runs it without any further LLM involvement.</p>
 <p>The shape of it:</p>
 <ol>
 <li>Three phases (Planner → Worker → Solver), no loops.</li>
@@ -397,39 +400,38 @@
 <span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> {</span><span style="color:#A5D6FF">"rewoo_plan"</span><span style="color:#E6EDF3">: result.steps}</span></span></code></pre>
 <p><strong>Phase 2: ReWOO worker</strong> (executes tools without LLM reasoning)</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">def</span><span style="color:#D2A8FF"> rewoo_worker_node</span><span style="color:#E6EDF3">(state: AgentState) -> </span><span style="color:#79C0FF">dict</span><span style="color:#E6EDF3">:</span></span>
-<span class="line"><span style="color:#A5D6FF">    """Execute all planned tools in parallel (no LLM calls).</span></span>
+<span class="line"><span style="color:#A5D6FF">    """Execute dependency-ready tools in parallel batches (no LLM calls).</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#A5D6FF">    This is the key efficiency: Worker is "dumb" - it just runs tools</span></span>
-<span class="line"><span style="color:#A5D6FF">    according to the plan. No LLM calls means no tokens spent here.</span></span>
+<span class="line"><span style="color:#A5D6FF">    Independent tools share a batch. Dependent tools wait until their</span></span>
+<span class="line"><span style="color:#A5D6FF">    prerequisites complete. The worker follows the dependency graph and</span></span>
+<span class="line"><span style="color:#A5D6FF">    does not add LLM calls.</span></span>
 <span class="line"><span style="color:#A5D6FF">    """</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#E6EDF3">    results </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {}        </span><span style="color:#8B949E"># Results keyed by step_id (e.g., "#E1": "$150.23")</span></span>
 <span class="line"><span style="color:#E6EDF3">    updated_steps </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> []  </span><span style="color:#8B949E"># Plan steps with their result field filled in</span></span>
+<span class="line"><span style="color:#E6EDF3">    pending </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {step.step_id: step </span><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> step </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> state.rewoo_plan}</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#8B949E">    # Execute the independent steps in parallel using ThreadPoolExecutor.</span></span>
-<span class="line"><span style="color:#8B949E">    # This is where ReWOO gets its speed advantage.</span></span>
+<span class="line"><span style="color:#8B949E">    # Keep scheduling dependency-ready batches until the graph is complete.</span></span>
+<span class="line"><span style="color:#8B949E">    # This handles chains even when the planner does not list them topologically.</span></span>
 <span class="line"><span style="color:#FF7B72">    with</span><span style="color:#E6EDF3"> ThreadPoolExecutor(</span><span style="color:#FFA657">max_workers</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">5</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">as</span><span style="color:#E6EDF3"> executor:</span></span>
-<span class="line"><span style="color:#E6EDF3">        futures </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {</span></span>
-<span class="line"><span style="color:#E6EDF3">            executor.submit(execute_tool, step, results): step</span></span>
-<span class="line"><span style="color:#FF7B72">            for</span><span style="color:#E6EDF3"> step </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> state.rewoo_plan</span></span>
-<span class="line"><span style="color:#FF7B72">            if</span><span style="color:#FF7B72"> not</span><span style="color:#E6EDF3"> step.depends_on  </span><span style="color:#8B949E"># Only independent tools for parallel batch</span></span>
-<span class="line"><span style="color:#E6EDF3">        }</span></span>
+<span class="line"><span style="color:#FF7B72">        while</span><span style="color:#E6EDF3"> pending:</span></span>
+<span class="line"><span style="color:#E6EDF3">            ready </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> [</span></span>
+<span class="line"><span style="color:#E6EDF3">                step </span><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> step </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> pending.values()</span></span>
+<span class="line"><span style="color:#FF7B72">                if</span><span style="color:#79C0FF"> all</span><span style="color:#E6EDF3">(dep </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> results </span><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> dep </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> step.depends_on)</span></span>
+<span class="line"><span style="color:#E6EDF3">            ]</span></span>
+<span class="line"><span style="color:#FF7B72">            if</span><span style="color:#FF7B72"> not</span><span style="color:#E6EDF3"> ready:</span></span>
+<span class="line"><span style="color:#E6EDF3">                unresolved </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> ", "</span><span style="color:#E6EDF3">.join(pending)</span></span>
+<span class="line"><span style="color:#FF7B72">                return</span><span style="color:#E6EDF3"> {</span><span style="color:#A5D6FF">"error"</span><span style="color:#E6EDF3">: </span><span style="color:#FF7B72">f</span><span style="color:#A5D6FF">"Unresolvable ReWOO dependencies: </span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">unresolved</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">"</span><span style="color:#E6EDF3">}</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#8B949E">        # Collect results as they complete</span></span>
-<span class="line"><span style="color:#FF7B72">        for</span><span style="color:#E6EDF3"> future </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> as_completed(futures):</span></span>
-<span class="line"><span style="color:#E6EDF3">            step </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> futures[future]</span></span>
-<span class="line"><span style="color:#E6EDF3">            results[step.step_id] </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> future.result()</span></span>
-<span class="line"><span style="color:#E6EDF3">            updated_steps.append(step.model_copy(</span><span style="color:#FFA657">update</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">{</span><span style="color:#A5D6FF">"result"</span><span style="color:#E6EDF3">: results[step.step_id]}))</span></span>
-<span class="line"><span style="color:#8B949E">            # No LLM reasoning here - just store the raw tool output</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#8B949E">    # Dependent steps run afterwards, in plan order — which assumes the planner</span></span>
-<span class="line"><span style="color:#8B949E">    # listed each dependency before the step that uses it. execute_tool() swaps any</span></span>
-<span class="line"><span style="color:#8B949E">    # "#E1"-style argument for the matching entry in `results`, which is how</span></span>
-<span class="line"><span style="color:#8B949E">    # a placeholder written before execution turns into a real value.</span></span>
-<span class="line"><span style="color:#FF7B72">    for</span><span style="color:#E6EDF3"> step </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> state.rewoo_plan:</span></span>
-<span class="line"><span style="color:#FF7B72">        if</span><span style="color:#E6EDF3"> step.depends_on:</span></span>
-<span class="line"><span style="color:#E6EDF3">            results[step.step_id] </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> execute_tool(step, results)</span></span>
-<span class="line"><span style="color:#E6EDF3">            updated_steps.append(step.model_copy(</span><span style="color:#FFA657">update</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">{</span><span style="color:#A5D6FF">"result"</span><span style="color:#E6EDF3">: results[step.step_id]}))</span></span>
+<span class="line"><span style="color:#E6EDF3">            futures </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#E6EDF3">                executor.submit(execute_tool, step, results): step</span></span>
+<span class="line"><span style="color:#FF7B72">                for</span><span style="color:#E6EDF3"> step </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> ready</span></span>
+<span class="line"><span style="color:#E6EDF3">            }</span></span>
+<span class="line"><span style="color:#FF7B72">            for</span><span style="color:#E6EDF3"> future </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> as_completed(futures):</span></span>
+<span class="line"><span style="color:#E6EDF3">                step </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> futures[future]</span></span>
+<span class="line"><span style="color:#E6EDF3">                results[step.step_id] </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> future.result()</span></span>
+<span class="line"><span style="color:#E6EDF3">                updated_steps.append(step.model_copy(</span><span style="color:#FFA657">update</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">{</span><span style="color:#A5D6FF">"result"</span><span style="color:#E6EDF3">: results[step.step_id]}))</span></span>
+<span class="line"><span style="color:#FF7B72">                del</span><span style="color:#E6EDF3"> pending[step.step_id]</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#8B949E">    # State update: restore the planner's order (sorting on step_id would put</span></span>
 <span class="line"><span style="color:#8B949E">    # "#E10" before "#E2") and hand the filled-in plan to the Solver</span></span>
@@ -463,7 +465,7 @@
 <span class="line"><span style="color:#8B949E">    # FlashBriefingOutput and DraftReport carry the same fields; the state</span></span>
 <span class="line"><span style="color:#8B949E">    # schema expects DraftReport, so convert before returning.</span></span>
 <span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> {</span><span style="color:#A5D6FF">"draft_report"</span><span style="color:#E6EDF3">: DraftReport(</span><span style="color:#FF7B72">**</span><span style="color:#E6EDF3">result.model_dump())}</span></span></code></pre>
-<p>ReWOO plans every tool call up front and writes each step’s not-yet-known result as a placeholder such as <code>#E1</code> or <code>#E2</code>, which later steps reference to express a dependency. The worker runs independent calls in parallel without asking the model what to do next. One final model call combines the results.</p>
+<p>ReWOO plans every tool call up front and writes each step’s not-yet-known result as a placeholder such as <code>#E1</code> or <code>#E2</code>, which later steps reference to express a dependency. The worker runs dependency-ready calls in parallel batches without asking the model what to do next. One final model call combines the results.</p>
 <h3 id="where-each-pattern-calls-the-model">Where each pattern calls the model</h3>
 
 
@@ -494,7 +496,7 @@
 
 
 
-<table tabindex="0"><thead><tr><th>Pattern</th><th><strong>LLM calls during execution</strong></th><th><strong>State updates</strong></th><th><strong>Key code pattern</strong></th></tr></thead><tbody><tr><td><strong>Plan-and-Execute</strong></td><td>1 for planning + a ReAct loop per step (several calls each) + 1 for the report</td><td>Sequential step completion</td><td><code>planner_node()</code> → loop: <code>executor_node()</code> → <code>reporter_node()</code></td></tr><tr><td><strong>ReAct</strong> (within each step)</td><td>Multiple per step (thought-action cycles)</td><td>Accumulated message history</td><td><code>create_react_agent()</code> loops internally until step complete</td></tr><tr><td><strong>ReWOO</strong></td><td>1 for planning + 0 during execution + 1 for synthesis</td><td>Parallel tool completion</td><td><code>rewoo_planner_node()</code> → <code>rewoo_worker_node()</code> → <code>rewoo_solver_node()</code></td></tr></tbody></table>
+<table tabindex="0"><thead><tr><th>Pattern</th><th><strong>LLM calls during execution</strong></th><th><strong>State updates</strong></th><th><strong>Key code pattern</strong></th></tr></thead><tbody><tr><td><strong>Plan-and-Execute</strong></td><td>1 for planning + a ReAct loop per step (several calls each) + 1 for the report</td><td>Sequential step completion</td><td><code>planner_node()</code> → loop: <code>executor_node()</code> → <code>reporter_node()</code></td></tr><tr><td><strong>ReAct</strong> (within each step)</td><td>Multiple per step (thought-action cycles)</td><td>Accumulated message history</td><td>Pinned companion uses deprecated <code>create_react_agent()</code></td></tr><tr><td><strong>ReWOO</strong></td><td>1 for planning + 0 during execution + 1 for synthesis</td><td>Dependency-aware tool batches</td><td><code>rewoo_planner_node()</code> → <code>rewoo_worker_node()</code> → <code>rewoo_solver_node()</code></td></tr></tbody></table>
 <p>What changes between them is what — if anything — the planner produces. That output determines what the rest of the graph can do.</p>
 <ol>
 <li>

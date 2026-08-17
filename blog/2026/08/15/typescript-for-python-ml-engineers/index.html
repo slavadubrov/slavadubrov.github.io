@@ -223,7 +223,9 @@ string-union type:</p>
 <p>The object provides <code>Status.Queued</code> while the program runs. The <code>type</code> line
 allows only <code>"queued"</code> or <code>"running"</code> during type checking. Together they fill
 the two roles of this Python declaration:</p>
-<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> Status</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">str</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">Enum</span><span style="color:#E6EDF3">):</span></span>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> enum </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> Enum</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> Status</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">str</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">Enum</span><span style="color:#E6EDF3">):</span></span>
 <span class="line"><span style="color:#79C0FF">    QUEUED</span><span style="color:#FF7B72"> =</span><span style="color:#A5D6FF"> "queued"</span></span>
 <span class="line"><span style="color:#79C0FF">    RUNNING</span><span style="color:#FF7B72"> =</span><span style="color:#A5D6FF"> "running"</span></span></code></pre>
 <p>You only need to recognize the pattern. <code>as const</code> keeps the object’s values as
@@ -388,6 +390,11 @@ each event into a Server-Sent Events frame, and accumulates the text. After the
 stream ends, the route calls <code>storage.createRun</code> once with the final text. Tests
 invoke the loop separately and collect its events into an array. An SSE frame is
 one chunk of a long-lived HTTP response. The section below explains the format.</p>
+<p>The loop has two normal exits. A response with no tool calls yields <code>done</code> with
+<code>stopReason: "stop"</code>. If the model keeps requesting tools through <code>maxSteps</code>,
+the generator still completes and yields <code>done</code> with <code>stopReason: "max_steps"</code>.
+Treat that result as completed but truncated: the accumulated text may be
+partial.</p>
 <p>From <a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/agent-core/src/loop.ts"><code>packages/agent-core/src/loop.ts</code></a>:</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">let</span><span style="color:#E6EDF3"> text </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> ""</span><span style="color:#E6EDF3">; </span><span style="color:#8B949E">// the assistant text produced during this model step</span></span>
 <span class="line"><span style="color:#8B949E">// Keyed by the `index` field, because a streamed response interleaves</span></span>
@@ -490,8 +497,10 @@ Its framework implementation lives in
 <p><code>stopWhen</code> accepts several conditions, including a step limit or a specific
 tool call. The <code>for await</code> loop does not change when the stop policy changes.</p>
 <p>What you give up is direct control over validation failure. The hand-written
-loop decides what the model sees after a rejected call. In the SDK version, you
-configure that behavior through <code>repairToolCall</code>.
+loop decides what the model sees after a rejected call. The SDK exposes the
+experimental <code>experimental_repairToolCall</code> option for a custom repair callback.
+The current companion does not set that option, so it relies on the SDK’s
+default invalid-call handling.
 The trade runs the other way too. In the SDK version, a provider change is
 localized to the provider adapter. It still requires the matching provider
 package, credentials, configuration, and integration tests. In the raw loop,
@@ -552,6 +561,13 @@ them, and the testing section shows what that buys you.</p>
 <span class="line"><span style="color:#E6EDF3">        });</span></span>
 <span class="line"><span style="color:#E6EDF3">    });</span></span>
 <span class="line"><span style="color:#E6EDF3">});</span></span></code></pre>
+<p>The route currently treats every normally completed generator the same. It
+persists <code>status: "succeeded"</code> after any generator that reaches the end,
+including one whose final event has <code>stopReason: "max_steps"</code>. That makes the
+ceiling outcome completed but truncated or partial, not an already-persisted
+failure. Production code should inspect the <code>done</code> event and apply an explicit
+policy. For example, it could use a distinct truncated status or a review/retry
+path before it reports success.</p>
 <p><code>zValidator</code> validates the body and gives <code>c.req.valid("json")</code> the type the
 schema produces. Skip it and the body is typed <code>any</code>, TypeScript’s opt-out,
 where every property access compiles and nothing is checked. That disables the
@@ -565,7 +581,8 @@ protocol upgrade that this route does not need.</p>
 sent with status 200, the server cannot replace that response with a 500. The
 <code>catch</code> block logs the caught error, sends a constant error event to the client,
 and returns. That return matters: only a successfully completed stream reaches
-<code>storage.createRun</code>.</p>
+<code>storage.createRun</code>. A generator that emits <code>done</code>, including <code>max_steps</code>, is a
+normally completed stream and does reach that write.</p>
 <p>A test covers this path. A generator yields one text delta and then throws. The
 response remains 200, and its last frame is an <code>error</code> event with the constant
 message <code>Agent run failed</code>. The logger keeps the caught error for server-side
