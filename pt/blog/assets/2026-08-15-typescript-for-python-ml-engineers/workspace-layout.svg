@@ -1,107 +1,67 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 724" width="1120" height="724" role="img" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" font-family="Inter, system-ui, sans-serif" data-visual-system="evidence-plate-v1">
-  <title>Como um schema Zod chega a três consumidores num workspace pnpm</title>
-  <desc>Três camadas. A camada superior é packages: agent-schemas contém as declarações Zod, agent-core contém os agent loops e o armazenamento Drizzle, e agent-observability contém o logger Pino e a configuração do OpenTelemetry. A partir de agent-schemas, uma declaração chamada EstimateKvCacheInput é distribuída por três pontos de chamada na camada intermédia: loop.ts converte-a com z.toJSONSchema num array de tools da OpenAI, loop-ai-sdk.ts passa o schema ao Vercel AI SDK sem alterações, e o servidor MCP publica a sua forma para qualquer cliente MCP. A camada inferior é apps: a API Hono, o worker e o servidor MCP. A API insere uma linha na tabela runs do Postgres com estado queued e devolve 202; o worker obtém essa linha com FOR UPDATE SKIP LOCKED e escreve o resultado de volta. O servidor MCP não toca nem em HTTP nem na base de dados.</desc>
-  <style data-visual-system="evidence-plate-v1">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 744" role="img" preserveAspectRatio="xMidYMid meet" data-visual-system="byte-diagram-v1" aria-labelledby="workspace-title workspace-desc" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" font-family="IBM Plex Sans, ui-sans-serif, system-ui, sans-serif">
+  <title id="workspace-title">Um schema Zod chega a três consumidores virados para o modelo</title>
+  <desc id="workspace-desc">O pacote focado de schemas do agente envia uma declaração EstimateKvCacheInput para um loop escrito à mão, o adaptador Vercel AI SDK e o publisher de tools MCP. As duas implementações do loop servem a API Hono; o publisher serve o processo MCP. A API escreve linhas de execução no Postgres e o worker assume essas linhas.</desc>
+  <style data-visual-system="byte-diagram-v1">
     * { animation: none !important; }
     .anim-box, .bar, .bar-text, .seq-item, .t-box, .flow { opacity: 1 !important; transform: none !important; }
     path, line, polyline { stroke-linecap: round; stroke-linejoin: round; }
   </style>
+  <style>
+    .kind { font-style: normal; font-weight: 600; font-size: 11px; font-family: IBM Plex Mono, ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: 1.3px; fill: #59645e; }
+    .name { font-style: normal; font-weight: 600; font-size: 17px; font-family: Space Grotesk, ui-sans-serif, system-ui, sans-serif; fill: #17211b; }
+    .note { font-style: normal; font-weight: 400; font-size: 13px; font-family: IBM Plex Sans, ui-sans-serif, system-ui, sans-serif; fill: #59645e; }
+    .section { font-style: normal; font-weight: 600; font-size: 11px; font-family: IBM Plex Mono, ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: 1.6px; fill: #59645e; }
+    .box { fill: #ffffff; stroke: #17211b; stroke-width: 1.5; }
+    .store { fill: #f2f2f5; stroke: #17211b; stroke-width: 1.5; }
+    .edge { stroke: #59645e; stroke-width: 1.5; fill: none; }
+  </style>
+  <rect width="960" height="744" rx="14" fill="#f7f7f4" />
+  <text class="name" x="48" y="44">Um schema, três consumidores</text>
+  <text class="note" x="48" y="68">A declaração partilhada muda de forma em cada adaptador; as aplicações permanecem independentes entre si.</text>
 
-  <rect x="0" y="0" width="1120" height="724" rx="14" fill="#f8fafc" />
+  <rect x="48" y="96" width="864" height="304" rx="12" fill="none" stroke="#d8ddd9" />
+  <text class="section" x="68" y="120">PACOTES · BIBLIOTECAS PARTILHADAS</text>
 
-  <text x="48" y="58" font-size="24" font-weight="700" fill="#0f172a">Um schema, três consumidores</text>
-  <text x="48" y="82" font-size="12" fill="#64748b">Porque um package de schemas merece existir: a forma do input da tool é declarada uma vez e chega a um modelo de três formas diferentes.</text>
+  <rect x="68" y="144" width="256" height="96" rx="10" fill="#fdecf5" stroke="#f2148e" stroke-width="2.5" />
+  <text class="kind" x="88" y="178" fill="#c50e72">FOCO · SCHEMA</text>
+  <text class="name" x="88" y="206" fill="#c50e72">EstimateKvCacheInput</text>
 
-  <!-- packages layer -->
-  <rect x="48" y="104" width="1024" height="150" rx="12" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5" />
-  <text x="68" y="130" font-size="14" font-weight="700" fill="#0f172a">packages/</text>
-  <text x="152" y="130" font-size="11" fill="#64748b">bibliotecas partilhadas, nunca distribuídas isoladamente</text>
+  <path class="edge" d="M196 240v24h568M196 264v24M480 264v24M764 264v24" />
+  <rect x="280" y="248" width="400" height="24" rx="6" fill="#f7f7f4" />
+  <text class="note" x="480" y="265" text-anchor="middle">a mesma declaração Zod, três formatos de fronteira</text>
 
-  <rect x="68" y="146" width="300" height="92" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="1.5" />
-  <text x="88" y="170" font-size="13" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">@agent/schemas</text>
-  <text x="88" y="192" font-size="11" fill="#9a3412">Configuração do ambiente, contratos da API, inputs</text>
-  <text x="88" y="208" font-size="11" fill="#9a3412">das tools, a união AgentEvent</text>
-  <text x="88" y="228" font-size="11" fill="#64748b">Depende apenas de zod</text>
+  <rect class="box" x="68" y="296" width="256" height="96" rx="10" />
+  <text class="kind" x="88" y="330">ADAPTADOR</text><text class="name" x="88" y="358">Loop escrito à mão</text>
+  <rect class="box" x="352" y="296" width="256" height="96" rx="10" />
+  <text class="kind" x="372" y="330">ADAPTADOR</text><text class="name" x="372" y="358">Vercel AI SDK</text>
+  <rect class="box" x="636" y="296" width="256" height="96" rx="10" />
+  <text class="kind" x="656" y="330">PUBLISHER</text><text class="name" x="656" y="358">Tool MCP</text>
 
-  <rect x="388" y="146" width="332" height="92" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5" />
-  <text x="408" y="170" font-size="13" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">@agent/core</text>
-  <text x="408" y="192" font-size="11" fill="#1d4ed8">Dois agent loops, as tools,</text>
-  <text x="408" y="208" font-size="11" fill="#1d4ed8">o sweep, armazenamento Drizzle</text>
-  <text x="408" y="228" font-size="11" fill="#64748b">O único package que comunica com um modelo</text>
+  <rect x="48" y="432" width="864" height="264" rx="12" fill="none" stroke="#d8ddd9" />
+  <text class="section" x="68" y="456">APLICAÇÕES · PROCESSOS DEPLOYED</text>
 
-  <rect x="740" y="146" width="312" height="92" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
-  <text x="760" y="170" font-size="13" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">@agent/observability</text>
-  <text x="760" y="192" font-size="11" fill="#64748b">Logger Pino com redaction;</text>
-  <text x="760" y="208" font-size="11" fill="#64748b">OpenTelemetry, desligado até um</text>
-  <text x="760" y="224" font-size="11" fill="#64748b">endpoint ser configurado</text>
+  <path class="edge" d="M196 392v16h128M480 392v16H324v56" marker-end="url(#workspace-arrow)" />
+  <rect x="100" y="412" width="192" height="24" rx="6" fill="#f7f7f4" />
+  <text class="note" x="196" y="429" text-anchor="middle">escolher um loop</text>
+  <path class="edge" d="M764 392v72" marker-end="url(#workspace-arrow)" />
 
-  <!-- fan-out bus -->
-  <path d="M 218 238 L 218 268 L 888 268" stroke="#ea580c" stroke-width="2" fill="none" />
-  <text x="240" y="262" font-size="11" font-weight="600" font-family="SFMono-Regular, Consolas, monospace" fill="#9a3412">EstimateKvCacheInput</text>
-  <path d="M 218 268 L 218 290" stroke="#ea580c" stroke-width="2" fill="none" marker-end="url(#w-warn)" />
-  <path d="M 548 268 L 548 290" stroke="#ea580c" stroke-width="2" fill="none" marker-end="url(#w-warn)" />
-  <path d="M 888 268 L 888 290" stroke="#ea580c" stroke-width="2" fill="none" marker-end="url(#w-warn)" />
+  <rect class="box" x="68" y="472" width="512" height="96" rx="10" />
+  <text class="kind" x="88" y="506">PROCESSO · APPS/API</text><text class="name" x="88" y="534">HTTP Hono + SSE</text>
+  <rect class="box" x="636" y="472" width="256" height="96" rx="10" />
+  <text class="kind" x="656" y="506">PROCESSO · APPS/MCP</text><text class="name" x="656" y="534">Servidor MCP</text>
 
-  <!-- three call sites -->
-  <rect x="68" y="298" width="300" height="92" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
-  <text x="88" y="322" font-size="12" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">loop.ts</text>
-  <text x="88" y="344" font-size="11" font-family="SFMono-Regular, Consolas, monospace" fill="#0f172a">z.toJSONSchema(schema)</text>
-  <text x="88" y="364" font-size="11" fill="#64748b">Torna-se num array de tools da OpenAI,</text>
-  <text x="88" y="380" font-size="11" fill="#64748b">com constrained decoding solicitado</text>
+  <path class="edge" d="M324 568v32" marker-end="url(#workspace-arrow)" />
+  <rect x="344" y="576" width="152" height="24" rx="6" fill="#f7f7f4" />
+  <text class="note" x="420" y="593" text-anchor="middle">inserir execução em fila</text>
+  <rect class="store" x="68" y="608" width="512" height="62" rx="10" />
+  <text class="kind" x="88" y="632">ARMAZENAMENTO</text><text class="name" x="188" y="648">Tabela de execuções do Postgres</text>
 
-  <rect x="398" y="298" width="300" height="92" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
-  <text x="418" y="322" font-size="12" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">loop-ai-sdk.ts</text>
-  <text x="418" y="344" font-size="11" font-family="SFMono-Regular, Consolas, monospace" fill="#0f172a">inputSchema: schema</text>
-  <text x="418" y="364" font-size="11" fill="#64748b">Passado ao Vercel AI SDK</text>
-  <text x="418" y="380" font-size="11" fill="#64748b">sem alterações; a conversão é interna</text>
+  <rect class="box" x="636" y="608" width="256" height="62" rx="10" />
+  <text class="kind" x="656" y="632">PROCESSO</text><text class="name" x="744" y="648">Worker da fila</text>
+  <path class="edge" d="M580 639h48" marker-end="url(#workspace-arrow)" />
+  <rect x="560" y="616" width="96" height="20" rx="6" fill="#f7f7f4" />
+  <text class="note" x="608" y="631" text-anchor="middle">assumir linha</text>
 
-  <rect x="728" y="298" width="324" height="92" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
-  <text x="748" y="322" font-size="12" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">apps/mcp/src/index.ts</text>
-  <text x="748" y="344" font-size="11" font-family="SFMono-Regular, Consolas, monospace" fill="#0f172a">schema.shape</text>
-  <text x="748" y="364" font-size="11" fill="#64748b">Publicado através de MCP para qualquer cliente:</text>
-  <text x="748" y="380" font-size="11" fill="#64748b">Claude Code, Cursor, a sua própria</text>
-
-  <!-- apps layer -->
-  <rect x="48" y="418" width="1024" height="250" rx="12" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5" />
-  <text x="68" y="444" font-size="14" font-weight="700" fill="#0f172a">apps/</text>
-  <text x="124" y="444" font-size="11" fill="#64748b">cada um é distribuído como o seu próprio container ou processo</text>
-
-  <rect x="68" y="460" width="300" height="96" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
-  <text x="88" y="484" font-size="13" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">apps/api</text>
-  <text x="88" y="506" font-size="11" fill="#64748b">Rotas Hono com validação Zod</text>
-  <text x="88" y="522" font-size="11" fill="#64748b">POST /v1/chat faz streaming de SSE</text>
-  <text x="88" y="538" font-size="11" fill="#64748b">POST /v1/sweeps devolve 202</text>
-
-  <rect x="398" y="460" width="300" height="96" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
-  <text x="418" y="484" font-size="13" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">apps/worker</text>
-  <text x="418" y="506" font-size="11" fill="#64748b">Consulta linhas com estado queued</text>
-  <text x="418" y="522" font-size="11" fill="#64748b">Valida novamente o input armazenado</text>
-  <text x="418" y="538" font-size="11" fill="#64748b">Execute quantas cópias quiser</text>
-
-  <rect x="728" y="460" width="324" height="96" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
-  <text x="748" y="484" font-size="13" font-weight="600" fill="#0f172a" font-family="SFMono-Regular, Consolas, monospace">apps/mcp</text>
-  <text x="748" y="506" font-size="11" fill="#64748b">Uma tool através de stdio. Sem HTTP,</text>
-  <text x="748" y="522" font-size="11" fill="#64748b">sem base de dados, sem chamada ao modelo.</text>
-  <text x="748" y="538" font-size="11" fill="#64748b">stdout é o canal do protocolo</text>
-
-  <path d="M 218 556 L 218 586" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#w-ok)" />
-  <text x="230" y="578" font-size="10" fill="#166534">inserir uma linha com estado queued</text>
-  <path d="M 548 586 L 548 556" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#w-ok)" />
-  <text x="560" y="578" font-size="10" fill="#166534">obter uma linha e depois escrever o resultado de volta</text>
-
-  <rect x="180" y="588" width="692" height="60" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5" />
-  <text x="200" y="612" font-size="13" font-weight="600" fill="#0f172a">Postgres — uma tabela runs</text>
-  <text x="200" y="632" font-size="11" fill="#166534">Armazenamento das runs e fila de jobs nas mesmas linhas. Sem Redis, sem broker:</text>
-  <text x="626" y="632" font-size="11" font-family="SFMono-Regular, Consolas, monospace" fill="#166534">FOR UPDATE SKIP LOCKED</text>
-
-  <text x="48" y="700" font-size="11" fill="#64748b">O laranja transporta o schema. O verde transporta as linhas através do Postgres. Nada em apps/ importa seja o que for de outra app.</text>
-
-  <defs>
-    <marker id="w-warn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#ea580c" />
-    </marker>
-    <marker id="w-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#16a34a" />
-    </marker>
-  </defs>
+  <text class="note" x="48" y="724">O processo MCP não toca em HTTP nem no Postgres; a observabilidade permanece numa biblioteca sidecar usada quando necessário.</text>
+  <defs><marker id="workspace-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z" fill="#59645e" /></marker></defs>
 </svg>

@@ -1,113 +1,72 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 736" width="1120" height="736" role="img" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" font-family="Inter, system-ui, sans-serif" data-visual-system="evidence-plate-v1">
-  <title>Один шаг рукописного агентного цикла и порождаемый им поток событий</title>
-  <desc>Один шаг цикла, слева направо. Модель стримит чанки через chat completions. Фрагменты tool call приходят только с полем index в каждом фрагменте, поэтому цикл собирает их в целые вызовы по index. Каждый собранный вызов проходит через JSON.parse, а затем валидацию Zod; ошибка на любом этапе превращается в tool message с описанием ошибки, а не в выброшенное исключение — цикл продолжается. Успешный вызов запускает инструмент, а результат добавляется в массив сообщений как tool message перед следующим шагом. Цикл порождает типизированные значения AgentEvent из async generator. Ответ без tool calls порождает done со stopReason stop. Достижение max_steps порождает done со stopReason max_steps: выполнение завершено, но усечено. HTTP-роут потребляет генератор, отправляет кадры Server-Sent Events, накапливает текст и записывает итоговый текст в storage после завершения стрима. Показанный роут сохраняет оба нормально завершённых исхода как succeeded, поэтому в production-коде max_steps нужно классифицировать как truncated или partial, если это различие важно. Тесты отдельно потребляют генератор и собирают его события.</desc>
-  <style data-visual-system="evidence-plate-v1">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 768" role="img" preserveAspectRatio="xMidYMid meet" data-visual-system="byte-diagram-v1" aria-labelledby="loop-title loop-desc" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" font-family="IBM Plex Sans, ui-sans-serif, system-ui, sans-serif">
+  <title id="loop-title">Написанный вручную агентный цикл раскрывает типизированный поток событий</title>
+  <desc id="loop-desc">Модель стримит чанки в буфер фрагментов. Цикл собирает вызовы, парсит и валидирует их, запускает валидные инструменты и добавляет сообщения инструментов в историю сообщений перед следующим шагом. Некорректный ввод становится ошибкой инструмента в той же истории, а не завершает цикл. Специализированный асинхронный генератор AgentEvent передаёт события HTTP-маршруту и тестам. После стриминга HTTP-маршрут записывает финальный результат запуска.</desc>
+  <style data-visual-system="byte-diagram-v1">
     * { animation: none !important; }
     .anim-box, .bar, .bar-text, .seq-item, .t-box, .flow { opacity: 1 !important; transform: none !important; }
     path, line, polyline { stroke-linecap: round; stroke-linejoin: round; }
   </style>
+  <style>
+    .kind { font-style: normal; font-weight: 600; font-size: 11px; font-family: IBM Plex Mono, ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: 1.3px; fill: #59645e; }
+    .name { font-style: normal; font-weight: 600; font-size: 16px; font-family: Space Grotesk, ui-sans-serif, system-ui, sans-serif; fill: #17211b; }
+    .note { font-style: normal; font-weight: 400; font-size: 13px; font-family: IBM Plex Sans, ui-sans-serif, system-ui, sans-serif; fill: #59645e; }
+    .section { font-style: normal; font-weight: 600; font-size: 11px; font-family: IBM Plex Mono, ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: 1.6px; fill: #59645e; }
+    .box { fill: #ffffff; stroke: #17211b; stroke-width: 1.5; }
+    .store { fill: #f2f2f5; stroke: #17211b; stroke-width: 1.5; }
+    .edge { stroke: #59645e; stroke-width: 1.5; fill: none; }
+  </style>
+  <rect width="960" height="768" rx="14" fill="#f7f7f4" />
+  <text class="name" x="48" y="44">Один шаг цикла — затем стабильный интерфейс</text>
+  <text class="note" x="48" y="68">Восстановление выполняется внутри цикла. Потребители получают типизированные события вместо чанков от провайдера модели.</text>
 
-  <rect x="0" y="0" width="1120" height="736" rx="14" fill="#f8fafc" />
+  <rect x="48" y="96" width="864" height="336" rx="12" fill="none" stroke="#d8ddd9" stroke-width="1.5" stroke-dasharray="6 5" />
+  <text class="section" x="68" y="120">RUNAGENT · ОДИН ШАГ</text>
 
-  <text x="48" y="58" font-size="24" font-weight="700" fill="#0f172a">Один шаг цикла и его результат</text>
-  <text x="48" y="82" font-size="12" fill="#64748b">Всё внутри пунктирной границы — код, который фреймворк пишет за вас. Поток событий делает это тестируемым.</text>
+  <rect x="68" y="144" width="160" height="96" rx="10" fill="#ffffff" stroke="#59645e" stroke-width="1.5" stroke-dasharray="6 5" />
+  <text class="kind" x="88" y="178">ВНЕШНИЙ КОНТУР</text><text class="name" x="88" y="206" fill="#59645e">Поток модели</text>
+  <rect class="store" x="268" y="144" width="176" height="96" rx="10" />
+  <text class="kind" x="288" y="178">ХРАНИЛИЩЕ</text><text class="name" x="288" y="206">Фрагменты вызова</text>
+  <rect class="box" x="484" y="144" width="176" height="96" rx="10" />
+  <text class="kind" x="504" y="178">ОБРАБОТКА</text><text class="name" x="504" y="206">Парсинг + валидация</text>
+  <rect class="box" x="700" y="144" width="192" height="96" rx="10" />
+  <text class="kind" x="720" y="178">ОБРАБОТКА</text><text class="name" x="720" y="206">Запуск валидного инструмента</text>
 
-  <!-- Boundary of the hand-written loop -->
-  <rect x="48" y="104" width="1024" height="368" rx="12" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 5" />
-  <text x="68" y="130" font-size="14" font-weight="700" fill="#0f172a">runAgent — один шаг</text>
-  <text x="68" y="148" font-size="11" fill="#64748b">packages/agent-core/src/loop.ts</text>
+  <path class="edge" d="M228 192h32" marker-end="url(#loop-arrow)" />
+  <rect x="220" y="164" width="48" height="20" rx="6" fill="#f7f7f4" /><text class="note" x="244" y="179" text-anchor="middle">чанки</text>
+  <path class="edge" d="M444 192h32" marker-end="url(#loop-arrow)" />
+  <rect x="444" y="164" width="40" height="20" rx="6" fill="#f7f7f4" /><text class="note" x="464" y="179" text-anchor="middle">индекс</text>
+  <path class="edge" d="M660 192h32" marker-end="url(#loop-arrow)" />
+  <rect x="656" y="164" width="40" height="20" rx="6" fill="#f7f7f4" /><text class="note" x="676" y="179" text-anchor="middle">валидный</text>
 
-  <!-- Model -->
-  <rect x="68" y="168" width="182" height="94" rx="8" fill="#faf5ff" stroke="#7c3aed" stroke-width="1.5" />
-  <text x="86" y="194" font-size="13" font-weight="600" fill="#0f172a">Модель</text>
-  <text x="86" y="214" font-size="11" fill="#64748b">POST /chat/completions</text>
-  <text x="86" y="230" font-size="11" fill="#64748b">stream: true</text>
-  <text x="86" y="250" font-size="11" fill="#5b21b6">OpenAI, vLLM, Ollama</text>
+  <rect class="store" x="268" y="304" width="392" height="96" rx="10" />
+  <text class="kind" x="288" y="338">ХРАНИЛИЩЕ</text><text class="name" x="288" y="366">История сообщений ассистента и инструмента</text>
+  <path class="edge" d="M796 240v112H668" marker-end="url(#loop-arrow)" />
+  <rect x="700" y="324" width="104" height="20" rx="6" fill="#f7f7f4" /><text class="note" x="752" y="339" text-anchor="middle">результат инструмента</text>
+  <path class="edge" d="M572 240v40H464v16" stroke-dasharray="7 6" marker-end="url(#loop-arrow)" />
+  <rect x="476" y="260" width="176" height="24" rx="6" fill="#f7f7f4" /><text class="note" x="564" y="277" text-anchor="middle">некорректный → ошибка инструмента</text>
+  <path class="edge" d="M268 352H148V248" marker-end="url(#loop-arrow)" />
+  <rect x="144" y="320" width="88" height="20" rx="6" fill="#f7f7f4" /><text class="note" x="188" y="335" text-anchor="middle">следующий шаг</text>
+  <text class="note" x="68" y="416">Отсутствие tool call даёт done(stop); лимит шагов — done(max_steps): выполнение завершено, но усечено.</text>
 
-  <path d="M 250 215 L 292 215" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#a)" />
-  <text x="256" y="205" font-size="10" fill="#64748b">чанки</text>
+  <path class="edge" d="M464 400v64" stroke-dasharray="2 6" marker-end="url(#loop-arrow)" />
+  <rect x="376" y="432" width="176" height="24" rx="6" fill="#f7f7f4" /><text class="note" x="464" y="449" text-anchor="middle">yield после каждого изменения</text>
+  <rect x="260" y="472" width="440" height="96" rx="10" fill="#fdecf5" stroke="#f2148e" stroke-width="2.5" />
+  <text class="kind" x="280" y="506" fill="#c50e72">ФОКУС · АСИНХРОННЫЙ ГЕНЕРАТОР</text>
+  <text class="name" x="280" y="534" fill="#c50e72">Поток AgentEvent</text>
+  <text class="note" x="448" y="534" fill="#c50e72">text · tool_call · tool_result · done · error</text>
 
-  <!-- Accumulate -->
-  <rect x="300" y="168" width="212" height="94" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5" />
-  <text x="318" y="194" font-size="13" font-weight="600" fill="#0f172a">Собирать по index</text>
-  <text x="318" y="214" font-size="11" fill="#64748b">id и name приходят один раз;</text>
-  <text x="318" y="230" font-size="11" fill="#64748b">arguments приходят частями</text>
-  <text x="318" y="250" font-size="11" fill="#1d4ed8">В каждом фрагменте есть только index</text>
+  <path class="edge" d="M480 568v40H196v24M480 608v24" />
+  <rect x="356" y="592" width="248" height="24" rx="6" fill="#f7f7f4" /><text class="note" x="480" y="609" text-anchor="middle">одни события, два потребителя</text>
+  <rect class="box" x="68" y="640" width="256" height="62" rx="10" />
+  <text class="kind" x="88" y="664">ОБРАБОТКА</text><text class="name" x="176" y="680">HTTP-маршрут</text>
+  <rect class="box" x="352" y="640" width="256" height="62" rx="10" />
+  <text class="kind" x="372" y="664">ОБРАБОТКА</text><text class="name" x="460" y="680">Тестовый харнесс</text>
+  <rect class="store" x="636" y="640" width="256" height="62" rx="10" />
+  <text class="kind" x="656" y="664">ХРАНИЛИЩЕ</text><text class="name" x="720" y="680">Результат запуска</text>
 
-  <path d="M 512 215 L 554 215" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#a)" />
-  <text x="533" y="203" text-anchor="middle" font-size="10" fill="#64748b">вызов</text>
+  <path class="edge" d="M196 702v24h568v-16" marker-end="url(#loop-arrow)" />
+  <rect x="366" y="710" width="228" height="24" rx="6" fill="#f7f7f4" /><text class="note" x="480" y="727" text-anchor="middle">финальный текст после стриминга</text>
+  <text class="note" x="48" y="752">Тесты напрямую собирают события; HTTP-маршрут оформляет их как SSE и сохраняет результат только после завершения стриминга.</text>
 
-  <!-- Validate -->
-  <rect x="562" y="168" width="204" height="94" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5" />
-  <text x="580" y="194" font-size="13" font-weight="600" fill="#0f172a">JSON.parse, затем Zod</text>
-  <text x="580" y="214" font-size="11" fill="#64748b">Модели генерируют некорректный JSON</text>
-  <text x="580" y="230" font-size="11" fill="#64748b">и arguments вне допустимого диапазона</text>
-  <text x="580" y="250" font-size="11" fill="#1d4ed8">Оба случая ожидаемы, это не исключения</text>
-
-  <!-- Execute -->
-  <path d="M 766 200 L 812 200" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#a-ok)" />
-  <text x="770" y="192" font-size="10" fill="#166534">валиден</text>
-  <rect x="820" y="168" width="232" height="60" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5" />
-  <text x="838" y="192" font-size="13" font-weight="600" fill="#0f172a">Запустить инструмент</text>
-  <text x="838" y="212" font-size="11" fill="#166534">Результат сериализуется в tool message</text>
-
-  <!-- Repair path -->
-  <path d="M 664 262 L 664 300 L 812 300" stroke="#dc2626" stroke-width="2" fill="none" marker-end="url(#a-bad)" />
-  <text x="676" y="292" font-size="10" fill="#991b1b">невалиден</text>
-  <rect x="820" y="268" width="232" height="60" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5" />
-  <text x="838" y="292" font-size="13" font-weight="600" fill="#0f172a">Описать ошибку</text>
-  <text x="838" y="312" font-size="11" fill="#991b1b">Модель читает её и пробует снова</text>
-
-  <!-- Append + loop back -->
-  <rect x="300" y="348" width="466" height="60" rx="8" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5" />
-  <text x="318" y="372" font-size="13" font-weight="600" fill="#0f172a">Добавить assistant- и tool-сообщения, затем повторить</text>
-  <text x="318" y="392" font-size="11" fill="#64748b">Массив сообщений — вся память агента в рамках этого запуска</text>
-
-  <path d="M 850 228 L 850 244 L 792 244 L 792 378 L 774 378" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#a-ok)" />
-  <path d="M 936 328 L 936 378 L 800 378" stroke="#dc2626" stroke-width="2" fill="none" marker-end="url(#a-bad)" />
-  <path d="M 292 378 L 200 378 L 200 270" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#a)" />
-  <text x="204" y="336" font-size="10" fill="#64748b">следующий шаг</text>
-
-  <text x="68" y="440" font-size="11" fill="#64748b">Отсутствие tool calls порождает done(stop); достижение max_steps — done(max_steps).</text>
-  <text x="68" y="458" font-size="11" fill="#64748b">Генератор завершается в обоих случаях. Показанный роут сохраняет оба исхода как succeeded, поэтому в production-коде max_steps нужно помечать как truncated или partial.</text>
-
-  <!-- Event stream -->
-  <rect x="48" y="496" width="1024" height="76" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5" />
-  <text x="68" y="522" font-size="14" font-weight="700" fill="#0f172a">yield: AgentEvent</text>
-  <text x="68" y="542" font-size="11" fill="#64748b">Дискриминируемое объединение, порождаемое async generator — аналог Python-конструкции async def с yield.</text>
-  <text x="68" y="560" font-size="11" font-family="SFMono-Regular, Consolas, monospace" fill="#1d4ed8">text | tool_call | tool_result | done | error</text>
-
-  <path d="M 240 572 L 240 608" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#a)" />
-  <path d="M 560 572 L 560 608" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#a)" />
-
-  <rect x="88" y="616" width="304" height="72" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
-  <text x="108" y="640" font-size="13" font-weight="600" fill="#0f172a">HTTP-роут</text>
-  <text x="108" y="660" font-size="11" fill="#64748b">Один SSE-кадр на событие</text>
-  <text x="108" y="676" font-size="11" fill="#64748b">apps/api/src/app.ts</text>
-
-  <rect x="408" y="616" width="304" height="72" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
-  <text x="428" y="640" font-size="13" font-weight="600" fill="#0f172a">Тест</text>
-  <text x="428" y="660" font-size="11" fill="#64748b">Собирает события в массив</text>
-  <text x="428" y="676" font-size="11" fill="#64748b">Без сети и API key</text>
-
-  <rect x="728" y="616" width="304" height="72" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
-  <text x="748" y="640" font-size="13" font-weight="600" fill="#0f172a">Storage</text>
-  <text x="748" y="660" font-size="11" fill="#64748b">Однократно записывает итоговый текст</text>
-  <text x="748" y="676" font-size="11" fill="#64748b">Вызывается роутом после стрима</text>
-
-  <path d="M 240 688 L 240 712 L 880 712 L 880 688" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#a)" />
-  <rect x="493" y="702" width="134" height="18" rx="9" fill="#f8fafc" />
-  <text x="560" y="715" text-anchor="middle" font-size="10" fill="#64748b">итоговый текст после стрима</text>
-
-  <defs>
-    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
-    </marker>
-    <marker id="a-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#16a34a" />
-    </marker>
-    <marker id="a-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#dc2626" />
-    </marker>
-  </defs>
+  <defs><marker id="loop-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z" fill="#59645e" /></marker></defs>
 </svg>

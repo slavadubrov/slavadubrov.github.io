@@ -1,0 +1,166 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="640" viewBox="0 0 1120 640" role="img" aria-labelledby="title desc" data-visual-system="byte-diagram-v1" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" font-family="IBM Plex Sans, ui-sans-serif, system-ui, sans-serif">
+  <title id="title">Как квантизация отображает значения высокой точности в бакеты низкой точности</title>
+  <desc id="desc">Диаграмма слева направо: значения полной точности, выбор масштаба, целочисленные бакеты, деквантизированные значения и бюджет ошибки.</desc>
+  <defs>
+
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="6" refY="5" orient="auto">
+      <path d="M1,2 L7,5 L1,8 Z" fill="#1B2621" stroke="#EDF5F0" stroke-width="1.5" stroke-linejoin="round" />
+    </marker>
+    <style>
+      .bg { fill: #0C1210; }
+      .card { fill: #141D19; stroke: #2B3B33; stroke-width: 1.5; filter: url(#shadow); }
+      .title { font-style: normal; font-weight: 700; font-size: 24px; font-family: IBM Plex Sans, ui-sans-serif, system-ui, sans-serif; fill: #A8B8AF; }
+      .subtitle { font-style: normal; font-weight: 400; font-size: 15px; font-family: IBM Plex Sans, ui-sans-serif, system-ui, sans-serif; fill: #141D19; }
+      .label { font-style: normal; font-weight: 700; font-size: 16px; font-family: IBM Plex Sans, ui-sans-serif, system-ui, sans-serif; fill: #A8B8AF; }
+      .text { font-style: normal; font-weight: 400; font-size: 13px; font-family: IBM Plex Sans, ui-sans-serif, system-ui, sans-serif; fill: #A8B8AF; }
+      .code-bg { fill: #0C1210; stroke: #A8B8AF; stroke-width: 1.5; }
+      .mono { font-style: normal; font-weight: 600; font-size: 13px; font-family: IBM Plex Sans, ui-sans-serif, system-ui, sans-serif; fill: #141D19; }
+      .mono-red { font-style: normal; font-weight: 700; font-size: 13px; font-family: IBM Plex Sans, ui-sans-serif, system-ui, sans-serif; fill: #1B2621; }
+      .mono-blue { font-style: normal; font-weight: 700; font-size: 13px; font-family: IBM Plex Sans, ui-sans-serif, system-ui, sans-serif; fill: #1B2621; }
+      .mono-green { font-style: normal; font-weight: 700; font-size: 13px; font-family: IBM Plex Sans, ui-sans-serif, system-ui, sans-serif; fill: #141D19; }
+      .mono-purple { font-style: normal; font-weight: 700; font-size: 13px; font-family: IBM Plex Sans, ui-sans-serif, system-ui, sans-serif; fill: #1B2621; }
+      .mono-orange { font-style: normal; font-weight: 700; font-size: 13px; font-family: IBM Plex Sans, ui-sans-serif, system-ui, sans-serif; fill: #1B2621; }
+      .blue-header { fill: #141D19; stroke: #EDF5F0; stroke-width: 1.5; }
+      .orange-header { fill: #141D19; stroke: #A8B8AF; stroke-width: 1.5; }
+      .purple-header { fill: #141D19; stroke: #EDF5F0; stroke-width: 1.5; }
+      .green-header { fill: #141D19; stroke: #A8B8AF; stroke-width: 1.5; }
+      .red-header { fill: #141D19; stroke: #EDF5F0; stroke-width: 1.5; }
+      .arrow { stroke: #EDF5F0; stroke-width: 2.5; fill: none; marker-end: url(#arrow); stroke-dasharray: 4 2; }
+      .border-highlight { stroke: #EDF5F0; stroke-width: 2; }
+    </style>
+  </defs>
+  <style data-visual-system="evidence-plate-v1">
+    * { animation: none !important; }
+    .anim-box, .bar, .bar-text, .seq-item, .t-box, .flow { opacity: 1 !important; transform: none !important; }
+    path, line, polyline { stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+
+  <!-- Background -->
+  <rect class="bg" width="1120" height="640" rx="12" />
+
+  <!-- Title and Subtitle -->
+  <text class="title" y="52" x="48">Цикл квантизации и деквантизации</text>
+  <text class="subtitle" y="78" x="48">Трассировка отображения значений высокой точности в бакеты низкой точности и их восстановления во время инференса.</text>
+
+  <!-- 1. Original Weights (BF16) -->
+  <g transform="translate(48 115)">
+    <rect class="card" width="230" height="300" rx="8" />
+    <rect class="blue-header" x="1" y="1" width="228" height="42" rx="7 7 0 0" />
+    <text class="label" y="27" x="16">1. Исходные веса</text>
+    <text class="text" y="70" x="16">Веса хранятся как</text>
+    <text class="text" y="88" x="16">FP32 или BF16-флоаты на диске.</text>
+
+    <!-- Visual Tensor representation -->
+    <rect class="code-bg" x="16" y="115" width="198" height="120" rx="6" />
+    <text class="mono" y="140" x="28">Тензор FP32/BF16:</text>
+    <text class="mono-blue" y="165" x="28">[ 2.10,  -1.20,</text>
+    <text class="mono-orange" y="190" x="44">0.40<tspan fill="#A8B8AF" font-weight="normal">,  -0.80 ]</tspan></text>
+    <text class="text" y="260" x="16">Отследим значение <tspan font-weight="bold" fill="#A8B8AF">0.40</tspan> as it</text>
+    <text class="text" y="278" x="16">через цикл.</text>
+  </g>
+
+  <!-- Arrow 1 to 2 -->
+  <path class="arrow" d="M288 265 L318 265" />
+
+  <!-- 2. Calculate Scale (s) -->
+  <g transform="translate(328 115)">
+    <rect class="card" width="230" height="300" rx="8" />
+    <rect class="orange-header" x="1" y="1" width="228" height="42" rx="7 7 0 0" />
+    <text class="label" y="27" x="16">2. Расчёт масштаба</text>
+    <text class="text" y="70" x="16">Рассчитать масштаб <tspan font-style="italic" font-weight="bold">s</tspan> to map</text>
+    <text class="text" y="88" x="16">весов для 4-битного диапазона</text>
+    <text class="text" y="106" x="16"> <tspan font-weight="bold">[-7, 7]</tspan> (signed INT4).</text>
+
+    <!-- Scale Calculation Box -->
+    <rect class="code-bg" x="16" y="135" width="198" height="100" rx="6" />
+    <text class="mono" y="160" x="28">s = max(|x|) / q_max</text>
+    <text class="mono" y="185" x="28">s = 2.10 / 7</text>
+    <text class="mono-orange" y="212" x="28">s = 0.30</text>
+
+    <text class="text" y="260" x="16">Масштаб хранится вместе с</text>
+    <text class="text" y="278" x="16">квантизированными весами.</text>
+  </g>
+
+  <!-- Arrow 2 to 3 -->
+  <path class="arrow" d="M568 265 L598 265" />
+
+  <!-- 3. Quantize & Store -->
+  <g transform="translate(608 115)">
+    <rect class="card" width="230" height="300" rx="8" />
+    <rect class="purple-header" x="1" y="1" width="228" height="42" rx="7 7 0 0" />
+    <text class="label" y="27" x="16">3. Квантизация и сохранение</text>
+    <text class="text" y="70" x="16">Разделить на масштаб, округлить до</text>
+    <text class="text" y="88" x="16">ближайшего целого и сохранить.</text>
+
+    <!-- Quantized Tensor Box -->
+    <rect class="code-bg" x="16" y="115" width="198" height="120" rx="6" />
+    <text class="mono" y="138" x="28">x_q = round(x / s)</text>
+    <text class="mono-purple" y="162" x="28">[ 7,  -4,  1,  -3 ]</text>
+
+    <line x1="28" y1="178" x2="200" y2="178" stroke="#A8B8AF" stroke-width="1.5" />
+
+    <!-- Tracking 0.40 rounding details -->
+    <text class="mono" y="196" x="28">Для 0.40:</text>
+    <text class="mono" y="214" x="28">0.40 / 0.3 = 1.33 <tspan fill="#A8B8AF" font-weight="bold">→ 1</tspan></text>
+
+    <text class="text" y="260" x="16">Теперь веса хранятся в формате</text>
+    <text class="text" y="278" x="16">4-bit (на 75% меньше!).</text>
+  </g>
+
+  <!-- Arrow 3 to 4 -->
+  <path class="arrow" d="M848 265 L878 265" />
+
+  <!-- 4. Dequantize & GEMM -->
+  <g transform="translate(888 115)">
+    <rect class="card" width="184" height="300" rx="8" />
+    <rect class="green-header" x="1" y="1" width="182" height="42" rx="7 7 0 0" />
+    <text class="label" y="27" x="16">4. Деквантизация и GEMM</text>
+    <text class="text" y="70" x="16">Масштабировать обратно до BF16 для</text>
+    <text class="text" y="88" x="16">матричного умножения.</text>
+
+    <!-- Dequantized representation -->
+    <rect class="code-bg" x="16" y="115" width="152" height="120" rx="6" />
+    <text class="mono" y="140" x="24">После деквантизации:</text>
+    <text class="mono-green" y="165" x="24">[ 2.1, -1.2, </text>
+    <text class="mono-green" y="190" x="24">  0.3, -0.9 ]</text>
+    <text class="text" y="215" x="24"><tspan font-weight="bold" fill="#A8B8AF">0.40 → 0.30</tspan></text>
+
+    <!-- GEMM Box -->
+    <rect x="16" y="247" width="152" height="40" rx="6" fill="#1B2621" stroke="#EDF5F0" stroke-width="1.5" class="visual-focus" />
+    <text class="mono" y="272" fill="#141D19" x="26">Матричное умножение GEMM</text>
+  </g>
+
+  <!-- Bottom: The Error Budget Card -->
+  <g transform="translate(48 440)">
+    <rect class="card" width="1024" height="175" rx="8" />
+    <rect class="red-header" x="1" y="1" width="1022" height="42" rx="7 7 0 0" />
+    <text class="label" y="27" x="24">Понимание бюджета ошибки и GEMM</text>
+
+    <!-- Columns inside error budget -->
+    <text class="mono" y="70" x="24">Шум округления:</text>
+    <text class="text" y="92" x="24">Округление непрерывных весов до дискретных целочисленных бакетов вносит</text>
+    <text class="text" y="110" x="24">небольшие математические ошибки (например, <tspan fill="#A8B8AF" font-weight="bold">0.40 → 0.30</tspan>).</text>
+    <text class="text" y="128" x="24">Симметричные формулы: <tspan font-family="IBM Plex Sans, ui-sans-serif, system-ui, sans-serif">x_q = clip(round(x/s))</tspan> and <tspan font-family="IBM Plex Sans, ui-sans-serif, system-ui, sans-serif">x_approx = x_q × s</tspan>.</text>
+    <text class="text" y="146" x="24">Алгоритмы, такие как <tspan font-weight="bold">AWQ</tspan> and <tspan font-weight="bold">GPTQ</tspan> optimize scales to minimize this error.</text>
+
+    <line x1="590" y1="50" x2="590" y2="162" stroke="#2B3B33" stroke-width="1.5" />
+
+    <text class="mono" y="70" x="614">Что такое GEMM?</text>
+    <text class="text" y="92" x="614"><tspan font-weight="bold">GEMM</tspan> stands for <tspan font-weight="bold">Общее матричное умножение</tspan>. It is the</text>
+    <text class="text" y="110" x="614">базовая математическая операция нейросетей</text>
+    <text class="text" y="128" x="614">(<tspan font-family="IBM Plex Sans, ui-sans-serif, system-ui, sans-serif">Выход = активации × веса</tspan>).</text>
+    <text class="text" y="146" x="614">Квантизированные модели выполняют GEMM, используя деквантизированные веса на лету.</text>
+  </g>
+
+  <style data-visual-system="byte-diagram-v1">
+    * { animation: none !important; }
+    path, line, polyline { stroke-linecap: round; stroke-linejoin: round; }
+    text { font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif !important; fill: #EDF5F0 !important; }
+    text[class*="kind"], text[class*="section"], text[class*="tag"], text[class*="step"], text[class*="axis"] { font-family: "IBM Plex Mono", ui-monospace, monospace !important; font-weight: 600; letter-spacing: 1.1px; }
+    text[class*="title"], text[class*="heading"], text[class*="name"] { font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif !important; font-weight: 600; }
+    svg { background: #0C1210; }
+    marker polygon, marker path { fill: #A8B8AF !important; stroke: none !important; }
+    .visual-focus { fill: #2B1622 !important; stroke: #FF6FB6 !important; stroke-width: 2.5 !important; }
+    .visual-focus text { fill: #FF6FB6 !important; }
+  </style>
+</svg>
