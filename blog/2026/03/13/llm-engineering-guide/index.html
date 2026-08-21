@@ -43,7 +43,7 @@
       if (heading) observer.observe(heading);
     }
   })();
-</script> <article class="prose" data-pagefind-body> <h1>LLM Engineering Guide: 45 Concepts for Production Systems</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-03-13">2026-03-13</time>  · Updated <time datetime="2026-08-08">2026-08-08</time>  · 60 min · Model Engineering · AI Infrastructure </p> </div> </div> <p>Production LLM systems pull from GPU hardware, systems engineering, and ML theory all at the same time. The same handful of concepts shows up whether you are tuning TTFT for a chatbot or configuring DeepSpeed ZeRO for a fine-tuning run. This guide collects them in one place.</p>
+</script> <article class="prose" data-pagefind-body> <h1>LLM Engineering Guide: 45 Concepts for Production Systems</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-03-13">2026-03-13</time>  · Updated <time datetime="2026-08-08">2026-08-08</time>  · 20 min · Model Engineering · AI Infrastructure </p> </div> </div> <p>Production LLM systems pull from GPU hardware, systems engineering, and ML theory all at the same time. The same handful of concepts shows up whether you are tuning TTFT for a chatbot or configuring DeepSpeed ZeRO for a fine-tuning run. This guide collects them in one place.</p>
 <aside class="tldr">
 <p class="eyebrow">TL;DR</p>
 <p>This reference covers <strong>45 concepts</strong> in eight parts, from hardware and inference through training, deployment, and operations. Each entry defines the concept, explains its practical effect, gives reported numbers where they clarify scale, and links to related sections. The sources span 2016 through early 2026, with current model and hardware data updated through early 2026.</p>
@@ -185,6 +185,10 @@
 <hr>
 <h2 id="part-ii-inference-fundamentals">Part II — Inference fundamentals</h2>
 <p>Inference is the part of the system that users actually feel. Latency, the KV cache, the two-phase execution model, attention, and quantization between them set how fast, how cheap, and how reliably you can serve.</p>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>I moved a batch-one decode workload to a GPU with far more FLOPS. The token rate moved by almost nothing. Decode was waiting on memory bandwidth, and I had bought compute.</p>
+</div></aside>
 <h3 id="4-latency-ttft-tpot-and-percentiles">4. Latency: TTFT, TPOT, and percentiles</h3>
 <p><strong>Time to First Token (TTFT)</strong> is the end-to-end delay from request submission to the first output token. It includes queueing, tokenization, scheduling, prompt prefill, the first decode step, and network delivery. Longer prompts usually increase the prefill component, but any of these stages can dominate. Targets are product-specific; <a href="https://mlcommons.org/2025/04/llm-inference-v5/">MLPerf Inference v5.0</a> uses a P99 TTFT limit of <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>≤</mo></mrow><annotation encoding="application/x-tex">\leq</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.7719em;vertical-align:-0.136em;"></span><span class="mrel">≤</span></span></span></span> 450 ms for its Llama 2 70B interactive scenario.</p>
 <p><strong>Time Per Output Token (TPOT)</strong> is the average interval between consecutive tokens after the first. It maps to the decode phase. Batch-one or low-intensity decode is usually memory-bandwidth-bound, while sufficiently large batches can become compute-bound:</p>
@@ -901,6 +905,10 @@ M834 80h400000v40h-400000z"></path></svg></span></span></span><span class="vlist
 <hr>
 <h2 id="part-viii-production-operations">Part VIII — Production operations</h2>
 <p>This part covers rate limiting, failure modes, monitoring, cost optimization, and capacity planning under real traffic.</p>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>GPU utilization sat at 95% and I called the fleet healthy. It was 95% because the queue was full. Utilization looks the same whether you are busy or drowning.</p>
+</div></aside>
 <h3 id="41-rate-limiting-for-variable-cost-requests">41. Rate limiting for variable-cost requests</h3>
 <p>Traditional requests-per-second rate limiting assumes roughly equal cost per request. LLMs break that assumption. A 10-token classification prompt and a 100K-token document analysis hit the same API endpoint but differ in cost by four orders of magnitude. Rate-limiting by RPS either lets expensive requests through unchecked or starves cheap requests unnecessarily.</p>
 <p>Production systems need <strong>token-based rate limiting</strong> across multiple dimensions. <a href="https://developers.openai.com/api/docs/guides/rate-limits">OpenAI</a> documents request and token limits by usage tier. <a href="https://docs.anthropic.com/en/api/rate-limits">Anthropic</a> separates input-token and output-token limits. Exact quotas and algorithms can change, so treat the provider documentation as the source of truth; the architectural point is to budget requests and tokens independently.</p>

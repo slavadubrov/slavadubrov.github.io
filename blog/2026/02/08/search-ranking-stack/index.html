@@ -43,7 +43,7 @@
       if (heading) observer.observe(heading);
     }
   })();
-</script> <article class="prose" data-pagefind-body> <h1>Search Ranking Stack: BM25, Embeddings, and Reranking</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-02-08">2026-02-08</time>  · Updated <time datetime="2026-07-15">2026-07-15</time>  · 23 min · Retrieval and Language Systems </p> </div> </div> <p>Search must satisfy both exact and semantic intent. A query for “wireless headphones” should match those words, but the final order may also depend on product quality, user preferences, and availability. No single ranking method handles all of those signals well.</p>
+</script> <article class="prose" data-pagefind-body> <h1>Search Ranking Stack: BM25, Embeddings, and Reranking</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-02-08">2026-02-08</time>  · Updated <time datetime="2026-07-15">2026-07-15</time>  · 24 min · Retrieval and Language Systems </p> </div> </div> <p>Search must satisfy both exact and semantic intent. A query for “wireless headphones” should match those words, but the final order may also depend on product quality, user preferences, and availability. No single ranking method handles all of those signals well.</p>
 <p>This post builds the stack one stage at a time: BM25 retrieval, dense embeddings, Reciprocal Rank Fusion, cross-encoder reranking, and finally LLM listwise ranking. A <a href="https://github.com/slavadubrov/search-ranking-stack">working demo</a> benchmarks every stage on the Amazon ESCI product-search dataset.</p>
 <!-- more -->
 <aside class="tldr">
@@ -325,6 +325,10 @@
 <p>Hybrid RRF gets to <strong>Recall@100 of 0.842</strong> and <strong>NDCG@10 of 0.628</strong> — beating both BM25 (0.585) and Dense (0.611) on their own. Documents only need to rank well in <em>one</em> method to survive fusion.</p>
 <hr>
 <h2 id="cross-encoder-reranking">Cross-encoder reranking</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>I added a cross-encoder because the top results looked wrong. The order improved. Recall@100 did not move, because a reranker can only sort what retrieval already handed it.</p>
+</div></aside>
 <p>With 100 hybrid candidates per query, you can afford a more expensive model. The cross-encoder processes the query and document <strong>together</strong> through a single Transformer, with full cross-attention between all tokens.</p>
 <p><span class="mermaid-light"><img src="/blog/assets/2026-02-08-search-ranking-stack/bi_encoder_vs_cross_encoder.svg" alt="Bi-Encoder vs. Cross-Encoder" loading="lazy"></span><span class="mermaid-dark"><img src="/blog/assets/2026-02-08-search-ranking-stack/bi_encoder_vs_cross_encoder.dark.svg" alt="Bi-Encoder vs. Cross-Encoder" loading="lazy"></span></p>
 <h3 id="token-level-interaction">Token-level interaction</h3>
@@ -382,6 +386,10 @@
 <p>In the demo, <strong>Recall@100 stays flat at 0.842 through both reranking stages.</strong> Reranking can reorder results but not add documents. Retrieval sets the ceiling.</p>
 <hr>
 <h2 id="llm-listwise-reranking">LLM listwise reranking</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>I trusted the first LLM ordering without checking the parse. The model had dropped several document IDs, and my padding logic quietly filled the gaps. I was scoring my own fallback.</p>
+</div></aside>
 <p>The final demo stage uses an LLM for <strong>listwise</strong> reranking. Instead of scoring each document independently, the model sees the top 10 and returns an ordering. Inspired by <a href="https://arxiv.org/abs/2304.09542">RankGPT</a>, the prompt makes relative comparison explicit, but it also introduces context limits, position bias, parsing failures, and run-to-run variance.</p>
 <p><span class="mermaid-light"><img src="/blog/assets/2026-02-08-search-ranking-stack/llm_reranking_approaches.svg" alt="LLM Reranking Approaches" loading="lazy"></span><span class="mermaid-dark"><img src="/blog/assets/2026-02-08-search-ranking-stack/llm_reranking_approaches.dark.svg" alt="LLM Reranking Approaches" loading="lazy"></span></p>
 <h3 id="the-listwise-prompt">The listwise prompt</h3>

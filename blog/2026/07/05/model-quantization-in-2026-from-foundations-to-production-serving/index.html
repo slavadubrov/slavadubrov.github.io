@@ -301,6 +301,10 @@
 <p>If the model barely fits in VRAM, start with <a href="https://arxiv.org/abs/2306.00978">weight-only quantization</a> to reduce the memory footprint. If the model fits but struggles with throughput under high batch loads, evaluate <a href="https://arxiv.org/abs/2411.02355">FP8 or INT8 W8A8</a> to accelerate the compute phase. If memory issues only appear during long conversations, first estimate the KV-cache term. Test <a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">KV-cache quantization</a> when that term dominates. Enable <a href="https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/">prefix caching</a> when repeated prefixes dominate.</p>
 <hr>
 <h2 id="5-algorithms-vs-runtime-kernels">5. Algorithms vs. runtime kernels</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>I shipped a 4-bit AWQ checkpoint because it fit the GPU. It ran slower than the FP16 model it replaced. There was no fast kernel for that format on that card.</p>
+</div></aside>
 <p>Quantization algorithms (like <a href="https://arxiv.org/abs/2210.17323">GPTQ</a> or <a href="https://arxiv.org/abs/2306.00978">AWQ</a>) define how the model’s weights are mapped to lower precision. Runtime kernels (like <a href="https://arxiv.org/abs/2408.11743">Marlin</a> or <a href="https://docs.vllm.ai/en/latest/features/quantization/">vLLM’s custom kernels</a>) are the low-level GPU code that executes the matrix multiplication. A highly compressed model will only run fast if there is an optimized kernel for its specific quantization format.</p>
 <p><span class="mermaid-light"><img src="/blog/assets/2026-07-05-model-quantization-guide/kernel-vs-algorithm-benchmark-map.svg" alt="Quantization algorithm and runtime kernel both shape serving results" loading="lazy"></span><span class="mermaid-dark"><img src="/blog/assets/2026-07-05-model-quantization-guide/kernel-vs-algorithm-benchmark-map.dark.svg" alt="Quantization algorithm and runtime kernel both shape serving results" loading="lazy"></span></p>
 <p><a href="https://jarvislabs.ai/blog/vllm-quantization-complete-guide-benchmarks">JarvisLabs’ vLLM benchmark</a> on Qwen2.5-32B-Instruct with an NVIDIA H200 makes the kernel effect visible:</p>
@@ -598,6 +602,10 @@
 <p>Run the work in order: plan the target, estimate memory, dry-run the recipe, benchmark serving, then compare quality against thresholds. That sequence mirrors the separation in this article between <a href="https://arxiv.org/abs/2309.06180">memory sizing</a>, <a href="https://docs.vllm.ai/en/latest/cli/bench/serve/">runtime benchmarking</a>, and <a href="https://arxiv.org/abs/2411.02355">quality evaluation</a>.</p>
 <hr>
 <h2 id="10-diffusion-models-need-a-separate-path">10. Diffusion models need a separate path</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>I reused an LLM 4-bit recipe on an image pipeline. VRAM went down and every numeric check I had stayed fine. The damage was only visible by looking at the pictures.</p>
+</div></aside>
 <p>Diffusion and diffusion-transformer pipelines have different activation behavior from autoregressive LLMs. <a href="https://arxiv.org/abs/2411.05007">SVDQuant</a> treats diffusion quantization as a separate activation-outlier problem.</p>
 <p>Autoregressive LLMs generate one token at a time. Diffusion models run repeated denoising steps, and their activation distributions shift during the process. A standard 4-bit LLM quantization pass may save diffusion-model memory while introducing severe visual artifacts. Diffusion-focused methods such as <a href="https://arxiv.org/abs/2411.05007">SVDQuant / Nunchaku</a> and <a href="https://github.com/NVIDIA/Model-Optimizer">NVIDIA ModelOpt diffusion quantization</a> address that different activation pattern.</p>
 <p>Use the following as conservative heuristics, not universal defaults. The pipeline, component, model, and runtime each need separate tests:</p>
