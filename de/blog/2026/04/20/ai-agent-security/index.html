@@ -43,7 +43,7 @@
       if (heading) observer.observe(heading);
     }
   })();
-</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/de/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Teil 4 </a><h1>AI-Agent-Sicherheit: Berechtigungen, Sandboxes und MCP-Bedrohungen</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-04-20">2026-04-20</time>  · Aktualisiert <time datetime="2026-08-01">2026-08-01</time>  · 34 Min. · KI-Agenten </p> </div> </div> <!-- automated-translation-notice:start -->
+</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/de/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Teil 4 </a><h1>AI-Agent-Sicherheit: Berechtigungen, Sandboxes und MCP-Bedrohungen</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-04-20">2026-04-20</time>  · Aktualisiert <time datetime="2026-08-01">2026-08-01</time>  · 35 Min. · KI-Agenten </p> </div> </div> <!-- automated-translation-notice:start -->
 <blockquote>
 <p><strong>Automatische Übersetzung</strong>
 Dieser Artikel wurde automatisch aus der englischen Originalversion übersetzt.</p>
@@ -150,6 +150,10 @@ Dieser Artikel wurde automatisch aus der englischen Originalversion übersetzt.<
 <p>Eine ergänzende Disziplin formulierte Alessandro Pignati am prägnantesten im <a href="https://dev.to/alessandro_pignati/your-ai-agent-has-too-much-power-understanding-and-taming-excessive-agency-4kbc">Januar 2026</a>: das <strong>Principle of Least Agency</strong>. Least Privilege fragt: <em>Worauf kann diese Identity zugreifen?</em> Least Agency fragt: <em>Was darf dieser Agent entscheiden?</em> Privilege begrenzt die Credentials; Agency begrenzt die Reichweite eines Plans, selbst wenn die Credentials gültig sind. Excessive Agency ist ein eigener Eintrag in den von OWASP, dem Open Worldwide Application Security Project, veröffentlichten Top 10 für LLM Applications. Die später in diesem Artikel behandelte separate agentic Liste teilt denselben Fehler auf Tool Misuse und Privilege Abuse auf. Least Agency ist die Design-Disziplin, die beides verhindert. Ein Agent, der Ihr Inbox zusammenfassen kann, braucht wahrscheinlich keine Commit-Rechte für Ihr Monorepo. Wir finden immer wieder Konfigurationen, in denen er sie trotzdem hat.</p>
 <hr>
 <h2 id="was-llm-guardrails-abdecken">Was LLM-Guardrails abdecken</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Ich lieferte einen Agenten hinter einem Inhaltsfilter aus und nannte ihn sicher. Der Filter las, was der Agent sagte. Zu der Datei, die der Agent außerhalb des Workspace schrieb, hatte er keine Meinung.</p>
+</div></aside>
 <p>LLM-Guardrails leisten rund um den Model Call wichtige Arbeit. Sie untersuchen Input, Retrieved Text und Output und blockieren, redigieren, reparieren oder markieren Content, der eine konfigurierte Regel verletzt. Die folgenden Produkte unterscheiden sich bei Deployment und Coverage. Ein Content Check ist von einem Authorization Check an der Tool- oder MCP-Server-Boundary getrennt; einige Produkte bieten außerdem Runtime-Policy-Features, die separat konfiguriert und evaluiert werden müssen.</p>
 <h3 id="nvidia-nemo-guardrails">NVIDIA NeMo Guardrails</h3>
 <p>Das am stärksten opinionated Framework: ein Orchestration Framework rund um fünf Rail-Typen (Input, Dialog, Retrieval, Execution, Output) mit einer eigenen DSL – <strong>Colang</strong>, einer Python-ähnlichen Sprache für Dialog-Flows, User-Intents und Bot Messages. Die Grundlagen können über Python + YAML gesteuert werden, komplexere Dialoglogik wird jedoch in Colang geschrieben – daher „opinionated“. Die Dokumentation finden Sie unter <a href="https://docs.nvidia.com/nemo/guardrails/">docs.nvidia.com/nemo/guardrails</a>.</p>
@@ -395,6 +399,10 @@ Dieser Artikel wurde automatisch aus der englischen Originalversion übersetzt.<
 <p>Ein häufiges Anti-Pattern besteht darin, einen System Prompt zu schreiben, der sagt <em>„Lösche keine Dateien ohne ausdrückliche User-Bestätigung“</em>, den Agent auszuliefern und diese Anweisung als Control zu behandeln. Ein injizierter Prompt oder ein vom Angreifer kontrolliertes Tool Result kann diese Anweisung umgehen. Das Model ist keine Policy Engine. Es kann dem von Ihnen geschriebenen Pattern folgen – oder einem vom Angreifer gelieferten.</p>
 <hr>
 <h2 id="human-approval-funktioniert-nur-als-escalation">Human Approval funktioniert nur als Escalation</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Ich führte eine Session mit einer Bestätigungsabfrage für jeden Befehl aus. Beim zwanzigsten Prompt klickte ich auf „Approve“, ohne zu lesen. Ein Gate, das immer auslöst, ist nur ein Button.</p>
+</div></aside>
 <p>Die Content-Filter-Layer umschließt den Model Call und überwacht, was er sagt. Permission Ladders laufen <em>vor</em> dem Tool und beobachten, was es zu tun versucht. Die dritte Layer, die auffängt, was die ersten beiden übersehen haben, ist der Mensch. Richtig umgesetzt ist Human-in-the-Loop-Review (HITL) ein Escalation Channel. Schlecht umgesetzt ist es ein Dialogfeld, das in 93 % der Fälle bestätigt wird.</p>
 <p>LangGraph liefert das Pause/Resume-Primitive. HumanLayer verpackt den Approval Channel, und Anthropics Nutzungsdaten zeigen, warum Anzahl und Qualität der Escalations gemessen werden müssen.</p>
 <h3 id="das-langgraph-primitive">Das LangGraph-Primitive</h3>

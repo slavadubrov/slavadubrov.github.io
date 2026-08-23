@@ -43,7 +43,7 @@
       if (heading) observer.observe(heading);
     }
   })();
-</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/ru/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Часть 5 </a><h1>Рантайм для долгоживущих ИИ-агентов: сессии и чекпоинты</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-05-26">2026-05-26</time>  · Обновлено <time datetime="2026-08-01">2026-08-01</time>  · 34 мин · ИИ-агенты </p> </div> </div> <!-- automated-translation-notice:start -->
+</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/ru/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Часть 5 </a><h1>Рантайм для долгоживущих ИИ-агентов: сессии и чекпоинты</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-05-26">2026-05-26</time>  · Обновлено <time datetime="2026-08-01">2026-08-01</time>  · 35 мин · ИИ-агенты </p> </div> </div> <!-- automated-translation-notice:start -->
 <blockquote>
 <p><strong>Автоматический перевод</strong>
 Эта статья была автоматически переведена с оригинальной английской версии.</p>
@@ -94,6 +94,10 @@
 <p>Четыре из пяти компонентов — сессия, сэндбокс, чекпоинт и трейс — сохраняют состояние или ограничивают выполнение. Харнесс — единственный компонент, который принимает решения; именно в нём сходятся решения о памяти, контракте инструмента и разрешениях. В этой статье мы рассматриваем его как единый блок и описываем, на чём он работает. <a href="/ru/blog/2026/07/22/ai-agent-harness-engineering/">Часть 6</a> открывает этот блок и по-новому группирует те же пять элементов: один компонент, который принимает решения, и четыре, на которых он работает.</p>
 <hr>
 <h2 id="долгие-запуски-ломают-предположения-о-stateless-процессах">Долгие запуски ломают предположения о stateless-процессах</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Я хранил журнал запуска в памяти worker, и это работало неделями. Затем обычный деплой заменил worker посреди задачи. Вся история запуска исчезла вместе с ним.</p>
+</div></aside>
 <p>Stateless chat endpoint может хранить состояние запроса в одном процессе и удалить его после ответа. Долгий запуск агента пересекает перезапуски worker-процессов, деплои, сбросы контекста и паузы на согласование. Worker-процесс больше не может быть источником истины.</p>
 <p>Команда OpenAI Codex рассказывает, насколько долгими становятся такие запуски, в своём <a href="https://openai.com/index/harness-engineering/">материале о харнесс-инжиниринге</a>:</p>
 <blockquote>
@@ -380,6 +384,10 @@
 <hr>
 <h2 id="observability-переживающая-завершение-запуска">Observability, переживающая завершение запуска</h2>
 <p>Короткие request handlers легко отлаживать: при сбое вы читаете response и live log. У долгоживущих агентов такой возможности нет. Когда шестичасовой запуск завершается ошибкой, интересующее событие произошло пять часов назад, live output терминала исчез, а worker, который его создал, уже заменён. Никто не будет восстанавливать запуск по памяти. Поэтому отладка опирается на долговечные артефакты, записанные во время работы.</p>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Я попытался отладить первый долгий запуск из терминала. Интересное событие произошло несколько часов назад и уже прокрутилось за пределы буфера.</p>
+</div></aside>
 <p>Продакшен-стеки обычно покрывают четыре вида артефактов, разделённых на две группы. Два из них читают <strong>после</strong> завершения запуска — для postmortem и replay: доступный для запросов event log каждого шага и трейсы OpenTelemetry, показывающие, куда ушли время и токены. Два других читают <strong>во время</strong> запуска. Первый — live tail того, что агент создаёт в workspace. Второй — observability stack на worktree, который сам агент может запрашивать, пока продолжает работу.</p>
 <h3 id="structured-event-log-читается-после-запуска">Structured event log (читается после запуска)</h3>
 <p>Каждый вызов модели, tool call, результат, ошибка и согласование записываются в долговечное хранилище с ключом session ID и timestamp. После завершения запуска их можно запрашивать как обычную таблицу базы данных. Addy Osmani формулирует планку в статье <a href="https://addyosmani.com/blog/long-running-agents/">Long-running Agents</a>: «Если вы не можете восстановить из долговечного хранилища, что агент делал за последние 24 часа, то у вас не долгоживущий агент, а долгоживущий shell script, который случайно вызывает LLM».</p>

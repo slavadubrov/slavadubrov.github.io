@@ -43,7 +43,7 @@
       if (heading) observer.observe(heading);
     }
   })();
-</script> <article class="prose" data-pagefind-body> <h1>Data Processing Engines: Polars, DataFusion, Ray en Spark</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-02-21">2026-02-21</time>  · Bijgewerkt <time datetime="2026-07-15">2026-07-15</time>  · 14 min · AI-infrastructuur </p> </div> </div> <!-- automated-translation-notice:start -->
+</script> <article class="prose" data-pagefind-body> <h1>Data Processing Engines: Polars, DataFusion, Ray en Spark</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-02-21">2026-02-21</time>  · Bijgewerkt <time datetime="2026-07-15">2026-07-15</time>  · 15 min · AI-infrastructuur </p> </div> </div> <!-- automated-translation-notice:start -->
 <blockquote>
 <p><strong>Automatische vertaling</strong>
 Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p>
@@ -67,6 +67,10 @@ Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p
 <p>De nieuwere engines richten zich op verschillende delen van deze ruimte. Native execution kan Python-overhead verlagen, Arrow-compatible interfaces kunnen data exchange goedkoper maken en streaming execution kan het memorygebruik begrenzen bij datasets die groter zijn dan RAM. Geen van die voordelen is automatisch beschikbaar voor iedere operator of conversie.</p>
 <hr>
 <h2 id="deel-1-single-node-processing">Deel 1: single-node processing</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Ik zette ooit de kop van een gepubliceerde Polars-benchmark als verwachte versnelling in een ontwerpdocument. Niemand vroeg welke query die had opgeleverd, ikzelf ook niet.</p>
+</div></aside>
 <p>Pandas gebruikt een eager, in-memory programming model. Veel gangbare operaties maken intermediates aan en parallel execution wordt niet gecoördineerd via een query optimizer. Die trade-off houdt exploratory code direct, maar kan duur worden bij grotere analytical scans. In Polars’ <a href="https://pola.rs/posts/benchmarks/">PDS-H benchmark</a> op scale factor 10 had Pandas ongeveer <strong>365 seconden</strong> nodig voor de suite, terwijl Polars’ streaming engine <strong>3,89 seconden</strong> nodig had. Het resultaat van ongeveer <strong>94x</strong> beschrijft die benchmark en configuratie; het is geen algemene conversiefactor van Pandas naar Polars.</p>
 <p><span class="mermaid-light"><img src="/nl/blog/assets/2026-02-21-compute-engines/eager-vs-lazy.svg" alt="Eager versus lazy execution" loading="lazy"></span><span class="mermaid-dark"><img src="/nl/blog/assets/2026-02-21-compute-engines/eager-vs-lazy.dark.svg" alt="Eager versus lazy execution" loading="lazy"></span></p>
 <h3 id="polars-voor-lokale-tabular-pipelines">Polars voor lokale tabular pipelines</h3>
@@ -300,6 +304,10 @@ Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p
 <table tabindex="0"><thead><tr><th>Feature</th><th>Spark</th><th>Ray Data</th><th>Daft (Flotilla)</th></tr></thead><tbody><tr><td><strong>Execution model</strong></td><td>Task-per-core, partition-based</td><td>Streaming tasks en actors</td><td>Swordfish-per-node, streaming batches</td></tr><tr><td><strong>Strengths</strong></td><td>Massive SQL/ETL, fault tolerance</td><td>Heterogeneous compute, GPU saturation</td><td>Multimodal pipelining, bounded memory</td></tr><tr><td><strong>GPU controls</strong></td><td>Resource scheduling plus ecosystem plugins</td><td>Expliciete task- en actor-resources</td><td>Geïntegreerde CPU/GPU-pipeline scheduling</td></tr><tr><td><strong>Typical tuning</strong></td><td>Executors, memory, partitions, accelerators</td><td>Batches, actors, object store</td><td>Batches, resources, I/O-concurrency</td></tr><tr><td><strong>Good evaluation case</strong></td><td>Grote SQL/ETL- en shuffle-heavy jobs</td><td>Training of inference met mixed resources</td><td>Multimodale ingestion en transformatie</td></tr></tbody></table>
 <hr>
 <h2 id="deel-4-de-rol-van-rust-en-arrow">Deel 4: de rol van Rust en Arrow</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Ik verplaatste een stap tussen twee engines in de veronderstelling dat Arrow de overdracht gratis maakte. De buffers werden toch gekopieerd. Zero-copy geldt voor specifieke paden, en dat van mij was er geen.</p>
+</div></aside>
 <p>Onder de concurrentie is vooral de convergentie interessant. Polars, Daft en DataFusion gebruiken Rust intensief, terwijl Ray naast zijn Python API’s native components bevat. Alle kunnen data uitwisselen via delen van het <a href="https://arrow.apache.org/">Apache Arrow</a>-ecosysteem.</p>
 <p><span class="mermaid-light"><img src="/nl/blog/assets/2026-02-21-compute-engines/rust-arrow-convergence.svg" alt="Convergentie van Rust en Arrow" loading="lazy"></span><span class="mermaid-dark"><img src="/nl/blog/assets/2026-02-21-compute-engines/rust-arrow-convergence.dark.svg" alt="Convergentie van Rust en Arrow" loading="lazy"></span></p>
 <p>De <a href="https://arrow.apache.org/docs/format/CDataInterface/PyCapsuleInterface.html">Arrow PyCapsule Interface</a> (het <code>__arrow_c_stream__</code>-protocol) biedt compatible libraries een standaardmanier om Arrow-streams uit te wisselen. Transfers kunnen row-wise serialization vermijden en buffers hergebruiken wanneer schemas en memory layouts compatible zijn. Materialization, rechunking, type conversion of device transfer kan nog steeds data kopiëren. Controleer de handoff daarom met profiling in plaats van aan te nemen dat deze gratis is.</p>

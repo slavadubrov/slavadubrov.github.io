@@ -43,7 +43,7 @@
       if (heading) observer.observe(heading);
     }
   })();
-</script> <article class="prose" data-pagefind-body> <h1>Руководство по квантизации моделей: от основ до продакшен-сервинга</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-07-05">2026-07-05</time>  · Обновлено <time datetime="2026-07-22">2026-07-22</time>  · 22 мин · Инженерия моделей · ИИ-инфраструктура </p> </div> </div> <!-- automated-translation-notice:start -->
+</script> <article class="prose" data-pagefind-body> <h1>Руководство по квантизации моделей: от основ до продакшен-сервинга</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-07-05">2026-07-05</time>  · Обновлено <time datetime="2026-07-22">2026-07-22</time>  · 23 мин · Инженерия моделей · ИИ-инфраструктура </p> </div> </div> <!-- automated-translation-notice:start -->
 <blockquote>
 <p><strong>Автоматический перевод</strong>
 Эта статья была автоматически переведена с оригинальной английской версии.</p>
@@ -307,6 +307,10 @@
 <p>Если модель едва помещается в VRAM, начните с <a href="https://arxiv.org/abs/2306.00978">weight-only квантизации</a>, чтобы уменьшить footprint. Если модель помещается, но не справляется с throughput при больших batch’ах, оцените <a href="https://arxiv.org/abs/2411.02355">FP8 или INT8 W8A8</a>, чтобы ускорить compute-фазу. Если проблемы с памятью возникают только в длинных диалогах, сначала оцените вклад KV cache. Протестируйте <a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">квантизацию KV cache</a>, когда этот вклад доминирует. Включайте <a href="https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/">prefix caching</a>, когда доминируют повторяющиеся prefixes.</p>
 <hr>
 <h2 id="5-алгоритмы-против-runtime-kernels">5. Алгоритмы против runtime kernels</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Я выпустил 4-битный AWQ-чекпойнт, потому что он помещался в GPU. Он работал медленнее заменённой им модели FP16. Для этого формата на данной карте не было быстрого kernel.</p>
+</div></aside>
 <p>Алгоритмы квантизации, такие как <a href="https://arxiv.org/abs/2210.17323">GPTQ</a> или <a href="https://arxiv.org/abs/2306.00978">AWQ</a>, определяют, как веса модели отображаются в формат меньшей точности. Runtime kernels, такие как <a href="https://arxiv.org/abs/2408.11743">Marlin</a> или <a href="https://docs.vllm.ai/en/latest/features/quantization/">custom kernels vLLM</a>, — это низкоуровневый GPU-код, выполняющий матричное умножение. Сильно сжатая модель будет работать быстро только при наличии оптимизированного kernel для её конкретного формата квантизации.</p>
 <p><span class="mermaid-light"><img src="/ru/blog/assets/2026-07-05-model-quantization-guide/kernel-vs-algorithm-benchmark-map.svg" alt="И алгоритм квантизации, и runtime kernel влияют на результаты serving" loading="lazy"></span><span class="mermaid-dark"><img src="/ru/blog/assets/2026-07-05-model-quantization-guide/kernel-vs-algorithm-benchmark-map.dark.svg" alt="И алгоритм квантизации, и runtime kernel влияют на результаты serving" loading="lazy"></span></p>
 <p><a href="https://jarvislabs.ai/blog/vllm-quantization-complete-guide-benchmarks">Бенчмарк vLLM от JarvisLabs</a> на Qwen2.5-32B-Instruct с NVIDIA H200 наглядно показывает влияние kernel:</p>
@@ -604,6 +608,10 @@
 <p>Выполняйте работу по порядку: спланируйте target, оцените память, выполните dry run recipe, проведите benchmark serving, затем сравните качество с thresholds. Эта последовательность отражает разделение в статье между <a href="https://arxiv.org/abs/2309.06180">memory sizing</a>, <a href="https://docs.vllm.ai/en/latest/cli/bench/serve/">runtime benchmarking</a> и <a href="https://arxiv.org/abs/2411.02355">quality evaluation</a>.</p>
 <hr>
 <h2 id="10-для-diffusion-моделей-нужен-отдельный-path">10. Для diffusion-моделей нужен отдельный path</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Я повторно использовал 4-битный рецепт для LLM в графическом pipeline. Объём VRAM снизился, и все мои числовые проверки остались в норме. Ущерб был виден только на самих изображениях.</p>
+</div></aside>
 <p>Diffusion- и diffusion-transformer-пайплайны имеют другое поведение активаций по сравнению с autoregressive LLM. <a href="https://arxiv.org/abs/2411.05007">SVDQuant</a> рассматривает квантизацию diffusion как отдельную задачу, связанную с outlier’ами активаций.</p>
 <p>Autoregressive LLM генерируют по одному токену за раз. Diffusion-модели выполняют повторяющиеся denoising steps, и распределения их активаций меняются в процессе. Стандартный 4-битный LLM quantization pass может уменьшить memory footprint diffusion-модели, но при этом вызвать серьёзные визуальные артефакты. Diffusion-focused методы вроде <a href="https://arxiv.org/abs/2411.05007">SVDQuant / Nunchaku</a> и <a href="https://github.com/NVIDIA/Model-Optimizer">diffusion quantization в NVIDIA ModelOpt</a> учитывают это другое поведение активаций.</p>
 <p>Используйте следующие пункты как консервативные heuristics, а не универсальные defaults. Каждый pipeline, component, model и runtime требует отдельных тестов:</p>

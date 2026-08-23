@@ -43,7 +43,7 @@
       if (heading) observer.observe(heading);
     }
   })();
-</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/pt/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Parte 2 </a><h1>Arquitetura de memória de AI Agent: Checkpoints e Vector Stores</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-02-14">2026-02-14</time>  · Atualizado <time datetime="2026-08-01">2026-08-01</time>  · 38 min · Agentes de IA </p> </div> </div> <!-- automated-translation-notice:start -->
+</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/pt/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Parte 2 </a><h1>Arquitetura de memória de AI Agent: Checkpoints e Vector Stores</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-02-14">2026-02-14</time>  · Atualizado <time datetime="2026-08-01">2026-08-01</time>  · 22 min · Agentes de IA </p> </div> </div> <!-- automated-translation-notice:start -->
 <blockquote>
 <p><strong>Tradução automática</strong>
 Este artigo foi traduzido automaticamente a partir da versão original em inglês.</p>
@@ -181,6 +181,10 @@ Este artigo foi traduzido automaticamente a partir da versão original em inglê
 <p>O <a href="https://arxiv.org/abs/2304.03442">artigo Generative Agents</a> (Park et al., 2023) mostrou até onde isto pode chegar: agents simulados armazenavam, refletiam sobre e recuperavam as suas próprias memórias. O seu <strong>memory stream</strong> classificava candidatos por recência, importância e relevância — um design que continua a ser uma referência útil para o retrieval de memória de agents.</p>
 <hr>
 <h2 id="short-term-memory-de-agents-o-checkpoint-store">Short-term memory de agents: o checkpoint store</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Usei o histórico de checkpoints como log de auditoria até o job de retenção ser executado. Checkpoints existem para retomar um grafo e são removidos exatamente com base nessa suposição.</p>
+</div></aside>
 <p>Sempre que o LangGraph termina um <strong>super-step</strong> — um node ou um conjunto de nodes executados em paralelo — o framework serializa o estado completo do graph e escreve-o num <strong>checkpoint store</strong>. Esta é a base de workflows de pause/resume, debugging com time travel e HITL.</p>
 <p><span class="mermaid-light"><img src="/pt/blog/assets/2026-02-14-memory/hot-memory-checkpoint.svg" alt="Hot memory: um checkpoint escrito a cada super-step e o caminho de recuperação que o recarrega" loading="lazy"></span><span class="mermaid-dark"><img src="/pt/blog/assets/2026-02-14-memory/hot-memory-checkpoint.dark.svg" alt="Hot memory: um checkpoint escrito a cada super-step e o caminho de recuperação que o recarrega" loading="lazy"></span></p>
 <p>Um checkpoint contém o estado do graph necessário para retomar: o <code>AgentState</code> da <a href="/pt/blog/2026/01/31/ai-agent-reasoning-loops/">Parte 1</a> — mensagens, identidade, perfil do utilizador, passos do plano, dados de investigação e modo de execução. Em paralelo, o LangGraph armazena a sua própria informação de controlo: ID e timestamp do checkpoint, uma versão por channel (o nome que o LangGraph dá a cada chave individual de estado) e um registo separado das versões de channels que cada node já viu. O número do passo reside nos metadados do checkpoint, não no próprio checkpoint. É comparando estes dois elementos que o graph determina o que executar a seguir. Depois de uma interrupção HITL ou de um reinício do processo, o graph carrega o checkpoint escrito no último limite concluído e entra novamente no node seguinte. Não continua a partir de uma linha Python arbitrária. Um checkpoint também é diferente de um event log append-only ou de um trace; a <a href="/pt/blog/2026/05/26/ai-agent-runtime/">Parte 5</a> separa explicitamente estas superfícies de observabilidade do runtime.</p>
@@ -797,6 +801,10 @@ Este artigo foi traduzido automaticamente a partir da versão original em inglê
 <p>Os ficheiros são excelentes para workflows de um único developer. Em produção multi-tenant, um structured document store em PostgreSQL é normalmente o melhor equilíbrio entre simplicidade, desempenho e maturidade operacional.</p>
 <hr>
 <h2 id="juntar-tudo-a-arquitetura-completa">Juntar tudo: a arquitetura completa</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Eu escrevia os fatos extraídos do usuário inline no fim de cada turno. Depois, cada resposta esperava uma chamada de embedding que o usuário nunca veria.</p>
+</div></aside>
 <p>Eis como os três níveis de memória podem trabalhar em conjunto numa arquitetura inspirada no <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>. O diagrama mostra um fluxo ilustrativo desde o pedido do utilizador até à resposta, com todas as camadas de memória ativas.</p>
 <p><span class="mermaid-light"><img src="/pt/blog/assets/2026-02-14-memory/full-memory-architecture.svg" alt="Os três níveis de memória ligados em redor de um agent, com a latência de cada leitura" loading="lazy"></span><span class="mermaid-dark"><img src="/pt/blog/assets/2026-02-14-memory/full-memory-architecture.dark.svg" alt="Os três níveis de memória ligados em redor de um agent, com a latência de cada leitura" loading="lazy"></span></p>
 <p>A arquitetura tem três caminhos de memória:</p>

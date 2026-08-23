@@ -43,7 +43,7 @@
       if (heading) observer.observe(heading);
     }
   })();
-</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/de/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Teil 3 </a><h1>Tool Use für AI Agents: MCP, CLI, Skills und Code Execution</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-03-24">2026-03-24</time>  · Aktualisiert <time datetime="2026-08-01">2026-08-01</time>  · 19 Min. · KI-Agenten </p> </div> </div> <!-- automated-translation-notice:start -->
+</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/de/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Teil 3 </a><h1>Tool Use für AI Agents: MCP, CLI, Skills und Code Execution</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-03-24">2026-03-24</time>  · Aktualisiert <time datetime="2026-08-01">2026-08-01</time>  · 20 Min. · KI-Agenten </p> </div> </div> <!-- automated-translation-notice:start -->
 <blockquote>
 <p><strong>Automatische Übersetzung</strong>
 Dieser Artikel wurde automatisch aus der englischen Originalversion übersetzt.</p>
@@ -88,6 +88,10 @@ Dieser Artikel wurde automatisch aus der englischen Originalversion übersetzt.<
 <p>Der Token-Overhead ist das operative Problem. Ein Team, das MCP-Server für GitHub, Slack und Sentry betrieb (insgesamt etwa 40 Tools), stellte fest, dass <a href="https://www.apideck.com/blog/mcp-server-eating-context-window-cli-alternative">55.000 Tokens</a> an Tool-Schema-Definitionen injiziert wurden, bevor ein User überhaupt eine Anfrage stellte. Ein anderes Team berichtete, dass allein die Tool-Definitionen <a href="https://www.apideck.com/blog/mcp-server-eating-context-window-cli-alternative">143.000 von 200.000 verfügbaren Tokens (72 %)</a> verbrauchten.</p>
 <p><span class="mermaid-light"><img src="/de/blog/assets/2026-03-24-the-hands/token-overhead-comparison.svg" alt="Token-Overhead-Vergleich" loading="lazy"></span><span class="mermaid-dark"><img src="/de/blog/assets/2026-03-24-the-hands/token-overhead-comparison.dark.svg" alt="Token-Overhead-Vergleich" loading="lazy"></span></p>
 <p>Anthropic berichtete von einer Reduktion der Tokens für Tool-Definitionen um 85 % durch sein Tool Search Tool — ungefähr 77.000 Tokens an Schemas wurden auf 8.700 reduziert — indem nur die drei bis fünf Tools geladen werden, die eine Anfrage tatsächlich benötigt. Selektives Laden erhält die Protocol Surface und entfernt zugleich die Schemas, die für die aktuelle Anfrage nicht erforderlich sind.</p>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Ich verband MCP-Server für drei Dienste und ließ jedes Tool geladen. Die Schemas fraßen den größten Teil des Kontextfensters, noch bevor der Nutzer etwas eingab. Der Agent verwendete vier dieser Tools.</p>
+</div></aside>
 <h3 id="3-skills-bündeln-expertise-nicht-execution">3. Skills bündeln Expertise, nicht Execution</h3>
 <p>Ende 2025 wurden <strong>Agent Skills</strong> als <a href="https://agentskills.io/specification">offenes Format</a> standardisiert (im Oktober 2025 eingeführt und im Dezember 2025 als offener Standard veröffentlicht). Tools stellen Capabilities bereit (was Agents tun können), während Skills Expertise liefern (was Agents darüber wissen, wie komplexe Aufgaben erledigt werden).</p>
 <p>Das <strong>SKILL.md</strong>-Format definiert einen Skill als Markdown-Datei mit YAML-Frontmatter. Der offene Standard erfordert lediglich <code>name</code> und <code>description</code>; das folgende Beispiel verwendet außerdem zwei Claude-Code-Erweiterungen, <code>argument-hint</code> und <code>user-invocable</code>, sowie dessen Platzhalter für Positionsargumente <code>$0</code>:</p>
@@ -362,6 +366,10 @@ Dieser Artikel wurde automatisch aus der englischen Originalversion übersetzt.<
 <hr>
 <h2 id="anwendung-der-patterns-auf-den-market-analyst-agent">Anwendung der Patterns auf den Market Analyst Agent</h2>
 <p>Der <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a> aus <a href="/de/blog/2026/01/31/ai-agent-reasoning-loops/">Teil 1</a> macht den Effekt des Interface-Designs sichtbar.</p>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Ich gab jedem API-Endpunkt ein eigenes Tool und lieferte zehn davon aus. Der Agent verbrachte sein Reasoning-Budget damit, herauszufinden, welche vier er kombinieren sollte. Ich hatte ihm meine API-Dokumentation gegeben und das ein Toolset genannt.</p>
+</div></aside>
 <h3 id="tool-konsolidierung">Tool-Konsolidierung</h3>
 <p>Das ursprüngliche Design umfasste mehr als zehn Tools: <code>get_stock_price</code>, <code>get_company_metrics</code>, <code>get_market_cap</code>, <code>get_pe_ratio</code>, <code>get_volume</code> und weitere. Jedes davon war ein Thin Wrapper um einen einzelnen API-Endpunkt. Der Agent musste für jede Anfrage ableiten, welche Kombination aufgerufen werden sollte.</p>
 <p>Ich habe die Market-Data-Oberfläche nach dem ACI-Prinzip kompakter, effizienter Actions in fünf High-Level-Tools konsolidiert. Die Tool-Liste des Repos enthält daneben vier weitere Tools — einen Skill Loader, zwei CLI-Wrapper und einen eingeschränkten In-Process-Python-Evaluator (eine AST-Allowlist, keine Sandbox; <a href="/de/blog/2026/04/20/ai-agent-security/">Teil 4</a> geht darauf ein) — und deckt damit drei der fünf oben genannten Modalitäten ab. MCP erscheint als Sidecar und nicht als Tool in dieser Liste:</p>

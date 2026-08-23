@@ -43,7 +43,7 @@
       if (heading) observer.observe(heading);
     }
   })();
-</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/de/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Teil 2 </a><h1>AI-Agent-Memory-Architektur: Checkpoints und Vector Stores</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-02-14">2026-02-14</time>  · Aktualisiert <time datetime="2026-08-01">2026-08-01</time>  · 32 Min. · KI-Agenten </p> </div> </div> <!-- automated-translation-notice:start -->
+</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/de/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Teil 2 </a><h1>AI-Agent-Memory-Architektur: Checkpoints und Vector Stores</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-02-14">2026-02-14</time>  · Aktualisiert <time datetime="2026-08-01">2026-08-01</time>  · 19 Min. · KI-Agenten </p> </div> </div> <!-- automated-translation-notice:start -->
 <blockquote>
 <p><strong>Automatische Übersetzung</strong>
 Dieser Artikel wurde automatisch aus der englischen Originalversion übersetzt.</p>
@@ -181,6 +181,10 @@ Dieser Artikel wurde automatisch aus der englischen Originalversion übersetzt.<
 <p>Das <a href="https://arxiv.org/abs/2304.03442">Paper „Generative Agents“</a> (Park et al., 2023) zeigte, wie weit dies gehen kann: Simulierte Agents speicherten, reflektierten über und riefen ihre eigenen Memories ab. Sein <strong>Memory Stream</strong> bewertete Kandidaten nach Aktualität, Wichtigkeit und Relevanz — ein Design, das weiterhin einen nützlichen Referenzpunkt für Agent-Memory-Retrieval darstellt.</p>
 <hr>
 <h2 id="short-term-agent-memory-der-checkpoint-store">Short-Term Agent Memory: der Checkpoint Store</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Ich nutzte den Verlauf der Checkpoints als Audit-Log, bis der Aufbewahrungsjob lief. Checkpoints dienen dazu, einen Graphen fortzusetzen, und werden genau unter dieser Annahme gelöscht.</p>
+</div></aside>
 <p>Immer wenn LangGraph einen <strong>Super-Step</strong> abschließt — einen Node oder einen parallel ausgeführten Batch von Nodes — serialisiert das Framework den vollständigen Graph-State und schreibt ihn in einen <strong>Checkpoint Store</strong>. Das ist die Grundlage für Pause/Resume, Time-Travel-Debugging und HITL Workflows.</p>
 <p><span class="mermaid-light"><img src="/de/blog/assets/2026-02-14-memory/hot-memory-checkpoint.svg" alt="Hot Memory: ein bei jedem Super-Step geschriebener Checkpoint und der Recovery-Pfad, der ihn lädt" loading="lazy"></span><span class="mermaid-dark"><img src="/de/blog/assets/2026-02-14-memory/hot-memory-checkpoint.dark.svg" alt="Hot Memory: ein bei jedem Super-Step geschriebener Checkpoint und der Recovery-Pfad, der ihn lädt" loading="lazy"></span></p>
 <p>Ein Checkpoint enthält den Graph-State, der zum Fortsetzen benötigt wird: das <code>AgentState</code> aus <a href="/de/blog/2026/01/31/ai-agent-reasoning-loops/">Teil 1</a> — Messages, Identity, User Profile, Plan-Schritte, Research-Daten und Execution Mode. Zusätzlich speichert LangGraph eigene Verwaltungsdaten: ID und Timestamp des Checkpoints, eine Version pro Channel (LangGraphs Bezeichnung für einen einzelnen State Key) sowie einen separaten Record darüber, welche Channel-Versionen jeder Node bereits gesehen hat. Die Step-Nummer liegt in den Metadaten des Checkpoints und nicht auf dem Checkpoint selbst. Der Vergleich dieser beiden Angaben bestimmt, was als Nächstes ausgeführt wird. Nach einem HITL Interrupt oder einem Prozessneustart lädt der Graph den Checkpoint, der an der letzten abgeschlossenen Grenze geschrieben wurde, und tritt wieder in den nächsten Node ein. Er setzt nicht an einer beliebigen Python-Zeile fort. Ein Checkpoint ist außerdem etwas anderes als ein Append-only Event Log oder Trace; <a href="/de/blog/2026/05/26/ai-agent-runtime/">Teil 5</a> trennt diese Runtime-Observability-Flächen ausdrücklich.</p>
@@ -797,6 +801,10 @@ Dieser Artikel wurde automatisch aus der englischen Originalversion übersetzt.<
 <p>Files sind für Workflows einzelner Developer hervorragend. Für Multi-Tenant-Production ist ein strukturierter Document Store auf PostgreSQL meist die richtige Balance aus Einfachheit, Performance und operativer Reife.</p>
 <hr>
 <h2 id="die-vollständige-architektur-zusammenführen">Die vollständige Architektur zusammenführen</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Ich schrieb die extrahierten Nutzerfakten inline ans Ende jedes Turns. Danach wartete jede Antwort auf einen Embedding-Aufruf, den der Nutzer nie zu sehen bekam.</p>
+</div></aside>
 <p>So können alle drei Memory-Tiers in einer vom <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a> inspirierten Architektur zusammenspielen. Das Diagramm zeigt einen illustrativen Flow vom User-Request bis zur Response, mit allen aktiven Memory-Schichten.</p>
 <p><span class="mermaid-light"><img src="/de/blog/assets/2026-02-14-memory/full-memory-architecture.svg" alt="Alle drei Memory-Tiers rund um einen Agent verdrahtet, einschließlich der Latency-Kosten jedes Reads" loading="lazy"></span><span class="mermaid-dark"><img src="/de/blog/assets/2026-02-14-memory/full-memory-architecture.dark.svg" alt="Alle drei Memory-Tiers rund um einen Agent verdrahtet, einschließlich der Latency-Kosten jedes Reads" loading="lazy"></span></p>
 <p>Die Architektur hat drei Memory-Pfade:</p>

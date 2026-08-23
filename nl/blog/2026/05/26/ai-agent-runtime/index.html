@@ -97,6 +97,10 @@ Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p
 <p>Vier van die vijf — session, sandbox, checkpoint, trace — slaan state op of beperken de execution. De harness is degene die beslist; daar komen alle beslissingen over memory, tool-contracten en permissions samen. In dit artikel behandelen we die als één box en beschrijven we waarop die steunt. <a href="/nl/blog/2026/07/22/ai-agent-harness-engineering/">Part 6</a> opent de box en deelt dezelfde vijf opnieuw in: één component die beslist en vier waarop die draait.</p>
 <hr>
 <h2 id="lange-runs-doorbreken-aannames-over-stateless-processes">Lange runs doorbreken aannames over stateless processes</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Ik bewaarde het runlog in het geheugen van de worker en dat werkte wekenlang. Daarna verving een reguliere deploy de worker midden in de taak. De volledige runhistorie verdween ermee.</p>
+</div></aside>
 <p>Een stateless chat-endpoint kan request-state in één process bijhouden en die na de response weggooien. Een lange agent-run doorkruist worker-restarts, deploys, context-resets en approval-pauses. Het worker-process kan daardoor niet langer de source of truth zijn.</p>
 <p>Het OpenAI Codex-team rapporteert in de <a href="https://openai.com/index/harness-engineering/">harness engineering write-up</a> hoe lang deze runs worden:</p>
 <blockquote>
@@ -383,6 +387,10 @@ Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p
 <hr>
 <h2 id="observability-die-de-run-overleeft">Observability die de run overleeft</h2>
 <p>Korte request handlers zijn eenvoudig te debuggen: als er iets misgaat, lees je de response en de live log. Long-running agents hebben die luxe niet. Tegen de tijd dat een run van zes uur faalt, vond de interessante gebeurtenis vijf uur geleden plaats, is de live terminaloutput verdwenen en is de worker die de output produceerde vervangen. Niemand gaat de run uit het geheugen reconstrueren. Je debugt dus aan de hand van duurzame artifacts die zijn weggeschreven terwijl de run nog actief was.</p>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Ik probeerde mijn eerste lange run vanuit de terminal te debuggen. De interessante gebeurtenis had uren eerder plaatsgevonden en was uit de buffer gescrolld.</p>
+</div></aside>
 <p>Production stacks omvatten doorgaans vier soorten artifacts, verdeeld over twee groepen. Twee daarvan lees je <strong>na</strong> afloop van de run, voor postmortems en replay: een queryable event log van elke stap en OpenTelemetry-traces van waar tijd en tokens naartoe gingen. Twee andere lees je <strong>tijdens</strong> de run. De eerste is een live tail van wat de agent in de workspace produceert. De andere is een observability stack per worktree, die de agent zelf kan queryen terwijl hij nog aan het werk is.</p>
 <h3 id="structured-event-log-lezen-na-de-run">Structured event log (lezen na de run)</h3>
 <p>Elke model call, tool call, result, error en approval wordt naar durable storage geschreven, gekoppeld aan een session ID en timestamp. Zodra de run eindigt, query je deze gegevens zoals een normale databasetabel. Addy Osmani legt de lat duidelijk in <a href="https://addyosmani.com/blog/long-running-agents/">Long-running Agents</a>: “If you can’t reconstruct what the agent did in the last 24 hours from durable storage, what you have is a long-running shell script that happens to call an LLM, not a long-running agent.”</p>

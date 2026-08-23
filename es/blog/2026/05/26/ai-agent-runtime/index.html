@@ -97,6 +97,10 @@ Este artículo se tradujo automáticamente a partir de la versión original en i
 <p>Cuatro de esas cinco —session, sandbox, checkpoint y trace— almacenan estado o confinan la ejecución. El harness es el que decide y es donde confluyen las decisiones sobre memoria, contratos de herramientas y permisos. Este artículo lo trata como una única caja y describe aquello sobre lo que se apoya. La <a href="/es/blog/2026/07/22/ai-agent-harness-engineering/">Parte 6</a> abre la caja y vuelve a ordenar las mismas cinco piezas entre el componente que decide y las cuatro sobre las que se ejecuta.</p>
 <hr>
 <h2 id="las-ejecuciones-largas-rompen-las-suposiciones-de-los-procesos-sin-estado">Las ejecuciones largas rompen las suposiciones de los procesos sin estado</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Mantuve el registro de ejecución en la memoria del worker y funcionó durante semanas. Luego un despliegue rutinario reemplazó al worker a mitad de la tarea. Todo el historial de la ejecución desapareció con él.</p>
+</div></aside>
 <p>Un endpoint de chat sin estado puede mantener el estado de la petición en un único proceso y descartarlo después de responder. Una ejecución larga de un agent atraviesa reinicios de workers, despliegues, reseteos de contexto y pausas para aprobaciones. El proceso worker ya no puede ser la fuente de verdad.</p>
 <p>El equipo de OpenAI Codex explica cuánto pueden durar estas ejecuciones en su <a href="https://openai.com/index/harness-engineering/">artículo sobre harness engineering</a>:</p>
 <blockquote>
@@ -383,6 +387,10 @@ Este artículo se tradujo automáticamente a partir de la versión original en i
 <hr>
 <h2 id="observabilidad-que-sobrevive-a-la-ejecución">Observabilidad que sobrevive a la ejecución</h2>
 <p>Los request handlers cortos son fáciles de depurar: cuando algo falla, lees la respuesta y el log en directo. Los agents de larga duración no tienen ese lujo. Cuando falla una ejecución de seis horas, el evento interesante ocurrió cinco horas antes, la salida del terminal ha desaparecido y el worker que lo produjo ha sido sustituido. Nadie va a reconstruir la ejecución de memoria. Por tanto, depuras a partir de artefactos duraderos escritos mientras la ejecución seguía activa.</p>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Intenté depurar mi primera ejecución larga desde el terminal. El evento interesante había ocurrido horas antes y se había perdido al desplazarse fuera del búfer.</p>
+</div></aside>
 <p>Los stacks de producción suelen cubrir cuatro tipos de artefactos, agrupados en dos categorías. Dos se leen <strong>después</strong> de terminar la ejecución, para postmortems y replay: un registro de eventos consultable con cada paso y trazas de OpenTelemetry que muestran dónde se consumieron el tiempo y los tokens. Los otros dos se leen <strong>durante</strong> la ejecución. Uno es un tail en directo de lo que el agent está produciendo en el workspace. El otro es un stack de observabilidad por worktree que el propio agent puede consultar mientras sigue trabajando.</p>
 <h3 id="registro-de-eventos-estructurado-se-lee-después-de-la-ejecución">Registro de eventos estructurado (se lee después de la ejecución)</h3>
 <p>Cada llamada al modelo, tool call, resultado, error y aprobación se escribe en almacenamiento duradero, indexado por ID de session y timestamp. Cuando termina la ejecución, puedes consultarlo como una tabla de base de datos normal. Addy Osmani lo expresa claramente en <a href="https://addyosmani.com/blog/long-running-agents/">Long-running Agents</a>: «Si no puedes reconstruir lo que hizo el agent en las últimas 24 horas a partir del almacenamiento duradero, lo que tienes es un script de shell de larga duración que casualmente llama a un LLM, no un agent de larga duración».</p>

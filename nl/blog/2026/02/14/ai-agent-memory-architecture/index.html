@@ -43,7 +43,7 @@
       if (heading) observer.observe(heading);
     }
   })();
-</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/nl/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Deel 2 </a><h1>AI Agent Memory Architecture: Checkpoints en Vector Stores</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-02-14">2026-02-14</time>  · Bijgewerkt <time datetime="2026-08-01">2026-08-01</time>  · 34 min · AI-agenten </p> </div> </div> <!-- automated-translation-notice:start -->
+</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/nl/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Deel 2 </a><h1>AI Agent Memory Architecture: Checkpoints en Vector Stores</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-02-14">2026-02-14</time>  · Bijgewerkt <time datetime="2026-08-01">2026-08-01</time>  · 19 min · AI-agenten </p> </div> </div> <!-- automated-translation-notice:start -->
 <blockquote>
 <p><strong>Automatische vertaling</strong>
 Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p>
@@ -181,6 +181,10 @@ Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p
 <p>De <a href="https://arxiv.org/abs/2304.03442">paper Generative Agents</a> (Park et al., 2023) liet zien hoe ver dit kan gaan: gesimuleerde agents sloegen hun eigen memories op, reflecteerden erop en haalden ze terug. De <strong>memory stream</strong> rangschikte kandidaten op recency, importance en relevance — een design dat nog steeds een nuttig referentiepunt vormt voor agent-memory retrieval.</p>
 <hr>
 <h2 id="short-term-agent-memory-de-checkpoint-store">Short-term agent memory: de checkpoint store</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Ik gebruikte de checkpointgeschiedenis als auditlog totdat de retentiejob draaide. Checkpoints bestaan om een graph te hervatten en worden precies op basis van die aanname opgeschoond.</p>
+</div></aside>
 <p>Elke keer dat LangGraph een <strong>super-step</strong> afrondt — één node of een batch nodes die parallel draaiden — serialiseert het framework de volledige graph state en schrijft die naar een <strong>checkpoint store</strong>. Dat vormt de basis voor pause/resume, time-travel debugging en HITL-workflows.</p>
 <p><span class="mermaid-light"><img src="/nl/blog/assets/2026-02-14-memory/hot-memory-checkpoint.svg" alt="Hot memory: bij elke super-step wordt een checkpoint geschreven en dit is het recovery path dat het checkpoint opnieuw laadt" loading="lazy"></span><span class="mermaid-dark"><img src="/nl/blog/assets/2026-02-14-memory/hot-memory-checkpoint.dark.svg" alt="Hot memory: bij elke super-step wordt een checkpoint geschreven en dit is het recovery path dat het checkpoint opnieuw laadt" loading="lazy"></span></p>
 <p>Een checkpoint bevat de graph state die nodig is om te hervatten: de <code>AgentState</code> uit <a href="/nl/blog/2026/01/31/ai-agent-reasoning-loops/">deel 1</a> — messages, identity, user profile, plan steps, research data en execution mode. Daarnaast slaat LangGraph zijn eigen bookkeeping op: de ID en timestamp van het checkpoint, één version per channel (de naam van LangGraph voor een individuele state key) en een afzonderlijk record met de channel versions die elke node al heeft gezien. Het step number staat in de metadata van het checkpoint, niet op het checkpoint zelf. Door die twee te vergelijken bepaalt de graph wat er vervolgens draait. Na een HITL-interrupt of process restart laadt de graph het checkpoint dat op de laatste voltooide boundary is geschreven en gaat hij opnieuw de volgende node binnen. Hij gaat niet verder vanaf een willekeurige Python-regel. Een checkpoint verschilt ook van een append-only event log of trace; <a href="/nl/blog/2026/05/26/ai-agent-runtime/">deel 5</a> behandelt deze runtime-observability-oppervlakken afzonderlijk.</p>
@@ -797,6 +801,10 @@ Dit artikel is automatisch vertaald vanuit de oorspronkelijke Engelse versie.</p
 <p>Files zijn ideaal voor workflows met één developer. Voor multi-tenant production is een structured document store op PostgreSQL meestal de juiste balans tussen eenvoud, performance en operationele volwassenheid.</p>
 <hr>
 <h2 id="alles-samenbrengen-de-volledige-architecture">Alles samenbrengen: de volledige architecture</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Ik schreef de geëxtraheerde gebruikersfeiten inline aan het einde van elke beurt. Daarna wachtte elk antwoord op een embedding-call die de gebruiker nooit zou zien.</p>
+</div></aside>
 <p>Zo kunnen de drie memory tiers samenwerken in een architecture die is geïnspireerd op de <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>. Het diagram toont een illustratieve flow van user request naar response, met alle memory layers actief.</p>
 <p><span class="mermaid-light"><img src="/nl/blog/assets/2026-02-14-memory/full-memory-architecture.svg" alt="Alle drie memory tiers rond één agent, met de latency van elke read" loading="lazy"></span><span class="mermaid-dark"><img src="/nl/blog/assets/2026-02-14-memory/full-memory-architecture.dark.svg" alt="Alle drie memory tiers rond één agent, met de latency van elke read" loading="lazy"></span></p>
 <p>De architecture heeft drie memory paths:</p>

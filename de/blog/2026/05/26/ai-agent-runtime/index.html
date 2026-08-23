@@ -43,7 +43,7 @@
       if (heading) observer.observe(heading);
     }
   })();
-</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/de/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Teil 5 </a><h1>AI Agent Runtime für langlebige Sessions: Checkpoints</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-05-26">2026-05-26</time>  · Aktualisiert <time datetime="2026-08-01">2026-08-01</time>  · 39 Min. · KI-Agenten </p> </div> </div> <!-- automated-translation-notice:start -->
+</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/de/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Teil 5 </a><h1>AI Agent Runtime für langlebige Sessions: Checkpoints</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-05-26">2026-05-26</time>  · Aktualisiert <time datetime="2026-08-01">2026-08-01</time>  · 40 Min. · KI-Agenten </p> </div> </div> <!-- automated-translation-notice:start -->
 <blockquote>
 <p><strong>Automatische Übersetzung</strong>
 Dieser Artikel wurde automatisch aus der englischen Originalversion übersetzt.</p>
@@ -97,6 +97,10 @@ Dieser Artikel wurde automatisch aus der englischen Originalversion übersetzt.<
 <p>Vier dieser fünf – Session, Sandbox, Checkpoint und Trace – speichern den Zustand oder begrenzen die Ausführung. Der Harness ist die Instanz, die Entscheidungen trifft; hier laufen sämtliche Entscheidungen zu Memory, Tool Contract und Berechtigungen zusammen. Dieser Artikel behandelt ihn als eine einzelne Box und beschreibt, worauf sie aufbaut. <a href="/de/blog/2026/07/22/ai-agent-harness-engineering/">Teil 6</a> öffnet die Box und ordnet dieselben fünf Elemente neu: in die eine Komponente, die entscheidet, und die vier, auf denen sie ausgeführt wird.</p>
 <hr>
 <h2 id="lange-läufe-brechen-annahmen-über-zustandslose-prozesse">Lange Läufe brechen Annahmen über zustandslose Prozesse</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Ich hielt das Run-Log im Speicher des Workers, und es funktionierte wochenlang. Dann ersetzte ein routinemäßiges Deployment den Worker mitten in der Aufgabe. Die gesamte Historie des Runs war damit weg.</p>
+</div></aside>
 <p>Ein zustandsloser Chat-Endpunkt kann den Request-Zustand in einem Prozess halten und ihn nach der Antwort verwerfen. Ein langer Agent-Lauf übersteht Worker-Neustarts, Deployments, Context-Resets und Pausen für Freigaben. Der Worker-Prozess kann daher nicht länger die Quelle der Wahrheit sein.</p>
 <p>Das OpenAI-Codex-Team berichtet in seinem <a href="https://openai.com/index/harness-engineering/">Harness-Engineering-Beitrag</a>, wie lange diese Läufe dauern:</p>
 <blockquote>
@@ -383,6 +387,10 @@ Dieser Artikel wurde automatisch aus der englischen Originalversion übersetzt.<
 <hr>
 <h2 id="observability-die-den-run-überdauert">Observability, die den Run überdauert</h2>
 <p>Kurze Request-Handler sind leicht zu debuggen: Wenn etwas fehlschlägt, liest man die Response und das Live-Log. Lang laufende Agents haben diesen Luxus nicht. Wenn ein sechs Stunden dauernder Run fehlschlägt, liegt das relevante Ereignis fünf Stunden zurück, die Ausgabe im Live-Terminal ist verschwunden, und der Worker, der sie erzeugt hat, wurde ersetzt. Niemand wird den Run aus dem Gedächtnis rekonstruieren. Deshalb debuggt man anhand persistenter Artefakte, die geschrieben wurden, während der Run noch lief.</p>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Ich versuchte, meinen ersten langen Run vom Terminal aus zu debuggen. Das interessante Ereignis war Stunden zuvor passiert und aus dem Puffer herausgescrollt.</p>
+</div></aside>
 <p>Production-Stacks decken typischerweise vier Arten von Artefakten ab, aufgeteilt in zwei Gruppen. Zwei davon liest man <strong>nach</strong> Ende des Runs – für Postmortems und Replay: ein abfragbares Event-Log jedes einzelnen Schritts und OpenTelemetry-Traces darüber, wohin Zeit und Tokens geflossen sind. Zwei liest man <strong>während</strong> des Runs. Das eine ist ein Live-Tail dessen, was der Agent im Workspace erzeugt. Das andere ist ein Observability-Stack pro Worktree, den der Agent selbst abfragen kann, während er noch arbeitet.</p>
 <h3 id="strukturiertes-event-log-nach-dem-run-lesen">Strukturiertes Event-Log (nach dem Run lesen)</h3>
 <p>Jeder Model Call, Tool Call, jedes Ergebnis, jeder Fehler und jede Freigabe wird anhand von Session-ID und Zeitstempel in persistentem Storage gespeichert. Nach Ende des Runs fragt man die Daten wie eine normale Datenbanktabelle ab. Addy Osmani formuliert den Maßstab in <a href="https://addyosmani.com/blog/long-running-agents/">Long-running Agents</a> klar: „Wenn du nicht aus persistentem Storage rekonstruieren kannst, was der Agent in den letzten 24 Stunden getan hat, hast du kein Long-running Agent, sondern ein lang laufendes Shell-Script, das zufällig ein LLM aufruft.“</p>

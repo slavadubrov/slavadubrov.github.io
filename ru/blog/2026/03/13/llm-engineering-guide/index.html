@@ -43,7 +43,7 @@
       if (heading) observer.observe(heading);
     }
   })();
-</script> <article class="prose" data-pagefind-body> <h1>Руководство по LLM-инжинирингу: 45 концепций для production-систем</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-03-13">2026-03-13</time>  · Обновлено <time datetime="2026-08-08">2026-08-08</time>  · 58 мин · Инженерия моделей · ИИ-инфраструктура </p> </div> </div> <!-- automated-translation-notice:start -->
+</script> <article class="prose" data-pagefind-body> <h1>Руководство по LLM-инжинирингу: 45 концепций для production-систем</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-03-13">2026-03-13</time>  · Обновлено <time datetime="2026-08-08">2026-08-08</time>  · 20 мин · Инженерия моделей · ИИ-инфраструктура </p> </div> </div> <!-- automated-translation-notice:start -->
 <blockquote>
 <p><strong>Автоматический перевод</strong>
 Эта статья была автоматически переведена с оригинальной английской версии.</p>
@@ -191,6 +191,10 @@
 <hr>
 <h2 id="part-ii-inference-fundamentals">Часть II — Основы инференса</h2>
 <p>Инференс — часть системы, которую пользователи ощущают непосредственно. Латентность, KV cache, двухфазная модель выполнения, аттеншн и квантизация определяют, насколько быстро, дёшево и надёжно вы сможете сервить модель.</p>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Я перенёс нагрузку декодирования с batch=1 на GPU с гораздо большим числом FLOPS. Скорость выдачи токенов почти не изменилась. Декодирование ждало пропускную способность памяти, а я купил вычислительную мощность.</p>
+</div></aside>
 <h3 id="4-латентность-ttft-tpot-и-перцентили">4. Латентность: TTFT, TPOT и перцентили</h3>
 <p><strong>Time to First Token (TTFT)</strong> — сквозная задержка от отправки запроса до первого выходного токена. Она включает ожидание в очереди, токенизацию, планирование, префилл промпта, первый шаг decode и доставку по сети. Более длинные промпты обычно увеличивают составляющую prefill, но доминировать может любой из этих этапов. Целевые значения зависят от продукта; <a href="https://mlcommons.org/2025/04/llm-inference-v5/">MLPerf Inference v5.0</a> использует ограничение P99 TTFT в <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>≤</mo></mrow><annotation encoding="application/x-tex">\leq</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.7719em;vertical-align:-0.136em;"></span><span class="mrel">≤</span></span></span></span> 450 мс для интерактивного сценария Llama 2 70B.</p>
 <p><strong>Time Per Output Token (TPOT)</strong> — средний интервал между последовательными токенами после первого. Эта метрика соответствует фазе decode. Decode с batch-one или низкой интенсивностью обычно ограничен пропускной способностью памяти, а достаточно большие батчи могут стать compute-bound:</p>
@@ -907,6 +911,10 @@ M834 80h400000v40h-400000z"></path></svg></span></span></span><span class="vlist
 <hr>
 <h2 id="part-viii-production-operations">Часть VIII — Эксплуатация в production</h2>
 <p>В этой части рассматриваются rate limiting, режимы отказа, мониторинг, оптимизация стоимости и планирование ёмкости при реальном трафике.</p>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Загрузка GPU держалась на уровне 95 %, и я объявил флот здоровым. Она была 95 %, потому что очередь была заполнена. По загрузке одинаково выглядят занятость и утопление.</p>
+</div></aside>
 <h3 id="41-rate-limiting-для-запросов-с-переменной-стоимостью">41. Rate limiting для запросов с переменной стоимостью</h3>
 <p>Традиционный rate limiting по requests per second предполагает примерно одинаковую стоимость запросов. LLM нарушают это предположение. Промпт классификации на 10 токенов и анализ документа на 100K токенов обращаются к одному API endpoint, но отличаются по стоимости на четыре порядка. Rate limiting по RPS либо бесконтрольно пропускает дорогие запросы, либо без необходимости ограничивает дешёвые.</p>
 <p>Production-системам нужен <strong>token-based rate limiting</strong> по нескольким измерениям. <a href="https://developers.openai.com/api/docs/guides/rate-limits">OpenAI</a> документирует лимиты запросов и токенов по usage tiers. <a href="https://docs.anthropic.com/en/api/rate-limits">Anthropic</a> разделяет лимиты input tokens и output tokens. Точные квоты и алгоритмы могут меняться, поэтому источником истины считайте документацию провайдера; архитектурный принцип состоит в независимом бюджетировании запросов и токенов.</p>

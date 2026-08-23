@@ -43,7 +43,7 @@
       if (heading) observer.observe(heading);
     }
   })();
-</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/ru/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Часть 2 </a><h1>Архитектура памяти ИИ-агента: чекпоинты и векторные хранилища</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-02-14">2026-02-14</time>  · Обновлено <time datetime="2026-08-01">2026-08-01</time>  · 31 мин · ИИ-агенты </p> </div> </div> <!-- automated-translation-notice:start -->
+</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/ru/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Часть 2 </a><h1>Архитектура памяти ИИ-агента: чекпоинты и векторные хранилища</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-02-14">2026-02-14</time>  · Обновлено <time datetime="2026-08-01">2026-08-01</time>  · 18 мин · ИИ-агенты </p> </div> </div> <!-- automated-translation-notice:start -->
 <blockquote>
 <p><strong>Автоматический перевод</strong>
 Эта статья была автоматически переведена с оригинальной английской версии.</p>
@@ -181,6 +181,10 @@
 <p>В статье <a href="https://arxiv.org/abs/2304.03442">Generative Agents</a> (Park и др., 2023) показано, насколько далеко это можно развить: симулируемые агенты сохраняли, осмысливали и извлекали собственные воспоминания. Их <strong>поток памяти</strong> ранжировал кандидатов по давности, важности и релевантности — этот дизайн по-прежнему служит полезной отправной точкой для retrieval в системах памяти агентов.</p>
 <hr>
 <h2 id="краткосрочная-память-агента-хранилище-чекпоинтов">Краткосрочная память агента: хранилище чекпоинтов</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Я использовал историю checkpoint как журнал аудита, пока не запустилась задача очистки. Checkpoint нужны для продолжения графа, и именно поэтому их удаляют.</p>
+</div></aside>
 <p>Каждый раз, когда LangGraph завершает <strong>super-step</strong> — одну ноду или пакет параллельно выполнявшихся нод, — фреймворк сериализует полное состояние графа и записывает его в <strong>хранилище чекпоинтов</strong>. Это основа для паузы и продолжения, отладки с перемещением во времени и workflow с HITL.</p>
 <p><span class="mermaid-light"><img src="/ru/blog/assets/2026-02-14-memory/hot-memory-checkpoint.svg" alt="Горячая память: чекпоинт, записываемый после каждого super-step, и путь восстановления, который его загружает" loading="lazy"></span><span class="mermaid-dark"><img src="/ru/blog/assets/2026-02-14-memory/hot-memory-checkpoint.dark.svg" alt="Горячая память: чекпоинт, записываемый после каждого super-step, и путь восстановления, который его загружает" loading="lazy"></span></p>
 <p>Чекпоинт содержит состояние графа, необходимое для продолжения: <code>AgentState</code> из <a href="/ru/blog/2026/01/31/ai-agent-reasoning-loops/">части 1</a> — сообщения, идентификатор, профиль пользователя, шаги плана, данные исследования, режим выполнения. Вместе с этим LangGraph хранит собственную служебную информацию: ID и timestamp чекпоинта, по одной версии на канал (так LangGraph называет отдельный ключ состояния) и отдельную запись о том, какие версии каналов уже видел каждый узел. Номер шага находится в метаданных чекпоинта, а не в самом чекпоинте. Сравнение этих данных позволяет графу определить, что запускать дальше. После HITL-интеррапта или перезапуска процесса граф загружает чекпоинт, записанный на последней завершённой границе, и снова входит в следующую ноду. Он не продолжает выполнение с произвольной строки Python. Чекпоинт также отличается от append-only лога событий или трейса; <a href="/ru/blog/2026/05/26/ai-agent-runtime/">часть 5</a> отдельно рассматривает эти поверхности observability рантайма.</p>
@@ -797,6 +801,10 @@
 <p>Файлы отлично подходят для workflow одного разработчика. Для мультитенантного продакшена структурированное документное хранилище на PostgreSQL обычно даёт лучший баланс простоты, производительности и операционной зрелости.</p>
 <hr>
 <h2 id="собираем-всё-вместе-полная-архитектура">Собираем всё вместе: полная архитектура</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Я записывал извлечённые факты о пользователе прямо в конец каждого хода. После этого каждый ответ ждал вызова embedding, которого пользователь всё равно не увидел бы.</p>
+</div></aside>
 <p>Вот как все три уровня памяти могут работать вместе в архитектуре, вдохновлённой <a href="https://github.com/slavadubrov/market-analyst-agent">Market Analyst Agent</a>. На схеме показан иллюстративный поток от запроса пользователя до ответа, в котором активны все уровни памяти.</p>
 <p><span class="mermaid-light"><img src="/ru/blog/assets/2026-02-14-memory/full-memory-architecture.svg" alt="Все три уровня памяти подключены к одному агенту; указана латентность каждого чтения" loading="lazy"></span><span class="mermaid-dark"><img src="/ru/blog/assets/2026-02-14-memory/full-memory-architecture.dark.svg" alt="Все три уровня памяти подключены к одному агенту; указана латентность каждого чтения" loading="lazy"></span></p>
 <p>Архитектура содержит три пути памяти:</p>

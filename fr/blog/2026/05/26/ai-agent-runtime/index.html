@@ -43,7 +43,7 @@
       if (heading) observer.observe(heading);
     }
   })();
-</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/fr/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Partie 5 </a><h1>Runtime d’AI agents longue durée : sessions et checkpoints</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-05-26">2026-05-26</time>  · Mis à jour <time datetime="2026-08-01">2026-08-01</time>  · 44 min · Agents IA </p> </div> </div> <!-- automated-translation-notice:start -->
+</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/fr/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Partie 5 </a><h1>Runtime d’AI agents longue durée : sessions et checkpoints</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-05-26">2026-05-26</time>  · Mis à jour <time datetime="2026-08-01">2026-08-01</time>  · 37 min · Agents IA </p> </div> </div> <!-- automated-translation-notice:start -->
 <blockquote>
 <p><strong>Traduction automatique</strong>
 Cet article a été traduit automatiquement depuis la version originale en anglais.</p>
@@ -97,6 +97,10 @@ Cet article a été traduit automatiquement depuis la version originale en angla
 <p>Quatre de ces cinq éléments — session, sandbox, checkpoint et trace — stockent l’état ou confinent l’exécution. Le harness est celui qui décide ; c’est là que se rejoignent les décisions relatives à la mémoire, aux contrats d’outils et aux permissions. Cet article le traite comme une seule boîte et décrit ce sur quoi il repose. La <a href="/fr/blog/2026/07/22/ai-agent-harness-engineering/">partie 6</a> ouvre cette boîte et réorganise les cinq éléments en un composant décisionnaire et quatre composants d’exécution.</p>
 <hr>
 <h2 id="les-longues-exécutions-brisent-les-hypothèses-des-processus-stateless">Les longues exécutions brisent les hypothèses des processus stateless</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>J’ai gardé le journal d’exécution dans la mémoire du worker, et cela a fonctionné pendant des semaines. Puis un déploiement de routine a remplacé le worker au milieu de la tâche. Tout l’historique de l’exécution a disparu avec lui.</p>
+</div></aside>
 <p>Un endpoint de chat stateless peut conserver l’état de la requête dans un seul processus, puis le supprimer après la réponse. Une longue exécution d’agent traverse des redémarrages de workers, des déploiements, des réinitialisations de contexte et des pauses en attente d’approbation. Le processus worker ne peut donc plus être la source de vérité.</p>
 <p>L’équipe OpenAI Codex décrit la durée atteinte par ces exécutions dans son <a href="https://openai.com/index/harness-engineering/">article sur l’harness engineering</a> :</p>
 <blockquote>
@@ -383,6 +387,10 @@ Cet article a été traduit automatiquement depuis la version originale en angla
 <hr>
 <h2 id="une-observabilité-qui-survit-à-lexécution">Une observabilité qui survit à l’exécution</h2>
 <p>Les handlers de requêtes courts sont faciles à déboguer : lorsqu’un problème survient, il suffit de lire la réponse et le log en direct. Les agents longue durée n’ont pas ce luxe. Lorsqu’une exécution de six heures échoue, l’événement intéressant s’est produit cinq heures plus tôt, la sortie du terminal a disparu et le worker qui l’a produite a été remplacé. Personne ne va reconstruire l’exécution de mémoire. Le débogage se fait donc à partir d’artefacts durables écrits pendant que l’exécution était encore active.</p>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>J’ai essayé de déboguer ma première exécution longue depuis le terminal. L’événement intéressant s’était produit des heures plus tôt et avait défilé hors du tampon.</p>
+</div></aside>
 <p>Les stacks de production couvrent généralement quatre types d’artefacts, répartis en deux groupes. Deux sont consultés <strong>après</strong> l’exécution, pour les postmortems et le replay : un journal d’événements interrogeable contenant chaque étape, et des traces OpenTelemetry montrant où sont partis le temps et les tokens. Deux sont consultés <strong>pendant</strong> l’exécution. L’un est un flux en direct de ce que l’agent produit dans le workspace. L’autre est une stack d’observabilité par worktree que l’agent peut lui-même interroger pendant qu’il travaille.</p>
 <h3 id="journal-dévénements-structuré-à-lire-après-lexécution">Journal d’événements structuré (à lire après l’exécution)</h3>
 <p>Chaque appel au modèle, tool call, résultat, erreur et approbation est écrit dans un stockage durable, indexé par ID de session et timestamp. Une fois l’exécution terminée, vous l’interrogez comme une table de base de données normale. Addy Osmani fixe clairement le niveau attendu dans <a href="https://addyosmani.com/blog/long-running-agents/">Long-running Agents</a> : « Si vous ne pouvez pas reconstruire ce que l’agent a fait au cours des dernières 24 heures à partir d’un stockage durable, vous avez un long-running shell script qui appelle par hasard un LLM, et non un agent longue durée. »</p>

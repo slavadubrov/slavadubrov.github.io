@@ -43,7 +43,7 @@
       if (heading) observer.observe(heading);
     }
   })();
-</script> <article class="prose" data-pagefind-body> <h1>Guide d’ingénierie des LLM : 45 concepts pour les systèmes de production</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-03-13">2026-03-13</time>  · Mis à jour <time datetime="2026-08-08">2026-08-08</time>  · 75 min · Ingénierie des modèles · Infrastructure IA </p> </div> </div> <!-- automated-translation-notice:start -->
+</script> <article class="prose" data-pagefind-body> <h1>Guide d’ingénierie des LLM : 45 concepts pour les systèmes de production</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-03-13">2026-03-13</time>  · Mis à jour <time datetime="2026-08-08">2026-08-08</time>  · 35 min · Ingénierie des modèles · Infrastructure IA </p> </div> </div> <!-- automated-translation-notice:start -->
 <blockquote>
 <p><strong>Traduction automatique</strong>
 Cet article a été traduit automatiquement depuis la version originale en anglais.</p>
@@ -191,6 +191,10 @@ Cet article a été traduit automatiquement depuis la version originale en angla
 <hr>
 <h2 id="part-ii-inference-fundamentals">Partie II — Fondamentaux de l’inférence</h2>
 <p>L’inférence est la partie du système que les utilisateurs ressentent directement. La latence, le KV cache, le modèle d’exécution en deux phases, l’attention et la quantization déterminent ensemble la vitesse, le coût et la fiabilité du serving.</p>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>J’ai déplacé une charge de décodage à batch un vers un GPU avec beaucoup plus de FLOPS. Le débit de tokens a à peine bougé. Le décodage attendait la bande passante mémoire, et j’avais acheté du calcul.</p>
+</div></aside>
 <h3 id="4-latence--ttft-tpot-et-percentiles">4. Latence : TTFT, TPOT et percentiles</h3>
 <p>Le <strong>Time to First Token (TTFT)</strong> est le délai de bout en bout entre l’envoi d’une requête et le premier token de sortie. Il inclut la mise en file, la tokenization, le scheduling, le prefill du prompt, la première étape de decode et la livraison réseau. Les prompts longs augmentent généralement la composante prefill, mais n’importe laquelle de ces étapes peut devenir dominante. Les objectifs dépendent du produit ; <a href="https://mlcommons.org/2025/04/llm-inference-v5/">MLPerf Inference v5.0</a> utilise une limite de TTFT P99 de <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>≤</mo></mrow><annotation encoding="application/x-tex">\leq</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.7719em;vertical-align:-0.136em;"></span><span class="mrel">≤</span></span></span></span> 450 ms pour son scénario interactif Llama 2 70B.</p>
 <p>Le <strong>Time Per Output Token (TPOT)</strong> est l’intervalle moyen entre deux tokens consécutifs après le premier. Il correspond à la phase de decode. Le decode en batch-one ou à faible intensité est généralement limité par la bande passante mémoire, tandis que des batches suffisamment grands peuvent devenir compute-bound :</p>
@@ -907,6 +911,10 @@ M834 80h400000v40h-400000z"></path></svg></span></span></span><span class="vlist
 <hr>
 <h2 id="part-viii-production-operations">Partie VIII — Opérations de production</h2>
 <p>Cette partie couvre le rate limiting, les modes de défaillance, le monitoring, l’optimisation des coûts et le capacity planning face au trafic réel.</p>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>L’utilisation des GPU était à 95 % et j’ai déclaré la flotte saine. Elle était à 95 % parce que la file d’attente était pleine. L’utilisation a le même aspect quand vous êtes occupé ou en train de vous noyer.</p>
+</div></aside>
 <h3 id="41-rate-limiting-pour-les-requêtes-à-coût-variable">41. Rate limiting pour les requêtes à coût variable</h3>
 <p>Le rate limiting traditionnel par requêtes par seconde suppose un coût à peu près égal pour chaque requête. Les LLM invalident cette hypothèse. Un prompt de classification de 10 tokens et une analyse de document de 100K tokens utilisent le même endpoint API, mais leurs coûts diffèrent de quatre ordres de grandeur. Limiter par RPS laisse donc passer des requêtes coûteuses sans contrôle ou pénalise inutilement les requêtes peu coûteuses.</p>
 <p>Les systèmes de production ont besoin d’un <strong>rate limiting basé sur les tokens</strong> selon plusieurs dimensions. <a href="https://developers.openai.com/api/docs/guides/rate-limits">OpenAI</a> documente les limites de requêtes et de tokens par niveau d’utilisation. <a href="https://docs.anthropic.com/en/api/rate-limits">Anthropic</a> sépare les limites de tokens d’entrée et de sortie. Les quotas et algorithmes exacts peuvent évoluer ; considérez la documentation du fournisseur comme la source de vérité. Le point architectural est de budgéter séparément les requêtes et les tokens.</p>
