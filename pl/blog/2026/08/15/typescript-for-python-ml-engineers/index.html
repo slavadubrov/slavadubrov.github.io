@@ -1,0 +1,696 @@
+<!DOCTYPE html><html lang="pl"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><script>
+      (() => {
+        const stored = localStorage.getItem("theme");
+        const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const effective = stored === "light" || stored === "dark" ? stored : systemDark ? "dark" : "light";
+        document.documentElement.dataset.themeEffective = effective;
+        if (stored === "light" || stored === "dark") document.documentElement.dataset.theme = stored;
+      })();
+    </script><script async src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5"></script><script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        window.dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", "G-T51K83ENZ5");
+    </script><title>TypeScript dla inżynierów ML pracujących w Pythonie: budowa serwisu agenta</title><meta name="description" content="Mapowanie pydantic na Zod, FastAPI na Hono oraz Celery na kolejkę w Postgresie, a następnie budowa strumieniowego serwisu agenta w monorepo TypeScript z pnpm."><link rel="canonical" href="https://slavadubrov.com/pl/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="de" href="https://slavadubrov.com/de/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="en" href="https://slavadubrov.com/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="es" href="https://slavadubrov.com/es/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="fr" href="https://slavadubrov.com/fr/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="nl" href="https://slavadubrov.com/nl/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="pl" href="https://slavadubrov.com/pl/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="pt" href="https://slavadubrov.com/pt/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="ru" href="https://slavadubrov.com/ru/blog/2026/08/15/typescript-for-python-ml-engineers/"><link rel="alternate" hreflang="x-default" href="https://slavadubrov.com/blog/2026/08/15/typescript-for-python-ml-engineers/"><meta property="og:type" content="article"><meta property="og:title" content="TypeScript dla inżynierów ML pracujących w Pythonie: budowa serwisu agenta"><meta property="og:description" content="Mapowanie pydantic na Zod, FastAPI na Hono oraz Celery na kolejkę w Postgresie, a następnie budowa strumieniowego serwisu agenta w monorepo TypeScript z pnpm."><meta property="og:url" content="https://slavadubrov.com/pl/blog/2026/08/15/typescript-for-python-ml-engineers/"><meta property="og:image" content="https://slavadubrov.com/assets/og-image.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:type" content="image/png"><meta property="og:image:alt" content="Edge of Context — Praktyczna inżynieria AI"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="TypeScript dla inżynierów ML pracujących w Pythonie: budowa serwisu agenta"><meta name="twitter:description" content="Mapowanie pydantic na Zod, FastAPI na Hono oraz Celery na kolejkę w Postgresie, a następnie budowa strumieniowego serwisu agenta w monorepo TypeScript z pnpm."><meta name="twitter:image" content="https://slavadubrov.com/assets/og-image.png"><meta name="twitter:image:alt" content="Edge of Context — Praktyczna inżynieria AI"><meta property="article:published_time" content="2026-08-15"><meta property="article:modified_time" content="2026-09-05"><link rel="icon" href="/assets/favicon-eoc.svg" type="image/svg+xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"><link href="/pagefind/pagefind-component-ui.css" rel="stylesheet"><script src="/pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"TypeScript dla inżynierów ML pracujących w Pythonie: budowa serwisu agenta","description":"Mapowanie pydantic na Zod, FastAPI na Hono oraz Celery na kolejkę w Postgresie, a następnie budowa strumieniowego serwisu agenta w monorepo TypeScript z pnpm.","url":"https://slavadubrov.com/pl/blog/2026/08/15/typescript-for-python-ml-engineers/","image":"https://slavadubrov.com/assets/og-image.png","datePublished":"2026-08-15","dateModified":"2026-09-05","author":{"@type":"Person","name":"Viacheslav Dubrov","url":"https://slavadubrov.com/pl/about/"}}</script><link rel="stylesheet" href="/_astro/BaseLayout.DWWCKfJJ.css"></head> <body> <a class="skip-link" href="#main-content">Przejdź do treści</a> <header class="site-header"> <a class="brand" data-home-link href="/pl/" aria-label="Strona główna Slavy Dubrova"> <svg class="brand-mark" viewBox="0 0 64 64" width="36" height="36" aria-hidden="true" focusable="false" data-astro-cid-77qc4tpx> <rect class="brand-mark__frame" x="8.5" y="8.5" width="47" height="47" rx="11" stroke-width="5" data-astro-cid-77qc4tpx></rect> <line class="brand-mark__edge" x1="42" y1="8.5" x2="42" y2="55.5" stroke-width="5" data-astro-cid-77qc4tpx></line> <g class="brand-mark__token" data-astro-cid-77qc4tpx> <circle cx="16.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="16.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="16.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> </g> </svg> <span class="brand-lockup"> <span class="brand-primary">Slava Dubrov</span> <span class="brand-publication">Edge of Context</span> </span> </a> <nav aria-label="Nawigacja główna"> <ul> <li> <a data-nav="work" href="/pl/work/">Projekty</a> </li><li> <a data-nav="labs" href="/pl/labs/">Laboratorium</a> </li><li> <a data-nav="blog" href="/pl/blog/" aria-current="page">Blog</a> </li><li> <a data-nav="about" href="/pl/about/">O mnie</a> </li> </ul> </nav> <div class="header-actions"> <nav class="header-social" aria-label="Profile społecznościowe"> <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" title="LinkedIn"> <svg class="social-icon" data-social-icon="fontawesome-brands-linkedin" viewBox="0 0 448 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3C448 46.5 433.6 32 416 32zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"></path></svg> </a><a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener noreferrer" aria-label="Substack" title="Substack"> <svg class="social-icon" data-social-icon="simple-substack" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"></path></svg> </a><a href="https://www.tiktok.com/@edge.of.context" target="_blank" rel="noopener noreferrer" aria-label="TikTok" title="TikTok"> <svg class="social-icon" data-social-icon="fontawesome-brands-tiktok" viewBox="0 0 448 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M448 209.9a210.1 210.1 0 0 1-122.8-39.2v178.7A162.6 162.6 0 1 1 185 188.3v89.9a74.6 74.6 0 1 0 52.2 71.2V0h88a121.2 121.2 0 0 0 1.9 22.2 122.2 122.2 0 0 0 53.9 80.2 121.4 121.4 0 0 0 67 20.1v87.4z"></path></svg> </a><a href="https://github.com/slavadubrov" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub"> <svg class="social-icon" data-social-icon="fontawesome-brands-github" viewBox="0 0 496 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"></path></svg> </a><a href="/feed_rss_created.xml" target="_blank" rel="noopener noreferrer" aria-label="Kanał RSS" title="Kanał RSS"> <svg class="social-icon" data-social-icon="material-rss" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6.18 15.64a2.18 2.18 0 1 0 0 4.36 2.18 2.18 0 0 0 0-4.36zM4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83C19.56 11.4 12.6 4.44 4 4.44zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z"></path></svg> </a> </nav> <button class="theme-toggle" type="button" aria-label="Zmień motyw kolorystyczny" title="Zmień motyw kolorystyczny"> <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"> <circle cx="12" cy="12" r="4"></circle> <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path> </svg> <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"> <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path> </svg> </button> <pagefind-modal-trigger data-search-label="true">Szukaj</pagefind-modal-trigger> <label class="locale-switcher"> <span class="visually-hidden">Język</span> <select id="locale-select"> <option value="/de/blog/2026/08/15/typescript-for-python-ml-engineers/">Deutsch</option><option value="/blog/2026/08/15/typescript-for-python-ml-engineers/">English</option><option value="/es/blog/2026/08/15/typescript-for-python-ml-engineers/">Español</option><option value="/fr/blog/2026/08/15/typescript-for-python-ml-engineers/">Français</option><option value="/nl/blog/2026/08/15/typescript-for-python-ml-engineers/">Nederlands</option><option value="/pl/blog/2026/08/15/typescript-for-python-ml-engineers/" selected>Polski</option><option value="/pt/blog/2026/08/15/typescript-for-python-ml-engineers/">Português</option><option value="/ru/blog/2026/08/15/typescript-for-python-ml-engineers/">Русский</option> </select> </label> </div> </header> <main id="main-content" tabindex="-1"> <div class="article-shell has-toc"> <nav class="toc" aria-label="Na tej stronie"> <p class="eyebrow">Na tej stronie</p> <ol> <li> <a href="#najpierw-uruchom-dołączony-przykład">Najpierw uruchom dołączony przykład</a> </li><li> <a href="#rola-node-npm-pnpm-typescript-i-tsx">Rola Node, npm, pnpm, TypeScript i tsx</a> </li><li> <a href="#stos-odwzorowany-z-pythona">Stos odwzorowany z Pythona</a> </li><li class="is-sub"> <a href="#hono-jako-warstwa-http">Hono jako warstwa HTTP</a> </li><li class="is-sub"> <a href="#drizzle-do-sql">Drizzle do SQL</a> </li><li class="is-sub"> <a href="#biome-do-lintingu-i-formatowania">Biome do lintingu i formatowania</a> </li><li class="is-sub"> <a href="#vitest-do-testów">Vitest do testów</a> </li><li> <a href="#składnia-typescript-użyta-poniżej">Składnia TypeScript użyta poniżej</a> </li><li class="is-sub"> <a href="#krótkie-odwzorowanie-enum">Krótkie odwzorowanie enum</a> </li><li> <a href="#siedem-różnic-semantycznych-które-zabierają-czas">Siedem różnic semantycznych, które zabierają czas</a> </li><li class="is-sub"> <a href="#1-puste-tablice-i-obiekty-są-truthy">1. Puste tablice i obiekty są truthy</a> </li><li class="is-sub"> <a href="#2-null-i-undefined-to-różne-wartości">2. null i undefined to różne wartości</a> </li><li class="is-sub"> <a href="#3-blok-catch-otrzymuje-unknown">3. Blok catch otrzymuje unknown</a> </li><li class="is-sub"> <a href="#4-promises-uruchamiają-się-natychmiast">4. Promises uruchamiają się natychmiast</a> </li><li class="is-sub"> <a href="#5-javascript-ma-jeden-zwykły-typ-liczbowy">5. JavaScript ma jeden zwykły typ liczbowy</a> </li><li class="is-sub"> <a href="#6-używaj-map-gdy-potrzebujesz-słownika-w-stylu-pythona">6. Używaj Map, gdy potrzebujesz słownika w stylu Pythona</a> </li><li class="is-sub"> <a href="#7-dołączaj-rozszerzenie-w-importach-względnych">7. Dołączaj rozszerzenie w importach względnych</a> </li><li> <a href="#zod-to-pydantic-z-odwróconym-kierunkiem">Zod to pydantic z odwróconym kierunkiem</a> </li><li> <a href="#serwis">Serwis</a> </li><li> <a href="#raz-napisz-pętlę-narzędzia-ręcznie">Raz napisz pętlę narzędzia ręcznie</a> </li><li> <a href="#następnie-przełącz-się-na-ai-sdk-i-poznaj-koszt-tej-zamiany">Następnie przełącz się na AI SDK i poznaj koszt tej zamiany</a> </li><li> <a href="#strumieniowanie-przez-http-hono-i-sse">Strumieniowanie przez HTTP: Hono i SSE</a> </li><li> <a href="#część-przypominająca-celery-ale-bez-celery">Część przypominająca Celery, ale bez Celery</a> </li><li> <a href="#jedno-narzędzie-trzech-konsumentów">Jedno narzędzie, trzech konsumentów</a> </li><li> <a href="#testowanie-agenta-bez-klucza-api">Testowanie agenta bez klucza API</a> </li><li> <a href="#logowanie-ustrukturyzowanych-zdarzeń-za-pomocą-pino">Logowanie ustrukturyzowanych zdarzeń za pomocą Pino</a> </li><li> <a href="#śledzenie-pracy-aplikacji-za-pomocą-ręcznych-spanów">Śledzenie pracy aplikacji za pomocą ręcznych spanów</a> </li><li> <a href="#dostarczanie-monorepo-w-dockerze">Dostarczanie monorepo w Dockerze</a> </li><li> <a href="#plan-na-trzy-tygodnie">Plan na trzy tygodnie</a> </li><li> <a href="#kompromisy">Kompromisy</a> </li><li class="is-sub"> <a href="#obliczenia-numeryczne-pozostaw-w-pythonie">Obliczenia numeryczne pozostaw w Pythonie</a> </li><li class="is-sub"> <a href="#waliduj-każdą-zewnętrzną-wartość-w-runtime">Waliduj każdą zewnętrzną wartość w runtime</a> </li><li class="is-sub"> <a href="#izoluj-zmiany-sdk">Izoluj zmiany SDK</a> </li><li class="is-sub"> <a href="#pomiń-ręcznie-napisaną-pętlę-jeśli-ważniejszy-jest-termin">Pomiń ręcznie napisaną pętlę, jeśli ważniejszy jest termin</a> </li><li> <a href="#zanim-dostosujesz-serwis">Zanim dostosujesz serwis</a> </li><li> <a href="#materiały-referencyjne">Materiały referencyjne</a> </li> </ol> </nav> <script>
+  (() => {
+    const links = new Map(
+      [...document.querySelectorAll(".toc a")].map((link) => [link.hash.slice(1), link]),
+    );
+    if (!links.size || !window.IntersectionObserver) return;
+    const visible = new Set();
+    const mark = () => {
+      let current;
+      for (const id of links.keys()) if (visible.has(id)) { current = id; break; }
+      for (const [id, link] of links) {
+        if (id === current) link.setAttribute("aria-current", "true");
+        else link.removeAttribute("aria-current");
+      }
+    };
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) visible.add(entry.target.id);
+          else visible.delete(entry.target.id);
+        }
+        mark();
+      },
+      { rootMargin: "-15% 0px -70% 0px" },
+    );
+    for (const id of links.keys()) {
+      const heading = document.getElementById(id);
+      if (heading) observer.observe(heading);
+    }
+  })();
+</script> <article class="prose" data-pagefind-body> <h1>TypeScript dla inżynierów ML pracujących w Pythonie: budowa serwisu agenta</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-08-15">2026-08-15</time>  · Zaktualizowano <time datetime="2026-09-05">2026-09-05</time>  · 20 min · Narzędzia programistyczne · Agenci AI </p> </div> </div> <!-- automated-translation-notice:start -->
+<blockquote>
+<p><strong>Tłumaczenie automatyczne</strong>
+Ten artykuł został automatycznie przetłumaczony z angielskiego oryginału.</p>
+</blockquote>
+<!-- automated-translation-notice:end -->
+<p>Większość przewodników po TypeScript zaczyna od podstaw programowania albo pracy z DOM-em po stronie front-endu. Ten przewodnik zaczyna od koncepcji usług w Pythonie, które można przenieść, oraz od zachowania środowiska uruchomieniowego, którego nie można przenieść, ponieważ celem jest backendowy serwis AI.</p>
+<p>Przykładem jest strumieniowy serwis agenta przeznaczony dla doświadczonych inżynierów ML i backendu pracujących w Pythonie. Żądanie przechodzi przez walidację, wykonanie narzędzia, strumieniowanie HTTP i zapis danych. Konkretne pytania są praktyczne: co się dzieje, gdy argumenty narzędzia przychodzą we fragmentach, strumień kończy się błędem po HTTP 200 albo worker dwa razy pobiera to samo zadanie?</p>
+<p>Kod znajduje się w repozytorium
+<a href="https://github.com/slavadubrov/typescript-agent-service"><strong>slavadubrov/typescript-agent-service</strong></a>.
+Zawiera dwie implementacje pętli agenta, historię uruchomień w Postgresie, workera oraz serwer MCP. Możesz uruchomić jego tryb offline bez klucza API, a następnie użyć poniższej mapy Python–TypeScript do czytania i modyfikowania serwisu. Intensywne obliczenia numeryczne pozostają w Pythonie; ten przewodnik dotyczy orkiestracji, HTTP i strumieniowania.</p>
+<!-- more -->
+<h2 id="najpierw-uruchom-dołączony-przykład">Najpierw uruchom dołączony przykład</h2>
+<p>Zainstaluj <a href="https://nodejs.org/en/download">Node 24</a> oraz pnpm zgodnie z
+<a href="https://pnpm.io/installation">oficjalną instrukcją instalacji pnpm</a>. Następnie
+sklonuj dołączone repozytorium i uruchom:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> install</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> demo</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> check</span></span></code></pre>
+<p><code>pnpm demo</code> ćwiczy handler HTTP, pętlę agenta i strumień SSE za pomocą modelu sterowanego skryptem. Wywołuje także obliczenia <code>runSweep</code> workera. Nie uruchamia procesu workera ani jego kolejki bazodanowej. Demo nie wymaga klucza API, bazy danych ani Dockera. <code>pnpm check</code> uruchamia checker typów, linter, sprawdzanie formatowania oraz testy.</p>
+<p>Aby uruchomić właściwe API i workera:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">cp</span><span style="color:#A5D6FF"> .env.example</span><span style="color:#A5D6FF"> .env</span><span style="color:#8B949E">          # add OPENAI_API_KEY or an OpenAI-compatible URL</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> db:up</span><span style="color:#8B949E">                    # start Postgres in Docker</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> db:push</span><span style="color:#8B949E">                  # create the database schema</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> dev:api</span><span style="color:#8B949E">                  # API at http://localhost:8080</span></span>
+<span class="line"><span style="color:#FFA657">pnpm</span><span style="color:#A5D6FF"> dev:worker</span><span style="color:#8B949E">               # run this in a second terminal</span></span></code></pre>
+<p>To polecenia, których używam w dalszej części artykułu. Repozytorium ukrywa niskopoziomowe polecenia Node i TypeScript za nazwanymi skryptami <code>pnpm</code>, podobnie jak projekt w Pythonie może ukrywać polecenia <code>uv run</code> za targetami <code>make</code>. Nie mieszaj <code>npm install</code> z tym repozytorium pnpm. Używaj <code>pnpm install</code>, aby <code>pnpm-lock.yaml</code> pozostał jedynym plikiem lockfile.</p>
+<hr>
+<h2 id="rola-node-npm-pnpm-typescript-i-tsx">Rola Node, npm, pnpm, TypeScript i tsx</h2>
+<p>Podobne nazwy kryją różne zadania:</p>
+<ul>
+<li><strong>JavaScript</strong> to język.</li>
+<li><strong>Node.js</strong> to środowisko uruchomieniowe, w przybliżeniu odpowiednik CPython dla JavaScriptu. W tym projekcie zainstaluj Node 24.</li>
+<li><strong>Rejestr npm</strong> to indeks pakietów, w przybliżeniu odpowiednik PyPI. Polecenie <code>npm</code> jest dostarczane z Node i może instalować pakiety z tego rejestru.</li>
+<li><strong>pnpm</strong> to menedżer pakietów wybrany dla tego repozytorium. Instaluje pakiety z rejestru npm, zarządza workspace’em monorepo i uruchamia polecenia zadeklarowane w <code>package.json</code>.</li>
+<li><strong><code>package.json</code></strong> to manifest projektu, najbliższy <code>pyproject.toml</code>. Jego sekcja <code>scripts</code> nadaje dłuższym poleceniom nazwy, takie jak <code>demo</code>, <code>check</code> i <code>dev:api</code>.</li>
+<li><strong>TypeScript</strong> to JavaScript z typami statycznymi. Polecenie <code>tsc</code> sprawdza te typy. Repozytorium uruchamia je przez <code>pnpm check</code> lub <code>pnpm typecheck</code>.</li>
+<li><strong>tsx</strong> uruchamia pliki <code>.ts</code> bez osobnego builda. Skrypty deweloperskie używają jego trybu <code>watch</code>, aby restartować API lub workera po zmianie źródła. W tym przewodniku nie wywołujesz go bezpośrednio.</li>
+</ul>
+<p>W tym repozytorium uruchamiaj skrypty <code>pnpm</code>. Node jest środowiskiem uruchomieniowym używanym wewnątrz tych skryptów, a dostarczony Dockerfile obsługuje produkcję.</p>
+<hr>
+<h2 id="stos-odwzorowany-z-pythona">Stos odwzorowany z Pythona</h2>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-08-15-typescript-for-python-ml-engineers/python-typescript-stack-map.svg" alt="Dwie kolumny mapują każdy obszar pythonowego serwisu AI na jego odpowiednik w TypeScript. Sześć zamian zajmuje tę samą pozycję, a wyróżniony panel pokazuje różnice semantyczne w walidacji, kolejkach i sprawdzaniu typów." width="960" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-08-15-typescript-for-python-ml-engineers/python-typescript-stack-map.dark.svg" alt="Dwie kolumny mapują każdy obszar pythonowego serwisu AI na jego odpowiednik w TypeScript. Sześć zamian zajmuje tę samą pozycję, a wyróżniony panel pokazuje różnice semantyczne w walidacji, kolejkach i sprawdzaniu typów." width="960" loading="lazy"></span></p>
+<p>Większość mapowania jest banalna — i to dobra wiadomość. Trzy wiersze nie są:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Obszar</th><th>Python</th><th>TypeScript</th><th>Dlaczego to nie jest prosta zamiana</th></tr></thead><tbody><tr><td>Walidacja</td><td><code>pydantic</code></td><td><code>zod</code></td><td>Schemat jest źródłem prawdy. Typ jest z niego generowany, a nie odwrotnie</td></tr><tr><td>Sprawdzanie typów</td><td><code>mypy</code></td><td>TypeScript (<code>pnpm typecheck</code>)</td><td>Oba narzędzia sprawdzają kod źródłowy, ale nie walidują danych przychodzących w runtime</td></tr><tr><td>Kolejka zadań</td><td><code>celery</code> + Redis</td><td><code>bullmq</code> (kolejka oparta na Redisie) lub SQL</td><td>Postgres może implementować kolejkę typu at-least-once. Broker może nie być potrzebny</td></tr></tbody></table>
+<p>Dołączony przykład korzysta z czterech bibliotek, które warto wyjaśnić.</p>
+<h3 id="hono-jako-warstwa-http">Hono jako warstwa HTTP</h3>
+<p>Express i Fastify to alternatywy skoncentrowane na Node. <a href="https://hono.dev/docs/concepts/web-standard">Hono korzysta ze standardowych dla Web API
+<code>Request</code> i <code>Response</code></a> oraz udostępnia adaptery dla Node i środowisk serverless. Ta przenośność jest przydatna dla tego niewielkiego strumieniowego API, dlatego wybrałem Hono.</p>
+<h3 id="drizzle-do-sql">Drizzle do SQL</h3>
+<p><a href="https://orm.drizzle.team/docs/overview">Drizzle</a> przechowuje schemat w TypeScript i nie wymaga etapu generowania klienta. Udostępnia także raw SQL, gdy query builder nie potrafi elegancko wyrazić klauzuli Postgresa. Wybrałbym Prisma, gdyby jego generowany klient i otaczające go narzędzia lepiej pasowały do zespołu.</p>
+<h3 id="biome-do-lintingu-i-formatowania">Biome do lintingu i formatowania</h3>
+<p><a href="https://biomejs.dev/guides/getting-started/">Biome</a> obsługuje linting, formatowanie i sortowanie importów za pomocą jednego binarnego narzędzia i jednego pliku konfiguracyjnego. Pozostań przy ESLint, jeśli projekt zależy od niestandardowych reguł, których Biome nie udostępnia.</p>
+<h3 id="vitest-do-testów">Vitest do testów</h3>
+<p><a href="https://vitest.dev/guide/">Vitest</a> uruchamia testy <code>.ts</code> dołączonego przykładu bez osobnej konfiguracji transformacji.</p>
+<hr>
+<h2 id="składnia-typescript-użyta-poniżej">Składnia TypeScript użyta poniżej</h2>
+<p>Trzymaj tę tabelę obok przykładów serwisu.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>TypeScript</th><th>Python / uwaga</th></tr></thead><tbody><tr><td><code>(x) => expression</code></td><td>funkcja anonimowa z ciałem będącym wyrażeniem, podobna do <code>lambda x: expression</code></td></tr><tr><td><code>(x) => { statements }</code></td><td>funkcja anonimowa z ciałem zawierającym instrukcje</td></tr><tr><td><code>async (x) => { statements }</code></td><td>asynchroniczna funkcja anonimowa</td></tr><tr><td><code>const { model, seqLen } = request</code></td><td>wyodrębnia właściwości <code>model</code> i <code>seqLen</code> z <code>request</code></td></tr><tr><td><code>const [first] = xs</code></td><td><code>first = xs[0]</code>. Daje <code>undefined</code>, a nie <code>IndexError</code>, gdy jest puste</td></tr><tr><td><code>{ type: "error", message }</code></td><td><code>{"type": "error", "message": message}</code>. Sama nazwa staje się tym polem</td></tr><tr><td><code>text ${x}</code></td><td>f-string</td></tr><tr><td><code>cond ? a : b</code></td><td><code>a if cond else b</code></td></tr><tr><td><code>const</code> / <code>let</code></td><td>Oba wiążą nazwę. <code>const</code> zabrania ponownego przypisania, a <code>let</code> na nie pozwala</td></tr><tr><td><code>export</code></td><td>sprawia, że nazwa może być importowana</td></tr><tr><td><code>switch</code> / <code>case</code></td><td><code>match</code>, z tym że przypadki przechodzą dalej, jeśli nie kończą się na <code>break</code> lub <code>return</code></td></tr><tr><td><code>for await</code></td><td>iterowanie po generatorze asynchronicznym</td></tr><tr><td><code>i++</code></td><td>zwiększa wartość i zwraca poprzednią</td></tr><tr><td><code>/^https?$/</code></td><td>literał wyrażenia regularnego, bez potrzeby używania <code>re.compile</code></td></tr><tr><td><code>T[]</code>, <code>Map&#x3C;K, V></code></td><td><code>list[T]</code>, <code>dict[K, V]</code></td></tr></tbody></table>
+<p>Używaj <code>const</code>, chyba że przypisanie musi się zmienić. Używaj <code>let</code> dla licznika, akumulatora lub innego przypisania, któremu ponownie nadajesz wartość.</p>
+<h3 id="krótkie-odwzorowanie-enum">Krótkie odwzorowanie enum</h3>
+<p>Dla stanów reprezentowanych przez stringi to repozytorium używa obiektu oraz wyinferowanego typu unii stringów:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> Status</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> { Queued: </span><span style="color:#A5D6FF">"queued"</span><span style="color:#E6EDF3">, Running: </span><span style="color:#A5D6FF">"running"</span><span style="color:#E6EDF3"> } </span><span style="color:#FF7B72">as</span><span style="color:#FF7B72"> const</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#FF7B72">type</span><span style="color:#FFA657"> Status</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">typeof</span><span style="color:#E6EDF3"> Status)[</span><span style="color:#FF7B72">keyof</span><span style="color:#FF7B72"> typeof</span><span style="color:#E6EDF3"> Status]; </span><span style="color:#8B949E">// "queued" | "running"</span></span></code></pre>
+<p>Obiekt udostępnia <code>Status.Queued</code> podczas działania programu. Wiersz <code>type</code> pozwala podczas sprawdzania typów tylko na <code>"queued"</code> lub <code>"running"</code>. Razem pełnią dwie role tej deklaracji w Pythonie:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> enum </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> Enum</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> Status</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">str</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">Enum</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#79C0FF">    QUEUED</span><span style="color:#FF7B72"> =</span><span style="color:#A5D6FF"> "queued"</span></span>
+<span class="line"><span style="color:#79C0FF">    RUNNING</span><span style="color:#FF7B72"> =</span><span style="color:#A5D6FF"> "running"</span></span></code></pre>
+<p>Wystarczy rozpoznawać ten wzorzec. <code>as const</code> zachowuje wartości obiektu jako dokładne stringi, zamiast rozszerzać je do dowolnego <code>string</code>.</p>
+<hr>
+<h2 id="siedem-różnic-semantycznych-które-zabierają-czas">Siedem różnic semantycznych, które zabierają czas</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte mówi</p>
+<p>Otrzymuję <code>10</code> z <code>0 || 10</code>; <code>0 ?? 10</code> zachowuje skonfigurowane zero.</p>
+</div></aside>
+<p>Tabela składni pozwala przejść przez przykłady. To właśnie te różnice semantyczne powodują błędy wynikające z nawyków z Pythona.</p>
+<h3 id="1-puste-tablice-i-obiekty-są-truthy">1. Puste tablice i obiekty są truthy</h3>
+<p>Pythonowy nawyk „pusty kontener jest falsy” przenosi się najgorzej. <code>if (results)</code> ma wartość true dla pustej tablicy. Zapisz <code>if (results.length)</code>.</p>
+<h3 id="2-null-i-undefined-to-różne-wartości">2. <code>null</code> i <code>undefined</code> to różne wartości</h3>
+<p><code>null</code> zwykle oznacza celowy brak wartości. <code>undefined</code> zwykle oznacza brakującą lub nieprzypisaną wartość, chociaż kod może przypisać ją jawnie. Kod bibliotek nieustannie zwraca <code>undefined</code>. Różnica ujawnia się przy ustawianiu wartości domyślnej. <code>||</code> podstawia prawą stronę, gdy lewa jest falsy. Dotyczy to także <code>0</code>, <code>""</code> i <code>false</code>. <code>??</code> podstawia wartość tylko dla <code>null</code> i <code>undefined</code>. Dlatego <code>0 || 10</code> jest równe <code>10</code>, a <code>0 ?? 10</code> jest równe <code>0</code>. To właśnie ta różnica sprawia, że rozmiar batcha równy zero po cichu zmienia się w dziesięć.</p>
+<h3 id="3-blok-catch-otrzymuje-unknown">3. Blok catch otrzymuje <code>unknown</code></h3>
+<p>Nie istnieje <code>except ValueError:</code>. Jeden blok <code>catch</code> obsługuje wszystko. Ponieważ JavaScript pozwala rzucać stringiem, liczbą lub <code>null</code>, TypeScript typuje przechwyconą wartość jako <code>unknown</code> — typ „dosłownie cokolwiek” w trybie <code>strict</code>. Dołączony przykład włącza <code>strict</code>, co powinny robić także nowe projekty. Aby zbadać błąd, najpierw zawęź typ wartości:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">try</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">    await</span><span style="color:#D2A8FF"> risky</span><span style="color:#E6EDF3">();</span></span>
+<span class="line"><span style="color:#E6EDF3">} </span><span style="color:#FF7B72">catch</span><span style="color:#E6EDF3"> (error) {</span></span>
+<span class="line"><span style="color:#8B949E">    // `error` is `unknown` until you prove otherwise. This line is the</span></span>
+<span class="line"><span style="color:#8B949E">    // TypeScript equivalent of `except ValueError as e:` and it is not</span></span>
+<span class="line"><span style="color:#8B949E">    // optional.</span></span>
+<span class="line"><span style="color:#FF7B72">    const</span><span style="color:#79C0FF"> message</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> error </span><span style="color:#FF7B72">instanceof</span><span style="color:#FFA657"> Error</span><span style="color:#FF7B72"> ?</span><span style="color:#E6EDF3"> error.message </span><span style="color:#FF7B72">:</span><span style="color:#D2A8FF"> String</span><span style="color:#E6EDF3">(error);</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
+<h3 id="4-promises-uruchamiają-się-natychmiast">4. Promises uruchamiają się natychmiast</h3>
+<p>Wywołanie funkcji <code>async</code> rozpoczyna wykonywanie jej ciała i zwraca promise. Obiekt korutyny w Pythonie nic nie robi, dopóki nie wykonasz await ani go nie zaplanujesz. <code>Promise.all</code> jest zbliżone do <code>asyncio.gather</code>. <code>Promise.allSettled</code> jest zbliżone do <code>gather(..., return_exceptions=True)</code>, z tym że każdy wynik jest opakowany jako <code>{ status, value }</code> lub <code>{ status, reason }</code>.</p>
+<p>Node zarządza planowaniem w runtime. Utrzymuje proces przy życiu, gdy istnieją aktywne handlery lub żądania, takie jak timery i sockety. Sam oczekujący promise nie utrzymuje Node przy życiu. Nie opakowujesz programu w <code>asyncio.run</code>. W module ES możesz użyć <code>await</code> na poziomie top-level, gdy start musi zaczekać na operację asynchroniczną.</p>
+<h3 id="5-javascript-ma-jeden-zwykły-typ-liczbowy">5. JavaScript ma jeden zwykły typ liczbowy</h3>
+<p>Typ <code>number</code> w JavaScripcie przechowuje wartości jako 64-bitowe liczby zmiennoprzecinkowe, mniej więcej odpowiednik pythonowego <code>float</code>. Standard techniczny tego formatu nazywa się IEEE 754. Wartości dziesiętne są przybliżone, dlatego <code>0.1 + 0.2</code> nie jest dokładnie równe <code>0.3</code>, a liczby całkowite pozostają dokładne tylko do <code>2**53 - 1</code>, czyli <code>9,007,199,254,740,991</code>.</p>
+<p>64-bitowe identyfikatory przechowuj jako stringi na granicach serwisu. Konwersja postgresowego <code>bigint</code> na javascriptowe <code>number</code> może spowodować zaokrąglenie. Dla większych dokładnych liczb całkowitych JavaScript udostępnia osobny typ <code>BigInt</code>, który nie miesza się ze zwykłymi liczbami.</p>
+<h3 id="6-używaj-map-gdy-potrzebujesz-słownika-w-stylu-pythona">6. Używaj <code>Map</code>, gdy potrzebujesz słownika w stylu Pythona</h3>
+<p>W JavaScripcie <code>{}</code> tworzy <strong>obiekt</strong>. Obiekty zwykle reprezentują rekordy z nazwanymi polami:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> request</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> { model: </span><span style="color:#A5D6FF">"gpt-5"</span><span style="color:#E6EDF3">, seqLen: </span><span style="color:#79C0FF">4096</span><span style="color:#E6EDF3"> };</span></span>
+<span class="line"><span style="color:#E6EDF3">console.</span><span style="color:#D2A8FF">log</span><span style="color:#E6EDF3">(request.model);</span></span></code></pre>
+<p>Obiekt nie jest czystą tabelą klucz–wartość, taką jak pythonowy <code>dict</code>. Dziedziczy niektóre nazwy z samego JavaScriptu. Może to dać zaskakujący wynik:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> tools</span><span style="color:#FF7B72">:</span><span style="color:#FFA657"> Record</span><span style="color:#E6EDF3">&#x3C;</span><span style="color:#79C0FF">string</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">unknown</span><span style="color:#E6EDF3">> </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {};</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">tools[</span><span style="color:#A5D6FF">"constructor"</span><span style="color:#E6EDF3">]; </span><span style="color:#8B949E">// a built-in function, not a missing value</span></span>
+<span class="line"><span style="color:#E6EDF3">Object.</span><span style="color:#D2A8FF">hasOwn</span><span style="color:#E6EDF3">(tools, </span><span style="color:#A5D6FF">"constructor"</span><span style="color:#E6EDF3">); </span><span style="color:#8B949E">// false</span></span></code></pre>
+<p>Jeśli zewnętrzny string wybiera pole obiektu, przed odczytem wywołaj <code>Object.hasOwn</code>. Jeśli potrzebujesz ogólnego słownika, użyj <code>Map</code>. <code>Map</code> jest bliższe pythonowemu <code>dict</code>: klucz istnieje tylko wtedy, gdy doda go twój kod.</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> tools</span><span style="color:#FF7B72"> =</span><span style="color:#FF7B72"> new</span><span style="color:#D2A8FF"> Map</span><span style="color:#E6EDF3">&#x3C;</span><span style="color:#79C0FF">string</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">unknown</span><span style="color:#E6EDF3">>();</span></span>
+<span class="line"><span style="color:#E6EDF3">tools.</span><span style="color:#D2A8FF">get</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"constructor"</span><span style="color:#E6EDF3">); </span><span style="color:#8B949E">// undefined</span></span></code></pre>
+<h3 id="7-dołączaj-rozszerzenie-w-importach-względnych">7. Dołączaj rozszerzenie w importach względnych</h3>
+<p>Plik źródłowy JavaScriptu współdzielący kod z innymi plikami nazywa się <strong>modulem</strong>. Ten projekt używa nowoczesnego formatu modułów, <strong>modułów ES</strong>, zwykle skracanego do <strong>ESM</strong>. ES oznacza ECMAScript, formalną nazwę języka JavaScript. W praktyce ESM to składnia <code>import</code> i <code>export</code> używana w całym projekcie.</p>
+<p>W imporcie względnym Node wymaga dokładnej nazwy pliku. Nie zgadnie, czy <code>./env</code> oznacza <code>./env.ts</code> czy <code>./env.js</code>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> { loadEnv } </span><span style="color:#FF7B72">from</span><span style="color:#A5D6FF"> "./env.ts"</span><span style="color:#E6EDF3">;</span></span></code></pre>
+<p>Importy z zainstalowanych pakietów lub pakietów workspace’u nadal używają nazwy pakietu, bez rozszerzenia pliku:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> { z } </span><span style="color:#FF7B72">from</span><span style="color:#A5D6FF"> "zod"</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> { runAgent } </span><span style="color:#FF7B72">from</span><span style="color:#A5D6FF"> "@agent/core"</span><span style="color:#E6EDF3">;</span></span></code></pre>
+<hr>
+<h2 id="zod-to-pydantic-z-odwróconym-kierunkiem">Zod to pydantic z odwróconym kierunkiem</h2>
+<p>W pydantic deklarujesz klasę i otrzymujesz walidator. W Zod deklarujesz walidator i wyprowadzasz z niego typ. To samo single source of truth, ale kierunek jest odwrotny.</p>
+<p>Z <a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/schemas/src/env.ts"><code>packages/schemas/src/env.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> { z } </span><span style="color:#FF7B72">from</span><span style="color:#A5D6FF"> "zod"</span><span style="color:#E6EDF3">; </span><span style="color:#8B949E">// `z` is Zod's whole API, the way `pd` is pandas</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> EnvSchema</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> z.</span><span style="color:#D2A8FF">object</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">    PORT: z.coerce.</span><span style="color:#D2A8FF">number</span><span style="color:#E6EDF3">().</span><span style="color:#D2A8FF">int</span><span style="color:#E6EDF3">().</span><span style="color:#D2A8FF">positive</span><span style="color:#E6EDF3">().</span><span style="color:#D2A8FF">default</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">8080</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#8B949E">    // See the note below: a bare z.url() would accept "localhost:8000".</span></span>
+<span class="line"><span style="color:#E6EDF3">    OPENAI_BASE_URL: z</span></span>
+<span class="line"><span style="color:#E6EDF3">        .</span><span style="color:#D2A8FF">url</span><span style="color:#E6EDF3">({ protocol:</span><span style="color:#A5D6FF"> /</span><span style="color:#FF7B72">^</span><span style="color:#A5D6FF">https</span><span style="color:#FF7B72">?$</span><span style="color:#A5D6FF">/</span><span style="color:#E6EDF3"> })</span></span>
+<span class="line"><span style="color:#E6EDF3">        .</span><span style="color:#D2A8FF">default</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"https://api.openai.com/v1"</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#E6EDF3">    DATABASE_URL: z.</span><span style="color:#D2A8FF">string</span><span style="color:#E6EDF3">().</span><span style="color:#D2A8FF">optional</span><span style="color:#E6EDF3">(),</span></span>
+<span class="line"><span style="color:#E6EDF3">});</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">export</span><span style="color:#FF7B72"> type</span><span style="color:#FFA657"> Env</span><span style="color:#FF7B72"> =</span><span style="color:#FFA657"> z</span><span style="color:#E6EDF3">.</span><span style="color:#FFA657">infer</span><span style="color:#E6EDF3">&#x3C;</span><span style="color:#FF7B72">typeof</span><span style="color:#E6EDF3"> EnvSchema>;</span></span></code></pre>
+<p><code>z.infer&#x3C;typeof EnvSchema></code> odczytuje typ statyczny ze schematu runtime. <code>z.coerce.number()</code> obsługuje fakt, że każda zdefiniowana wartość w <code>process.env</code> (node’owym <code>os.environ</code>) jest stringiem. Pełni tę samą rolę co konwersja ustawień numerycznych w pydantic, choć dokładne akceptowane stringi są różne. Stosuje wzorzec <code>pydantic-settings</code> i wykonuje się raz podczas startu. Nieprawidłowe środowisko daje wtedy czytelny błąd startowy zamiast <code>TypeError</code> wewnątrz handlera.</p>
+<p>Samo <code>z.url()</code> akceptuje <code>localhost:8000</code>. Standard URL traktuje wszystko przed pierwszym dwukropkiem jako schemat. Odczytuje więc <code>localhost:</code> jako protokół o nazwie „localhost” i akceptuje ten string. Wartość dociera potem do klienta HTTP i kończy się błędem z mniejszą ilością kontekstu. Walidacja schematu przesuwa błędy wcześniej, ale wymusi liberalny schemat, jeśli taki zapiszesz.</p>
+<p>Zod 4 dostarcza także <code>z.toJSONSchema</code>, więc ten projekt nie potrzebuje zależności <code>zod-to-json-schema</code>, często spotykanej w starszych tutorialach. Ma to znaczenie, gdy jeden schemat musi zasilać trzech konsumentów — o tym jest poniższa sekcja „Jedno narzędzie, trzech konsumentów”.</p>
+<hr>
+<h2 id="serwis">Serwis</h2>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-08-15-typescript-for-python-ml-engineers/workspace-layout.svg" alt="Jeden schemat Zod zasila ręcznie napisaną pętlę, Vercel AI SDK i publisher MCP. Dwa adaptery pętli obsługują API Hono, publisher obsługuje proces MCP, a API i worker współdzielą tabelę uruchomień w Postgresie." width="960" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-08-15-typescript-for-python-ml-engineers/workspace-layout.dark.svg" alt="Jeden schemat Zod zasila ręcznie napisaną pętlę, Vercel AI SDK i publisher MCP. Dwa adaptery pętli obsługują API Hono, publisher obsługuje proces MCP, a API i worker współdzielą tabelę uruchomień w Postgresie." width="960" loading="lazy"></span></p>
+<p>Przykładowy serwis dobiera rozmiary wdrożeń LLM. Jedno narzędzie wyszukuje stałe architektury modelu. Drugie szacuje zajętość KV cache: pamięć GPU używaną do przechowywania kluczy i wartości attention dla żądań obsługiwanych w locie. Oba narzędzia wykonują celowo banalne obliczenia arytmetyczne. Nie potrzebują sieci i za każdym razem zwracają tę samą odpowiedź. Dzięki temu serwis można testować bez klucza API. Estymator KV cache jest również publikowany przez Model Context Protocol (MCP), więc inne klienty AI mogą go wywoływać.</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="text"><code><span class="line"><span>typescript-agent-service/</span></span>
+<span class="line"><span>├── apps/</span></span>
+<span class="line"><span>│   ├── api/           @agent/api: Hono API, streams Server-Sent Events (below)</span></span>
+<span class="line"><span>│   ├── worker/        polls Postgres for long-running jobs</span></span>
+<span class="line"><span>│   └── mcp/           MCP server: exposes one tool to outside AI clients</span></span>
+<span class="line"><span>├── packages/</span></span>
+<span class="line"><span>│   ├── schemas/       package name @agent/schemas: env, API, and tool schemas</span></span>
+<span class="line"><span>│   ├── agent-core/    package name @agent/core: the loop (twice), tools, storage</span></span>
+<span class="line"><span>│   └── observability/ Pino logging, OpenTelemetry tracing</span></span>
+<span class="line"><span>├── pnpm-workspace.yaml</span></span>
+<span class="line"><span>└── package.json</span></span></code></pre>
+<p><code>pnpm-workspace.yaml</code> to plik deklarujący workspace. Pakiety wewnętrzne otrzymują nazwę ze scope’em, taką jak <code>@agent/core</code>, gdzie prefiks <code>@agent/</code> jest konwencją nazewniczą, a nie cechą języka. Każdy pakiet deklaruje publiczny punkt wejścia w <code>package.json</code>. Ta granica pakietu nie zależy od tego, które polecenie uruchamia aplikację.</p>
+<p>Ten prywatny workspace wskazuje te entry pointy na źródła <code>.ts</code>, ponieważ każdy konsument należy do tego samego repozytorium. Publiczne pakiety npm zwykle publikują JavaScript oraz deklaracje typów <code>.d.ts</code>, aby zwykli konsumenci Node nie potrzebowali runnera TypeScript ani konfiguracji builda autora pakietu.</p>
+<hr>
+<h2 id="raz-napisz-pętlę-narzędzia-ręcznie">Raz napisz pętlę narzędzia ręcznie</h2>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-08-15-typescript-for-python-ml-engineers/agent-loop-event-stream.svg" alt="Ręcznie napisana pętla agenta składa strumieniowe wywołania narzędzi, waliduje je, uruchamia poprawne narzędzia, a niepoprawne dane zwraca do historii wiadomości jako błąd narzędzia. Jej typowany strumień AgentEvent zasila trasę HTTP i testy; trasa zapisuje końcowy wynik po zakończeniu strumienia." width="960" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-08-15-typescript-for-python-ml-engineers/agent-loop-event-stream.dark.svg" alt="Ręcznie napisana pętla agenta składa strumieniowe wywołania narzędzi, waliduje je, uruchamia poprawne narzędzia, a niepoprawne dane zwraca do historii wiadomości jako błąd narzędzia. Jej typowany strumień AgentEvent zasila trasę HTTP i testy; trasa zapisuje końcowy wynik po zakończeniu strumienia." width="960" loading="lazy"></span></p>
+<p>Frameworki agentów korzystające z tool callingu opakowują tę samą podstawową pętlę:</p>
+<ol>
+<li>Wywołaj model z definicjami narzędzi.</li>
+<li>Zweryfikuj i uruchom żądane narzędzia.</li>
+<li>Dodaj wyniki do wiadomości.</li>
+<li>Wywołaj model ponownie.</li>
+</ol>
+<p>Jednorazowe napisanie pętli uwidacznia ukryte ścieżki błędów. Jeśli już je rozumiesz i musisz dostarczyć rozwiązanie, przejdź do opisanej niżej wersji z SDK.</p>
+<p>Pętla jest <code>async function*</code>, czyli generatorem asynchronicznym — dokładnie odpowiednikiem pythonowego <code>async def</code> z <code>yield</code>. Trasa HTTP iteruje po tym generatorze, zamienia każde zdarzenie na ramkę Server-Sent Events i akumuluje tekst. Po zakończeniu strumienia trasa wywołuje <code>storage.createRun</code> raz, z końcowym tekstem. Testy wywołują pętlę osobno i zbierają jej zdarzenia do tablicy. Ramka SSE to jeden fragment długotrwałej odpowiedzi HTTP. Poniższa sekcja wyjaśnia ten format.</p>
+<p>Pętla ma dwa normalne zakończenia. Odpowiedź bez wywołań narzędzi daje <code>done</code> z <code>stopReason: "stop"</code>. Jeśli model nadal żąda narzędzi po osiągnięciu <code>maxSteps</code>, generator także kończy działanie i daje <code>done</code> z <code>stopReason: "max_steps"</code>. Traktuj ten wynik jako zakończony, ale ucięty: zgromadzony tekst może być niepełny.</p>
+<p>Z <a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/agent-core/src/loop.ts"><code>packages/agent-core/src/loop.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">let</span><span style="color:#E6EDF3"> text </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> ""</span><span style="color:#E6EDF3">; </span><span style="color:#8B949E">// the assistant text produced during this model step</span></span>
+<span class="line"><span style="color:#8B949E">// Keyed by the `index` field, because a streamed response interleaves</span></span>
+<span class="line"><span style="color:#8B949E">// fragments of several parallel tool calls and only `index` is present</span></span>
+<span class="line"><span style="color:#8B949E">// on every fragment. `id` and `name` arrive once, `arguments` arrives</span></span>
+<span class="line"><span style="color:#8B949E">// in pieces. `a?.b` below reads `b` only if `a` exists, and gives back</span></span>
+<span class="line"><span style="color:#8B949E">// `undefined` instead of throwing if it doesn't.</span></span>
+<span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> partial</span><span style="color:#FF7B72"> =</span><span style="color:#FF7B72"> new</span><span style="color:#D2A8FF"> Map</span><span style="color:#E6EDF3">&#x3C;</span><span style="color:#79C0FF">number</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">PartialToolCall</span><span style="color:#E6EDF3">>();</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">for</span><span style="color:#FF7B72"> await</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> chunk</span><span style="color:#FF7B72"> of</span><span style="color:#E6EDF3"> stream) {</span></span>
+<span class="line"><span style="color:#FF7B72">    const</span><span style="color:#79C0FF"> choice</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> chunk.choices[</span><span style="color:#79C0FF">0</span><span style="color:#E6EDF3">];</span></span>
+<span class="line"><span style="color:#FF7B72">    if</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">!</span><span style="color:#E6EDF3">choice) </span><span style="color:#FF7B72">continue</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    if</span><span style="color:#E6EDF3"> (choice.delta.content) {</span></span>
+<span class="line"><span style="color:#E6EDF3">        text </span><span style="color:#FF7B72">+=</span><span style="color:#E6EDF3"> choice.delta.content;</span></span>
+<span class="line"><span style="color:#FF7B72">        yield</span><span style="color:#E6EDF3"> { type: </span><span style="color:#A5D6FF">"text"</span><span style="color:#E6EDF3">, delta: choice.delta.content };</span></span>
+<span class="line"><span style="color:#E6EDF3">    }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    for</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> fragment</span><span style="color:#FF7B72"> of</span><span style="color:#E6EDF3"> choice.delta.tool_calls </span><span style="color:#FF7B72">??</span><span style="color:#E6EDF3"> []) {</span></span>
+<span class="line"><span style="color:#FF7B72">        const</span><span style="color:#79C0FF"> slot</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> partial.</span><span style="color:#D2A8FF">get</span><span style="color:#E6EDF3">(fragment.index) </span><span style="color:#FF7B72">??</span><span style="color:#E6EDF3"> { id: </span><span style="color:#A5D6FF">""</span><span style="color:#E6EDF3">, name: </span><span style="color:#A5D6FF">""</span><span style="color:#E6EDF3">, args: </span><span style="color:#A5D6FF">""</span><span style="color:#E6EDF3"> };</span></span>
+<span class="line"><span style="color:#FF7B72">        if</span><span style="color:#E6EDF3"> (fragment.id) slot.id </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> fragment.id;</span></span>
+<span class="line"><span style="color:#FF7B72">        if</span><span style="color:#E6EDF3"> (fragment.function?.name) slot.name </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> fragment.function.name;</span></span>
+<span class="line"><span style="color:#FF7B72">        if</span><span style="color:#E6EDF3"> (fragment.function?.arguments) slot.args </span><span style="color:#FF7B72">+=</span><span style="color:#E6EDF3"> fragment.function.arguments;</span></span>
+<span class="line"><span style="color:#E6EDF3">        partial.</span><span style="color:#D2A8FF">set</span><span style="color:#E6EDF3">(fragment.index, slot);</span></span>
+<span class="line"><span style="color:#E6EDF3">    }</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
+<p>Lokalna dla pętli zmienna <code>text</code> przechowuje jeden krok modelu. Pętla używa jej w wiadomości asystenta dla następnego kroku albo w końcowym zdarzeniu <code>done</code>. Nie jest to akumulator na poziomie trasy, który zostanie później zapisany.</p>
+<p>Mapa <code>partial</code> to część ukrywana przez frameworki. SDK udostępnia stringowe fragmenty argumentów funkcji, które mogą dzielić serializowany JSON w dowolnych miejscach. Kilka równoległych wywołań może się także przeplatać. Repozytorium zawiera test dzielący <code>{"model":"llama-3.1-8b",...}</code> na cztery fragmenty.</p>
+<p>Drugą rzeczą, którą warto napisać samodzielnie, jest obsługa nieudanej walidacji:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#8B949E">// `tool.parse` is this repo's wrapper, not Zod's. Zod's own `.parse` throws and</span></span>
+<span class="line"><span style="color:#8B949E">// `.safeParse` returns `{ success, data, error }`; this returns</span></span>
+<span class="line"><span style="color:#8B949E">// `{ ok: true, value }` on success and `{ ok: false, error }` on failure, so no</span></span>
+<span class="line"><span style="color:#8B949E">// caller has to catch.</span></span>
+<span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> parsed</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> tool.</span><span style="color:#D2A8FF">parse</span><span style="color:#E6EDF3">(raw);</span></span>
+<span class="line"><span style="color:#FF7B72">if</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">!</span><span style="color:#E6EDF3">parsed.ok) {</span></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#E6EDF3">        ok: </span><span style="color:#79C0FF">false</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">        value: { error: </span><span style="color:#A5D6FF">`Invalid arguments: ${</span><span style="color:#E6EDF3">parsed</span><span style="color:#A5D6FF">.</span><span style="color:#E6EDF3">error</span><span style="color:#A5D6FF">}`</span><span style="color:#E6EDF3"> },</span></span>
+<span class="line"><span style="color:#E6EDF3">        parsedArgs: raw,</span></span>
+<span class="line"><span style="color:#E6EDF3">    };</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
+<p>Przed wykonaniem wyszukiwanie może nie znaleźć narzędzia, <code>JSON.parse</code> może odrzucić argumenty albo Zod może odrzucić ich kształt. Każda porażka staje się wiadomością odczytywaną przez model. Podczas wykonywania oczekiwany <code>ToolError</code> także staje się wynikiem narzędzia, aby model mógł skorygować wywołanie. Nieoczekiwany wyjątek przechodzi do ścieżki błędu HTTP zamiast być przedstawiony jako błąd domenowy. <code>z.prettifyError</code> zamienia drzewo problemów Zod na wiadomość, na którą model może zareagować, zamiast na stack trace.</p>
+<p><a href="https://developers.openai.com/api/docs/guides/structured-outputs"><code>strict: true</code> w definicji funkcji OpenAI</a> prosi providera o ograniczenie dekodowania do schematu. Nie ma to związku z flagą <code>strict</code> tsconfigu TypeScriptu. Przypomina to guided decoding w vLLM, choć obsługiwane schematy i szczegóły egzekwowania różnią się. Eliminuje jeden typ błędu, ale endpoint self-hosted może zignorować tę flagę. Argumenty muszą także przetrwać <code>JSON.parse</code>.</p>
+<p>Pętla wywołuje <code>/chat/completions</code>, ponieważ dołączony przykład jest kierowany na serwery kompatybilne z OpenAI. <a href="https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/">vLLM</a>, <a href="https://docs.sglang.io/docs/basic_usage/openai_api_completions">SGLang</a> oraz <a href="https://docs.ollama.com/api/openai-compatibility">Ollama</a> dokumentują ten endpoint, więc <code>OPENAI_BASE_URL</code> może wskazywać tego samego klienta na dowolny z nich. Zakres obsługi Responses API różni się między nimi i zmienia się wraz z wydaniami. Jeśli kontrolujesz obie strony, przed wyborem jednego z API sprawdź aktualną stronę kompatybilności serwera.</p>
+<hr>
+<h2 id="następnie-przełącz-się-na-ai-sdk-i-poznaj-koszt-tej-zamiany">Następnie przełącz się na AI SDK i poznaj koszt tej zamiany</h2>
+<p>W kolejnych projektach używaj Vercel AI SDK. Dołączony przykład implementuje tego samego agenta dwa razy, aby kompromis był widoczny. Obie wersje emitują ten sam strumień <code>AgentEvent</code>, więc warstwa HTTP nie potrafi ich odróżnić.</p>
+<p>Dołączony przykład przypina AI SDK 7.0.42 w
+<a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/agent-core/package.json"><code>packages/agent-core/package.json</code></a>.
+Implementacja frameworkowa znajduje się w
+<a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/agent-core/src/loop-ai-sdk.ts"><code>packages/agent-core/src/loop-ai-sdk.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> result</span><span style="color:#FF7B72"> =</span><span style="color:#D2A8FF"> streamText</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">    model: provider.</span><span style="color:#D2A8FF">chatModel</span><span style="color:#E6EDF3">(options.model),</span></span>
+<span class="line"><span style="color:#E6EDF3">    prompt: options.message,</span></span>
+<span class="line"><span style="color:#E6EDF3">    tools: aiSdkTools,          </span><span style="color:#8B949E">// Zod schemas passed straight through</span></span>
+<span class="line"><span style="color:#E6EDF3">    stopWhen: </span><span style="color:#D2A8FF">stepCountIs</span><span style="color:#E6EDF3">(options.maxSteps </span><span style="color:#FF7B72">??</span><span style="color:#79C0FF"> 6</span><span style="color:#E6EDF3">),</span></span>
+<span class="line"><span style="color:#E6EDF3">});</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">for</span><span style="color:#FF7B72"> await</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> part</span><span style="color:#FF7B72"> of</span><span style="color:#E6EDF3"> result.fullStream) {</span></span>
+<span class="line"><span style="color:#FF7B72">    switch</span><span style="color:#E6EDF3"> (part.type) {</span></span>
+<span class="line"><span style="color:#FF7B72">        case</span><span style="color:#A5D6FF"> "text-delta"</span><span style="color:#E6EDF3">: </span><span style="color:#FF7B72">yield</span><span style="color:#E6EDF3"> { type: </span><span style="color:#A5D6FF">"text"</span><span style="color:#E6EDF3">, delta: part.text }; </span><span style="color:#FF7B72">break</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#FF7B72">        case</span><span style="color:#A5D6FF"> "tool-call"</span><span style="color:#E6EDF3">:  </span><span style="color:#FF7B72">yield</span><span style="color:#E6EDF3"> { type: </span><span style="color:#A5D6FF">"tool_call"</span><span style="color:#E6EDF3">, callId: part.toolCallId, </span><span style="color:#8B949E">/* ... */</span><span style="color:#E6EDF3"> }; </span><span style="color:#FF7B72">break</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#8B949E">        // ...</span></span>
+<span class="line"><span style="color:#E6EDF3">    }</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
+<p>SDK usuwa pięć elementów kodu aplikacyjnego:</p>
+<ul>
+<li>akumulator fragmentów</li>
+<li><code>JSON.parse</code> i jego ścieżkę błędu</li>
+<li>wywołanie uruchamiające Zod na sparsowanych argumentach</li>
+<li>składanie wiadomości specyficzne dla providera</li>
+<li>licznik kroków</li>
+</ul>
+<p><code>stopWhen</code> akceptuje kilka warunków, w tym limit kroków lub konkretne wywołanie narzędzia. Pętla <code>for await</code> nie zmienia się przy zmianie polityki zatrzymywania.</p>
+<p>Tracisz natomiast bezpośrednią kontrolę nad błędami walidacji. Ręcznie napisana pętla decyduje, co model zobaczy po odrzuconym wywołaniu. SDK udostępnia eksperymentalną opcję <code>experimental_repairToolCall</code> dla niestandardowego callbacku naprawczego. Obecny dołączony przykład nie ustawia tej opcji, więc korzysta z domyślnej obsługi niepoprawnych wywołań w SDK.</p>
+<p>Kompromis działa także w drugą stronę. W wersji opartej na SDK zmiana providera jest lokalna dla adaptera providera. Nadal wymaga odpowiedniego pakietu providera, poświadczeń, konfiguracji i testów integracyjnych. W surowej pętli obsługa żądań i strumieni specyficzna dla providera jest częścią kodu, który musisz zmienić.</p>
+<p>W nowym serwisie zacznij od SDK, chyba że musisz kontrolować te ścieżki błędów. Wersja ręczna daje małą implementację, którą można przeanalizować i porównać z tym wyborem.</p>
+<hr>
+<h2 id="strumieniowanie-przez-http-hono-i-sse">Strumieniowanie przez HTTP: Hono i SSE</h2>
+<p>Trasy Hono przypominają trasy FastAPI. Jedynym dodatkiem jest <code>zValidator</code>, które wykonuje pracę zapewnianą FastAPI automatycznie przez adnotacje typów w sygnaturze handlera. <code>c</code> w poniższym handlerze to kontekst żądania Hono, czyli obiekt, który FastAPI rozdziela na parametry. <code>deps</code> to zbiór zależności, z którymi konstruowana jest aplikacja, zamiast importowania ich bezpośrednio. <code>runAgent</code> jest jedną z nich, a sekcja o testowaniu pokazuje, co dzięki temu zyskujesz.</p>
+<p>Z <a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/apps/api/src/app.ts"><code>apps/api/src/app.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#E6EDF3">app.</span><span style="color:#D2A8FF">post</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"/v1/chat"</span><span style="color:#E6EDF3">, </span><span style="color:#D2A8FF">zValidator</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"json"</span><span style="color:#E6EDF3">, ChatRequestSchema), (</span><span style="color:#FFA657">c</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">    const</span><span style="color:#79C0FF"> body</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> c.req.</span><span style="color:#D2A8FF">valid</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"json"</span><span style="color:#E6EDF3">);</span></span>
+<span class="line"><span style="color:#FF7B72">    const</span><span style="color:#79C0FF"> log</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> deps.logger.</span><span style="color:#D2A8FF">child</span><span style="color:#E6EDF3">({ route: </span><span style="color:#A5D6FF">"chat"</span><span style="color:#E6EDF3"> });</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#D2A8FF"> streamSSE</span><span style="color:#E6EDF3">(c, </span><span style="color:#FF7B72">async</span><span style="color:#E6EDF3"> (</span><span style="color:#FFA657">stream</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">        let</span><span style="color:#E6EDF3"> text </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> ""</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#FF7B72">        try</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">            await</span><span style="color:#D2A8FF"> withSpan</span><span style="color:#E6EDF3">(</span></span>
+<span class="line"><span style="color:#A5D6FF">                "agent.run"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">                { </span><span style="color:#A5D6FF">"agent.max_steps"</span><span style="color:#E6EDF3">: body.maxSteps },</span></span>
+<span class="line"><span style="color:#FF7B72">                async</span><span style="color:#E6EDF3"> () </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">                    for</span><span style="color:#FF7B72"> await</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> event</span><span style="color:#FF7B72"> of</span><span style="color:#E6EDF3"> deps.</span><span style="color:#D2A8FF">runAgent</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">                        message: body.message,</span></span>
+<span class="line"><span style="color:#E6EDF3">                        maxSteps: body.maxSteps,</span></span>
+<span class="line"><span style="color:#E6EDF3">                    })) {</span></span>
+<span class="line"><span style="color:#FF7B72">                        if</span><span style="color:#E6EDF3"> (event.type </span><span style="color:#FF7B72">===</span><span style="color:#A5D6FF"> "text"</span><span style="color:#E6EDF3">) text </span><span style="color:#FF7B72">+=</span><span style="color:#E6EDF3"> event.delta;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">                        await</span><span style="color:#E6EDF3"> stream.</span><span style="color:#D2A8FF">writeSSE</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">                            event: event.type,</span></span>
+<span class="line"><span style="color:#E6EDF3">                            data: </span><span style="color:#79C0FF">JSON</span><span style="color:#E6EDF3">.</span><span style="color:#D2A8FF">stringify</span><span style="color:#E6EDF3">(event),</span></span>
+<span class="line"><span style="color:#E6EDF3">                        });</span></span>
+<span class="line"><span style="color:#E6EDF3">                    }</span></span>
+<span class="line"><span style="color:#E6EDF3">                },</span></span>
+<span class="line"><span style="color:#E6EDF3">            );</span></span>
+<span class="line"><span style="color:#E6EDF3">        } </span><span style="color:#FF7B72">catch</span><span style="color:#E6EDF3"> (error) {</span></span>
+<span class="line"><span style="color:#E6EDF3">            log.</span><span style="color:#D2A8FF">error</span><span style="color:#E6EDF3">({ err: error }, </span><span style="color:#A5D6FF">"agent run failed"</span><span style="color:#E6EDF3">);</span></span>
+<span class="line"><span style="color:#FF7B72">            await</span><span style="color:#E6EDF3"> stream.</span><span style="color:#D2A8FF">writeSSE</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">                event: </span><span style="color:#A5D6FF">"error"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">                data: </span><span style="color:#79C0FF">JSON</span><span style="color:#E6EDF3">.</span><span style="color:#D2A8FF">stringify</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">                    type: </span><span style="color:#A5D6FF">"error"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">                    message: </span><span style="color:#A5D6FF">"Agent run failed"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">                }),</span></span>
+<span class="line"><span style="color:#E6EDF3">            });</span></span>
+<span class="line"><span style="color:#FF7B72">            return</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#E6EDF3">        }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">        await</span><span style="color:#E6EDF3"> deps.storage.</span><span style="color:#D2A8FF">createRun</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">            kind: </span><span style="color:#A5D6FF">"chat"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">            status: </span><span style="color:#A5D6FF">"succeeded"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">            input: { message: body.message },</span></span>
+<span class="line"><span style="color:#E6EDF3">            output: { text },</span></span>
+<span class="line"><span style="color:#E6EDF3">        });</span></span>
+<span class="line"><span style="color:#E6EDF3">    });</span></span>
+<span class="line"><span style="color:#E6EDF3">});</span></span></code></pre>
+<p>Trasa obecnie traktuje każdy generator kończący się normalnie tak samo. Zapisuje <code>status: "succeeded"</code> po każdym generatorze, który dociera do końca, także po takim, którego końcowe zdarzenie ma <code>stopReason: "max_steps"</code>. Oznacza to, że wynik graniczny jest zakończony, ale ucięty lub częściowy, a nie oznaczony jako wcześniej zapisany błąd. Kod produkcyjny powinien przeanalizować zdarzenie <code>done</code> i zastosować jawną politykę. Na przykład może używać osobnego statusu „ucięty” albo ścieżki przeglądu/ponowienia, zanim zgłosi sukces.</p>
+<p><code>zValidator</code> waliduje body i nadaje <code>c.req.valid("json")</code> typ wynikający ze schematu. Jeśli je pominiesz, body ma typ <code>any</code>, czyli wyłączenie kontroli w TypeScripcie, w którym każdy dostęp do właściwości się kompiluje i nic nie jest sprawdzane. Wyłącza to korzyść bezpieczeństwa typów zapewnianą przez schemat.</p>
+<p>Ta trasa używa Server-Sent Events zamiast WebSockets. Serwer utrzymuje otwartą odpowiedź HTTP, zapisując ramki <code>event: &#x3C;name></code> i <code>data: &#x3C;json></code>, a następnie zamyka ją po końcowym zdarzeniu. Ruch płynie od serwera do klienta, co pasuje do tego strumienia agenta. WebSocket dodałby komunikację dwukierunkową i upgrade protokołu, których ta trasa nie potrzebuje.</p>
+<p>Błąd w środku strumienia zmienia sposób raportowania błędów HTTP. Po wysłaniu pierwszej ramki ze statusem 200 serwer nie może zastąpić tej odpowiedzi statusem 500. Blok <code>catch</code> loguje przechwycony błąd, wysyła klientowi stałe zdarzenie błędu i kończy działanie. Ten return ma znaczenie: tylko poprawnie zakończony strumień dociera do <code>storage.createRun</code>. Generator emitujący <code>done</code>, w tym <code>max_steps</code>, jest normalnie zakończonym strumieniem i dociera do tego zapisu.</p>
+<p>Test obejmuje tę ścieżkę. Generator zwraca jeden delta tekstowy, a następnie rzuca wyjątek. Odpowiedź pozostaje 200, a jej ostatnią ramką jest zdarzenie <code>error</code> ze stałym komunikatem <code>Agent run failed</code>. Logger zachowuje przechwycony błąd na potrzeby diagnostyki po stronie serwera. Każdy klient, który sprawdza wyłącznie kod statusu, zgłosi sukces nieudanego uruchomienia.</p>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte mówi</p>
+<p>W ostatniej ramce SSE tego testu widzę błąd, mimo że status HTTP nadal wynosi 200.</p>
+</div></aside>
+<p><code>app.ts</code> podejmuje dwie mniejsze decyzje, które warto wyjaśnić. Traktuje <code>/healthz</code> jako endpoint liveness, więc ta trasa celowo nie dotyka Postgresa. Awaria liveness podczas niedostępności bazy mogłaby zrestartować każdą replikę bez naprawienia zależności. Dodaj osobny readiness check, gdy orkiestrator musi przestać kierować ruch do instancji, która nie może połączyć się z Postgressem. Ścieżki błędów logują przechwycony błąd, ale zwracają stały string. Wstawienie <code>error.message</code> do body odpowiedzi to sposób, w jaki connection stringi trafiają do cudzej przeglądarki.</p>
+<hr>
+<h2 id="część-przypominająca-celery-ale-bez-celery">Część przypominająca Celery, ale bez Celery</h2>
+<p>Długie zadania nie należą do handlera żądania. API wstawia wiersz i zwraca 202. Worker pobiera ten wiersz.</p>
+<p>Nie ma tu Redisa ani BullMQ. PostgreSQL dokumentuje <code>SKIP LOCKED</code> dla <a href="https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE">wielu konsumentów tabeli przypominającej kolejkę</a>. Klauzula daje temu niewielkiemu serwisowi kolejkę typu at-least-once w jednej tabeli. Jest transakcyjna względem pozostałych zapisów i oznacza o jedną usługę mniej w <code>docker-compose.yml</code>.</p>
+<p>Zapytanie pobierające wiersz w
+<a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/agent-core/src/db/storage.ts"><code>packages/agent-core/src/db/storage.ts</code></a>
+wygląda tak:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#E6EDF3"> [</span><span style="color:#79C0FF">candidate</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">=</span><span style="color:#FF7B72"> await</span><span style="color:#E6EDF3"> tx</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">select</span><span style="color:#E6EDF3">({ id: runs.id })</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">from</span><span style="color:#E6EDF3">(runs)</span></span>
+<span class="line"><span style="color:#8B949E">    // The real query also picks up rows whose lock went stale; trimmed here.</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">where</span><span style="color:#E6EDF3">(</span><span style="color:#D2A8FF">and</span><span style="color:#E6EDF3">(</span><span style="color:#D2A8FF">eq</span><span style="color:#E6EDF3">(runs.kind, kind), </span><span style="color:#D2A8FF">eq</span><span style="color:#E6EDF3">(runs.status, </span><span style="color:#A5D6FF">"queued"</span><span style="color:#E6EDF3">)))</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">orderBy</span><span style="color:#E6EDF3">(runs.createdAt)</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">limit</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#8B949E">    // `.for()` exists but is undocumented; SKIP LOCKED rides in its second</span></span>
+<span class="line"><span style="color:#8B949E">    // argument.</span></span>
+<span class="line"><span style="color:#E6EDF3">    .</span><span style="color:#D2A8FF">for</span><span style="color:#E6EDF3">(</span><span style="color:#A5D6FF">"update"</span><span style="color:#E6EDF3">, { skipLocked: </span><span style="color:#79C0FF">true</span><span style="color:#E6EDF3"> });</span></span></code></pre>
+<p>Wiersz jest blokowany na czas transakcji, a równoległy worker wykonujący to samo zapytanie pomija go zamiast czekać. Dwa jednoczesne pobrania nie otrzymają więc tego samego, nieprzestarzałego wiersza. Test integracyjny uruchamia dwa pobrania naraz przez <code>Promise.all</code> i sprawdza, że zwracają różne wiersze. Naiwna wersja, <code>SELECT ... LIMIT 1</code>, a następnie <code>UPDATE</code>, nie przechodzi testu: obie transakcje odczytują ten sam wiersz, zanim którakolwiek z nich zapisze zmianę, więc obie uruchamiają to samo zadanie.</p>
+<p>To wykonanie typu at-least-once: zadanie może uruchomić się więcej niż raz. Pełne zapytanie ponownie przejmuje także wiersz w stanie <code>running</code>, gdy jego blokada trwa ponad pięć minut, a demonstracyjny worker nie odnawia tego lease’u. Aktywne zadanie działające dłużej niż pięć minut może więc zostać pobrane dwa razy. Zadania muszą być idempotentne. W przypadku długich prac dodaj heartbeat lease’u albo ustaw próg nieaktualnej blokady powyżej maksymalnego czasu działania.</p>
+<p><a href="https://github.com/taskforcesh/bullmq">Dodaj BullMQ</a>, gdy potrzebujesz opóźnionych zadań, harmonogramów cyklicznych, priorytetów, limitów szybkości lub dashboardu. Odpowiednikiem w Pythonie jest przejście z tabeli w bazie do Celery. Wcześniej Redis jest kolejną usługą do uruchomienia i monitorowania.</p>
+<p>Worker ponownie waliduje dane odczytane z <code>jsonb</code>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#8B949E">// The row was validated on the way in, but it has been through a database.</span></span>
+<span class="line"><span style="color:#8B949E">// A stored row can outlive the schema version that accepted it.</span></span>
+<span class="line"><span style="color:#8B949E">// The job is a batch-size sweep. Zod's own `.parse` throws; the poll loop</span></span>
+<span class="line"><span style="color:#8B949E">// catches that and marks the run failed.</span></span>
+<span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> input</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> SweepRequestSchema.</span><span style="color:#D2A8FF">parse</span><span style="color:#E6EDF3">(run.input);</span></span></code></pre>
+<p>Zestaw testów przekazuje workerowi także wiersz, którego <code>seqLen</code> jest stringiem. Worker kończy uruchomienie błędem i nadal odpytuje kolejkę, zamiast się wywrócić i wiecznie ponawiać tę samą zatrutą wiadomość.</p>
+<p>Praca CPU ujawnia kolejne ograniczenie Node. Synchroniczny callback wykonuje się w wątku event loop i nie jest wywłaszczany. Pętla <code>for</code> wykonująca arytmetykę przez dwie sekundy blokuje każde żądanie, timer i check liveness tego procesu przez dwie sekundy. Ścisła pętla wewnątrz <code>async def</code> blokuje asyncio w taki sam sposób. Oba środowiska wymagają jawnego oddelegowania pracy CPU.</p>
+<p><code>await setTimeout(0)</code> z <code>node:timers/promises</code> (prefiks <code>node:</code> oznacza standardową bibliotekę, więc <code>node:timers</code> jest dla Node tym, czym <code>os</code> dla Pythona) to <code>await asyncio.sleep(0)</code>. Przegląd ustępuje po każdym rozmiarze batcha, aby proces workera mógł obsługiwać timery i inne callbacki. Ustąpienie nie sprawia, że praca CPU staje się równoległa. Node <a href="https://nodejs.org/api/worker_threads.html"><code>worker_threads</code></a> może wykonywać JavaScript równolegle. W przypadku czystej pracy CPU w Pythonie, przy typowej kompilacji CPython z włączonym GIL, używaj puli procesów zamiast puli wątków. Ten serwis nie używa żadnej z nich. Ciężkie obliczenia numeryczne pozostaw w Pythonie, gdzie potrzebne biblioteki już istnieją, i przenieś je poza event loop API.</p>
+<hr>
+<h2 id="jedno-narzędzie-trzech-konsumentów">Jedno narzędzie, trzech konsumentów</h2>
+<p><code>EstimateKvCacheInput</code> ma trzech konsumentów:</p>
+<ul>
+<li>Ręcznie napisana pętla konwertuje je za pomocą <code>z.toJSONSchema</code>.</li>
+<li>AI SDK otrzymuje je bez zmian.</li>
+<li>Serwer MCP publikuje jego kształt.</li>
+</ul>
+<p>Dlatego istnieje <code>packages/schemas</code>.</p>
+<p>Z <a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/apps/mcp/src/index.ts"><code>apps/mcp/src/index.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#E6EDF3">server.</span><span style="color:#D2A8FF">registerTool</span><span style="color:#E6EDF3">(</span></span>
+<span class="line"><span style="color:#A5D6FF">    "estimate_kv_cache"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">    {</span></span>
+<span class="line"><span style="color:#E6EDF3">        description: </span><span style="color:#A5D6FF">"Estimate KV-cache VRAM in GiB for a served model..."</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#8B949E">        // A Zod object schema keeps the map of fields you passed in on</span></span>
+<span class="line"><span style="color:#8B949E">        // `.shape`. This SDK wants that map, not the schema wrapped around it.</span></span>
+<span class="line"><span style="color:#E6EDF3">        inputSchema: EstimateKvCacheInput.shape,</span></span>
+<span class="line"><span style="color:#E6EDF3">    },</span></span>
+<span class="line"><span style="color:#FF7B72">    async</span><span style="color:#E6EDF3"> ({ </span><span style="color:#FFA657">model</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">seqLen</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">batchSize</span><span style="color:#E6EDF3"> }) </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#8B949E">        /* ... */</span></span>
+<span class="line"><span style="color:#E6EDF3">    },</span></span>
+<span class="line"><span style="color:#E6EDF3">);</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">await</span><span style="color:#E6EDF3"> server.</span><span style="color:#D2A8FF">connect</span><span style="color:#E6EDF3">(</span><span style="color:#FF7B72">new</span><span style="color:#D2A8FF"> StdioServerTransport</span><span style="color:#E6EDF3">());</span></span></code></pre>
+<p>Przed podłączeniem klienta ważne są dwa szczegóły. Po pierwsze, <strong>serwer uruchomiony w ten sposób używa własnego stdin i stdout do komunikacji z klientem.</strong> Każdy wiersz jest <a href="https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#stdio">wiadomością JSON-RPC</a>. Pojedynczy <code>console.log</code>, odpowiednik pythonowego <code>print</code>, uszkodzi wtedy wiadomość. Klient rozłączy się z błędem parsowania, który nie wskaże żadnego pliku. Wszystkie komunikaty diagnostyczne wysyłaj na stderr.</p>
+<p>Po drugie, błąd domenowy powinien zwracać <code>isError: true</code> z komunikatem. Wywołujący model może wtedy skorygować wywołanie, podobnie jak po niepoprawnych argumentach narzędzia w pętli agenta.</p>
+<p>Możesz sterować serwerem za pomocą <code>printf</code> i potoku, co warto zrobić raz przed skierowaniem na niego prawdziwego klienta:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#79C0FF">printf</span><span style="color:#A5D6FF"> '%s\n'</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#A5D6FF">  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}'</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#A5D6FF">  '{"jsonrpc":"2.0","method":"notifications/initialized"}'</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#A5D6FF">  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"estimate_kv_cache","arguments":{"model":"llama-3.1-70b","seqLen":8192,"batchSize":4}}}'</span><span style="color:#FF7B72"> \</span></span>
+<span class="line"><span style="color:#FF7B72">  |</span><span style="color:#FFA657"> pnpm</span><span style="color:#79C0FF"> -s</span><span style="color:#A5D6FF"> mcp</span><span style="color:#8B949E">   # -s suppresses pnpm's own output so only JSON-RPC comes back</span></span></code></pre>
+<p>Probe odpowiada wersji protokołu używanej w README dołączonego przykładu. W przypadku prawdziwego klienta użyj SDK zamiast ręcznie utrzymywać wiadomości JSON-RPC.</p>
+<hr>
+<h2 id="testowanie-agenta-bez-klucza-api">Testowanie agenta bez klucza API</h2>
+<p>Vitest pełni rolę podobną do pytest, ale struktura jest inna. <code>describe</code> grupuje powiązane testy. <code>it</code> i <code>test</code> definiują po jednym przypadku testowym. <code>test.each</code> jest zbliżone do <code>parametrize</code>, <code>beforeEach</code> udostępnia konfigurację per test, <code>vi.fn()</code> tworzy funkcję mockującą, a <code>describe.skipIf</code> warunkowo pomija grupę.</p>
+<p>Testy agenta zależą od jednej decyzji: <code>runAgent</code> przyjmuje klienta OpenAI jako parametr zamiast go konstruować. Fake jest obiektem z metodą <code>chat.completions.create</code> zwracającą asynchroniczny iterable sterowany skryptem:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">function</span><span style="color:#D2A8FF"> fakeClient</span><span style="color:#E6EDF3">(</span><span style="color:#FFA657">scripts</span><span style="color:#FF7B72">:</span><span style="color:#FFA657"> Chunk</span><span style="color:#E6EDF3">[][])</span><span style="color:#FF7B72">:</span><span style="color:#FFA657"> OpenAI</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">    let</span><span style="color:#E6EDF3"> call </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> 0</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#E6EDF3">        chat: {</span></span>
+<span class="line"><span style="color:#E6EDF3">            completions: {</span></span>
+<span class="line"><span style="color:#D2A8FF">                create</span><span style="color:#E6EDF3">: </span><span style="color:#FF7B72">async</span><span style="color:#E6EDF3"> () </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">                    const</span><span style="color:#79C0FF"> script</span><span style="color:#FF7B72"> =</span><span style="color:#E6EDF3"> scripts[call</span><span style="color:#FF7B72">++</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">??</span><span style="color:#E6EDF3"> [];</span></span>
+<span class="line"><span style="color:#8B949E">                    // Defines an async generator and calls it on the same</span></span>
+<span class="line"><span style="color:#8B949E">                    // line, so `create` hands back something you can</span></span>
+<span class="line"><span style="color:#8B949E">                    // `for await` over, which is the shape a real streaming</span></span>
+<span class="line"><span style="color:#8B949E">                    // response has.</span></span>
+<span class="line"><span style="color:#FF7B72">                    return</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">async</span><span style="color:#FF7B72"> function*</span><span style="color:#E6EDF3"> () {</span></span>
+<span class="line"><span style="color:#FF7B72">                        for</span><span style="color:#E6EDF3"> (</span><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> chunk</span><span style="color:#FF7B72"> of</span><span style="color:#E6EDF3"> script) </span><span style="color:#FF7B72">yield</span><span style="color:#E6EDF3"> chunk;</span></span>
+<span class="line"><span style="color:#E6EDF3">                    })();</span></span>
+<span class="line"><span style="color:#E6EDF3">                },</span></span>
+<span class="line"><span style="color:#E6EDF3">            },</span></span>
+<span class="line"><span style="color:#E6EDF3">        },</span></span>
+<span class="line"><span style="color:#8B949E">        // TypeScript refuses a direct cast between unrelated shapes, so you</span></span>
+<span class="line"><span style="color:#8B949E">        // launder it through `unknown` first. A lie to the compiler, confined</span></span>
+<span class="line"><span style="color:#8B949E">        // to one line in a test file, which is the only place it belongs.</span></span>
+<span class="line"><span style="color:#E6EDF3">    } </span><span style="color:#FF7B72">as</span><span style="color:#79C0FF"> unknown</span><span style="color:#FF7B72"> as</span><span style="color:#FFA657"> OpenAI</span><span style="color:#E6EDF3">;</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span></code></pre>
+<p>Testy dzielą jeden string argumentu JSON na fragmenty i obsługują dwa wywołania narzędzi w jednej odpowiedzi. Obejmują także niepoprawne <code>batchSize</code>, uszkodzony JSON, nieznane nazwy narzędzi oraz model, który nadal wywołuje narzędzia, dopóki <code>maxSteps</code> go nie zatrzyma. Plik testowy wykonuje się znacznie poniżej sekundy, bez sieci i klucza.</p>
+<p>Testy integracyjne z Postgressem używają <code>describe.skipIf(!process.env.DATABASE_URL)</code>, więc <code>pnpm test</code> działa na świeżo sklonowanym repozytorium bez uruchomionego Postgresa, a CI włącza je przez dostarczenie zmiennej. Repozytorium ma 40 testów. Trzydzieści sześć działa bez Postgresa i klucza API.</p>
+<hr>
+<h2 id="logowanie-ustrukturyzowanych-zdarzeń-za-pomocą-pino">Logowanie ustrukturyzowanych zdarzeń za pomocą Pino</h2>
+<p>Pino pełni tę samą rolę co <code>structlog</code>: jeden obiekt JSON na wiersz, loggeri potomne z przypisanymi polami oraz jawna redakcja. Dołączony przykład konfiguruje je w <a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/observability/src/logger.ts"><code>packages/observability/src/logger.ts</code></a>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">const</span><span style="color:#79C0FF"> log</span><span style="color:#FF7B72"> =</span><span style="color:#D2A8FF"> pino</span><span style="color:#E6EDF3">({</span></span>
+<span class="line"><span style="color:#E6EDF3">    redact: {</span></span>
+<span class="line"><span style="color:#E6EDF3">        paths: [</span></span>
+<span class="line"><span style="color:#A5D6FF">            "req.headers.authorization"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#A5D6FF">            "apiKey"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#A5D6FF">            "OPENAI_API_KEY"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#A5D6FF">            "*.apiKey"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">        ],</span></span>
+<span class="line"><span style="color:#E6EDF3">        censor: </span><span style="color:#A5D6FF">"[redacted]"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">    },</span></span>
+<span class="line"><span style="color:#E6EDF3">});</span></span></code></pre>
+<p>Bez redakcji <code>log.info({ req }, "...")</code> może skopiować nagłówek Authorization do backendu logów.</p>
+<hr>
+<h2 id="śledzenie-pracy-aplikacji-za-pomocą-ręcznych-spanów">Śledzenie pracy aplikacji za pomocą ręcznych spanów</h2>
+<p>Dołączony przykład używa OpenTelemetry dla trzech spanów na poziomie aplikacji: <code>agent.run</code>, <code>agent.tool</code> i <code>worker.sweep</code>. Nie instaluje automatycznej instrumentacji HTTP ani Postgresa. <code>startTracing()</code> w <a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/packages/observability/src/tracing.ts"><code>packages/observability/src/tracing.ts</code></a> tworzy <code>NodeSDK</code> z eksporterem śladów OTLP. Jeśli brakuje <code>OTEL_EXPORTER_OTLP_ENDPOINT</code>, śledzenie pozostaje wyłączone.</p>
+<p>Sama praca jest opakowana przez <code>withSpan()</code> z tego samego pliku:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="ts"><code><span class="line"><span style="color:#FF7B72">return</span><span style="color:#E6EDF3"> tracer.</span><span style="color:#D2A8FF">startActiveSpan</span><span style="color:#E6EDF3">(name, { attributes }, </span><span style="color:#FF7B72">async</span><span style="color:#E6EDF3"> (</span><span style="color:#FFA657">span</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">=></span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">    try</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#FF7B72">        return</span><span style="color:#FF7B72"> await</span><span style="color:#D2A8FF"> fn</span><span style="color:#E6EDF3">(span);</span></span>
+<span class="line"><span style="color:#E6EDF3">    } </span><span style="color:#FF7B72">finally</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#E6EDF3">        span.</span><span style="color:#D2A8FF">end</span><span style="color:#E6EDF3">();</span></span>
+<span class="line"><span style="color:#E6EDF3">    }</span></span>
+<span class="line"><span style="color:#E6EDF3">});</span></span></code></pre>
+<p>JavaScript nie ma składni context managera w stylu Pythona. Tutaj callback jest blokiem, który w Pythonie zostałby objęty przez context manager. Pełny helper rejestruje także wyjątki i ustawia status spana przed ponownym rzuceniem wyjątku.</p>
+<p>Automatyczne spany HTTP i bazy danych to osobna funkcja. Wymagają odpowiednich pakietów instrumentacji oraz inicjalizacji przed załadowaniem instrumentowanych modułów. Dodaj je tylko wtedy, gdy te spany są przydatne, a następnie zastosuj się do <a href="https://github.com/open-telemetry/opentelemetry-js/blob/main/experimental/packages/opentelemetry-sdk-node/README.md">konfiguracji OpenTelemetry Node SDK</a> dla dokładnych wersji pakietów wdrażanych w produkcji.</p>
+<hr>
+<h2 id="dostarczanie-monorepo-w-dockerze">Dostarczanie monorepo w Dockerze</h2>
+<p>Użyj dostarczonego
+<a href="https://github.com/slavadubrov/typescript-agent-service/blob/main/Dockerfile"><code>Dockerfile</code></a>.
+Kontener uruchamia API za pomocą loadera <code>tsx</code>. Przy wdrażaniu nie musisz wybierać ani wywoływać runnera TypeScript.</p>
+<p>Build używa <code>pnpm fetch</code>, aby pobieranie zależności pozostawało w cache do czasu zmiany lockfile. Następnie używa <code>pnpm deploy</code> do skopiowania API i jego zależności produkcyjnych do samowystarczalnego katalogu. Etap runtime działa jako użytkownik non-root <code>node</code>, a jego zapisany w formie exec <code>CMD</code> pozwala API bezpośrednio odbierać <code>SIGTERM</code> w celu kontrolowanego zamknięcia.</p>
+<details>
+<summary>Dlaczego Dockerfile ładuje tsx</summary>
+<p>Node 24 może uruchamiać ograniczony podzbiór TypeScriptu przez usuwanie adnotacji typów. Nie sprawdza jednak typów ani nie wykonuje transformacji obsługiwanych przez pełny runner TypeScriptu. Skrypty pakietu repozytorium ukrywają ten szczegół. <code>pnpm check</code> wykonuje osobne sprawdzanie statyczne.</p>
+<p>Kontener ujawnia kolejne ograniczenie. <code>pnpm deploy</code> kopiuje pakiety workspace’u pod <code>node_modules</code>, a Node celowo odmawia usuwania TypeScriptu w tym miejscu (<a href="https://nodejs.org/api/typescript.html">dokumentacja TypeScriptu w Node</a>). Pierwsza wersja obrazu kończyła się błędem <code>ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING</code>. Błąd występuje przed uruchomieniem API.</p>
+<p>Dockerfile rozwiązuje problem przez ładowanie <code>tsx</code>, które obsługuje te pliki <code>.ts</code>, zanim Node je wykona. Zespół, który chce mieć w obrazie runtime wyłącznie pliki <code>.js</code>, może zamiast tego dodać etap kompilacji. To alternatywny projekt produkcyjny, a nie dodatkowy krok wymagany do uruchomienia tego przykładu.</p>
+</details>
+<hr>
+<h2 id="plan-na-trzy-tygodnie">Plan na trzy tygodnie</h2>
+<p>Doświadczeni inżynierowie Pythona mogą pominąć materiał uczący zmiennych i pętli. Ta sekwencja koncentruje się na elementach różniących się od Pythona. Kolumna „Buduj” wskazuje cel każdego wiersza. Lektury zapewniają wsparcie.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Tydzień</th><th>Czytaj</th><th>Buduj</th></tr></thead><tbody><tr><td>1</td><td><a href="https://javascript.info">javascript.info</a>: tylko moduły, promises i obiekty. Miej pod ręką <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide">MDN JS Guide</a> jako referencję.</td><td>Przepisz jedno pythonowe CLI na TypeScript. Dodaj skrypt <code>package.json</code>. Uruchom skrypt i <code>pnpm typecheck</code>.</td></tr><tr><td>1–2</td><td>Przeczytaj <a href="https://www.typescriptlang.org/tsconfig">referencję tsconfigu TypeScriptu</a>, bezpłatne tutoriale <a href="https://www.totaltypescript.com">Total TypeScript</a> oraz <a href="https://zod.dev">dokumentację Zod</a>.</td><td>Zbuduj moduł konfiguracji walidowany przez Zod oraz jedną tagged union. Po sprawdzeniu taga kompilator wie, który wariant zawiera blok.</td></tr><tr><td>2</td><td>Przeczytaj dokumentację <a href="https://hono.dev">Hono</a>, <a href="https://orm.drizzle.team">Drizzle</a>, <a href="https://vitest.dev">Vitest</a> i <a href="https://biomejs.dev">Biome</a>.</td><td>Zbuduj strumieniowy proxy do endpointu kompatybilnego z OpenAI, z logiem opartym na Drizzle.</td></tr><tr><td>3</td><td>Przeczytaj dokumentację <a href="https://ai-sdk.dev">AI SDK</a> i <a href="https://github.com/modelcontextprotocol/typescript-sdk">MCP TypeScript SDK</a>.</td><td>Zbuduj agenta korzystającego z narzędzi. Następnie zbuduj serwer MCP udostępniający jedno z jego narzędzi.</td></tr></tbody></table>
+<p>Zacznij od bezpłatnych tutoriali Total TypeScript. Zaawansowane materiały opłacaj dopiero wtedy, gdy pracujesz z generykami i typami warunkowymi na poziomie bibliotek. Pomiń każdy kurs „wprowadzenie do JavaScriptu” oraz wszystko o kształcie Reacta, chyba że wymaga tego produkt.</p>
+<p>Przegląd konwencji produkcyjnych znajdziesz w
+<a href="https://github.com/goldbergyoni/nodebestpractices">goldbergyoni/nodebestpractices</a> — to szeroka, utrzymywana przez społeczność checklista. Porady wpływające na zachowanie runtime’u lub bezpieczeństwo weryfikuj w aktualnej dokumentacji Node.</p>
+<hr>
+<h2 id="kompromisy">Kompromisy</h2>
+<h3 id="obliczenia-numeryczne-pozostaw-w-pythonie">Obliczenia numeryczne pozostaw w Pythonie</h3>
+<p>Node dobrze sprawdza się w orkiestracji, obsłudze HTTP i strumieniowaniu. Długotrwałe obliczenia obciążające CPU blokują główny wątek event loop. Pozostaw vLLM i kod treningowy w Pythonie, chyba że pomiary uzasadniają przeniesienie ich gdzie indziej.</p>
+<h3 id="waliduj-każdą-zewnętrzną-wartość-w-runtime">Waliduj każdą zewnętrzną wartość w runtime</h3>
+<p>Adnotacja TypeScriptu nie sprawdza body HTTP, zmiennej środowiskowej, wygenerowanego przez model argumentu narzędzia ani wiersza odczytanego z <code>jsonb</code>. Każdą z tych wartości waliduj za pomocą schematu runtime.</p>
+<h3 id="izoluj-zmiany-sdk">Izoluj zmiany SDK</h3>
+<p>AI SDK 6 zastąpiło <code>Experimental_Agent</code> przez <code>ToolLoopAgent</code> i zmieniło nazwę ustawienia agenta z <code>system</code> na <code>instructions</code> (<a href="https://ai-sdk.dev/docs/migration-guides/migration-guide-6-0">przewodnik migracji AI SDK 6</a>). Dołączony przykład wywołuje <code>streamText</code> bezpośrednio w AI SDK 7 i udostępnia własny strumień <code>AgentEvent</code>. Ten interfejs utrzymuje trasę HTTP bez zmian przy modyfikacjach kodu SDK.</p>
+<h3 id="pomiń-ręcznie-napisaną-pętlę-jeśli-ważniejszy-jest-termin">Pomiń ręcznie napisaną pętlę, jeśli ważniejszy jest termin</h3>
+<p>Jednorazowe napisanie pętli uczy, jakie zachowanie przejmuje SDK. Jeśli musisz najpierw dostarczyć działające rozwiązanie i nie masz powodu dostosowywać błędów walidacji, zacznij od SDK.</p>
+<hr>
+<h2 id="zanim-dostosujesz-serwis">Zanim dostosujesz serwis</h2>
+<p>Testy offline ćwiczą przepływ sterowania serwisu za pomocą sterowanych skryptem odpowiedzi modelu. Nie pokazują, jak niezawodnie działający model będzie realizował twoje zadania. Pamiętaj o tym rozróżnieniu, gdy zastąpisz narzędzia demonstracyjne prawdziwymi.</p>
+<p>Najpierw ustal politykę ukończenia. Trasa obecnie zapisuje <code>succeeded</code> nawet wtedy, gdy pętla zatrzymuje się na <code>max_steps</code>. Zdecyduj, czy aplikacja powinna zaakceptować, ponowić lub skierować do przeglądu taki wynik, a następnie testuj zdarzenie i zapisany status razem. W przypadku zadań mogących trwać ponad pięć minut zajmij się zachowaniem związanym z nieaktualną blokadą workera, zanim dodasz efekty uboczne.</p>
+<p>Gdy te zachowania będą jawne, użyj prawdziwych nieudanych uruchomień do zbudowania osobnego <a href="/pl/blog/2026/06/10/agent-evals-traces-to-test-suites/">zestawu ewaluacyjnego agenta</a>. To tam należy testować wykonanie zadań; zestaw offline pozostaje szybszym sprawdzeniem uszkodzonego strumieniowania, walidacji i zapisu danych.</p>
+<hr>
+<h2 id="materiały-referencyjne">Materiały referencyjne</h2>
+<p><strong>Repozytorium demonstracyjne</strong></p>
+<ul>
+<li><a href="https://github.com/slavadubrov/typescript-agent-service">slavadubrov/typescript-agent-service</a> — monorepo używane w całym artykule: API Hono z SSE, dwie implementacje pętli agenta, storage Drizzle, worker, serwer MCP i 40 testów</li>
+</ul>
+<p><strong>Runtime i język</strong></p>
+<ul>
+<li><a href="https://nodejs.org/api/typescript.html">Uruchamianie TypeScriptu natywnie w Node.js</a> — ograniczone wsparcie TypeScriptu w Node oraz ograniczenie <code>node_modules</code></li>
+<li><a href="https://www.typescriptlang.org/tsconfig">Opcje kompilatora TypeScriptu</a> — <code>strict</code> i pozostałe kontrole skonfigurowane w dołączonym przykładzie</li>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide">MDN JavaScript Guide</a> — referencja języka, którą warto mieć otwartą</li>
+<li><a href="https://javascript.info">javascript.info</a> — nowoczesny tutorial JavaScriptu. Przeczytaj rozdziały o modułach i promises.</li>
+</ul>
+<p><strong>Narzędzia</strong></p>
+<ul>
+<li><a href="https://pnpm.io">pnpm</a> i <a href="https://pnpm.io/installation">instalacja pnpm</a> — menedżer pakietów, workspace’y i konfiguracja</li>
+<li><a href="https://biomejs.dev">Biome</a> — lint, formatowanie i sortowanie importów w jednym narzędziu binarnym</li>
+<li><a href="https://vitest.dev">Vitest</a> — runner testów niewymagający konfiguracji transformacji</li>
+<li><a href="https://www.totaltypescript.com">Total TypeScript</a> — bezpłatne tutoriale oraz płatna ścieżka dotycząca zaawansowanych typów</li>
+</ul>
+<p><strong>Biblioteki</strong></p>
+<ul>
+<li><a href="https://zod.dev">Zod</a> — walidacja schematów i inferencja typów. Wersja 4 zawiera <code>z.toJSONSchema</code>.</li>
+<li><a href="https://hono.dev">Hono</a> — framework HTTP zgodny ze standardami Web</li>
+<li><a href="https://orm.drizzle.team">Drizzle ORM</a> — ORM TypeScript oparty na SQL, z migracjami <code>drizzle-kit</code></li>
+<li><a href="https://www.postgresql.org/docs/current/sql-select.html">Dokumentacja PostgreSQL SELECT</a> — klauzula blokowania <code>FOR UPDATE ... SKIP LOCKED</code></li>
+<li><a href="https://github.com/taskforcesh/bullmq">BullMQ</a> — kolejka oparta na Redisie, gdy tabela w bazie przestaje wystarczać</li>
+</ul>
+<p><strong>AI i agenci</strong></p>
+<ul>
+<li><a href="https://ai-sdk.dev">Vercel AI SDK</a> — <code>streamText</code>, <code>tool</code>, <code>stopWhen</code> i adaptery providerów</li>
+<li><a href="https://github.com/openai/openai-node">openai/openai-node</a> — oficjalny klient TypeScript</li>
+<li><a href="https://github.com/modelcontextprotocol/typescript-sdk">MCP TypeScript SDK</a> i <a href="https://modelcontextprotocol.io">specyfikacja MCP</a> — budowanie serwerów i klientów</li>
+</ul>
+<p><strong>Konwencje</strong></p>
+<ul>
+<li><a href="https://github.com/goldbergyoni/nodebestpractices">goldbergyoni/nodebestpractices</a> — utrzymywana przez społeczność checklista konwencji produkcyjnych</li>
+</ul>  </article> </div> </main> <footer class="site-footer"> <p> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="28" height="26" alt="" aria-hidden="true" loading="lazy" decoding="async"> <span data-footer-tagline>Systemy AI w środowisku produkcyjnym, ewaluacja, bezpieczeństwo i doskonalenie na podstawie wyników.</span> </p> <nav class="footer-locales" aria-label="Język"> <a href="/blog/2026/08/15/typescript-for-python-ml-engineers/" hreflang="en" lang="en">English</a><a href="/de/blog/2026/08/15/typescript-for-python-ml-engineers/" hreflang="de" lang="de">Deutsch</a><a href="/ru/blog/2026/08/15/typescript-for-python-ml-engineers/" hreflang="ru" lang="ru">Русский</a><a href="/es/blog/2026/08/15/typescript-for-python-ml-engineers/" hreflang="es" lang="es">Español</a><a href="/pt/blog/2026/08/15/typescript-for-python-ml-engineers/" hreflang="pt" lang="pt">Português</a><a href="/fr/blog/2026/08/15/typescript-for-python-ml-engineers/" hreflang="fr" lang="fr">Français</a><a href="/nl/blog/2026/08/15/typescript-for-python-ml-engineers/" hreflang="nl" lang="nl">Nederlands</a> </nav> <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>(function(){const copyLabel = "Kopiuj";
+const copiedLabel = "Skopiowano";
+
+      document.querySelector(".theme-toggle")?.addEventListener("click", () => {
+        const root = document.documentElement;
+        const next = root.dataset.themeEffective === "dark" ? "light" : "dark";
+        root.dataset.theme = next;
+        root.dataset.themeEffective = next;
+        localStorage.setItem("theme", next);
+      });
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (event) => {
+        if (localStorage.getItem("theme")) return;
+        document.documentElement.dataset.themeEffective = event.matches ? "dark" : "light";
+      });
+      document.querySelector("#locale-select")?.addEventListener("change", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLSelectElement && target.value) location.assign(target.value);
+      });
+      document.querySelectorAll("pre").forEach((pre) => {
+        if (pre.closest(".mermaid-diagram")) return;
+        const code = pre.textContent || "";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-code";
+        button.textContent = copyLabel;
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(code);
+          button.textContent = copiedLabel;
+          setTimeout(() => { button.textContent = copyLabel; }, 1500);
+        });
+        pre.append(button);
+      });
+    })();</script> </body> </html>

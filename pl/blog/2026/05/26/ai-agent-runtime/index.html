@@ -1,0 +1,611 @@
+<!DOCTYPE html><html lang="pl"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><script>
+      (() => {
+        const stored = localStorage.getItem("theme");
+        const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const effective = stored === "light" || stored === "dark" ? stored : systemDark ? "dark" : "light";
+        document.documentElement.dataset.themeEffective = effective;
+        if (stored === "light" || stored === "dark") document.documentElement.dataset.theme = stored;
+      })();
+    </script><script async src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5"></script><script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        window.dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", "G-T51K83ENZ5");
+    </script><title>Runtime długotrwałych agentów AI: sesje i checkpointy</title><meta name="description" content="Jak uruchamiać długotrwałych agentów AI na produkcji, korzystając z sesji, harnessów, sandboxów, checkpointów, trace’ów i wzorców wdrażania, które poprawnie odzyskują działanie po awarii."><link rel="canonical" href="https://slavadubrov.com/pl/blog/2026/05/26/ai-agent-runtime/"><link rel="alternate" hreflang="de" href="https://slavadubrov.com/de/blog/2026/05/26/ai-agent-runtime/"><link rel="alternate" hreflang="en" href="https://slavadubrov.com/blog/2026/05/26/ai-agent-runtime/"><link rel="alternate" hreflang="es" href="https://slavadubrov.com/es/blog/2026/05/26/ai-agent-runtime/"><link rel="alternate" hreflang="fr" href="https://slavadubrov.com/fr/blog/2026/05/26/ai-agent-runtime/"><link rel="alternate" hreflang="nl" href="https://slavadubrov.com/nl/blog/2026/05/26/ai-agent-runtime/"><link rel="alternate" hreflang="pl" href="https://slavadubrov.com/pl/blog/2026/05/26/ai-agent-runtime/"><link rel="alternate" hreflang="pt" href="https://slavadubrov.com/pt/blog/2026/05/26/ai-agent-runtime/"><link rel="alternate" hreflang="ru" href="https://slavadubrov.com/ru/blog/2026/05/26/ai-agent-runtime/"><link rel="alternate" hreflang="x-default" href="https://slavadubrov.com/blog/2026/05/26/ai-agent-runtime/"><meta property="og:type" content="article"><meta property="og:title" content="Runtime długotrwałych agentów AI: sesje i checkpointy"><meta property="og:description" content="Jak uruchamiać długotrwałych agentów AI na produkcji, korzystając z sesji, harnessów, sandboxów, checkpointów, trace’ów i wzorców wdrażania, które poprawnie odzyskują działanie po awarii."><meta property="og:url" content="https://slavadubrov.com/pl/blog/2026/05/26/ai-agent-runtime/"><meta property="og:image" content="https://slavadubrov.com/assets/og-image.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:type" content="image/png"><meta property="og:image:alt" content="Edge of Context — Praktyczna inżynieria AI"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Runtime długotrwałych agentów AI: sesje i checkpointy"><meta name="twitter:description" content="Jak uruchamiać długotrwałych agentów AI na produkcji, korzystając z sesji, harnessów, sandboxów, checkpointów, trace’ów i wzorców wdrażania, które poprawnie odzyskują działanie po awarii."><meta name="twitter:image" content="https://slavadubrov.com/assets/og-image.png"><meta name="twitter:image:alt" content="Edge of Context — Praktyczna inżynieria AI"><meta property="article:published_time" content="2026-05-26"><meta property="article:modified_time" content="2026-09-06"><link rel="icon" href="/assets/favicon-eoc.svg" type="image/svg+xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"><link href="/pagefind/pagefind-component-ui.css" rel="stylesheet"><script src="/pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Runtime długotrwałych agentów AI: sesje i checkpointy","description":"Jak uruchamiać długotrwałych agentów AI na produkcji, korzystając z sesji, harnessów, sandboxów, checkpointów, trace’ów i wzorców wdrażania, które poprawnie odzyskują działanie po awarii.","url":"https://slavadubrov.com/pl/blog/2026/05/26/ai-agent-runtime/","image":"https://slavadubrov.com/assets/og-image.png","datePublished":"2026-05-26","dateModified":"2026-09-06","author":{"@type":"Person","name":"Viacheslav Dubrov","url":"https://slavadubrov.com/pl/about/"}}</script><link rel="stylesheet" href="/_astro/BaseLayout.DWWCKfJJ.css"></head> <body> <a class="skip-link" href="#main-content">Przejdź do treści</a> <header class="site-header"> <a class="brand" data-home-link href="/pl/" aria-label="Strona główna Slavy Dubrova"> <svg class="brand-mark" viewBox="0 0 64 64" width="36" height="36" aria-hidden="true" focusable="false" data-astro-cid-77qc4tpx> <rect class="brand-mark__frame" x="8.5" y="8.5" width="47" height="47" rx="11" stroke-width="5" data-astro-cid-77qc4tpx></rect> <line class="brand-mark__edge" x1="42" y1="8.5" x2="42" y2="55.5" stroke-width="5" data-astro-cid-77qc4tpx></line> <g class="brand-mark__token" data-astro-cid-77qc4tpx> <circle cx="16.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="16.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="16.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> </g> </svg> <span class="brand-lockup"> <span class="brand-primary">Slava Dubrov</span> <span class="brand-publication">Edge of Context</span> </span> </a> <nav aria-label="Nawigacja główna"> <ul> <li> <a data-nav="work" href="/pl/work/">Projekty</a> </li><li> <a data-nav="labs" href="/pl/labs/">Laboratorium</a> </li><li> <a data-nav="blog" href="/pl/blog/" aria-current="page">Blog</a> </li><li> <a data-nav="about" href="/pl/about/">O mnie</a> </li> </ul> </nav> <div class="header-actions"> <nav class="header-social" aria-label="Profile społecznościowe"> <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" title="LinkedIn"> <svg class="social-icon" data-social-icon="fontawesome-brands-linkedin" viewBox="0 0 448 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3C448 46.5 433.6 32 416 32zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"></path></svg> </a><a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener noreferrer" aria-label="Substack" title="Substack"> <svg class="social-icon" data-social-icon="simple-substack" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"></path></svg> </a><a href="https://www.tiktok.com/@edge.of.context" target="_blank" rel="noopener noreferrer" aria-label="TikTok" title="TikTok"> <svg class="social-icon" data-social-icon="fontawesome-brands-tiktok" viewBox="0 0 448 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M448 209.9a210.1 210.1 0 0 1-122.8-39.2v178.7A162.6 162.6 0 1 1 185 188.3v89.9a74.6 74.6 0 1 0 52.2 71.2V0h88a121.2 121.2 0 0 0 1.9 22.2 122.2 122.2 0 0 0 53.9 80.2 121.4 121.4 0 0 0 67 20.1v87.4z"></path></svg> </a><a href="https://github.com/slavadubrov" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub"> <svg class="social-icon" data-social-icon="fontawesome-brands-github" viewBox="0 0 496 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"></path></svg> </a><a href="/feed_rss_created.xml" target="_blank" rel="noopener noreferrer" aria-label="Kanał RSS" title="Kanał RSS"> <svg class="social-icon" data-social-icon="material-rss" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6.18 15.64a2.18 2.18 0 1 0 0 4.36 2.18 2.18 0 0 0 0-4.36zM4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83C19.56 11.4 12.6 4.44 4 4.44zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z"></path></svg> </a> </nav> <button class="theme-toggle" type="button" aria-label="Zmień motyw kolorystyczny" title="Zmień motyw kolorystyczny"> <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"> <circle cx="12" cy="12" r="4"></circle> <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path> </svg> <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"> <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path> </svg> </button> <pagefind-modal-trigger data-search-label="true">Szukaj</pagefind-modal-trigger> <label class="locale-switcher"> <span class="visually-hidden">Język</span> <select id="locale-select"> <option value="/de/blog/2026/05/26/ai-agent-runtime/">Deutsch</option><option value="/blog/2026/05/26/ai-agent-runtime/">English</option><option value="/es/blog/2026/05/26/ai-agent-runtime/">Español</option><option value="/fr/blog/2026/05/26/ai-agent-runtime/">Français</option><option value="/nl/blog/2026/05/26/ai-agent-runtime/">Nederlands</option><option value="/pl/blog/2026/05/26/ai-agent-runtime/" selected>Polski</option><option value="/pt/blog/2026/05/26/ai-agent-runtime/">Português</option><option value="/ru/blog/2026/05/26/ai-agent-runtime/">Русский</option> </select> </label> </div> </header> <main id="main-content" tabindex="-1"> <div class="article-shell has-toc"> <nav class="toc" aria-label="Na tej stronie"> <p class="eyebrow">Na tej stronie</p> <ol> <li> <a href="#czym-jest-runtime-agenta-ai">Czym jest runtime agenta AI?</a> </li><li> <a href="#długie-uruchomienia-łamią-założenia-dotyczące-procesów-bezstanowych">Długie uruchomienia łamią założenia dotyczące procesów bezstanowych</a> </li><li> <a href="#pięć-prymitywów-które-trzeba-rozmieścić-przed-wdrożeniem">Pięć prymitywów, które trzeba rozmieścić przed wdrożeniem</a> </li><li class="is-sub"> <a href="#polityka-i-sekrety-przecinają-wszystkie-prymitywy">Polityka i sekrety przecinają wszystkie prymitywy</a> </li><li class="is-sub"> <a href="#sprawdź-rozmieszczenie">Sprawdź rozmieszczenie</a> </li><li> <a href="#tryby-awarii-runtimeu-produkcyjnego-agenta-ai">Tryby awarii runtime’u produkcyjnego agenta AI</a> </li><li> <a href="#the-healthy-run-lifecycle">Prawidłowy cykl życia uruchomienia</a> </li><li> <a href="#jedenaście-wzorców-wdrażania-agentów-ai-i-kryteria-wyboru">Jedenaście wzorców wdrażania agentów AI i kryteria wyboru</a> </li><li class="is-sub"> <a href="#1-sdk-wewnątrz-serwera-aplikacyjnego-synchronicznie-w-zakresie-żądania">1. SDK wewnątrz serwera aplikacyjnego (synchronicznie, w zakresie żądania)</a> </li><li class="is-sub"> <a href="#2-kolejka--worker--baza-checkpointów">2. Kolejka + worker + baza checkpointów</a> </li><li class="is-sub"> <a href="#3-trwały-silnik-workflow-w-stylu-temporal">3. Trwały silnik workflow (w stylu Temporal)</a> </li><li class="is-sub"> <a href="#4-dostawca-sandboxa-per-sesja">4. Dostawca sandboxa per sesja</a> </li><li class="is-sub"> <a href="#5-anthropic-managed-agents-hostowany-harness">5. Anthropic Managed Agents (hostowany harness)</a> </li><li class="is-sub"> <a href="#6-langchain-deep-agents-deploy-zarządzany-otwarty-harness">6. LangChain Deep Agents Deploy (zarządzany otwarty harness)</a> </li><li class="is-sub"> <a href="#7-usługa-lub-zadanie-google-cloud-run">7. Usługa lub zadanie Google Cloud Run</a> </li><li class="is-sub"> <a href="#8-aws-lambda-ograniczone-czasowo-wywołania-i-trwałe-workflow">8. AWS Lambda: ograniczone czasowo wywołania i trwałe workflow</a> </li><li class="is-sub"> <a href="#9-aws-ecs--zadanie-fargate-per-uruchomienie">9. AWS ECS / zadanie Fargate per uruchomienie</a> </li><li class="is-sub"> <a href="#10-kubernetes-job-lub-namespace-per-sesja">10. Kubernetes Job lub namespace per sesja</a> </li><li class="is-sub"> <a href="#11-lokalny-docker-compose-tylko-do-developmentu">11. Lokalny Docker Compose (tylko do developmentu)</a> </li><li> <a href="#stos-referencyjny-docker-compose">Stos referencyjny: Docker Compose</a> </li><li> <a href="#observability-które-przetrwa-uruchomienie">Observability, które przetrwa uruchomienie</a> </li><li class="is-sub"> <a href="#ustrukturyzowany-dziennik-zdarzeń-odczytywany-po-uruchomieniu">Ustrukturyzowany dziennik zdarzeń (odczytywany po uruchomieniu)</a> </li><li class="is-sub"> <a href="#tracey-opentelemetry-genai-odczytywane-po-uruchomieniu">Trace’y OpenTelemetry GenAI (odczytywane po uruchomieniu)</a> </li><li class="is-sub"> <a href="#oś-czasu-wywołań-narzędzi-i-diffy-workspaceu-odczytywane-w-trakcie-uruchomienia">Oś czasu wywołań narzędzi i diffy workspace’u (odczytywane w trakcie uruchomienia)</a> </li><li class="is-sub"> <a href="#efemeryczny-stos-per-worktree-odczytywany-przez-samego-agenta-w-trakcie-uruchomienia">Efemeryczny stos per worktree (odczytywany przez samego agenta w trakcie uruchomienia)</a> </li><li class="is-sub"> <a href="#minimalny-self-hosted-stos-observability">Minimalny self-hosted stos observability</a> </li><li class="is-sub"> <a href="#instrumentowanie-węzła-langgraph">Instrumentowanie węzła LangGraph</a> </li><li class="is-sub"> <a href="#trzy-zapytania-które-warto-mieć-na-dashboardzie">Trzy zapytania, które warto mieć na dashboardzie</a> </li><li class="is-sub"> <a href="#wzorzec-pakietu-debugowania">Wzorzec pakietu debugowania</a> </li><li> <a href="#wybór-właściwego-układu-przewodnik-decyzyjny">Wybór właściwego układu: przewodnik decyzyjny</a> </li><li class="is-sub"> <a href="#zacznij-od-długości-uruchomienia">Zacznij od długości uruchomienia</a> </li><li class="is-sub"> <a href="#dopasowanie-platformy-do-przypadku-użycia">Dopasowanie platformy do przypadku użycia</a> </li><li class="is-sub"> <a href="#hostowany-harness-a-własny-harness">Hostowany harness a własny harness</a> </li><li class="is-sub"> <a href="#hostowany-sandbox-a-własne-środowisko-wykonywania">Hostowany sandbox a własne środowisko wykonywania</a> </li><li class="is-sub"> <a href="#magazyny-stanu-git-baza-danych-i-object-storage-obok-siebie">Magazyny stanu: Git, baza danych i object storage obok siebie</a> </li><li class="is-sub"> <a href="#kiedy-prosić-o-zatwierdzenie-człowieka">Kiedy prosić o zatwierdzenie człowieka</a> </li><li> <a href="#praktyczna-checklista-produkcyjna">Praktyczna checklista produkcyjna</a> </li><li> <a href="#następną-warstwą-jest-pętla-harnessu">Następną warstwą jest pętla harnessu</a> </li><li> <a href="#referencje">Referencje</a> </li><li class="is-sub"> <a href="#materiały-inżynieryjne">Materiały inżynieryjne</a> </li><li class="is-sub"> <a href="#langgraph-i-deep-agents">LangGraph i Deep Agents</a> </li><li class="is-sub"> <a href="#openai-agents-sdk">OpenAI Agents SDK</a> </li><li class="is-sub"> <a href="#temporal">Temporal</a> </li><li class="is-sub"> <a href="#platforma-anthropic">Platforma Anthropic</a> </li><li class="is-sub"> <a href="#dostawcy-sandboxów">Dostawcy sandboxów</a> </li><li class="is-sub"> <a href="#limity-czasu-i-kwoty-platform-chmurowych">Limity czasu i kwoty platform chmurowych</a> </li><li class="is-sub"> <a href="#observability">Observability</a> </li> </ol> </nav> <script>
+  (() => {
+    const links = new Map(
+      [...document.querySelectorAll(".toc a")].map((link) => [link.hash.slice(1), link]),
+    );
+    if (!links.size || !window.IntersectionObserver) return;
+    const visible = new Set();
+    const mark = () => {
+      let current;
+      for (const id of links.keys()) if (visible.has(id)) { current = id; break; }
+      for (const [id, link] of links) {
+        if (id === current) link.setAttribute("aria-current", "true");
+        else link.removeAttribute("aria-current");
+      }
+    };
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) visible.add(entry.target.id);
+          else visible.delete(entry.target.id);
+        }
+        mark();
+      },
+      { rootMargin: "-15% 0px -70% 0px" },
+    );
+    for (const id of links.keys()) {
+      const heading = document.getElementById(id);
+      if (heading) observer.observe(heading);
+    }
+  })();
+</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/pl/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Część 5 </a><h1>Runtime długotrwałych agentów AI: sesje i checkpointy</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-05-26">2026-05-26</time>  · Zaktualizowano <time datetime="2026-09-06">2026-09-06</time>  · 40 min · Agenci AI </p> </div> </div> <!-- automated-translation-notice:start -->
+<blockquote>
+<p><strong>Tłumaczenie automatyczne</strong>
+Ten artykuł został automatycznie przetłumaczony z angielskiego oryginału.</p>
+</blockquote>
+<!-- automated-translation-notice:end -->
+<blockquote>
+<p><strong>Aktualizacja artykułu</strong></p>
+<p>Pierwotnie opublikowano 26 maja 2026 r. Artykuł sprawdzono i zaktualizowano 6 września 2026 r. Aktualizacja obejmuje nowsze możliwości runtime’u i opcje wdrażania, a także poprawione porównania platform, mechanizmy kontroli budżetu oraz linki do źródeł.</p>
+</blockquote>
+<p>Uruchomienie agenta może trwać wiele godzin, ale jego proces roboczy może w dowolnej chwili zostać uruchomiony ponownie. Runtime przechowuje stan uruchomienia, wykonuje narzędzia i odzyskuje działanie, jeśli wywołanie narzędzia zatrzyma się w połowie. Model nadal wybiera kolejne działanie. <a href="/pl/blog/2026/07/22/ai-agent-harness-engineering/">Część 6</a> opisuje harness: kod, który dostarcza kontekst, sprawdza wywołania narzędzi i decyduje, czy praca została zakończona.</p>
+<!-- more -->
+<aside class="tldr">
+<p class="eyebrow">TL;DR</p>
+<p>Do wstrzymywania i wznawiania używaj magazynu checkpointów. Utrzymuj trwały dziennik zdarzeń opisujący przebieg, sandbox do wykonywania narzędzi, trace do debugowania oraz harness uruchamiający pętlę. W przypadku większości zespołów zacznij od kolejki, workera i checkpointera PostgreSQL. Jeśli nie potrafisz wskazać właściciela każdego zadania, agent nadal jest prototypem.</p>
+</aside>
+<h2 id="czym-jest-runtime-agenta-ai">Czym jest runtime agenta AI?</h2>
+<p><strong>Runtime agenta AI</strong> to infrastruktura, która utrzymuje agenta korzystającego z narzędzi po zakończeniu pojedynczego wywołania modelu. Przechowuje stan sesji, uruchamia narzędzia, zapisuje checkpointy, obsługuje sekrety, tworzy trace’y, egzekwuje limity kosztów i definiuje sposób wdrażania usługi. Model wybiera kolejne działanie. Runtime decyduje, gdzie to działanie zostanie wykonane, zapisuje wynik i odtwarza uruchomienie po awarii. Harness decyduje, czy dane działanie jest dozwolone. Nie jest on magazynem, ale tabela uwzględnia go, ponieważ runtime musi uruchomić go w określonym miejscu.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Prymityw do rozmieszczenia</th><th>Zadanie produkcyjne</th><th>Typowa implementacja</th></tr></thead><tbody><tr><td>Sesja</td><td>Zachowanie dziennika uruchomienia po restartach procesu</td><td>Dziennik append-only, identyfikator wątku, magazyn konwersacji</td></tr><tr><td>Harness</td><td>Sterowanie turami model/narzędzie aż do zakończenia zadania</td><td>Graf LangGraph, runner Agents SDK, własna pętla</td></tr><tr><td>Sandbox</td><td>Izolacja kodu, plików, sieci i narzędzi</td><td>Utwardzony kontener, VM, sandbox przeglądarki, zarządzany workspace</td></tr><tr><td>Checkpoint</td><td>Wznowienie bez odtwarzania całego uruchomienia</td><td>Postgres, Redis, trwały stan workflow</td></tr><tr><td>Trace</td><td>Późniejsze debugowanie i audyt długich uruchomień</td><td>Spany OpenTelemetry, LangSmith, trace’y dostawcy</td></tr></tbody></table>
+<p>Cztery z pięciu prymitywów przechowują stan albo ograniczają możliwości kodu: sesja, sandbox, checkpoint i trace. Harness podejmuje decyzje dotyczące pamięci, kontraktów narzędzi i uprawnień. Ten artykuł opisuje usługi i magazyny, których potrzebuje. <a href="/pl/blog/2026/07/22/ai-agent-harness-engineering/">Część 6</a> omawia jego mechanizmy sprawdzania, ponawiania oraz testy akceptacyjne.</p>
+<hr>
+<h2 id="długie-uruchomienia-łamią-założenia-dotyczące-procesów-bezstanowych">Długie uruchomienia łamią założenia dotyczące procesów bezstanowych</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte mówi</p>
+<p>Jeśli dziennik uruchomienia istnieje wyłącznie w pamięci workera, zwykłe wdrożenie może zastąpić workera w trakcie zadania i usunąć historię uruchomienia.</p>
+</div></aside>
+<p>Bezstanowy endpoint czatu może przechowywać stan żądania w jednym procesie i odrzucić go po zwróceniu odpowiedzi. Długie uruchomienie agenta obejmuje restarty workerów, wdrożenia, resetowanie kontekstu i pauzy na zatwierdzenie. Proces workera nie może już być źródłem prawdy.</p>
+<p>Zespół OpenAI Codex opisuje długość tych uruchomień w swoim <a href="https://openai.com/index/harness-engineering/">tekście o projektowaniu harnessu</a>:</p>
+<blockquote>
+<p>„Regularnie obserwujemy, że pojedyncze uruchomienia Codex pracują nad jednym zadaniem przez ponad sześć godzin (często wtedy, gdy ludzie śpią).”</p>
+</blockquote>
+<p>Zespół inżynieryjny Anthropic opisuje odpowiadający temu problem stanu w <a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">Effective harnesses for long-running agents</a>:</p>
+<blockquote>
+<p>„Główne wyzwanie związane z długotrwałymi agentami polega na tym, że muszą pracować w oddzielnych sesjach, a każda nowa sesja zaczyna się bez pamięci o tym, co wydarzyło się wcześniej.”</p>
+</blockquote>
+<p>Obserwacje te prowadzą do tego samego projektu runtime’u: stan należy utrwalać poza workerem, a workery muszą być wymienialne.</p>
+<p>Sesja musi znajdować się poza procesem workera. Trwały magazyn rejestruje wywołania modelu, intencje i wyniki wywołań narzędzi oraz zatwierdzenia, aby po awarii inny worker mógł wznowić działanie od ostatniego bezpiecznego punktu. Przed takim wznowieniem oczekujące działanie zewnętrzne wymaga uzgodnienia, aby można było uznać wznowienie za bezpieczne. Checkpointy pozwalają również runtime’owi uruchomić świeżą sesję modelu po zapełnieniu okna kontekstowego, bez odtwarzania całej historii. W <a href="https://www.anthropic.com/engineering/managed-agents">sformułowaniu Anthropic</a> instancje harnessu stają się jednorazowe i możliwe do ponownego uruchomienia, a trwały stan znajduje się gdzie indziej.</p>
+<hr>
+<h2 id="pięć-prymitywów-które-trzeba-rozmieścić-przed-wdrożeniem">Pięć prymitywów, które trzeba rozmieścić przed wdrożeniem</h2>
+<p>Materiał Anthropic <a href="https://www.anthropic.com/engineering/managed-agents">Scaling Managed Agents</a> dostarcza użytecznego słownika pięciu odpowiedzialności runtime’u. Harness posuwa agenta do przodu, sesja rejestruje jego działania, a sandbox wykonuje polecenia. Checkpoint daje kolejnemu workerowi punkt wznowienia, a trace zachowuje dane potrzebne do późniejszego debugowania. Implementacja może łączyć komponenty, ale odpowiedzialności i granice awarii nadal muszą mieć jasno określone nazwy.</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-05-26-the-runtime/runtime-primitives.svg" alt="Pięć prymitywów runtime’u" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-05-26-the-runtime/runtime-primitives.dark.svg" alt="Pięć prymitywów runtime’u" loading="lazy"></span></p>
+<p><strong>Sesja.</strong> Zapisywany osobno dziennik zdarzeń append-only obejmujący wywołania modelu, żądane i zakończone wywołania narzędzi, błędy oraz zatwierdzenia. Baza checkpointów pomaga w odzyskiwaniu działania, ale historia stanu grafu nie zastępuje tego dziennika.</p>
+<p>Termin ten jest przeciążony znaczeniowo, dlatego w artykule stosuję schemat nazewnictwa na poziomie aplikacji dla trzech zakresów. <em>Wątek</em> to konwersacja użytkownika prowadzona przez wiele dni. Jest to zakres o najdłuższym czasie życia i może zawierać wiele uruchomień.</p>
+<p><em>Sesja modelu</em> jest najkrótsza: to jeden ciągły odcinek kontekstu modelu. Kompakcja — krok polegający na podsumowaniu okna, aby praca mogła być kontynuowana — wydłuża sesję modelu, zamiast ją kończyć. Restart lub celowy nowy start kończy sesję. W części 6 określenie „sesja modelu” jest używane właśnie w tym znaczeniu.</p>
+<p>W tym artykule „sesja” oznacza trwały dziennik jednego uruchomienia. Wiele sesji modelu może zapisywać do jednego dziennika, a jeden wątek konwersacji może zawierać wiele dzienników uruchomień. Aby odzyskać działanie, wybudź uruchomienie, wczytaj jego sesję, uzgodnij oczekujące działanie zewnętrzne, a następnie wznów po ostatnim zdarzeniu: <code>wake(sessionId) → getSession(id) → reconcile pending effects → resume from last event</code>.</p>
+<p>W LangGraph <code>thread_id</code> jest kluczem magazynowania i pobierania checkpointera dla historii stanu grafu wątku (zob. <a href="https://docs.langchain.com/oss/javascript/langgraph/persistence">LangGraph persistence</a>); nie definiuje on granic konwersacji, sesji modelu ani dziennika zdarzeń z tego artykułu. Nadaj dziennikowi zdarzeń własny trwały identyfikator uruchomienia lub sesji, a następnie jawnie określ sposób mapowania tych identyfikatorów na wątki LangGraph. OpenAI Agents SDK dostarcza dziesięć wbudowanych backendów sesji, w tym <code>SQLiteSession</code>, <code>RedisSession</code>, <code>SQLAlchemySession</code>, <code>MongoDBSession</code> i <code>EncryptedSession</code> (zob. dokumentację <a href="https://openai.github.io/openai-agents-python/sessions/">Sessions</a>). Przechowują one zmienną historię konwersacji, w tym jej usuwanie, czyszczenie i kompakcję; w razie potrzeby mapuj identyfikator sesji SDK na identyfikator zdarzeń uruchomienia, ale nie traktuj historii SDK jako dziennika odzyskiwania lub audytu append-only bez równoważnej gwarancji niezmienności.</p>
+<p><strong>Harness.</strong> Pętla orkiestracji i jedyny prymityw w tym zestawieniu, który podejmuje decyzje. Składa prompt z pamięci, wywołuje model, sprawdza proponowane wywołanie narzędzia względem reguł uprawnień, wykonuje dozwolone działania, zapisuje wyniki z powrotem w sesji, stosuje reguły ponawiania i decyduje, czy zadanie zostało zakończone. Mechanizmy planowania i zarządzania kontekstem kodują założenia dotyczące możliwości modelu. Obowiązkowa autoryzacja i izolacja również implementują wymagania, które pozostają ważne wraz z rozwojem modeli. Anthropic wskazuje to bezpośrednio — cytat znajduje się w sekcji o trybach awarii poniżej, która dotyczy głównie sytuacji, gdy te założenia stają się nieaktualne.</p>
+<p>Zespół OpenAI Codex nazywa to <em>projektowaniem harnessu</em>: tworzenie oprogramowania nadal wymaga pracy inżynieryjnej, ale coraz większa jej część dotyczy infrastruktury pomocniczej, a nie samego kodu. <code>CompiledStateGraph</code> LangGraph, Deep Agents firmy LangChain wraz z punktem wejścia <a href="https://docs.langchain.com/oss/python/deepagents/overview"><code>create_deep_agent</code></a> oraz sam Claude Code są harnessami w tym znaczeniu.</p>
+<p><strong>Sandbox.</strong> Izolowane środowisko wykonywania, w którym faktycznie uruchamiane są polecenia. Strona OpenAI Agents SDK dotycząca <a href="https://openai.github.io/openai-agents-python/sandbox/guide/">pojęć sandboxa</a> przypisuje zatwierdzenia, tracing, przekazywanie sterowania oraz stan potrzebny do wznowienia uruchomień zewnętrznemu runtime’owi. Polecenia, zmiany plików i izolację środowiska przypisuje sesji sandboxa.</p>
+<p>„Zewnętrzny runtime” oznacza tam harness wraz z jego magazynami stanu. W słowniku tej serii zatwierdzenia i przekazywanie sterowania są decyzjami harnessu (<a href="/pl/blog/2026/04/20/ai-agent-security/">Część 4</a> i <a href="/pl/blog/2026/07/22/ai-agent-harness-engineering/">Część 6</a>); tracing oraz księgowanie wznowień to prymitywy sesji i checkpointu.</p>
+<p>Sandboxy różnią się czasem życia i zakresem pamiętania stanu między uruchomieniami. Najprostszy wariant to <em>świeży efemeryczny sandbox</em>: uruchamiasz go dla pojedynczego zadania, niszczysz po jego zakończeniu i ponosisz koszt zimnego startu przy każdym uruchomieniu.</p>
+<p><em>Sandboxy trwałe, wstrzymane</em> zachowują system plików i snapshot pamięci między uruchomieniami. Kolejne wznowienie może dzięki temu uniknąć pełnego startu. <em>Snapshot lub fork</em> tworzy obraz copy-on-write przygotowanego rodzica, dzięki czemu wiele zadań może współdzielić zainstalowane zależności i rozgrzane cache’e bez współdzielenia zapisywalnego stanu.</p>
+<p>Workspace’y <em>per-worktree</em> zapewniają zadaniom osobne checkouty; <a href="https://git-scm.com/docs/git-worktree">Git worktrees</a> współdzielą infrastrukturę repozytorium i nie są sandboxami systemu operacyjnego. Wykonywanie należy dodatkowo ograniczyć za pomocą kontenera, VM lub polityki procesu. Aplikacja per zadanie może mieć również własny stos observability. Oddzielne logi, metryki i trace’y pozwalają debugować jedno uruchomienie bez przenikania jego stanu do innych. Tabela dostawców w dalszej części artykułu porównuje kontrakty izolacji i trwałości.</p>
+<p><strong>Checkpoint.</strong> Stan potrzebny do wznowienia: który węzeł grafu został wykonany, jakie są jego najnowsze wartości i co powinno zostać wykonane następnie. Dziennik zdarzeń odpowiada na pytanie, co się wydarzyło: jakie działania zażądano i jakie były ich wyniki. Checkpoint nie może odtworzyć zdarzeń, których harness nigdy nie zarejestrował.</p>
+<p><code>PostgresSaver</code> LangGraph zapisuje <code>Checkpoint</code> na granicy każdego super-kroku. Super-krok to jedna runda grafu — pojedynczy węzeł albo partia węzłów wykonana równolegle. Zapisy per zadanie trafiają do <code>checkpoint_writes</code>, dzięki czemu udane wyniki węzłów nie są obliczane ponownie, gdy jeden z sąsiednich węzłów zakończy się błędem.</p>
+<p>Checkpoint jest zwykłym dictem (<code>v</code>, <code>id</code>, <code>ts</code>, <code>channel_values</code>, <code>channel_versions</code>, <code>versions_seen</code>, <code>updated_channels</code>). LangGraph serializuje go za pomocą opartego na msgpack <code>JsonPlusSerializer</code>, a nie JSON. <code>datetime</code>, <code>set</code>, <code>Decimal</code> oraz dataclasses są poprawnie odtwarzane po serializacji. Format opisano na stronie PyPI <a href="https://pypi.org/project/langgraph-checkpoint-postgres/"><code>langgraph-checkpoint-postgres</code></a> oraz w <a href="https://reference.langchain.com/python/langgraph/checkpoints">referencji checkpointów LangGraph</a>.</p>
+<p><code>StateSnapshot</code> to osobny, bogatszy widok tworzony przez <code>graph.get_state()</code> na podstawie checkpointu. Pakiet debugowania może wyeksportować jego <code>.values</code> jako ostatni znany stan grafu; nie odtworzy jednak szczegółów zdarzeń, których harness nie zarejestrował.</p>
+<p><strong>Trace.</strong> Powierzchnia debugowania i audytu. Każde wywołanie modelu, wywołanie narzędzia i krok podagenta powinny emitować czas trwania, status, model i dostawcę, identyfikatory korelacji, liczbę tokenów oraz koszt. Prompty, uzupełnienia, argumenty narzędzi i wyniki narzędzi są treścią opcjonalną: wytyczne OpenTelemetry dotyczące <a href="https://opentelemetry.io/blog/2026/genai-observability/">GenAI</a> domyślnie ograniczają się do metadanych, ponieważ pola te mogą zawierać dane wrażliwe. Przechwytuj je dopiero po ustaleniu zasad redakcji lub filtrowania, kontroli dostępu i retencji. Gdy sześciogodzinne uruchomienie zakończy się błędem, to trace pozwala ustalić, co poszło nie tak. Może wspierać dochodzenie, ale to dziennik zdarzeń i stan checkpointu wraz z obsługą idempotencji umożliwiają bezpieczne wznowienie lub odtworzenie. Do tego czasu wyjście terminala z uruchomienia dawno zniknie. <a href="https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/README.md">Konwencje semantyczne GenAI</a> OpenTelemetry standaryzują nazwy atrybutów: który model, który dostawca, ile tokenów, która konwersacja i który workflow. W przypadku miejsca docelowego zgodnego z OTLP i obsługującego te konwencje ta sama instrumentacja może eksportować trace do systemów takich jak <a href="https://grafana.com/oss/tempo/">Tempo</a>, <a href="https://www.jaegertracing.io/">Jaeger</a>, <a href="https://www.honeycomb.io/">Honeycomb</a> lub <a href="https://smith.langchain.com/">LangSmith</a>, choć nadal mogą być wymagane adaptery backendu albo konfiguracja właściwa dla miejsca docelowego.</p>
+<h3 id="polityka-i-sekrety-przecinają-wszystkie-prymitywy">Polityka i sekrety przecinają wszystkie prymitywy</h3>
+<p>Dwie granice przecinają wszystkie pięć prymitywów. Są runtime’ową wersją argumentu bezpieczeństwa z <a href="/pl/blog/2026/04/20/ai-agent-security/">Części 4</a>. Sama decyzja o uprawnieniu należy do harnessu; poniżej opisano, gdzie fizycznie znajdują się mechanizmy, które ją egzekwują i dostarczają niezbędnych danych.</p>
+<h4 id="egzekwowanie-uprawnień">Egzekwowanie uprawnień</h4>
+<p>Drabina uprawnień z części 4 musi mieć miejsce, w którym będzie wykonywana. Sprawdzenie uruchamia się przed każdym wywołaniem narzędzia i decyduje, czy zostanie ono przepuszczone. W produkcji często stosuje się dwa wzorce. <a href="https://docs.langchain.com/oss/python/deepagents/permissions">Middleware uprawnień systemu plików</a> w Deep Agents może ograniczyć wbudowane narzędzia systemu plików do zadeklarowanych ścieżek. Nie zarządza ono poleceniami powłoki w sandboxie, własnymi narzędziami ani wywołaniami MCP; egzekwuj je w polityce sandboxa lub za własnym proxy narzędzi. Anthropic Managed Agents kieruje własne wywołania narzędzi MCP przez proxy przechowujące poświadczenia. Wykonywanie poleceń w sandboxie i uwierzytelnianie Git korzystają z oddzielnych ścieżek; proxy MCP nie jest uniwersalnym przechwytywaczem każdego działania. Gdy wrażliwe wywołanie wymaga zatwierdzenia człowieka, <code>interrupt()</code> LangGraph oraz hook zatwierdzania Deep Agents wstrzymują graf do czasu decyzji.</p>
+<h4 id="broker-sekretów">Broker sekretów</h4>
+<p>Model nie powinien widzieć długowiecznych sekretów, a sandbox zwykle również nie powinien mieć do nich dostępu. Warto skopiować wzorzec Managed Agents:</p>
+<blockquote>
+<p>„W przypadku Git używamy tokena dostępu danego repozytorium, aby sklonować repozytorium podczas inicjalizacji sandboxa, a następnie podpinamy go do lokalnego remote Git. Git <code>push</code> i <code>pull</code> działają wewnątrz sandboxa, bez konieczności obsługiwania tokena przez agenta. W przypadku własnych narzędzi obsługujemy MCP i przechowujemy tokeny OAuth w bezpiecznym vault. Claude wywołuje narzędzia MCP przez dedykowane proxy; proxy otrzymuje token powiązany z sesją. … Harness nigdy nie uzyskuje dostępu do żadnych poświadczeń.”</p>
+</blockquote>
+<p>W stosie referencyjnym <a href="https://github.com/slavadubrov/market-analyst-agent"><code>market-analyst-agent</code></a> — małym agencie LangGraph pobierającym dane rynkowe i zapisującym raport analityka, budowanym w ramach tej serii — worker wywołuje lokalnie narzędzia danych rynkowych. Opcjonalny serwer MCP udostępnia powierzchnię narzędzi; nie jest zaimplementowanym brokerem poświadczeń między workerem a dostawcami. Oba kontenery mogą odczytywać współdzielone deweloperskie <code>.env</code>. Broker produkcyjny wymagałby przeniesienia poświadczeń dostawców do magazynu, którego worker nie może odczytać, oraz kierowania każdego odpowiedniego wywołania przez brokera.</p>
+<h3 id="sprawdź-rozmieszczenie">Sprawdź rozmieszczenie</h3>
+<p>Praktyczny test poprawności polega na zapisaniu każdego komponentu i wskazaniu, który z pięciu prymitywów implementuje. <a href="https://www.postgresql.org/">Postgres</a> może obsługiwać sesję i checkpoint. Kontener workera jest harnessem. Usługa taka jak <a href="https://www.daytona.io/">Daytona</a>, <a href="https://modal.com/">Modal</a> lub <a href="https://e2b.dev/">E2B</a> zapewnia sandbox, a <a href="https://grafana.com/oss/tempo/">Tempo</a> lub <a href="https://smith.langchain.com/">LangSmith</a> przechowuje trace.</p>
+<p>Następnie sprawdź awarie zależne od siebie. Jeśli dwa prymitywy działają w tym samym procesie, jedna awaria wyłącza oba. Jeśli współdzielą poświadczenie, jeden wyciek przekracza obie granice. Typowe przykłady to worker, który jest jednocześnie właścicielem trwałości trace’ów, albo token sidecara, który odblokowuje również bazę checkpointów.</p>
+<hr>
+<h2 id="tryby-awarii-runtimeu-produkcyjnego-agenta-ai">Tryby awarii runtime’u produkcyjnego agenta AI</h2>
+<p>Runtime zarządza ponawianiem, przywraca wcześniejszą pracę, izoluje workspace’y i egzekwuje budżety. W miarę jak uruchomienia rozciągają się na wiele workerów i okien kontekstowych, awarie przesuwają się w stronę problemów ze stanem, zduplikowanych efektów ubocznych, rozbieżności sandboxa i przekroczeń budżetu.</p>
+<p>Awarie dzielą się na cztery grupy:</p>
+<ul>
+<li><strong>Awarie jakości danych wyjściowych:</strong> agent ogłasza sukces, zanim praca faktycznie się zakończy, zapomina, co zrobił po resecie okna kontekstowego albo ufa własnej ewaluacji i publikuje niesprawny wynik.</li>
+<li><strong>Awarie kontroli kosztów:</strong> agent wpada w pętlę ponowień albo zużywa budżet tokenów lub wywołań narzędzi, nie tworząc nic użytecznego.</li>
+<li><strong>Awarie stanu i procesów:</strong> workspace’y rozchodzą się ze sobą, ponieważ jedno uruchomienie modyfikuje pliki należące do innego; wywołania narzędzi wykonywane są więcej niż raz, ponieważ ponowienia odtwarzają je ponownie; albo praca przepada, gdy worker umiera między zdarzeniami.</li>
+<li><strong>Awarie okna kontekstowego:</strong> model podsumowuje i kończy pracę zbyt wcześnie, ponieważ uważa, że kończy mu się miejsce, mimo że okno nadal ma zapas.</li>
+</ul>
+<p>Tabela mapuje każdą awarię na sposób ograniczenia, podstawę rekomendacji oraz hook runtime’u, który ją egzekwuje. Zachowanie zależne od modelu może się zmieniać, dlatego obserwacje dostawców traktuj jako wskazówki do ponownego sprawdzenia założenia, a nie jako trwałe reguły.</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-05-26-the-runtime/failure-modes.svg" alt="Tryby awarii i sposoby ich ograniczania" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-05-26-the-runtime/failure-modes.dark.svg" alt="Tryby awarii i sposoby ich ograniczania" loading="lazy"></span></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Tryb awarii</th><th>Ograniczenie</th><th>Uzasadnienie</th><th>Hook runtime’u</th></tr></thead><tbody><tr><td><strong>Przedwczesne zakończenie:</strong> agent zbyt wcześnie ogłasza sukces</td><td>Rozdzielenie generatora i ewaluatora: ewaluator ze świeżym kontekstem — druga sesja modelu rozpoczynająca pracę bez historii uruchomienia — odczytuje pliki, a nie czat, i głosuje „gotowe” lub „niegotowe”. Każda kontrola akceptacyjna kończy się błędem w razie niepewności.</td><td>Szybki start Anthropic <a href="https://github.com/anthropics/cwc-long-running-agents"><code>cwc-long-running-agents</code></a> zawiera podagenta-ewaluatora; zweryfikuj ten wzorzec na swoim zestawie zadań.</td><td>Podagent bez narzędzi Write/Edit i z własnym oknem kontekstowym</td></tr><tr><td><strong>Amnezja funkcji między oknami kontekstowymi</strong></td><td>Agent inicjalizujący zapisuje <code>PROGRESS.md</code>, <code>feature-list.json</code>, <code>init.sh</code>. Agent kodujący odczytuje je przy każdym zimnym starcie.</td><td>Wymaganie projektowe harnessu; zmierz ukończenie zadań po zimnym starcie przed dodaniem artefaktów i po nim.</td><td>Hook startowy przed pierwszym wywołaniem modelu w każdej sesji</td></tr><tr><td><strong>Zduplikowana praca po resecie sesji</strong></td><td>Dziennik zdarzeń append-only oraz ustrukturyzowany plik przekazania. Każda nowa sesja rozpoczyna się od <code>pwd → read PROGRESS.md → review tests</code>.</td><td>Wymaganie projektu trwałego dziennika i checkpointów; sprawdź przez odtworzenie tego samego przekazania sesji.</td><td>Osobno zapisywany magazyn zdarzeń oraz checkpoint LangGraph <code>PostgresSaver</code> i artefakt <code>PROGRESS.md</code></td></tr><tr><td><strong>Lęk przed kontekstem:</strong> model podsumowuje i kończy zbyt wcześnie</td><td>Ogranicz aktywną sesję i odbuduj ją z przekazania, gdy model przestaje efektywnie wykorzystywać pozostały kontekst. Obejście Cognition dla Sonnet 4.5 włączało większe okno, ale ograniczało efektywne wykorzystanie do 200 tys. tokenów.</td><td>Obserwacje dostawcy różnią się między Sonnet 4.5 a późniejszymi generacjami. Sprawdź ponownie przed przeniesieniem obejścia do innego modelu lub harnessu.</td><td>Harness ogranicza długość sesji, uruchamia kolejną i wznawia działanie z checkpointu</td></tr><tr><td><strong>Optymizm samoewaluacji:</strong> model uznaje pracę za poprawną</td><td>Ewaluator ze świeżym kontekstem oraz ugruntowanie przez Playwright/MCP w rzeczywistym DOM, a nie na zrzutach ekranu. Rubryka frontendowa Anthropic dotycząca <a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">projektowania harnessu</a> karze domyślne rozwiązania „w stylu AI”.</td><td>Wzorzec harnessu frontendowego Anthropic; zweryfikuj go za pomocą testów akceptacyjnych na wyrenderowanej aplikacji.</td><td>Ewaluator działa w osobnej sesji sandboxa bez narzędzi zapisu</td></tr><tr><td><strong>Zablokowane pętle i burze ponowień</strong></td><td>Limit iteracji na turę, exponential backoff, circuit breaker reagujący na współczynnik błędów narzędzi. Twardy budżet wywołań narzędzi.</td><td>Wymaganie kontroli runtime’u; wstrzyknij powtarzające się błędy narzędzi i sprawdź limit, backoff oraz circuit breaker.</td><td>Dekorator na węźle wykonywania narzędzia; <code>RetryPolicy</code> dla Activities Temporal (zob. <a href="https://github.com/temporalio/sdk-python/blob/main/temporalio/contrib/openai_agents/README.md">Temporal OpenAI Agents SDK contrib</a>)</td></tr><tr><td><strong>Rozbieżność workspace’u:</strong> agent modyfikuje niezwiązane pliki</td><td>Commity Git jako checkpointy, montowanie workspace’u per sesja oraz uprawnienia systemu plików Deep Agents dla jego wbudowanych narzędzi systemu plików. Egzekwowanie dla powłoki, własnych narzędzi i MCP umieść w polityce sandboxa lub proxy narzędzi.</td><td>Wymaganie izolacji; uruchom równoległe sesje na fixture’ach i sprawdź zmiany plików między uruchomieniami.</td><td><code>FilesystemPermission</code> Deep Agents dla wbudowanych narzędzi systemu plików; polityka sandboxa lub proxy MCP dla pozostałych operacji; fork per zadanie w Daytona/Runloop</td></tr><tr><td><strong>Niekontrolowany koszt tokenów lub narzędzi</strong></td><td>Atomowo rezerwuj ostrożny budżet na każde wywołanie przed wysłaniem, uwzględniając wywołania w toku; ograniczaj dane wyjściowe i użycie narzędzi, a następnie uzgadniaj rzeczywiste użycie.</td><td>Rekomendacja kontroli kosztów; <a href="https://addyosmani.com/blog/long-running-agents/">opis długotrwałych agentów Addy’ego Osmani</a> ilustruje ryzyko, ale rzeczywiste wydatki zależą od cen modelu i narzędzi.</td><td>Rejestr budżetu na ścieżce wysyłania; Prometheus i Alertmanager jako dodatkowe mechanizmy monitorowania i zatrzymywania</td></tr><tr><td><strong>Nieidempotentne wywołania narzędzi</strong></td><td>Zapisz intencję <code>pending</code> oraz klucz idempotencji przed wysłaniem; po zwróceniu wyniku zapisz rezultat. Przy wznowieniu odpytać lub ponów z tym samym kluczem, a następnie zapisz odzyskany wynik albo <code>needs_human</code>.</td><td>Właściwość ponawiania at-least-once; sprawdź awarię po zatwierdzeniu przez dostawcę, ale przed lokalnym zapisem wyniku.</td><td>Trwały magazyn zdarzeń oraz wyszukiwanie idempotencji u dostawcy obok węzła wykonywania narzędzia</td></tr><tr><td><strong>Utrata pracy po awarii procesu lub sandboxa</strong></td><td>Trwały dziennik zdarzeń poza procesem; checkpoint po każdym super-kroku; uzgodnij oczekujące efekty przed kontynuacją. <code>wake(sessionId) → getSession(id) → reconcile → resume</code>.</td><td>Wymaganie odzyskiwania; wstrzyknij awarię między sukcesem dostawcy a zapisaniem wyniku, a następnie porównaj uzgodniony dziennik zdarzeń z efektem zewnętrznym.</td><td><code>PostgresSaver</code> dla stanu grafu oraz osobny magazyn zdarzeń albo <a href="https://temporal.io/blog/introducing-temporal-and-agentic-sandboxes-openai-agents-sdk">Temporal Workflow</a></td></tr></tbody></table>
+<p>Za większością tych wierszy stoją dwie idee. Anthropic o starzeniu się harnessu w <a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">Harness design for long-running application development</a>:</p>
+<blockquote>
+<p>„Każdy komponent harnessu koduje założenie dotyczące tego, czego model nie potrafi zrobić samodzielnie. Założenia te warto poddawać testom obciążeniowym, zarówno dlatego, że mogą być błędne, jak i dlatego, że wraz z rozwojem modeli mogą szybko się zdezaktualizować.”</p>
+</blockquote>
+<p>Vercel o pokrewnym problemie zbyt wielu narzędzi kodujących zbyt wiele założeń, w <a href="https://vercel.com/blog/we-removed-80-percent-of-our-agents-tools">We removed 80% of our agent’s tools</a>:</p>
+<blockquote>
+<p>„Usunęliśmy większość z nich i ograniczyliśmy agenta do jednego narzędzia: wykonywania dowolnych poleceń bash. Nazywamy to agentem systemu plików.”</p>
+</blockquote>
+<p>Cytat opisuje rdzeń bashowy; agent wdrożony przez Vercel zachował dwa narzędzia, <code>ExecuteCommand</code> i <code>ExecuteSQL</code>, zastępujące stary przykład kodu wymieniający siedemnaście narzędzi. <a href="/pl/blog/2026/03/24/ai-agent-tool-use/">Część 3</a> omawia pełne porównanie przed i po. Zgłoszony wynik dla pięciu reprezentatywnych zapytań: skuteczność wzrosła z 4/5 do 5/5, a najgorszy przypadek skrócił się z 724 s / 100 kroków / 145 463 tokenów (niepowodzenie) do 141 s / 19 kroków / 67 483 tokenów (sukces). Ten najgorszy przypadek jest najbardziej spektakularny; średnio dla pięciu zapytań oszczędność tokenów wyniosła 37%. Wniosek nie brzmi „usuń swoje narzędzia”. Opcjonalna pomoc może stać się zbędna wraz ze zmianą zachowania modelu. Gdy model się zmienia, ponownie sprawdź to założenie.</p>
+<p>Cognition zaobserwowało podobnie zmienną sytuację w zakresie długości sesji dla Sonnet 4.5. W <a href="https://cognition.ai/blog/devin-sonnet-4-5-lessons-and-challenges">Rebuilding Devin for Claude Sonnet 4.5</a> opisują model, który, wyczuwając wyczerpanie kontekstu, proaktywnie zapisuje <code>SUMMARY.md</code> / <code>CHANGELOG.md</code>, ale nie doszacowuje liczby pozostałych tokenów. Ich rozwiązaniem było włączenie kontekstu o rozmiarze 1 mln tokenów i ograniczenie użycia do 200 tys., aby model nadal uważał, że ma zapas. W momencie publikacji był to przełącznik beta.</p>
+<p>Dokumentacja Anthropic dotycząca <a href="https://platform.claude.com/docs/en/build-with-claude/context-windows">okna kontekstowego</a>, sprawdzona 6 września 2026 r., wymienia Sonnet 5 i Opus 5 z domyślnym oknem 1 mln tokenów; Sonnet 4.5 pozostaje przy 200 tys. Aktualne modele Sonnet automatycznie otrzymują informacje o pozostałym kontekście, a kompaktowanie po stronie serwera jest dostępne w wersji beta dla modeli Claude 4.6 i nowszych. Zanim skopiujesz historyczny limit Cognition, przetestuj wybrany model z obsługiwanymi mechanizmami kontroli kontekstu. Większe okno lub licznik budżetu nie zapewniają niezawodnego przypominania, a żaden z nich nie zastępuje trwałego postępu poza modelem.</p>
+<p>Zespół OpenAI zajmujący się harnessami ma wersję jednozdaniową: „Ludzie sterują. Agenci wykonują.” Gdy coś się psuje, warto zapytać, której zdolności brakuje i jak sprawić, by była dla agenta zarówno czytelna, jak i egzekwowalna.</p>
+<hr>
+<h2 id="the-healthy-run-lifecycle">Prawidłowy cykl życia uruchomienia</h2>
+<p>Dobrze działające uruchomienie jest nudne. To łańcuch małych, możliwych do odzyskania kroków, a każdy zakończony krok zapisuje trwały stan, zanim rozpocznie się kolejny.</p>
+<p>Zapisywanie każdego wyniku przed rozpoczęciem kolejnego kroku ogranicza skutki awarii. Wyjątkiem jest zewnętrzne działanie w toku: worker może ulec awarii po zatwierdzeniu go przez dostawcę, ale przed zapisaniem wyniku przez harness. Następny worker musi uzgodnić to oczekujące działanie, zanim wznowi pracę od ostatniego ukończonego kroku.</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-05-26-the-runtime/run-lifecycle.svg" alt="Cykl życia wdrożonego uruchomienia agenta" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-05-26-the-runtime/run-lifecycle.dark.svg" alt="Cykl życia wdrożonego uruchomienia agenta" loading="lazy"></span></p>
+<ol>
+<li>Uruchom świeżą sesję albo wznowioną. Przy wznowieniu zamontuj workspace z jego ostatniego znanego stanu, odczytaj pliki postępu pozostawione przez poprzednią próbę (<code>PROGRESS.md</code>, <code>feature-list.json</code>), wczytaj ostatni checkpoint i sprawdź w dzienniku zdarzeń oczekujące intencje narzędzi. Uzgodnij każde oczekujące działanie zewnętrzne przed kolejnym wywołaniem modelu lub narzędzia.</li>
+<li>Zaplanuj działanie przed wysłaniem jakichkolwiek wywołań narzędzi. Zapisz, jak wygląda „gotowe”, ile uruchomienie może wydać, jakie narzędzia agent może wywoływać oraz co powinno zakończyć uruchomienie wcześniej. Wartości te stają się kontrolami runtime’u; bez nich wykonanie nie ma mechanizmu ograniczającego.</li>
+<li>Szereguj wywołania narzędzi powodujące efekty uboczne albo jawnie nimi koordynuj. Kontrola uprawnień harnessu decyduje, czy każde z nich dopuścić. Przed wysłaniem dopisz intencję <code>pending</code> wraz z kluczem idempotencji; po zwróceniu wyniku dopisz rezultat. Niezależne wywołania tylko do odczytu lub idempotentne mogą działać równolegle, jeśli każde ma własny trwały rekord intencji i wyniku, a ich rezultaty są agregowane deterministycznie. Jeśli worker umrze między efektem ubocznym a zapisem wyniku, wznowienie powinno odpytać dostawcę lub ponowić wywołanie z tym samym kluczem, a następnie dopisać odzyskany wynik albo <code>needs_human</code>. Stripe na przykład zwraca zapisany wynik pierwszego żądania dla powtórzonego <a href="https://docs.stripe.com/api/idempotent_requests">klucza idempotencji</a>; inny dostawca potrzebuje równoważnego kontraktu wyszukiwania lub ponawiania.</li>
+<li>Wykonuj checkpoint na granicach super-kroków albo po każdym zdarzeniu w prostszym harnessie. Utrwalaj stan grafu, diff workspace’u oraz odwołania do utworzonych artefaktów. Ten checkpoint odczytuje krok 1 przy kolejnym wznowieniu. Jeśli checkpointu brakuje albo jest nieaktualny, odzyskanie może wymagać odbudowania stanu z dziennika zdarzeń, co jest znacznie wolniejsze.</li>
+<li>Gdy agent uzna, że praca jest zakończona, przeprowadź ewaluację artefaktów: testy, ewaluator ze świeżym kontekstem, walidację schematu, kontrole przeglądarki. Jeśli kontrola przejdzie, uruchomienie kończy się sukcesem. Jeśli nie, uruchomienie wznawia się od ostatniego czystego checkpointu z komunikatem o błędzie dodanym do kontekstu i próbuje ponownie.</li>
+</ol>
+<p>Żaden krok tej listy nie wymaga, aby agent pamiętał cokolwiek między uruchomieniami. Stan znajduje się w sesji i checkpoincie, a agent odczytuje go ponownie przy każdym wznowieniu.</p>
+<p>Przed wysłaniem zapisz identyfikator operacji należący do aplikacji i powiąż go z zatwierdzonymi argumentami. Używaj go ponownie przy odzyskiwaniu tego samego zamiaru biznesowego, nawet jeśli ponowne planowanie wygeneruje nowy identyfikator wywołania narzędzia modelu. Identyfikatory modelu zapisuj osobno na potrzeby korelacji. Naturalnie idempotentne aktualizacje mogą zamiast tego wymagać warunku wstępnego wersji. <a href="https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/">Wytyczne AWS dotyczące ponowień</a> wyjaśniają, dlaczego tożsamość żądania reprezentuje zamiar. Zdefiniuj, kiedy działanie jest rzeczywiście nowe i jak długo trwa deduplikacja: <a href="https://docs.stripe.com/api/idempotent_requests">Stripe pozwala usuwać klucze po co najmniej 24 godzinach</a>. Przed kolejną próbą uzgodnij zmienione payloady i wygasłe klucze.</p>
+<p>Wybierz jednego aktywnego writera albo dzierżawę dla każdego wątku. Dla danych przychodzących podczas uruchomienia jawnie odrzucaj, kolejkować, przerywaj albo wycofuj; <a href="https://www.langchain.com/blog/runtime-behind-production-deep-agents">opis runtime’u Deep Agents</a> przedstawia te możliwości. Anulowanie musi zatrzymać nowe wysyłanie, zapisać żądanie i uzgodnić działania w toku; zabicie workera nie cofa wywołania dostawcy.</p>
+<p>Egzekwowanie budżetu należy umieścić obok wysyłania. Równoległe wywołania nie mogą wydawać tej samej pozostałej kwoty. <a href="https://prometheus.io/docs/introduction/overview/">Prometheus jest systemem monitorowania</a>, a nie autorytatywnym rejestrem wydatków per żądanie. Rezerwuj ostrożnie i uzgadniaj rzeczywiste użycie; opóźnione rozliczenie dostawcy i anulowanie nadal mogą spowodować przekroczenie.</p>
+<p>Nowe mechanizmy sterowania modelem pomagają kontrolować tempo uruchomienia, ale nie zarządzają jego limitem wydatków. Beta <a href="https://platform.claude.com/docs/en/build-with-claude/task-budgets">budżetów zadań</a> Anthropic udostępnia obsługiwanym modelom Messages API budżet orientacyjny w pętli agentowej. Budżet może zostać przekroczony; <code>max_tokens</code> ogranicza jedną odpowiedź, a nie całe uruchomienie. Obsługa zależy od modelu: Opus 5 obsługuje budżety zadań, a Sonnet 5 nie. Utrzymuj rejestr wysyłania i ścieżkę anulowania także wtedy, gdy model otrzymuje wskazówkę budżetową.</p>
+<p>Mechanizmy bezpieczeństwa dostawcy wymagają własnej ścieżki terminalnej. W przypadku OpenAI <code>misalignment_policy_violation</code> zatrzymaj wysyłanie, zachowaj powiązane rekordy i poproś operatora o przegląd zamiast ponawiać. Obsłuż błędy strumienia po częściowych danych wyjściowych i uzgodnij wcześniejsze efekty; <a href="/pl/blog/2026/04/20/ai-agent-security/">Część 4</a> wyjaśnia granicę monitorowania.</p>
+<p>Ewaluacja powinna uwzględniać dowody spoza kontekstu, w którym powstaje wynik. Ewaluator ze świeżym kontekstem ogranicza błąd wspólnego kontekstu, a testy, lintery, kontrole przeglądarki i walidacja schematu dostarczają deterministycznych dowodów. Kontrola może zwrócić <code>pass</code>, <code>fail</code> albo <code>needs_human</code>. W przypadku agentów kodujących recenzentem może być inna sesja modelu z narzędziami tylko do odczytu. W przypadku agentów danych i raportów łącz walidację deterministyczną z modelem recenzującym tam, gdzie nadal potrzebny jest osąd.</p>
+<hr>
+<h2 id="jedenaście-wzorców-wdrażania-agentów-ai-i-kryteria-wyboru">Jedenaście wzorców wdrażania agentów AI i kryteria wyboru</h2>
+<p>Po nazwaniu pięciu prymitywów pojawia się pytanie, jaki układ ma je uruchamiać. Przez „układ” rozumiem rozmieszczenie tych prymitywów: gdzie znajduje się harness, gdzie utrwalany jest stan i jaki sandbox wykonuje pracę. Układ jest decyzją dotyczącą połączeń, a nie wyborem dostawcy. Wykres poniżej pokazuje, dla jakiej długości uruchomienia każdy układ jest najwygodniejszy. Późniejszy tekst omawia kryteria wyboru.</p>
+<p>Jeśli masz przeczytać tylko jeden z jedenastu układów, wybierz układ 2: kolejka + worker + baza checkpointów. To domyślna rekomendacja dla większości zespołów, układ użyty w repozytorium referencyjnym oraz szkielet, który różnicuje większość pozostałych układów: kolejka → worker → trwały stan, z wymienionym źródłem sandboxa, właścicielem harnessu lub silnikiem stanu. Przeczytanie najpierw układu 2 przyspiesza przegląd pozostałych.</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-05-26-the-runtime/deployment-shapes.svg" alt="Układy wdrażania i optymalny zakres długości uruchomień" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-05-26-the-runtime/deployment-shapes.dark.svg" alt="Układy wdrażania i optymalny zakres długości uruchomień" loading="lazy"></span></p>
+<p>Wykres porównuje układy pod kątem długości uruchomienia. Poniższa macierz porównuje je pod kątem własności: każda obramowana komórka wskazuje komponent zapewniający dany prymityw.</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-05-26-the-runtime/primitive-ownership.svg" alt="Gdzie znajduje się każdy prymityw w poszczególnych układach wdrażania" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-05-26-the-runtime/primitive-ownership.dark.svg" alt="Gdzie znajduje się każdy prymityw w poszczególnych układach wdrażania" loading="lazy"></span></p>
+<h3 id="1-sdk-wewnątrz-serwera-aplikacyjnego-synchronicznie-w-zakresie-żądania">1. SDK wewnątrz serwera aplikacyjnego (synchronicznie, w zakresie żądania)</h3>
+<p>Oryginalny układ. SDK agenta działa wewnątrz handlera żądania. Dobry dla zadań krótszych niż 30 sekund, demonstracji i narzędzi wewnętrznych. Zły dla wszystkiego, od czego klient HTTP może się rozłączyć. <a href="https://docs.cloud.google.com/run/docs/configuring/request-timeout">Limit czasu żądania Cloud Run</a> wynosi maksymalnie 60 minut, a każda awaria warstwy webowej zabija uruchomienie. SDK jest harnessem. Niezaufane wykonywanie narzędzi wymaga osobnego sandboxa, a stan zwykle pozostaje w pamięci procesu, chyba że jawnie zapiszesz go gdzie indziej. Nie używaj tego układu do pracy trwającej wiele godzin.</p>
+<h3 id="2-kolejka--worker--baza-checkpointów">2. Kolejka + worker + baza checkpointów</h3>
+<p>To domyślna rekomendacja dla większości zespołów oraz implementacja demonstracyjna o kształcie produkcyjnym w <a href="https://github.com/slavadubrov/market-analyst-agent"><code>market-analyst-agent</code></a>: Pythonowy worker z checkpointerem PostgreSQL, <a href="https://redis.io/docs/latest/develop/data-types/streams/">Redis Streams</a> (albo <a href="https://www.rabbitmq.com/">RabbitMQ</a>) dla kolejki wejściowej oraz sidecar MCP dla narzędzi. Dobry dla uruchomień od 10 minut do wielu godzin z idempotentnymi krokami. Lokalny runner może omijać kolejkę na potrzeby synchronicznego programowania, ale kolejka staje się częścią układu produkcyjnego, gdy potrzebujesz asynchronicznego przyjmowania zadań i backpressure.</p>
+<p>W układzie produkcyjnym aplikacja przyjmuje żądanie, tworzy wiersz sesji, umieszcza zadanie w kolejce i zwraca identyfikator uruchomienia. Worker pobiera zadanie, uruchamia harness, zapisuje zdarzenia sesji i checkpointy, strumieniuje status oraz przechowuje artefakty w miarę postępu. Postgres pozostaje trwały, workery są wymienne, a długość kolejki zapewnia backpressure. Maszyny spot/preemptible działają poprawnie, jeśli trwałe zapisy dziennika zdarzeń i checkpointu zakończą się, zanim worker zgłosi sukces. Powiązane repozytorium demonstruje układ, ale nie zweryfikowane trwałe odzyskiwanie. Jego konsument odczytuje nowe wiadomości bez odzyskiwania oczekujących zadań, potwierdza wyjątki i ponownie dostarcza pracę z nowym stanem początkowym zamiast z określonym kontraktem wznowienia. Produkcja wymaga mechanizmu claim/lease/reclaim/ACK oraz testów awarii, zanim tę topologię będzie można nazwać odzyskiwalną.</p>
+<p>W tym układzie worker jest harnessem. Jego kontener i workspace per wątek zapewniają granicę wykonywania, ale niezaufany kod nadal wymaga utwardzonego sandboxa lub VM. Magazyn zdarzeń jest właścicielem historii sesji; <code>PostgresSaver</code> jest właścicielem stanu checkpointów. Mogą współdzielić bazę tylko wtedy, gdy harness jawnie zapisuje oba schematy. Trace’y przechodzą przez OpenTelemetry do używanego przez ciebie stosu observability.</p>
+<h3 id="3-trwały-silnik-workflow-w-stylu-temporal">3. Trwały silnik workflow (w stylu Temporal)</h3>
+<p>Kod orkiestracji agenta działa wewnątrz Temporal Workflow; wywołania modelu i narzędzi działają jako Activities. Stan workflow znajduje się w dzienniku historii zdarzeń opartym na Cassandra, MySQL lub Postgres, dzięki czemu może być odtwarzany po awariach. Wdrożenia kodu workflow, które nakładają się na wykonywanie, wymagają bezpiecznego dla replay <a href="https://docs.temporal.io/production-deployment/worker-deployments/worker-versioning">Worker Versioning</a> albo patchy; zastąpienie kodu bez tej dyscypliny może zepsuć odtwarzanie. <a href="https://temporal.io/blog/announcing-openai-agents-sdk-integration">Integracja Temporal × OpenAI Agents SDK</a>, ogólnie dostępna od marca 2026 r., dostarcza helpery <code>OpenAIAgentsPlugin</code> i <code>activity_as_tool</code>, a materiał <a href="https://temporal.io/blog/introducing-temporal-and-agentic-sandboxes-openai-agents-sdk">agentic sandboxes</a> opisuje przeniesienie działającego agenta do innego dostawcy sandboxa w połowie konwersacji. Bezczynne workflow zużywają zero mocy obliczeniowej. Zastrzeżenia są rzeczywiste: agenci czasu rzeczywistego nie są obsługiwani, streaming nadal ma status eksperymentalny, a <code>LocalShellTool</code> i <code>ComputerTool</code> są wyłączone, ponieważ nie pasują do modelu rozproszonego.</p>
+<p>Wybierz ten układ, gdy uruchomienie ma rzeczywiste punkty oczekiwania: zatwierdzenia ludzi, callbacki zewnętrzne, długie uśpienia, ponowienia z regułami biznesowymi, okna wdrożeń — i gdy zespół może obsługiwać bezpieczne dla replay wersjonowanie workflow. Zatwierdzenie człowieka staje się trwałym uśpieniem, które nie zużywa mocy obliczeniowej, a nie pętlą odpytywania.</p>
+<p>Kod Workflow jest harnessem. Sandbox zwykle znajduje się poza Temporal i jest wywoływany z Activities. Stan sesji i checkpointów zostaje połączony w dzienniku historii zdarzeń Temporal, a widoczność trace’ów zapewniają Temporal UI oraz spany OpenTelemetry na każdej Activity.</p>
+<h3 id="4-dostawca-sandboxa-per-sesja">4. Dostawca sandboxa per sesja</h3>
+<p>Nowszy układ. Każde uruchomienie agenta otrzymuje własny microVM lub kontener od dostawcy sandbox-as-a-service. Harness znajduje się w trwałym miejscu, a sandbox jest jednorazowym środowiskiem wykonywania.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Dostawca</th><th>Kontrakt izolacji / wykonywania</th><th>Ograniczenia sesji i trwałości, sprawdzone we wrześniu 2026 r.</th></tr></thead><tbody><tr><td><a href="https://e2b.dev/pricing">E2B</a></td><td>MicroVM Firecracker</td><td>1 godz. Hobby / 24 godz. Pro dla sesji ciągłych; <a href="https://docs.e2b.dev/sandbox/persistence">pause/resume</a> to osobny cykl życia</td></tr><tr><td><a href="https://vercel.com/docs/sandbox/pricing">Vercel Sandbox</a></td><td>MicroVM Firecracker</td><td>45 min Hobby / 24 godz. Pro i Enterprise; wygaśnięcie snapshotu domyślnie 30 dni po ostatnim użyciu, konfigurowalne</td></tr><tr><td><a href="https://www.daytona.io/docs/en/sandboxes/">Daytona</a></td><td>Sandbox konfigurowany przez administratora/dostawcę</td><td>Konfigurowalny cykl zatrzymania/archiwizacji; obsługa forków</td></tr><tr><td><a href="https://modal.com/docs/guide/sandboxes">Modal</a></td><td>gVisor</td><td>Domyślnie 5 min / maksymalnie 24 godz.; wolumeny i obsługiwane mechanizmy snapshotów mają osobne kontrakty trwałości</td></tr><tr><td><a href="https://aws.amazon.com/marketplace/pp/prodview-6v2m5a6coprts">Runloop</a></td><td>Oferta marketplace’u opisuje microVM-y</td><td>Wstrzymywanie/wznawianie oraz snapshot/branch dysku; współbieżność na poziomie platformy nie jest limitem konta</td></tr></tbody></table>
+<p>Czasy startu podawane przez dostawców mierzą różne przedziały i nie tworzą rankingu szybkości. Mierz osobno czas od żądania API do pierwszego pomyślnego polecenia oraz czas osiągnięcia gotowości aplikacji, uwzględniając stan obrazu/cache’a, region, współbieżność i p95/p99. <a href="https://modal.com/docs/guide/cold-start">Około sekundowy start kontenera w Modal</a> nie obejmuje na przykład inicjalizacji aplikacji. Przed testami obciążeniowymi sprawdź limity współbieżności konta.</p>
+<p>Daytona zapisuje relację rodzic–dziecko dla każdego niezależnego forka, zachowując pochodzenie wyprowadzonych sandboxów. Harness Codex firmy OpenAI korzysta z wariantu per-worktree: „Codex pracuje na w pełni izolowanej wersji aplikacji, wraz z jej logami i metrykami, które są usuwane po zakończeniu zadania”.</p>
+<p>Wybierz ten układ, gdy agent uruchamia niezaufany kod, automatyzację przeglądarki, testy lub instalację pakietów. Kompromisem są wyższe koszty i silniejsze uzależnienie od dostawcy niż przy współdzielonych workerach.</p>
+<p>Dostawca jest właścicielem sandboxa i niczego więcej. Harness, sesja, checkpoint i trace pozostają po twojej stronie, zwykle podłączone jak w układzie kolejka + worker z punktu 2.</p>
+<h3 id="5-anthropic-managed-agents-hostowany-harness">5. Anthropic Managed Agents (hostowany harness)</h3>
+<p>Anthropic uruchomił Managed Agents w publicznej wersji beta 8 kwietnia 2026 r., za nagłówkiem beta <code>managed-agents-2026-04-01</code>. Usługa zapewnia hostowaną sesję, harness, sandbox oraz proxy MCP oparte na vault. <code>wake(sessionId)</code> może zainicjalizować harness na nowym workerze bez utraty trwałego stanu sesji.</p>
+<p>Anthropic rozlicza Managed Agents według standardowych stawek tokenowych oraz dodatkowo <strong>$0.08 za godzinę sesji</strong>. Rozliczenie odbywa się z dokładnością do milisekundy i obejmuje wyłącznie czas, gdy status sesji to „running”; czas bezczynności jest bezpłatny. Niekontrolowana pętla ponowień zwiększa więc koszt godzin sesji niezależnie od kosztu tokenów.</p>
+<p>Przeczytaj zastrzeżenia. Zniżka Batch API <em>nie</em> obowiązuje („Sesje są stanowe i interaktywne. Nie ma trybu batch”). Managed Agents nie jest dostępny przez <a href="https://aws.amazon.com/bedrock/">AWS Bedrock</a> ani <a href="https://cloud.google.com/products/vertex-ai-platform">Google Vertex AI</a>. W ramach bety tunele MCP i „śnienie” agenta są objęte dodatkowym research preview, do którego trzeba uzyskać dostęp; koordynacja wielu agentów i samoewaluacja oceniana według rubryki są udokumentowanymi częściami bety. Uzależnienie od dostawcy jest wysokie: rezygnujesz ze swobody projektowania harnessu w zamian za brak konieczności samodzielnego uruchamiania pętli.</p>
+<p>Domyślna konfiguracja chmurowa umieszcza wszystkie pięć prymitywów u Anthropic. Przy <a href="https://platform.claude.com/docs/en/managed-agents/self-hosted-sandboxes">sandboxach self-hosted</a> samodzielnie obsługujesz wykonywanie, systemy plików i ruch wychodzący sieci, podczas gdy Anthropic uruchamia orkiestrację i model. Dane wejściowe i wyniki narzędzi nadal trafiają do płaszczyzny sterowania dostawcy; dołączone umiejętności i pamięć są tam przechowywane i synchronizowane. Własne wykonywanie nie czyni całego systemu self-hosted.</p>
+<p><a href="https://platform.claude.com/docs/en/build-with-claude/claude-platform-on-aws">Claude Platform on AWS</a> również obsługuje Managed Agents i sandboxy self-hosted; jest to odrębna usługa od Bedrock. W tym środowisku autonomiczna sesja potrzebuje zdarzenia user-role do ponownego uwierzytelnienia po sześciu godzinach, a sesje self-hosted nie mogą dołączać magazynów pamięci. First-party Managed Agents nie ma tych dwóch ograniczeń. Przed skopiowaniem projektu sesji sprawdź zarówno platformę, jak i model.</p>
+<h3 id="6-langchain-deep-agents-deploy-zarządzany-otwarty-harness">6. LangChain Deep Agents Deploy (zarządzany otwarty harness)</h3>
+<p><code>deepagents deploy</code> pakuje <code>deepagents.toml</code> do LangSmith Deployment z trwałym wykonywaniem, pamięcią, obsługą wielu tenantów, human-in-the-loop, observability, izolowanym wykonywaniem kodu i zaplanowanymi uruchomieniami. Obsługiwane są tryby wdrażania cloud, hybrid i self-hosted. Dostawców sandboxów (LangSmith Sandboxes, Daytona, Modal, Runloop lub własnego) można przełączać jedną wartością konfiguracji. Pliki agenta i pamięć znajdują się w wirtualnym systemie plików z wymiennymi backendami; trwałość checkpointów jest oddzielna, a pamięć może być przypisana użytkownikowi, asystentowi albo obu stronom. Uzależnienie od dostawcy jest mniejsze niż w Managed Agents: harness jest objęty licencją MIT, instrukcje korzystają z otwartego standardu <code>AGENTS.md</code>, a agenci są udostępniani przez MCP, protokół A2A (Agent2Agent) i Agent Protocol. Zobacz materiał LangChain <a href="https://www.langchain.com/blog/runtime-behind-production-deep-agents">runtime-behind-production-deep-agents</a>.</p>
+<p>Domyślnie hostowane są wszystkie pięć prymitywów, ale każdy można przełączyć konfiguracją. Sandbox znajduje się za jedną wartością konfiguracji. System plików pamięci jest oddzielony od trwałości wątków i checkpointów. Trace trafia do LangSmith.</p>
+<h3 id="7-usługa-lub-zadanie-google-cloud-run">7. Usługa lub zadanie Google Cloud Run</h3>
+<p>Cloud Run ma dwa różne tryby runtime’u, a wybór zależy od sposobu wywoływania agenta. <strong>Usługi</strong> są związane z HTTP i skalują się do zera między żądaniami; harness działa jako handler żądania i zwraca wynik po zakończeniu uruchomienia. <strong>Zadania</strong> działają do ukończenia bez punktu wejścia HTTP; harness działa jako jednorazowy worker, który kończy się po wykonaniu zadania. Oba tryby mogą hostować harness, ale żaden nie przechowuje stanu między uruchomieniami. Sesje i checkpointy muszą znajdować się w Postgres, Spannerze lub podobnym zewnętrznym magazynie.</p>
+<p>Twarde limity obu trybów znacząco się różnią. <a href="https://docs.cloud.google.com/run/docs/configuring/request-timeout">Limit czasu żądania usługi Cloud Run</a>: domyślnie 300 s, maksymalnie <strong>3600 s (60 min)</strong>. <a href="https://docs.cloud.google.com/run/docs/triggering/websockets">WebSockets</a> mają ten sam limit. <a href="https://docs.cloud.google.com/run/docs/configuring/task-timeout">Zadania Cloud Run</a>: domyślnie 10 min na zadanie, maksymalnie <strong>168 godz. (7 dni)</strong>; dla zadań korzystających z GPU maksymalnie <strong>1 godz.</strong> Rozliczanie per instancja (zawsze przydzielony CPU) nadal pozwala na <a href="https://docs.cloud.google.com/run/docs/about-instance-autoscaling">scale-to-zero</a>; minimalna liczba instancji jest osobnym ustawieniem; zadania nie mają HTTP i nie skalują się automatycznie.</p>
+<p>Usługi używaj do synchronicznych uruchomień trwających do 60 minut. Zadania wybierz dla dłuższej pracy jednorazowej lub asynchronicznej. Cloud Run Jobs może utrzymywać zadanie przez wiele dni, ale nie zapewnia trwałego replay po wdrożeniach, zmianach wersji ani wymianie workera. Dłuższy workflow może obejmować wiele wykonań, jeśli zewnętrzny orkiestrator jest właścicielem trwałego postępu.</p>
+<p>Cloud Run hostuje harness. Stan sesji i checkpointów znajduje się w Postgres, Spannerze lub innym zewnętrznym magazynie, a trace’y mogą przepływać przez Cloud Logging i OpenTelemetry. Kontener usługi jest środowiskiem wykonywania; dodaj osobny sandbox, gdy agent uruchamia niezaufany kod.</p>
+<h3 id="8-aws-lambda-ograniczone-czasowo-wywołania-i-trwałe-workflow">8. AWS Lambda: ograniczone czasowo wywołania i trwałe workflow</h3>
+<p><a href="https://docs.aws.amazon.com/lambda/latest/dg/configuration-timeout.html">Maksymalny timeout funkcji Lambda</a> wynosi <strong>900 s (15 minut)</strong> i jest niezmienny. Jeśli funkcję wystawia API Gateway, limit integracji zależy od typu API. <a href="https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-quotas.html">HTTP APIs pozwala na 30 sekund</a>; integracje REST mają domyślnie 29 sekund, natomiast <a href="https://docs.aws.amazon.com/apigateway/latest/api/API_PutIntegration.html">regionalne i prywatne API REST mogą konfigurować dłuższy timeout</a>. <a href="https://docs.aws.amazon.com/lambda/latest/dg/durable-functions.html">Lambda durable functions</a>, uruchomione w grudniu 2025 r., dodają zarządzane checkpointy, kroki i oczekiwania między wykonaniami trwającymi do jednego roku. Aktywne wywołanie nadal podlega limitowi, ale trwałe workflow może żyć dłużej. Porównaj obsługiwane runtime’y, regiony, reguły replay i idempotencję aktywności z wymaganiami.</p>
+<p>Lambda może utrzymywać ograniczony harness w ramach limitu 15 minut. Stan sesji i checkpointów nadal wymaga jawnych zewnętrznych magazynów; dodaj osobny sandbox dla niezaufanego kodu i eksportuj trace’y do zewnętrznej telemetrii. Trwałe workflow Lambda może orkiestruje pracę trwającą wiele godzin przez serię ograniczonych czasowo wywołań.</p>
+<h3 id="9-aws-ecs--zadanie-fargate-per-uruchomienie">9. AWS ECS / zadanie Fargate per uruchomienie</h3>
+<p>Fargate nie dokumentuje twardego limitu czasu działania zadania, w przeciwieństwie do zwykłego wywołania Lambda. <a href="https://aws.amazon.com/fargate/faqs/">Fargate nie obsługuje zadań GPU</a>; obciążenia ECS z GPU wymagają odpowiednich instancji EC2 lub zewnętrznej usługi GPU. Fargate zapewnia izolację zadań opartą na wirtualizacji, choć poświadczenia i dozwolony dostęp sieciowy nadal wymagają modelu zagrożeń. <a href="https://docs.aws.amazon.com/AmazonECS/latest/developerguide/throttling.html">Limity throttlingu Fargate</a> pozwalają na początkowy burst 100 uruchomień i uzupełnianie w tempie 20 na sekundę, z osobnymi budżetami on-demand i spot. <a href="https://docs.aws.amazon.com/AmazonECS/latest/developerguide/operating-at-scale-service-quotas.html">Limity usług ECS</a> ograniczają usługi korzystające z AWS Cloud Map do 1000 zadań na usługę, a klastry oparte na EC2 do 5000 instancji kontenerów.</p>
+<p>Fargate wymaga trybu <code>awsvpc</code>, więc każde zadanie otrzymuje interfejs sieciowy i prywatny adres IP. Ten układ pasuje do dostępu do danych wewnątrz VPC. Fargate Spot zwiększa ryzyko przerwania, a trwałość pozostaje twoją odpowiedzialnością, ponieważ platforma nie zapewnia replay w stylu Temporal.</p>
+<p>Fargate hostuje harness i przydziela każdemu uruchomieniu własne zadanie. Oddziela to workspace’y i poświadczenia zadań, ale samo w sobie nie jest kompletnym sandboxem dla wrogiego kodu. Sesja, checkpoint i trace trafiają do zewnętrznych usług, takich jak RDS lub DynamoDB oraz CloudWatch/X-Ray.</p>
+<p>Przed samodzielnym budowaniem warstwy sesji w AWS porównaj również <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agents-tools-runtime.html">Amazon Bedrock AgentCore Runtime</a>. Hostuje on kod agenta z zarządzanym cyklem życia sesji i wyborem mocy obliczeniowej. AWS dokumentuje do 8 godzin na bezserwerowych microVM-ach albo 14 dni na typie Instances, który obsługuje również obciążenia GPU. <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-instances.html">Instances używa zarządzanych przez AWS zasobów EC2 na twoim koncie</a>, z innym modelem bezpieczeństwa niż opcja bezserwerowa. Jawnie wybierz i przetestuj ten kontrakt obliczeniowy; dłużej żyjąca instancja nadal nie zapewnia dokładnie jednokrotnego wykonania efektu zewnętrznego.</p>
+<h3 id="10-kubernetes-job-lub-namespace-per-sesja">10. Kubernetes Job lub namespace per sesja</h3>
+<p>Dobry wybór, jeśli już obsługujesz <a href="https://kubernetes.io/">Kubernetes</a> i chcesz mieć sandbox per sesja z kontrolą na poziomie klastra. Zły, gdy potrzebujesz startu krótszego niż sekunda, ponieważ pobranie obrazu kontenera i inicjalizacja poda trwają zbyt długo przy zimnym starcie. Wzorzec to jeden Job na uruchomienie agenta, z <code>activeDeadlineSeconds</code>, PersistentVolumeClaim dla workspace’u i sidecarem serwera MCP. Odzyskiwanie po awarii musisz zbudować samodzielnie. Przyjmowanie Kubernetes tylko po to, by hostować agentów, jest kosztowne pod względem konfiguracji i obsługi operacyjnej. Ma sens wyłącznie wtedy, gdy już używasz K8s z innych powodów.</p>
+<p>Kubernetes hostuje harness i środowisko wykonywania per uruchomienie, zwykle jako jeden Job, a czasem w dedykowanym namespace. Silna izolacja nadal zależy od runtime class, polityki sieciowej, bezpieczeństwa podów oraz bazowej granicy kontenera lub VM. Sesja i checkpointy znajdują się w zewnętrznej bazie albo na PersistentVolumeClaim.</p>
+<h3 id="11-lokalny-docker-compose-tylko-do-developmentu">11. Lokalny Docker Compose (tylko do developmentu)</h3>
+<p>To punkt odniesienia dla następnej sekcji. Ten układ odzwierciedla topologię produkcyjną jeden do jednego (te same prymitywy i kształt sieci), ale działa na jednym komputerze. Nie odzwierciedla natomiast izolacji: jeden współdzielony mount workspace’u, jeden Postgres, brak utwardzonego sandboxa oraz brak osobnych domen awarii między workerem a jego stanem. Nie wdrażaj niczego o takim kształcie.</p>
+<p>Compose odwzorowuje układ nr 2 na jednym hoście. W stosie referencyjnym Postgres przechowuje stan checkpointów, a kontener workera jest harnessem. Sesja o kształcie produkcyjnym potrzebuje własnego dziennika zdarzeń append-only; sama historia <code>PostgresSaver</code> nie zapewnia takiego dziennika. Współdzielony mount workspace’u jest wygodny podczas developmentu, ale nie izoluje niezaufanych uruchomień. Opcjonalny stos OpenTelemetry zapisuje trace’y.</p>
+<hr>
+<h2 id="stos-referencyjny-docker-compose">Stos referencyjny: Docker Compose</h2>
+<p>Topologia referencyjna użyta w <a href="https://github.com/slavadubrov/market-analyst-agent"><code>slavadubrov/market-analyst-agent</code></a> obejmuje workera LangGraph, checkpointer Postgres, <a href="https://qdrant.tech/">Qdrant</a> do wyszukiwania, sidecar MCP, kolejkę Redis do asynchronicznych uruchomień o kształcie produkcyjnym oraz opcjonalny stos observability <a href="https://prometheus.io/">Prometheus</a> / <a href="https://grafana.com/">Grafana</a> / <a href="https://grafana.com/oss/loki/">Loki</a> / Tempo / <a href="https://opentelemetry.io/">OTel</a>. W lokalnym Compose Redis jest opcjonalny wyłącznie dlatego, że synchroniczny runner może wywołać workera bezpośrednio. <code>docker compose up</code> uruchamia lokalnie podstawową topologię; sidecar MCP i stos observability są profilami opcjonalnymi (<code>--profile mcp</code>, <code>--profile observability</code>).</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-05-26-the-runtime/compose-topology.svg" alt="Referencyjna topologia Docker Compose" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-05-26-the-runtime/compose-topology.dark.svg" alt="Referencyjna topologia Docker Compose" loading="lazy"></span></p>
+<p>Diagram pokazuje <code>PostgresSaver</code> lokalnej demonstracji. Sesja o kształcie produkcyjnym dodaje osobny schemat zdarzeń dla intencji i wyników narzędzi; samo <code>PostgresSaver</code> nadal jest jedynie stanem checkpointów.</p>
+<p>Jedynym elementem wartym pokazania bezpośrednio jest kanoniczne połączenie LangGraph. To ilustracyjny fragment, a nie przykład uruchamialny z repozytorium. Uruchomienie go wymaga <code>langgraph</code>, <code>langgraph-checkpoint-postgres</code> i <code>psycopg[binary,pool]</code>, dostępnej bazy PostgreSQL z uprawnieniem do tworzenia tabel checkpointera, <code>POSTGRES_PASSWORD</code> oraz wcześniej zbudowanego <code>StateGraph</code> w <code>builder</code>; zobacz <a href="https://docs.langchain.com/oss/python/langgraph/persistence">konfigurację checkpointera Postgres w LangGraph</a>.</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> os</span></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> urllib.parse </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> quote</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> langgraph.checkpoint.postgres </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> PostgresSaver</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">password </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> quote(os.environ[</span><span style="color:#A5D6FF">"POSTGRES_PASSWORD"</span><span style="color:#E6EDF3">], </span><span style="color:#FFA657">safe</span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF">""</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#79C0FF">DB_URI</span><span style="color:#FF7B72"> =</span><span style="color:#FF7B72"> f</span><span style="color:#A5D6FF">"postgresql://agent:</span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">password</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">@postgres:5432/agent"</span></span>
+<span class="line"><span style="color:#8B949E"># `builder` is your StateGraph, already built</span></span>
+<span class="line"><span style="color:#E6EDF3">session_id </span><span style="color:#FF7B72">=</span><span style="color:#A5D6FF"> "session-123"</span></span>
+<span class="line"><span style="color:#FF7B72">with</span><span style="color:#E6EDF3"> PostgresSaver.from_conn_string(</span><span style="color:#79C0FF">DB_URI</span><span style="color:#E6EDF3">) </span><span style="color:#FF7B72">as</span><span style="color:#E6EDF3"> checkpointer:</span></span>
+<span class="line"><span style="color:#E6EDF3">    checkpointer.setup()  </span><span style="color:#8B949E"># creates tables on first run</span></span>
+<span class="line"><span style="color:#E6EDF3">    graph </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> builder.compile(</span><span style="color:#FFA657">checkpointer</span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3">checkpointer)</span></span>
+<span class="line"><span style="color:#E6EDF3">    result </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> graph.invoke(</span></span>
+<span class="line"><span style="color:#E6EDF3">        {</span><span style="color:#A5D6FF">"messages"</span><span style="color:#E6EDF3">: [{</span><span style="color:#A5D6FF">"role"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"user"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"content"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"Continue the task"</span><span style="color:#E6EDF3">}]},</span></span>
+<span class="line"><span style="color:#E6EDF3">        {</span><span style="color:#A5D6FF">"configurable"</span><span style="color:#E6EDF3">: {</span><span style="color:#A5D6FF">"thread_id"</span><span style="color:#E6EDF3">: session_id}},</span></span>
+<span class="line"><span style="color:#E6EDF3">    )</span></span></code></pre>
+<hr>
+<h2 id="observability-które-przetrwa-uruchomienie">Observability, które przetrwa uruchomienie</h2>
+<p>Krótkie handlery żądań łatwo debugować: gdy coś się psuje, czytasz odpowiedź i bieżący log. Długotrwali agenci nie mają tego komfortu. Gdy sześciogodzinne uruchomienie kończy się błędem, interesujące zdarzenie miało miejsce pięć godzin wcześniej, bieżące wyjście terminala zniknęło, a worker, który je wytworzył, został zastąpiony. Nikt nie odtworzy uruchomienia z pamięci. Dlatego debugujesz na podstawie trwałych artefaktów zapisanych, gdy uruchomienie nadal działało.</p>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte mówi</p>
+<p>Jeśli długie uruchomienie zakończy się błędem po przewinięciu interesującego wyjścia terminala, do sprawdzenia pozostają trwały dziennik zdarzeń i trace.</p>
+</div></aside>
+<p>Stosy produkcyjne zwykle obejmują cztery rodzaje artefaktów w dwóch grupach. Dwa odczytujesz <strong>po</strong> zakończeniu uruchomienia, na potrzeby postmortemów i replay: przeszukiwalny dziennik zdarzeń każdego kroku oraz trace’y OpenTelemetry pokazujące, gdzie zużyto czas i tokeny. Dwa odczytujesz <strong>w trakcie</strong> uruchomienia. Jeden to bieżący podgląd tego, co agent tworzy w workspace. Drugi to stos observability per worktree, który sam agent może odpytywać podczas pracy.</p>
+<h3 id="ustrukturyzowany-dziennik-zdarzeń-odczytywany-po-uruchomieniu">Ustrukturyzowany dziennik zdarzeń (odczytywany po uruchomieniu)</h3>
+<p>Każde wywołanie modelu, wywołanie narzędzia, wynik, błąd i zatwierdzenie zapisane w trwałym magazynie, z kluczem w postaci identyfikatora sesji i znacznika czasu. Po zakończeniu uruchomienia odczytujesz go jak zwykłą tabelę bazy danych. Addy Osmani wyznacza prosty standard w <a href="https://addyosmani.com/blog/long-running-agents/">Long-running Agents</a>: „Jeśli nie potrafisz odtworzyć z trwałego magazynu tego, co agent zrobił w ciągu ostatnich 24 godzin, masz nie długotrwałego agenta, lecz długotrwały skrypt powłoki, który przypadkiem wywołuje LLM.”</p>
+<h3 id="tracey-opentelemetry-genai-odczytywane-po-uruchomieniu">Trace’y OpenTelemetry GenAI (odczytywane po uruchomieniu)</h3>
+<p>Ten sam rodzaj danych krok po kroku emitowany jest jako spany z użyciem standardowych atrybutów z konwencji semantycznych <a href="https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/README.md"><code>gen_ai.*</code></a>: nazwa modelu, dostawca, liczba tokenów wejściowych i wyjściowych, identyfikator konwersacji oraz nazwa workflow. Konwencje nadal mają poziom stabilności Development.</p>
+<p>W 2026 r. zostały przeniesione z głównego repozytorium konwencji semantycznych OpenTelemetry do własnego <a href="https://github.com/open-telemetry/semantic-conventions-genai">repozytorium konwencji semantycznych GenAI</a>. Nazw atrybutów można używać do instrumentacji, ale przypnij wersję rewizji, którą zweryfikowałeś, zamiast numeru wersji głównego repozytorium. Pola właściwe dla dostawcy znajdują się w podprzestrzeniach nazw (<code>anthropic.*</code>, <code>openai.*</code>) opartych na <code>gen_ai.provider.name</code>. Powodem stosowania standardu jest przenośność: na miejscach docelowych zgodnych z OTLP, które obsługują te konwencje, zmiana backendu może nie wymagać ponownej instrumentacji kodu, choć nadal mogą być potrzebne adaptery backendu lub konfiguracja właściwa dla miejsca docelowego.</p>
+<h3 id="oś-czasu-wywołań-narzędzi-i-diffy-workspaceu-odczytywane-w-trakcie-uruchomienia">Oś czasu wywołań narzędzi i diffy workspace’u (odczytywane w trakcie uruchomienia)</h3>
+<p>Najszybszy sposób sprawdzenia, co agent robi w tej chwili, to obserwowanie tego, co tworzy w workspace, a nie przeszukiwanie dziennika sesji. Szybki start Anthropic <a href="https://github.com/anthropics/cwc-long-running-agents">Harness Primitives for Long-Running Claude Agents</a> dostarcza do tego pętlę obserwacyjną z dwoma panelami: <code>watch -n 5 'git log --oneline -8'</code> pokazuje najnowsze commity agenta, a <code>watch -n 5 'find screenshots -name "*.png" | tail -5'</code> najnowsze wykonane przez niego zrzuty ekranu. Dwa panele terminala odświeżane co pięć sekund wystarczą, aby stwierdzić, czy uruchomienie rzeczywiście postępuje, czy kręci się w kółko.</p>
+<h3 id="efemeryczny-stos-per-worktree-odczytywany-przez-samego-agenta-w-trakcie-uruchomienia">Efemeryczny stos per worktree (odczytywany przez samego agenta w trakcie uruchomienia)</h3>
+<p>Jak napisano w <a href="https://openai.com/index/harness-engineering/">tekście OpenAI o harnessie</a>: „Logi, metryki i trace’y są udostępniane Codexowi przez lokalny stos observability, efemeryczny dla danego worktree”. Każdy worktree agenta otrzymuje własne krótkotrwałe Loki + Prometheus + Tempo, ograniczone wyłącznie do tego uruchomienia. Agent odpyta je podczas pracy. Dzięki temu prompt w rodzaju „żaden span w tych czterech ścieżkach użytkownika nie może przekraczać dwóch sekund” staje się czymś, co agent może bezpośrednio zweryfikować, a nie zgadywać.</p>
+<p>(Ewaluator ze świeżym kontekstem z tabeli trybów awarii odczytuje te artefakty, aby zdecydować „gotowe”. Należy do ewaluacji, nie do observability; zob. <a href="#the-healthy-run-lifecycle">§ prawidłowy cykl życia uruchomienia</a>. Zależy od każdej z powyższych powierzchni.)</p>
+<h3 id="minimalny-self-hosted-stos-observability">Minimalny self-hosted stos observability</h3>
+<p>Dla czegoś takiego jak <code>market-analyst-agent</code>:</p>
+<ol>
+<li><strong>OpenTelemetry Collector</strong> z <a href="https://opentelemetry.io/docs/collector/components/processor/">GenAI Normalizer Processor (contrib, alpha)</a> dla obsługiwanych atrybutów GenAI. Użyj ogólnych procesorów <strong>Attributes</strong> lub <strong>Transform</strong>, aby filtrować albo przepisywać pola <code>gen_ai.*</code>.</li>
+<li><strong>Tempo</strong> (lub Jaeger) dla trace’ów, z kluczami <code>gen_ai.conversation.id</code> / <code>thread_id</code>.</li>
+<li><strong>Loki</strong> dla wpisów ustrukturyzowanego dziennika zdarzeń.</li>
+<li><strong>Prometheus</strong> dla <code>gen_ai.client.token.usage</code>, <code>gen_ai.client.operation.duration</code> i <code>gen_ai.client.operation.time_to_first_chunk</code> — metryki <code>gen_ai.server.*</code> pochodzą z serwera modelu, więc otrzymasz je tylko wtedy, gdy hostujesz wagi (zob. <a href="https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-metrics.md">konwencje metryk GenAI</a>).</li>
+<li><strong>Grafana</strong> z dashboardami opartymi na <code>gen_ai.agent.name</code> i <code>gen_ai.request.model</code>.</li>
+</ol>
+<p>Hostowane alternatywy (wybierz jedną, nie trzy):</p>
+<ul>
+<li><a href="https://smith.langchain.com/">LangSmith</a>: natywna integracja z LangGraph; także cel wdrażania dla Deep Agents Deploy.</li>
+<li><a href="https://www.braintrust.dev/">Braintrust</a>: najlepsze dopasowanie, jeśli priorytetem są zestawy regresyjne w podejściu eval-first.</li>
+<li><a href="https://phoenix.arize.com/">Arize Phoenix</a>: OSS, natywnie zgodny z OTLP (protokołem przewodowym OpenTelemetry), współpracuje z instrumentacją <a href="https://github.com/Arize-ai/openinference">OpenInference</a>.</li>
+<li>Dashboard tracingu OpenAI: automatyczny przy użyciu OpenAI Agents SDK lub jego integracji z Temporal.</li>
+<li>Tracing Claude firmy Anthropic: dla sesji działających wewnątrz Managed Agents.</li>
+</ul>
+<h3 id="instrumentowanie-węzła-langgraph">Instrumentowanie węzła LangGraph</h3>
+<p>To ilustracyjny fragment pomijany przez runner przykładów repozytorium. Zakłada, że węzeł LangGraph ma już aktywny <code>span</code> OpenTelemetry, bieżący <code>thread_id</code> oraz obiekt odpowiedzi dostawcy <code>usage</code> zawierający <code>input_tokens</code> i <code>output_tokens</code>; konfiguracja tracera, eksportu oraz mapowania użycia właściwego dla dostawcy pozostają poza tym fragmentem.</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># In the LangGraph node, around the model call:</span></span>
+<span class="line"><span style="color:#E6EDF3">span.set_attribute(</span><span style="color:#A5D6FF">"gen_ai.operation.name"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"chat"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">span.set_attribute(</span><span style="color:#A5D6FF">"gen_ai.provider.name"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"anthropic"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">span.set_attribute(</span><span style="color:#A5D6FF">"gen_ai.request.model"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"&#x3C;your-model-id>"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">span.set_attribute(</span><span style="color:#A5D6FF">"gen_ai.response.model"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"&#x3C;your-model-id>"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">span.set_attribute(</span><span style="color:#A5D6FF">"gen_ai.conversation.id"</span><span style="color:#E6EDF3">, thread_id)</span></span>
+<span class="line"><span style="color:#E6EDF3">span.set_attribute(</span><span style="color:#A5D6FF">"gen_ai.agent.name"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"market-analyst"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">span.set_attribute(</span><span style="color:#A5D6FF">"gen_ai.workflow.name"</span><span style="color:#E6EDF3">, </span><span style="color:#A5D6FF">"research_then_write"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">span.set_attribute(</span><span style="color:#A5D6FF">"gen_ai.usage.input_tokens"</span><span style="color:#E6EDF3">, usage.input_tokens)</span></span>
+<span class="line"><span style="color:#E6EDF3">span.set_attribute(</span><span style="color:#A5D6FF">"gen_ai.usage.output_tokens"</span><span style="color:#E6EDF3">, usage.output_tokens)</span></span></code></pre>
+<p>Nazwy atrybutów pochodzą dosłownie z rejestru <a href="https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/registry/attributes/gen-ai.md">konwencji semantycznych GenAI OpenTelemetry</a>.</p>
+<h3 id="trzy-zapytania-które-warto-mieć-na-dashboardzie">Trzy zapytania, które warto mieć na dashboardzie</h3>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span># Loki: output tokens per agent in the last hour (one completion event per call)</span></span>
+<span class="line"><span>sum by (gen_ai_agent_name) (</span></span>
+<span class="line"><span>    sum_over_time({service_name="market-analyst-agent"} | json | event = "model_call_completed" | unwrap gen_ai_usage_output_tokens | __error__="" [1h])</span></span>
+<span class="line"><span>)</span></span></code></pre>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span># PromQL: p95 model latency per model</span></span>
+<span class="line"><span>histogram_quantile(0.95,</span></span>
+<span class="line"><span>    sum by (le, gen_ai_request_model) (</span></span>
+<span class="line"><span>        rate(gen_ai_client_operation_duration_bucket[5m])</span></span>
+<span class="line"><span>    )</span></span>
+<span class="line"><span>)</span></span></code></pre>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="plaintext"><code><span class="line"><span># TraceQL: long-running tool calls</span></span>
+<span class="line"><span>{ span.gen_ai.operation.name = "execute_tool" &#x26;&#x26; duration > 30s }</span></span></code></pre>
+<p>Agregacja <a href="https://grafana.com/docs/loki/latest/query/metric_queries/">LogQL</a> zakłada dokładnie jedno zarejestrowane zdarzenie ukończenia na wywołanie modelu. Usuń duplikaty tych zdarzeń przed ingestem; <code>rate</code> zgłaszałoby tokeny na sekundę zamiast tej jednogodzinnej sumy. Zweryfikuj mapowanie pól względem wdrożonego strumienia Loki.</p>
+<h3 id="wzorzec-pakietu-debugowania">Wzorzec pakietu debugowania</h3>
+<p>Gdy uruchomienie zakończy się błędem, worker powinien utworzyć <code>/workspaces/${THREAD_ID}/_debug/</code> zawierający artefakty, o które poprosiłbyś w postmortemie:</p>
+<ul>
+<li><code>events.jsonl</code>: eksport z osobno zapisywanego dziennika zdarzeń append-only harnessu, obejmujący intencje narzędzi, wyniki, zatwierdzenia i błędy.</li>
+<li><code>checkpoints.jsonl</code>: historia stanu grafu z <code>checkpointer.list({"configurable": {"thread_id": ...}})</code>, oznaczona jako checkpointy, a nie dziennik zdarzeń.</li>
+<li><code>last_state.json</code>: <code>StateSnapshot.values</code> z ostatniego udanego super-kroku.</li>
+<li><code>trace.json</code>: spany wyeksportowane przez OTLP dla uruchomienia; podstawą są metadane, a przechwycona treść podlega polityce trace’ów.</li>
+<li><code>tool_calls.csv</code>: <code>(ts, tool, input_hash, latency_ms, status, error)</code>.</li>
+<li><code>workspace.tar.zst</code>: katalog workspace’u oraz <code>git diff</code> względem commita inicjalizującego.</li>
+<li><code>screenshots/*.png</code>: to, co agent widział.</li>
+<li><code>PROGRESS.md</code>, <code>feature-list.json</code> oraz inne pliki postępu utworzone przez agenta.</li>
+<li><code>env.txt</code>: tagi obrazów, wersja modelu, SHA commita harnessu.</li>
+</ul>
+<p>Łącznie artefakty te mogą dostarczyć człowiekowi lub agentowi recenzującemu wystarczających dowodów do odtworzenia awarii, pod warunkiem że harness zapisywał magazyn zdarzeń, gdy uruchomienie nadal działało. „Agent się zablokował” jest nieprecyzyjne. Przykład konkretnego raportu: sesja <code>s_123</code> zużyła 71 procent tokenów na powtarzanie trzech poleceń po awarii <code>npm install</code>.</p>
+<hr>
+<h2 id="wybór-właściwego-układu-przewodnik-decyzyjny">Wybór właściwego układu: przewodnik decyzyjny</h2>
+<p>Większość powyższego porównania sprowadza się do kilku decyzji.</p>
+<h3 id="zacznij-od-długości-uruchomienia">Zacznij od długości uruchomienia</h3>
+<p>Użyj długości uruchomienia jako pierwszego filtra:</p>
+<ul>
+<li><strong>Poniżej 30 sekund, idempotentne:</strong> SDK w cyklu życia żądania, w serwerze aplikacyjnym.</li>
+<li><strong>Od 30 s do 60 min:</strong> kolejka + worker + baza checkpointów.</li>
+<li><strong>Od 60 min do 24 godz.:</strong> ta sama kolejka + worker albo Cloud Run Job dla pracy jednorazowej. Jeśli potrzebujesz również wersjonowania i replay, użyj trwałego silnika workflow.</li>
+<li><strong>Powyżej 24 godz., z koniecznością przetrwania wdrożeń:</strong> trwały silnik workflow (w stylu Temporal). Cloud Run Jobs może utrzymywać długą pracę do limitu zadania, ale nie zapewnia semantyki replay.</li>
+<li><strong>Wielodniowe pętle treningowe reinforcement learning:</strong> Job K8s + wolumen + Temporal.</li>
+</ul>
+<p>Po tym zgrubnym filtrowaniu sprawdź efekty uboczne, odzyskiwanie, replay, izolację, lokalizację danych oraz zespół, który będzie obsługiwał system.</p>
+<h3 id="dopasowanie-platformy-do-przypadku-użycia">Dopasowanie platformy do przypadku użycia</h3>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-05-26-the-runtime/decision-matrix.svg" alt="Dopasowanie platformy do przypadku użycia" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-05-26-the-runtime/decision-matrix.dark.svg" alt="Dopasowanie platformy do przypadku użycia" loading="lazy"></span></p>
+<p>Macierz jest gęsta i żadna pojedyncza zielona komórka nie rozstrzyga architektury; zwykle decydują komórki warunkowe, w których platforma obsługuje coś tylko z zastrzeżeniem. Szeroki zakres obsługiwanych obciążeń jest przydatny, ale nie pokazuje rezydencji danych, semantyki replay, zależności od dostawcy, dojrzałości operacyjnej ani kosztu późniejszego przeniesienia stanu.</p>
+<p>Komórki warunkowe stosują tę samą regułę dla każdej platformy. Opcje AWS/VPC i GPU Deep Agents zależą od wdrożenia hybrydowego lub dostawcy sandboxa; Managed Agents może używać wykonywania obsługiwanego przez klienta, zachowując hostowaną orkiestrację. Wiersz dotyczący wyboru sandboxa obejmuje integrację z zewnętrznym dostawcą, którą budujesz na własnym runtime’ie albo konfigurujesz w zarządzanym harnessie. Nie obiecuje ona snapshotu działającego stanu. Kubernetes Job również potrzebuje warstwy API lub kolejki dla interaktywnego żądania; szybkie ukończenie nie czyni go usługą HTTP. Przed wyborem porównaj dostęp sieciowy, sprzęt, odzyskiwanie i ścieżkę eksportu stanu dla wybranego wdrożenia. Wiersz dotyczący kodu harnessu odnosi się do dostępu do implementacji pętli, a nie do przenośności zarządzanego wdrożenia lub jego stanu. Wykonywanie GPU w Kubernetes wymaga również <a href="https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/">węzłów GPU, sterowników i pluginu urządzeń</a>.</p>
+<p>Managed Agents wymaga Claude oraz orkiestracji obsługiwanej przez Anthropic. Opcjonalny sandbox self-hosted może pasować do wykonywania w prywatnej sieci, ale wymóg samodzielnego hostowania inferencji albo płaszczyzny sterowania nadal wyklucza tę opcję. Sprawdź, które dane wejściowe narzędzi, wyniki, umiejętności i pamięć mogą przekraczać tę granicę. Wewnętrzna praca nad kodem może pasować, jeśli takie przepływy danych są akceptowalne, a zespół chce przekazać obsługę harnessu.</p>
+<p>Koszt warto zamodelować przed zobowiązaniem się do rozwiązania, a nie po nim. Stawka za godzinę sesji to $0.08/godz. ponad standardowe koszty tokenów. Jeśli pojedyncza sesja działałaby nieprzerwanie, daje to około $58/miesiąc za sesję. Przy 100 sesjach działających nieprzerwanie byłoby to około $5800/miesiąc <em>przed uwzględnieniem tokenów</em>. Pomnóż $0.08 przez oczekiwaną liczbę godzin współbieżnych sesji, dodaj wynik do rachunku za tokeny i porównaj z kosztem stosu kolejka + worker na własnej infrastrukturze. Późniejsza migracja z Managed Agents jest zmianą platformy, a nie zmianą konfiguracji.</p>
+<h3 id="hostowany-harness-a-własny-harness">Hostowany harness a własny harness</h3>
+<p>Rozróżnienie dotyczy tego, kto obsługuje harness, a nie tego, kto napisał jego kod. <strong>Hostowany</strong> oznacza, że dostawca uruchamia pętlę harnessu w swojej infrastrukturze, a ty wywołujesz API. <strong>Własny</strong> oznacza, że uruchamiasz pętlę we własnej infrastrukturze, nawet jeśli sam kod harnessu pochodzi od dostawcy.</p>
+<p>LangChain pojawia się po obu stronach tej granicy, co często prowadzi do nieporozumień. Dostarcza <strong>LangGraph</strong>, bibliotekę na licencji MIT, którą hostujesz samodzielnie (własny harness), oraz <strong>Deep Agents Deploy</strong>, zarządzany produkt uruchamiający harness Deep Agents w LangSmith Deployment w domyślnym trybie cloud (hostowany harness). Ta sama firma, dwa różne modele operacyjne. Wybierasz tego, kto uruchamia pętlę, a nie logo znajdujące się na bibliotece. (Deep Agents Deploy ma również tryb self-hosted dla zespołów, które chcą ergonomii harnessu bez komponentu chmurowego; ten tryb należy do kategorii własnych harnessów).</p>
+<p>Wybierz hostowany harness, jeśli jego obsługa modeli, granica danych, zachowanie podczas odzyskiwania i punkty rozszerzeń już spełniają wymagania. Wybierz własny harness, jeśli są to ograniczenia, które przewidujesz zmieniać. Migracja między tymi wariantami zmienia stan, observability i granice wykonywania, dlatego przed produkcją przetestuj ścieżkę wyjścia.</p>
+<h3 id="hostowany-sandbox-a-własne-środowisko-wykonywania">Hostowany sandbox a własne środowisko wykonywania</h3>
+<p>Wybierz hostowany sandbox, gdy izolacja, wstrzymywanie/wznawianie lub semantyka forków dostawcy pasują do modelu zagrożeń i budżetu startowego. Docker lub Fargate mogą pasować do zaufanych obciążeń wewnętrznych wymagających dostępu do VPC albo ścisłej rezydencji danych, ale standardowy kontener nie jest wystarczającą granicą dla wrogiego kodu. <a href="/pl/blog/2026/04/20/ai-agent-security/">Część 4</a> omawia katalog opcji izolacji dla tego przypadku.</p>
+<h3 id="magazyny-stanu-git-baza-danych-i-object-storage-obok-siebie">Magazyny stanu: Git, baza danych i object storage obok siebie</h3>
+<p>Długotrwali agenci zwykle korzystają jednocześnie z trzech magazynów stanu, ponieważ każdy z nich przechowuje inny artefakt.</p>
+<p>Git przechowuje stan workspace’u: kod, dokumenty i pliki postępu zmieniane przez agenta. Każdy commit daje harnessowi stabilny punkt odzyskiwania, a kolejnej sesji zwartą historię.</p>
+<p>Baza checkpointów przechowuje stan grafu: jakie decyzje podjęto, które węzły uruchomiono, jakie wyniki zwrócono i co należy wykonać dalej. Magazyn artefaktów przechowuje duże wyniki końcowe, takie jak PDF-y, pliki Parquet i zrzuty ekranu. Artefakty te nie należą do Git ani do bazy checkpointów.</p>
+<h4 id="kiedy-używać-git-jako-stanu">Kiedy używać Git jako stanu</h4>
+<p>Używaj Git, gdy obciążenie ma charakter kodowy (edycje wielu plików, refaktoryzacje, generowanie aplikacji) albo dokumentowy w stopniu, w którym historia plików ma znaczenie. Wzorzec jest prosty: utwórz branch uruchomienia, wykonaj commit inicjalizujący, a następnie commituj w istotnych punktach: po konfiguracji, po każdej funkcji, po przejściu testów i po końcowym sprzątaniu. Ostatni SHA commita workspace’u zapisz obok wiersza checkpointu. Przy wznowieniu kolejny worker przełącza się na branch, odczytuje <code>git log --oneline -8</code>, sprawdza <code>git status</code> i najnowszy diff, a następnie odczytuje <code>PROGRESS.md</code> albo dowolny plik przekazania zapisany przez poprzednią sesję.</p>
+<p>Dzięki temu Git jest powierzchnią odzyskiwania artefaktu, nad którym trwają prace, a nie zamiennikiem bazy checkpointów. Git może odpowiedzieć na dwa pytania: co się zmieniło i która wersja przeszła testy. Nie powie harnessowi, który węzeł grafu uruchomić następnie, które wywołanie narzędzia czeka na zatwierdzenie ani które ponowienie użyło już swojego klucza idempotencji. Harness Anthropic wykorzystuje commity inicjalizujące i commity per funkcja jako źródło prawdy przy odzyskiwaniu workspace’u; model odczytuje <code>git log --oneline -8</code>, aby odzyskać stan. Pomiń Git, gdy produktem pracy jest pojedyncza odpowiedź konwersacyjna. Narzut się nie zwróci.</p>
+<h4 id="kiedy-używać-checkpointów-w-bazie-danych">Kiedy używać checkpointów w bazie danych</h4>
+<p>Używaj checkpointów w stylu <code>PostgresSaver</code>, gdy agent ma strukturę grafu z wieloma węzłami, a stan pośredni ma znaczenie (planner → researcher → writer → verifier). Repozytorium referencyjne używa tego dokładnie z tego powodu. Nie umieszczaj artefaktów workspace’u o rozmiarze terabajtów w checkpoincie; trafiają one do object storage.</p>
+<h4 id="kiedy-używać-magazynu-artefaktów-s3--gcs">Kiedy używać magazynu artefaktów (S3 / GCS)</h4>
+<p>Używaj object storage, gdy:</p>
+<ul>
+<li>wynik jest większy, niż powinna przenosić baza checkpointów;</li>
+<li>konsumenci końcowi potrzebują artefaktu dostępnego pod adresem URL bez przechodzenia przez agenta; lub</li>
+<li>artefakt i stan uruchomienia mają różne okresy retencji.</li>
+</ul>
+<p>Możesz na przykład usuwać dziennik sesji po 30 dniach, ale przechowywać raport końcowy przez lata. Układ kluczy oprzyj na <code>(thread_id, checkpoint_id, artifact_name)</code>, aby można było odtworzyć uruchomienie, które wytworzyło artefakt.</p>
+<p><a id="when-to-add-human-approval-gates"></a></p>
+<h3 id="kiedy-prosić-o-zatwierdzenie-człowieka">Kiedy prosić o zatwierdzenie człowieka</h3>
+<p>Wymagania dotyczące zatwierdzania ustalaj na podstawie ryzyka działania, już udzielonego zakresu uprawnień oraz polityki wdrożenia. Odwracalny zapis roboczy do bazy różni się od obciążenia klienta lub destrukcyjnej zmiany na produkcji. Gdy zatwierdzenie jest wymagane, pokaż rzeczywiste działanie, argumenty i miejsce docelowe, utrwal decyzję i sprawdź ją ponownie, jeśli proponowane wywołanie się zmieni; nie wykonuj odrzuconego wywołania. <code>interrupt()</code> LangGraph i middleware zatwierdzania Deep Agents mogą wstrzymać uruchomienie na czas tej decyzji. <a href="/pl/blog/2026/04/20/ai-agent-security/">Część 4</a> wyjaśnia, dlaczego jest to decyzja dotycząca uprawnień, a nie instrukcja w prompcie.</p>
+<hr>
+<h2 id="praktyczna-checklista-produkcyjna">Praktyczna checklista produkcyjna</h2>
+<p>Przed wdrożeniem długotrwałego agenta odpowiedz na te pytania konkretnymi elementami infrastruktury.</p>
+<ol>
+<li>Który magazyn jest właścicielem zdarzeń sesji i checkpointów?</li>
+<li>Co się dzieje, gdy worker umrze w połowie wywołania narzędzia?</li>
+<li>Czy jedno uruchomienie może uszkodzić workspace innego?</li>
+<li>Które działania wymagają zatwierdzenia?</li>
+<li>Czy model lub sandbox może odczytać surowe poświadczenia?</li>
+<li>Które wywołania narzędzi można bezpiecznie ponawiać?</li>
+<li>Gdzie egzekwowany jest limit kosztu per uruchomienie?</li>
+<li>Jakie deterministyczne dowody decydują o zakończeniu i które pozostałe kryteria wymagają recenzenta?</li>
+<li>Gdzie znajdują się końcowe wyniki po usunięciu sandboxa?</li>
+<li>Czy jutro będziemy potrafili wyjaśnić nieudane uruchomienie bez ponownego jego wykonywania?</li>
+</ol>
+<p>Jeśli odpowiedź na którekolwiek z tych pytań brzmi „prompt mówi agentowi, żeby uważał”, system nie jest jeszcze wdrożony. Nadal jest demonstracją.</p>
+<h2 id="następną-warstwą-jest-pętla-harnessu">Następną warstwą jest pętla harnessu</h2>
+<p>Ten runtime może utrzymywać uruchomienie przy życiu i zapewniać możliwość odzyskania, ale trwałość nie dowodzi poprawności pracy. Część 6, <a href="/pl/blog/2026/07/22/ai-agent-harness-engineering/"><strong>Harness Engineering for AI Agents</strong></a>, otwiera prymityw harnessu z powyższej tabeli: jak trace informuje, z którą z kilku awarii masz do czynienia, gdzie znajdują się reguły ponawiania i zatrzymywania, co musi zachować przekazanie oraz jak zewnętrzna kontrola akceptacyjna decyduje, że uruchomienie jest zakończone. To również ostatni artykuł serii.</p>
+<h2 id="referencje">Referencje</h2>
+<h3 id="materiały-inżynieryjne">Materiały inżynieryjne</h3>
+<ul>
+<li>OpenAI, <em><a href="https://openai.com/index/harness-engineering/">Harness engineering: leveraging Codex in an agent-first world</a></em>.</li>
+<li>Anthropic Engineering, <em><a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">Effective harnesses for long-running agents</a></em>.</li>
+<li>Anthropic Engineering, <em><a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">Harness design for long-running application development</a></em>.</li>
+<li>Anthropic Engineering, <em><a href="https://www.anthropic.com/engineering/managed-agents">Scaling Managed Agents: Decoupling the brain from the hands</a></em>, 8 kwietnia 2026 r.</li>
+<li>Cognition AI, <em><a href="https://cognition.ai/blog/devin-sonnet-4-5-lessons-and-challenges">Rebuilding Devin for Claude Sonnet 4.5: Lessons and Challenges</a></em>.</li>
+<li>Vercel, <em><a href="https://vercel.com/blog/we-removed-80-percent-of-our-agents-tools">We removed 80% of our agent’s tools</a></em>.</li>
+<li>Addy Osmani, <em><a href="https://addyosmani.com/blog/long-running-agents/">Long-running Agents</a></em>.</li>
+</ul>
+<h3 id="langgraph-i-deep-agents">LangGraph i Deep Agents</h3>
+<ul>
+<li>Dokumentacja LangGraph, <em><a href="https://docs.langchain.com/oss/javascript/langgraph/persistence">Persistence</a></em>.</li>
+<li>Referencja LangGraph, <em><a href="https://reference.langchain.com/python/langgraph/checkpoints">Checkpoints</a></em>.</li>
+<li><a href="https://pypi.org/project/langgraph-checkpoint-postgres/"><code>langgraph-checkpoint-postgres</code></a> w PyPI.</li>
+<li>Dokumentacja LangChain, <em><a href="https://docs.langchain.com/oss/python/deepagents/overview">Deep Agents overview</a></em>.</li>
+<li>Dokumentacja LangChain, <em><a href="https://docs.langchain.com/oss/python/deepagents/permissions">Deep Agents permissions</a></em>.</li>
+<li>Blog LangChain, <em><a href="https://www.langchain.com/blog/runtime-behind-production-deep-agents">The runtime behind production Deep Agents</a></em>.</li>
+</ul>
+<h3 id="openai-agents-sdk">OpenAI Agents SDK</h3>
+<ul>
+<li>OpenAI Agents SDK, <em><a href="https://openai.github.io/openai-agents-python/sessions/">Sessions</a></em>.</li>
+<li>OpenAI Agents SDK, <em><a href="https://openai.github.io/openai-agents-python/sandbox/guide/">Sandbox concepts</a></em>.</li>
+</ul>
+<h3 id="temporal">Temporal</h3>
+<ul>
+<li>Blog Temporal, <em><a href="https://temporal.io/blog/introducing-temporal-and-agentic-sandboxes-openai-agents-sdk">Introducing Temporal and agentic sandboxes: the OpenAI Agents SDK</a></em>.</li>
+<li>Blog Temporal, <em><a href="https://temporal.io/blog/announcing-openai-agents-sdk-integration">Production-ready agents with the OpenAI Agents SDK + Temporal</a></em>.</li>
+<li>README Temporal × OpenAI Agents SDK contrib (<a href="https://github.com/temporalio/sdk-python/blob/main/temporalio/contrib/openai_agents/README.md"><code>temporalio/sdk-python</code></a>).</li>
+</ul>
+<h3 id="platforma-anthropic">Platforma Anthropic</h3>
+<ul>
+<li>Anthropic, <em><a href="https://platform.claude.com/docs/en/about-claude/pricing">Claude platform pricing</a></em>: stawki za godzinę sesji Managed Agents.</li>
+<li><a href="https://github.com/anthropics/cwc-long-running-agents"><code>anthropics/cwc-long-running-agents</code></a>: zadanie Code with Claude 2026 z ewaluatorem-podagentem i wzorcami plików postępu.</li>
+</ul>
+<h3 id="dostawcy-sandboxów">Dostawcy sandboxów</h3>
+<ul>
+<li>ZenML, <em><a href="https://www.zenml.io/blog/e2b-vs-daytona">E2B vs Daytona: sandbox comparison for platform engineers</a></em>.</li>
+<li>Dokumentacja Daytona, <em><a href="https://www.daytona.io/docs/en/sandboxes/">Sandboxes</a></em>.</li>
+<li>Changelog Daytona, <em><a href="https://www.daytona.io/changelog/sandbox-fork-and-snapshot-endpoints">Sandbox fork and snapshot endpoints</a></em>.</li>
+<li>Dokumentacja Modal, <em><a href="https://modal.com/docs/guide/sandboxes">Sandboxes</a></em>.</li>
+<li>Dokumentacja Modal, <em><a href="https://modal.com/docs/guide/cold-start">Cold start guide</a></em>.</li>
+<li><a href="https://aws.amazon.com/marketplace/pp/prodview-6v2m5a6coprts">Runloop on AWS Marketplace</a>.</li>
+<li><a href="https://vercel.com/docs/vercel-sandbox/pricing">Vercel Sandbox pricing and limits</a>.</li>
+</ul>
+<h3 id="limity-czasu-i-kwoty-platform-chmurowych">Limity czasu i kwoty platform chmurowych</h3>
+<ul>
+<li>Google Cloud, <em><a href="https://docs.cloud.google.com/run/docs/configuring/request-timeout">Configure request timeout for services</a></em>.</li>
+<li>Google Cloud, <em><a href="https://docs.cloud.google.com/run/docs/triggering/websockets">Using WebSockets</a></em>.</li>
+<li>Google Cloud, <em><a href="https://docs.cloud.google.com/run/docs/configuring/task-timeout">Set task timeout for jobs</a></em>.</li>
+<li>AWS, <em><a href="https://docs.aws.amazon.com/lambda/latest/dg/configuration-timeout.html">Configure Lambda function timeout</a></em>.</li>
+<li>AWS, <em><a href="https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html">Lambda quotas</a></em>.</li>
+<li>AWS, <em><a href="https://docs.aws.amazon.com/AmazonECS/latest/developerguide/throttling.html">Fargate throttling quotas</a></em>.</li>
+<li>AWS, <em><a href="https://docs.aws.amazon.com/AmazonECS/latest/developerguide/operating-at-scale-service-quotas.html">ECS service quotas and API throttling limits</a></em>.</li>
+</ul>
+<h3 id="observability">Observability</h3>
+<ul>
+<li>OpenTelemetry, <em><a href="https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/README.md">Semantic conventions for generative AI systems</a></em>.</li>
+<li>OpenTelemetry, <em><a href="https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/registry/attributes/gen-ai.md">Gen AI attributes registry</a></em>.</li>
+<li>OpenTelemetry, <em><a href="https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md">Semantic conventions for GenAI agent and framework spans</a></em>.</li>
+<li>OpenTelemetry, <em><a href="https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-metrics.md">Semantic conventions for generative AI metrics</a></em>.</li>
+</ul>
+<hr>
+<p><em>Kod Market Analyst Agent (worker LangGraph, checkpointer Postgres, pamięć Qdrant, sidecar MCP i opisana powyżej topologia Docker Compose) znajduje się na <a href="https://github.com/slavadubrov/market-analyst-agent">GitHub</a>.</em></p> <aside class="next-in-series" data-pagefind-ignore> <p class="eyebrow">Następny artykuł w serii</p> <h2><a href="/pl/blog/2026/07/22/ai-agent-harness-engineering/">Inżynieria harnessu dla agentów AI: projektowanie pętli sterowania</a></h2> <span class="article-meta">Część 6</span> </aside> </article> </div> </main> <footer class="site-footer"> <p> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="28" height="26" alt="" aria-hidden="true" loading="lazy" decoding="async"> <span data-footer-tagline>Systemy AI w środowisku produkcyjnym, ewaluacja, bezpieczeństwo i doskonalenie na podstawie wyników.</span> </p> <nav class="footer-locales" aria-label="Język"> <a href="/blog/2026/05/26/ai-agent-runtime/" hreflang="en" lang="en">English</a><a href="/de/blog/2026/05/26/ai-agent-runtime/" hreflang="de" lang="de">Deutsch</a><a href="/ru/blog/2026/05/26/ai-agent-runtime/" hreflang="ru" lang="ru">Русский</a><a href="/es/blog/2026/05/26/ai-agent-runtime/" hreflang="es" lang="es">Español</a><a href="/pt/blog/2026/05/26/ai-agent-runtime/" hreflang="pt" lang="pt">Português</a><a href="/fr/blog/2026/05/26/ai-agent-runtime/" hreflang="fr" lang="fr">Français</a><a href="/nl/blog/2026/05/26/ai-agent-runtime/" hreflang="nl" lang="nl">Nederlands</a> </nav> <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>(function(){const copyLabel = "Kopiuj";
+const copiedLabel = "Skopiowano";
+
+      document.querySelector(".theme-toggle")?.addEventListener("click", () => {
+        const root = document.documentElement;
+        const next = root.dataset.themeEffective === "dark" ? "light" : "dark";
+        root.dataset.theme = next;
+        root.dataset.themeEffective = next;
+        localStorage.setItem("theme", next);
+      });
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (event) => {
+        if (localStorage.getItem("theme")) return;
+        document.documentElement.dataset.themeEffective = event.matches ? "dark" : "light";
+      });
+      document.querySelector("#locale-select")?.addEventListener("change", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLSelectElement && target.value) location.assign(target.value);
+      });
+      document.querySelectorAll("pre").forEach((pre) => {
+        if (pre.closest(".mermaid-diagram")) return;
+        const code = pre.textContent || "";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-code";
+        button.textContent = copyLabel;
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(code);
+          button.textContent = copiedLabel;
+          setTimeout(() => { button.textContent = copyLabel; }, 1500);
+        });
+        pre.append(button);
+      });
+    })();</script> </body> </html>

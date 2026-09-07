@@ -1,0 +1,566 @@
+<!DOCTYPE html><html lang="pl"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><script>
+      (() => {
+        const stored = localStorage.getItem("theme");
+        const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const effective = stored === "light" || stored === "dark" ? stored : systemDark ? "dark" : "light";
+        document.documentElement.dataset.themeEffective = effective;
+        if (stored === "light" || stored === "dark") document.documentElement.dataset.theme = stored;
+      })();
+    </script><script async src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5"></script><script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        window.dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", "G-T51K83ENZ5");
+    </script><title>Inżynieria harnessu dla agentów AI: projektowanie pętli sterowania</title><meta name="description" content="Jak kod sterujący wokół agenta AI autoryzuje narzędzia, zachowuje postęp, weryfikuje ukończenie i uzasadnia dodanie każdego komponentu za pomocą ablation."><link rel="canonical" href="https://slavadubrov.com/pl/blog/2026/07/22/ai-agent-harness-engineering/"><link rel="alternate" hreflang="de" href="https://slavadubrov.com/de/blog/2026/07/22/ai-agent-harness-engineering/"><link rel="alternate" hreflang="en" href="https://slavadubrov.com/blog/2026/07/22/ai-agent-harness-engineering/"><link rel="alternate" hreflang="es" href="https://slavadubrov.com/es/blog/2026/07/22/ai-agent-harness-engineering/"><link rel="alternate" hreflang="fr" href="https://slavadubrov.com/fr/blog/2026/07/22/ai-agent-harness-engineering/"><link rel="alternate" hreflang="nl" href="https://slavadubrov.com/nl/blog/2026/07/22/ai-agent-harness-engineering/"><link rel="alternate" hreflang="pl" href="https://slavadubrov.com/pl/blog/2026/07/22/ai-agent-harness-engineering/"><link rel="alternate" hreflang="pt" href="https://slavadubrov.com/pt/blog/2026/07/22/ai-agent-harness-engineering/"><link rel="alternate" hreflang="ru" href="https://slavadubrov.com/ru/blog/2026/07/22/ai-agent-harness-engineering/"><link rel="alternate" hreflang="x-default" href="https://slavadubrov.com/blog/2026/07/22/ai-agent-harness-engineering/"><meta property="og:type" content="article"><meta property="og:title" content="Inżynieria harnessu dla agentów AI: projektowanie pętli sterowania"><meta property="og:description" content="Jak kod sterujący wokół agenta AI autoryzuje narzędzia, zachowuje postęp, weryfikuje ukończenie i uzasadnia dodanie każdego komponentu za pomocą ablation."><meta property="og:url" content="https://slavadubrov.com/pl/blog/2026/07/22/ai-agent-harness-engineering/"><meta property="og:image" content="https://slavadubrov.com/assets/og-image.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:type" content="image/png"><meta property="og:image:alt" content="Edge of Context — Praktyczna inżynieria AI"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Inżynieria harnessu dla agentów AI: projektowanie pętli sterowania"><meta name="twitter:description" content="Jak kod sterujący wokół agenta AI autoryzuje narzędzia, zachowuje postęp, weryfikuje ukończenie i uzasadnia dodanie każdego komponentu za pomocą ablation."><meta name="twitter:image" content="https://slavadubrov.com/assets/og-image.png"><meta name="twitter:image:alt" content="Edge of Context — Praktyczna inżynieria AI"><meta property="article:published_time" content="2026-07-22"><meta property="article:modified_time" content="2026-09-06"><link rel="icon" href="/assets/favicon-eoc.svg" type="image/svg+xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"><link href="/pagefind/pagefind-component-ui.css" rel="stylesheet"><script src="/pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Inżynieria harnessu dla agentów AI: projektowanie pętli sterowania","description":"Jak kod sterujący wokół agenta AI autoryzuje narzędzia, zachowuje postęp, weryfikuje ukończenie i uzasadnia dodanie każdego komponentu za pomocą ablation.","url":"https://slavadubrov.com/pl/blog/2026/07/22/ai-agent-harness-engineering/","image":"https://slavadubrov.com/assets/og-image.png","datePublished":"2026-07-22","dateModified":"2026-09-06","author":{"@type":"Person","name":"Viacheslav Dubrov","url":"https://slavadubrov.com/pl/about/"}}</script><link rel="stylesheet" href="/_astro/BaseLayout.DWWCKfJJ.css"></head> <body> <a class="skip-link" href="#main-content">Przejdź do treści</a> <header class="site-header"> <a class="brand" data-home-link href="/pl/" aria-label="Strona główna Slavy Dubrova"> <svg class="brand-mark" viewBox="0 0 64 64" width="36" height="36" aria-hidden="true" focusable="false" data-astro-cid-77qc4tpx> <rect class="brand-mark__frame" x="8.5" y="8.5" width="47" height="47" rx="11" stroke-width="5" data-astro-cid-77qc4tpx></rect> <line class="brand-mark__edge" x1="42" y1="8.5" x2="42" y2="55.5" stroke-width="5" data-astro-cid-77qc4tpx></line> <g class="brand-mark__token" data-astro-cid-77qc4tpx> <circle cx="16.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="16.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="16.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> </g> </svg> <span class="brand-lockup"> <span class="brand-primary">Slava Dubrov</span> <span class="brand-publication">Edge of Context</span> </span> </a> <nav aria-label="Nawigacja główna"> <ul> <li> <a data-nav="work" href="/pl/work/">Projekty</a> </li><li> <a data-nav="labs" href="/pl/labs/">Laboratorium</a> </li><li> <a data-nav="blog" href="/pl/blog/" aria-current="page">Blog</a> </li><li> <a data-nav="about" href="/pl/about/">O mnie</a> </li> </ul> </nav> <div class="header-actions"> <nav class="header-social" aria-label="Profile społecznościowe"> <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" title="LinkedIn"> <svg class="social-icon" data-social-icon="fontawesome-brands-linkedin" viewBox="0 0 448 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3C448 46.5 433.6 32 416 32zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"></path></svg> </a><a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener noreferrer" aria-label="Substack" title="Substack"> <svg class="social-icon" data-social-icon="simple-substack" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"></path></svg> </a><a href="https://www.tiktok.com/@edge.of.context" target="_blank" rel="noopener noreferrer" aria-label="TikTok" title="TikTok"> <svg class="social-icon" data-social-icon="fontawesome-brands-tiktok" viewBox="0 0 448 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M448 209.9a210.1 210.1 0 0 1-122.8-39.2v178.7A162.6 162.6 0 1 1 185 188.3v89.9a74.6 74.6 0 1 0 52.2 71.2V0h88a121.2 121.2 0 0 0 1.9 22.2 122.2 122.2 0 0 0 53.9 80.2 121.4 121.4 0 0 0 67 20.1v87.4z"></path></svg> </a><a href="https://github.com/slavadubrov" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub"> <svg class="social-icon" data-social-icon="fontawesome-brands-github" viewBox="0 0 496 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"></path></svg> </a><a href="/feed_rss_created.xml" target="_blank" rel="noopener noreferrer" aria-label="Kanał RSS" title="Kanał RSS"> <svg class="social-icon" data-social-icon="material-rss" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6.18 15.64a2.18 2.18 0 1 0 0 4.36 2.18 2.18 0 0 0 0-4.36zM4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83C19.56 11.4 12.6 4.44 4 4.44zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z"></path></svg> </a> </nav> <button class="theme-toggle" type="button" aria-label="Zmień motyw kolorystyczny" title="Zmień motyw kolorystyczny"> <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"> <circle cx="12" cy="12" r="4"></circle> <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path> </svg> <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"> <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path> </svg> </button> <pagefind-modal-trigger data-search-label="true">Szukaj</pagefind-modal-trigger> <label class="locale-switcher"> <span class="visually-hidden">Język</span> <select id="locale-select"> <option value="/de/blog/2026/07/22/ai-agent-harness-engineering/">Deutsch</option><option value="/blog/2026/07/22/ai-agent-harness-engineering/">English</option><option value="/es/blog/2026/07/22/ai-agent-harness-engineering/">Español</option><option value="/fr/blog/2026/07/22/ai-agent-harness-engineering/">Français</option><option value="/nl/blog/2026/07/22/ai-agent-harness-engineering/">Nederlands</option><option value="/pl/blog/2026/07/22/ai-agent-harness-engineering/" selected>Polski</option><option value="/pt/blog/2026/07/22/ai-agent-harness-engineering/">Português</option><option value="/ru/blog/2026/07/22/ai-agent-harness-engineering/">Русский</option> </select> </label> </div> </header> <main id="main-content" tabindex="-1"> <div class="article-shell has-toc"> <nav class="toc" aria-label="Na tej stronie"> <p class="eyebrow">Na tej stronie</p> <ol> <li> <a href="#za-co-odpowiada-harness">Za co odpowiada harness</a> </li><li class="is-sub"> <a href="#gdzie-trafiają-wcześniejsze-części">Gdzie trafiają wcześniejsze części</a> </li><li> <a href="#prześledź-zmianę-rabatu-od-propozycji-do-akceptacji">Prześledź zmianę rabatu od propozycji do akceptacji</a> </li><li> <a href="#zdecyduj-gdzie-egzekwować-poszczególne-reguły">Zdecyduj, gdzie egzekwować poszczególne reguły</a> </li><li class="is-sub"> <a href="#kontrakty-narzędzi-oddzielają-propozycję-od-uprawnienia">Kontrakty narzędzi oddzielają propozycję od uprawnienia</a> </li><li class="is-sub"> <a href="#ponowienie-wywołania-zmieniającego-stan-wymaga-ochrony-przed-replay">Ponowienie wywołania zmieniającego stan wymaga ochrony przed replay</a> </li><li class="is-sub"> <a href="#akceptacja-wymaga-niezależnych-dowodów">Akceptacja wymaga niezależnych dowodów</a> </li><li> <a href="#migracja-adaptera-płatności-wymaga-przekazania-pracy">Migracja adaptera płatności wymaga przekazania pracy</a> </li><li> <a href="#używaj-traceów-do-rozróżniania-trzech-awarii">Używaj trace’ów do rozróżniania trzech awarii</a> </li><li> <a href="#mierz-jedną-zmianę-naraz">Mierz jedną zmianę naraz</a> </li><li> <a href="#utrzymuj-możliwość-edycji-harnessu-po-uzasadnieniu-jego-obecności">Utrzymuj możliwość edycji harnessu po uzasadnieniu jego obecności</a> </li><li> <a href="#wypróbuj-metodę-w-dołączonym-laboratorium">Wypróbuj metodę w dołączonym laboratorium</a> </li><li> <a href="#którą-warstwę-otworzyć-gdy-uruchomienie-się-nie-powiedzie">Którą warstwę otworzyć, gdy uruchomienie się nie powiedzie</a> </li><li> <a href="#zacznij-od-jednej-pętli-i-jednego-testu-akceptacyjnego">Zacznij od jednej pętli i jednego testu akceptacyjnego</a> </li><li> <a href="#referencje">Referencje</a> </li> </ol> </nav> <script>
+  (() => {
+    const links = new Map(
+      [...document.querySelectorAll(".toc a")].map((link) => [link.hash.slice(1), link]),
+    );
+    if (!links.size || !window.IntersectionObserver) return;
+    const visible = new Set();
+    const mark = () => {
+      let current;
+      for (const id of links.keys()) if (visible.has(id)) { current = id; break; }
+      for (const [id, link] of links) {
+        if (id === current) link.setAttribute("aria-current", "true");
+        else link.removeAttribute("aria-current");
+      }
+    };
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) visible.add(entry.target.id);
+          else visible.delete(entry.target.id);
+        }
+        mark();
+      },
+      { rootMargin: "-15% 0px -70% 0px" },
+    );
+    for (const id of links.keys()) {
+      const heading = document.getElementById(id);
+      if (heading) observer.observe(heading);
+    }
+  })();
+</script> <article class="prose" data-pagefind-body> <a class="series-eyebrow" href="/pl/blog/#engineering-the-agentic-stack"> Engineering the Agentic Stack · Część 6 </a><h1>Inżynieria harnessu dla agentów AI: projektowanie pętli sterowania</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-07-22">2026-07-22</time>  · Zaktualizowano <time datetime="2026-09-06">2026-09-06</time>  · 23 min · Agenci AI </p> </div> </div> <!-- automated-translation-notice:start -->
+<blockquote>
+<p><strong>Tłumaczenie automatyczne</strong>
+Ten artykuł został automatycznie przetłumaczony z angielskiego oryginału.</p>
+</blockquote>
+<!-- automated-translation-notice:end -->
+<blockquote>
+<p><strong>Aktualizacja artykułu</strong></p>
+<p>Pierwotnie opublikowano 22 lipca 2026 r. Przejrzano i zaktualizowano 6 września 2026 r. Aktualizacja dodaje nowsze dane z benchmarków harnessu i przypadki interwencji dostawców oraz precyzuje, co wynika z raportowanych rezultatów.</p>
+</blockquote>
+<p>Agent może zakończyć swoją turę, mimo że praca nadal jest nieukończona. W przypadku agenta programistycznego użytecznymi dowodami są zmodyfikowany artefakt i wymagane wyniki testów. Końcowa wiadomość „gotowe” nie potwierdza żadnej z tych rzeczy.</p>
+<p><strong>Harness</strong> to kod sterujący wokół pętli rozumowania. Dostarcza kontekst, waliduje i autoryzuje wywołania narzędzi, rejestruje wyniki oraz decyduje, czy dowody wystarczają do zaakceptowania pracy. Warstwa
+<a href="/pl/blog/2026/05/26/ai-agent-runtime/">runtime</a> utrzymuje pod spodem aktywne wykonywanie i stan.</p>
+<p>Podczas przeglądu harnessu zadałbym dwa pytania: co uniemożliwia mu zaakceptowanie nieukończonej pracy oraz które awarie uzasadniają dodanie kolejnych mechanizmów kontroli? W tym artykule omawiam testy akceptacyjne, ponowienia i przekazywanie pracy, a następnie pokazuję, jak porównywać mechanizm kontroli ze stałym baseline’em. Przykłady sklepu są fikcyjne; dołączone laboratorium to deterministyczna symulacja, a nie pomiar działającego agenta.</p>
+<!-- more -->
+<aside class="tldr">
+<p class="eyebrow">TL;DR</p>
+<p>Nie akceptuj zadania programistycznego tylko dlatego, że model twierdzi, iż je ukończył. Wymagaj zmodyfikowanego artefaktu i wymaganych wyników testów. Dodaj ponowienie, przekazanie pracy lub ewaluator dopiero wtedy, gdy kontrolowane porównanie pokaże, że poprawia to rezultat.</p>
+</aside>
+<p>Najprostszy test akceptacyjny łatwo napisać dla małego agenta badawczego, którego budowaliśmy w tej serii — agenta LangGraph pobierającego dane rynkowe i tworzącego raport analityka. Hook poza modelem waliduje raport względem schematu i sprawdza, czy rzeczywiście zawiera tickery akcji; niepoprawny raport utrzymuje uruchomienie w toku. Dwanaście linii zwykłego kodu wystarcza, by model nie mógł samodzielnie uznać własnego wyjścia za poprawnie sformatowane. Repozytorium wykorzystuje łagodniejszy test: głosuje ewaluator działający w świeżym kontekście, a następnie wynik przegląda człowiek. (<a href="/pl/blog/2026/04/20/ai-agent-security/">Część 4</a> szkicuje wersję deterministyczną).</p>
+<p>Ten przykład nie pokazuje interesującej części: co dzieje się, gdy dowody są niejednoznaczne, gdy ponowienie może obciążyć kogoś podwójną opłatą albo gdy praca trwa dłużej niż sesja, która ją rozpoczęła. Do tego potrzebne jest zadanie z wyraźniejszą granicą zaliczenia niż raport badawczy. Agent badawczy pozostaje przykładem testu akceptacyjnego; do przypadków ponowień i przekazywania pracy dołącza małe, fikcyjne repozytorium sklepu. Zadanie programistyczne polega na obniżeniu progu automatycznego rabatu 10% z $100 do $75 w <code>src/checkout.py</code>. Repozytorium ma dwa wymagane testy:</p>
+<ul>
+<li><code>pytest tests/test_checkout.py</code> weryfikuje obliczanie rabatu.</li>
+<li><code>pnpm playwright test tests/checkout_discount.spec.ts</code> dodaje element za $80 w lokalnym sklepie testowym i sprawdza, czy strona checkoutu pokazuje rabat $8.</li>
+</ul>
+<p>Przykład jest pomocniczym fixture’em, a nie prawdziwą aplikacją ani benchmarkiem. Każda próba zaczyna się od tego samego commita i tych samych zainicjalizowanych danych testowych. Harness może zaakceptować zmianę tylko wtedy, gdy oba polecenia zakończą się powodzeniem, a trwały rekord akceptacji powiąże oba wyniki z czystym zatwierdzonym kandydatem lub skrótem kompletnego testowanego snapshotu, obejmującego również istotne nieśledzone pliki.</p>
+<p>Diagram przedstawia przepływ zmiany rabatu od propozycji do dowodów. Harness dostarcza zadanie i pliki, sprawdza argumenty oraz uprawnienia proponowanego wywołania <code>edit_file</code> i wysyła zaakceptowane wywołanie. Po zastosowaniu edycji przez runtime harness uruchamia wskazane testy jednostkowe i akceptacyjne testy przeglądarkowe. Nieudane polecenie wraca do modelu jako dowód do kolejnej tury; dwa pomyślnie zakończone polecenia kwalifikują zmianę do akceptacji.</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-07-22-harness-engineering/harness-control-loop.svg" alt="Zmiana rabatu w pętli sterowania harnessu" width="960" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-07-22-harness-engineering/harness-control-loop.dark.svg" alt="Zmiana rabatu w pętli sterowania harnessu" width="960" loading="lazy"></span></p>
+<hr>
+<h2 id="za-co-odpowiada-harness">Za co odpowiada harness</h2>
+<p>Przewodnik OpenAI dotyczący <a href="https://openai.com/index/unrolling-the-codex-agent-loop/">pętli Codex</a> opisuje podstawowy cykl. Harness składa prompt, prosi model o następną akcję, wysyła zaakceptowane wywołanie narzędzia do runtime’u i dołącza wynik. Następnie pyta ponownie. Proces powtarza się do chwili, gdy harness zaakceptuje rezultat albo przekaże sterowanie użytkownikowi.</p>
+<p>Implementacje mogą łączyć kilka odpowiedzialności w jednym procesie. Granice awarii nadal są jednak różne:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Termin</th><th>Zadanie</th><th>Przykład dla agenta programistycznego</th></tr></thead><tbody><tr><td><strong>Model</strong></td><td>Proponuje tekst, wywołanie narzędzia lub odpowiedź końcową</td><td>Sugeruje edycję w <code>src/checkout.py</code></td></tr><tr><td><a href="/pl/blog/2026/01/31/ai-agent-reasoning-loops/"><strong>Pętla rozumowania</strong></a></td><td>Wybiera następny krok na podstawie dostępnego kontekstu</td><td>Inspekcja, edycja, test, ponowna inspekcja</td></tr><tr><td><strong>Harness</strong></td><td>Dostarcza kontekst, waliduje propozycje, autoryzuje je, wysyła zaakceptowane wywołania, rejestruje wyniki i sprawdza ukończenie</td><td>Zezwala na edycje w <code>src/</code> i wymaga obu wskazanych testów</td></tr><tr><td><a href="/pl/blog/2026/05/26/ai-agent-runtime/"><strong>Runtime</strong></a></td><td>Wykonuje zaakceptowane wywołania i utrzymuje stan poza procesem workera</td><td>Log sesji, sandbox, magazyn checkpointów, backend trace’ów</td></tr></tbody></table>
+<p>Wiersz runtime’u obejmuje cztery elementy: sesję, sandbox, checkpoint i trace. Wszystkie cztery przechowują stan lub ograniczają wykonywanie. Model proponuje akcję, a pętla rozumowania wybiera następny krok. Harness decyduje, czy proponowane wywołanie może zostać uruchomione oraz czy dowody wystarczają do zakończenia pracy — dlatego poświęcono mu osobny artykuł. <a href="/pl/blog/2026/05/26/ai-agent-runtime/">Część 5</a> traktuje harness, obok tych czterech elementów, jako jeden z pięciu prymitywów, które trzeba umieścić przed wdrożeniem; ten artykuł ponownie wydziela go jako osobną warstwę.</p>
+<p>Gdy pojawia się awaria, zdiagnozuj granicę, która powinna na nią zareagować. Słaby plan może wymagać lepszych instrukcji lub rozumowania modelu. Jeśli <code>edit_file</code> wskazuje ścieżkę poza <code>src/</code>, harness powinien ją odrzucić. Proces sandboxu, który kończy się przed uruchomieniem edycji, należy do runtime’u; runtime musi zrestartować workera albo zgłosić awarię.</p>
+<h3 id="gdzie-trafiają-wcześniejsze-części">Gdzie trafiają wcześniejsze części</h3>
+<p>Wiersz harnessu powyżej wykonuje większość pracy w tej tabeli i właśnie do niego sprowadzają się Części 2, 3 i 4. Każda z nich rozstrzyga jedną rzecz dotyczącą pojedynczej tury:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Wcześniejsza część</th><th>Co rozstrzyga w tej turze</th><th>Gdzie działa w omówieniu z następnej sekcji</th></tr></thead><tbody><tr><td><a href="/pl/blog/2026/02/14/ai-agent-memory-architecture/">Część 2 — pamięć</a></td><td>Który wcześniejszy stan trafia do promptu</td><td>Krok 1, builder kontekstu</td></tr><tr><td><a href="/pl/blog/2026/03/24/ai-agent-tool-use/">Część 3 — korzystanie z narzędzi</a></td><td>Jakie akcje istnieją i jak wygląda zwalidowany wynik</td><td>Walidacja argumentów w kroku 3 oraz struktura wyniku w kroku 4</td></tr><tr><td><a href="/pl/blog/2026/04/20/ai-agent-security/">Część 4 — bezpieczeństwo</a></td><td>Czy to konkretne wywołanie może teraz zostać uruchomione</td><td>Krok 3, sprawdzenie ścieżki i decyzja o akceptacji</td></tr><tr><td><strong>Część 6 — ten artykuł</strong></td><td>Czy wynikające z pracy dowody kończą uruchomienie</td><td>Kroki 5–7, testy akceptacyjne i trace</td></tr></tbody></table>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-07-22-harness-engineering/agentic-stack-layers.svg" alt="Gdzie znajduje się każda część serii Engineering the Agentic Stack" width="1120" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-07-22-harness-engineering/agentic-stack-layers.dark.svg" alt="Gdzie znajduje się każda część serii Engineering the Agentic Stack" width="1120" loading="lazy"></span></p>
+<p>Części 3 i 4 współdzielą krok 3, a to nakładanie się odpowiedzialności jest głównym argumentem za traktowaniem ich jako jednego programu. Ta sama warstwa kodu harnessu, która odrzuca niepoprawny argument, odrzuca również wywołanie dozwolone, ale jeszcze niezatwierdzone. Jeśli walidacja i autoryzacja działają w osobnych usługach, zachowaj zwalidowane argumenty pomiędzy tymi granicami, aby decyzja autoryzacyjna dotyczyła wywołania, które faktycznie zostanie wykonane.</p>
+<p>Podział nadal ma znaczenie podczas debugowania: edycja niewłaściwego pliku to reguła ścieżki z Części 4, a nie problem z wyszukiwaniem z Części 2. Sekcja pod koniec tego artykułu zamienia to w tabelę routingu.</p>
+<p>Własne <a href="https://openai.com/index/harness-engineering/">studium przypadku OpenAI dotyczące harness engineering</a> opisuje uruchamialną instancję aplikacji dla każdego worktree. Zespół podłączył również automatyzację przeglądarki do środowiska agenta oraz udostępnił logi, metryki i trace’y.</p>
+<p>Zadanie takie jak „żaden span w tych czterech kluczowych ścieżkach użytkownika nie może trwać dłużej niż dwie sekundy” stało się testowalne, ponieważ agent mógł uruchamiać aplikację i odpytywać te same sygnały, które analizowałby inżynier. Studium przypadku jest specyficzne dla produktu. Przenośny wniosek wynika z warunku stojącego za rezultatem: aplikacja i jej sygnały wydajności musiały być dostępne wewnątrz środowiska agenta.</p>
+<p>Lopopolo, autor tego studium, prowadzi również <a href="https://github.com/lopopolo/harness-engineering">przewodnik terenowy po harness engineering</a>. Wskazuje on dwie dźwignie wykorzystywane w tym artykule: traktować model i agenta programistycznego jako czarną skrzynkę oraz projektować otaczający je kontekst i narzędzia. To ujęcie wyjaśnia również, dlaczego tak duża część harnessu kończy jako zwykły kod.</p>
+<p>Standardy jakości organizacji, procedury, historia wyjątków i relacje uprawnień znajdują się poza tym, co może wiedzieć model ogólnego przeznaczenia. Harness ujawnia je w postaci instrukcji repozytorium, reguł uprawnień i testów akceptacyjnych. Każde zaakceptowane uruchomienie może przekazać wnioski z powrotem do tych artefaktów, zamiast zmuszać następną sesję do ponownego ich odkrywania.</p>
+<hr>
+<h2 id="prześledź-zmianę-rabatu-od-propozycji-do-akceptacji">Prześledź zmianę rabatu od propozycji do akceptacji</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte mówi</p>
+<p>Nadal potrzebuję wyników obu testów dla tej zmiany rabatu, nawet jeśli model twierdzi, że praca jest ukończona.</p>
+</div></aside>
+<p>Dla zdefiniowanego wyżej zadania rabatowego model proponuje zmianę <code>calculate_discount</code> w <code>src/checkout.py</code>. Zanim ta edycja zostanie uznana za postęp, dzieje się kilka rzeczy:</p>
+<ol>
+<li>Builder kontekstu dostarcza zadanie, instrukcje repozytorium, istotne pliki, wcześniejsze wyniki narzędzi i bieżący plan.</li>
+<li>Model proponuje wywołanie <code>edit_file</code> z podaną ścieżką i tekstem zastępującym.</li>
+<li>Granica narzędzia (kod harnessu pomiędzy propozycją a wykonaniem) waliduje argumenty, sprawdza ścieżkę względem dozwolonego zakresu i prosi o akceptację, jeśli operacja jej wymaga.</li>
+<li>Runtime stosuje edycję w sandboxie i zwraca ustrukturyzowany wynik.</li>
+<li>Harness uruchamia <code>pytest tests/test_checkout.py</code>, a następnie <code>pnpm playwright test tests/checkout_discount.spec.ts</code>, i odczytuje oba kody wyjścia. Test przeglądarkowy sprawdza widoczny rabat $8 w zainicjalizowanym koszyku za $80.</li>
+<li>Harness decyduje, co oznaczają wyniki. Nieudany test staje się nowym kontekstem dla kolejnej tury modelu, a pomyślne uruchomienie czyni zadanie kandydatem do ukończenia.</li>
+<li>Pomyślny wynik staje się dowodem ukończenia dopiero po trwałym zapisaniu przez harness polecenia, kodu wyjścia, testowanego snapshotu, gradera i wersji środowiska; trace może powiązać się z tym rekordem.</li>
+</ol>
+<p>Po kroku 2 żaden plik nie został zmieniony. Harness może odrzucić <code>../../secrets.env</code>, wymagać akceptacji dla destrukcyjnego polecenia albo zatrzymać uruchomienie, które wyczerpało budżet. To ostatni tani moment na taką decyzję. Po wykonaniu testów harness sam odczytuje ich kody wyjścia. Model nie może oznaczyć własnej edycji jako zaliczonej.</p>
+<p>Rekord akceptacji powinien identyfikować testowany snapshot, oba polecenia i ich wyniki oraz wersje gradera i środowiska; trace’y mogą powiązać się z tym rekordem. Wymagane testy trzymaj poza zakresem zapisu agenta albo niezależnie zatwierdzaj zmiany przed gradingiem. Każda późniejsza edycja pliku unieważnia wynik. Te testy realizują zasady stabilnego środowiska i gradera odpornego na obejście opisane w <a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">wytycznych ewaluacyjnych Anthropic</a>. Końcowa wiadomość <code>done</code> bez tych rekordów nie dowodzi, że zmiana przeszła wymagane testy.</p>
+<hr>
+<h2 id="zdecyduj-gdzie-egzekwować-poszczególne-reguły">Zdecyduj, gdzie egzekwować poszczególne reguły</h2>
+<p>Wymóg, aby <code>tests/checkout_discount.spec.ts</code> zakończyło się powodzeniem, należy umieścić w kodzie deterministycznym, a nie w prompcie. Harness wysyła polecenie Playwright do runtime’u, odczytuje jego kod wyjścia i odmawia zakończenia uruchomienia, dopóki test nie przejdzie. Prompt może przypominać modelowi o uruchomieniu testu. Nie może jednak uniemożliwić modelowi ogłoszenia sukcesu bez dowodów.</p>
+<p>Pozostałe reguły pasują do innych warstw:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Umieść regułę w</th><th>Dobre zastosowanie</th><th>Przykład</th></tr></thead><tbody><tr><td><strong>Prompcie lub skillu</strong></td><td>Kolejność wyszukiwania, konwencje kodowania i format planu</td><td>Przeczytaj <code>AGENTS.md</code> przed edycją kodu checkoutu</td></tr><tr><td><strong>Granicy narzędzia</strong></td><td>Walidacja argumentów, dozwolone ścieżki, akceptacje i dostęp do narzędzi</td><td>Zezwalaj na zapisy tylko w <code>src/</code></td></tr><tr><td><strong>Kodzie deterministycznym</strong></td><td>Budżety, timeouty, ponowienia, kody wyjścia testów i wymagania wydaniowe</td><td>Utrzymuj uruchomienie otwarte, dopóki test Playwright nie przejdzie</td></tr><tr><td><strong>Ewaluatorze w świeżym kontekście</strong></td><td>Przegląd wizualny lub kryteria wymagające osądu przypominającego ludzki</td><td>Porównaj wygenerowany diagram z pisemną rubryką</td></tr></tbody></table>
+<h3 id="kontrakty-narzędzi-oddzielają-propozycję-od-uprawnienia">Kontrakty narzędzi oddzielają propozycję od uprawnienia</h3>
+<p>Zadanie rabatowe wymaga jedynie edycji plików i poleceń testowych. API zmieniające stan ma inny tryb awarii, dlatego w tej sekcji zmieńmy przykład. Załóżmy, że podczas przygotowywania danych testowych agent może wywoływać <code>create_test_order</code> względem stagingowej usługi zamówień. To narzędzie nie jest jednym z testów akceptacyjnych zadania rabatowego. Jest tutaj przydatne, ponieważ timeout może ukryć informację, czy usługa utworzyła zamówienie.</p>
+<p>Granica narzędzia potrzebuje czegoś więcej niż opisu w języku naturalnym. Potrzebuje jawnego kontraktu narzędzia. <a href="/pl/blog/2026/03/24/ai-agent-tool-use/">Część 3</a> argumentowała za takim kontraktem z perspektywy modelu: jasne akcje, zwięzłe informacje zwrotne i błędy możliwe do odzyskania. Harness potrzebuje tego samego kontraktu z innego powodu. Musi bez pytania modelu zdecydować, czy wywołanie może zostać uruchomione i czy nieudane wywołanie można powtórzyć. W przypadku <code>create_test_order</code> oznacza to kontrakt obejmujący:</p>
+<ul>
+<li>zwalidowane argumenty, aby niepoprawne dane wejściowe były odrzucane przed wykonaniem</li>
+<li>ustrukturyzowany wynik, taki jak <code>{ "order_id": "123", "created": true }</code>, aby późniejsze kontrole nie musiały parsować tekstu o dowolnym formacie</li>
+<li>kategorię efektu, która rejestruje, czy wywołanie jedynie pobiera informacje, czy zmienia plik, rekord w bazie danych albo zewnętrzną usługę. Rejestruje również, czy bezpieczne jest powtórzenie wywołania. Etykieta ta informuje harness, czy automatyczne ponowienie mogłoby zduplikować pracę. Harness może ponowić <code>get_order_status</code>, gdy usługa definiuje to wyszukiwanie jako tylko do odczytu. Nie może bezrefleksyjnie ponawiać <code>create_test_order</code>, ponieważ pierwsze wywołanie mogło już utworzyć zamówienie</li>
+<li>timeout i politykę ponowień, aby utracona odpowiedź nie uruchomiła nieograniczonej sekwencji wywołań</li>
+<li>regułę uprawnień określającą wymaganą akceptację. Odczyt statusu zamówienia może być wykonywany automatycznie, natomiast utworzenie zamówienia może wymagać potwierdzenia</li>
+</ul>
+<p>Opis w języku naturalnym to tekst wyświetlany modelowi. Może brzmieć: „Utwórz zamówienie testowe do weryfikacji checkoutu”. Zdanie pomaga modelowi zdecydować, kiedy zaproponować <code>create_test_order</code>. Nie autoryzuje jednak wywołania. W tym przykładzie klient Model Context Protocol (MCP) należący do harnessu waliduje argumenty, stosuje własne reguły oraz sprawdza zaufanie do serwera, wymagania akceptacji i bezpieczeństwo ponowień, zanim cokolwiek wyśle. Łączy to reguły uprawnień i kontrole przed wywołaniem narzędzia omówione w <a href="/pl/blog/2026/04/20/ai-agent-security/">Części 4</a> z jednym dodatkowym pytaniem: czy wywołanie, które już się nie powiodło, można wysłać ponownie.</p>
+<p>Serwer MCP publikuje opisy narzędzi i opcjonalne adnotacje dotyczące zachowania dla klienta. Wadliwy lub złośliwy serwer może opisać narzędzie zmieniające stan jako nieszkodliwe. Klient, który automatycznie przyjąłby takie twierdzenie, mógłby bez akceptacji uruchomić lub ponowić <code>create_test_order</code> i utworzyć duplikat. Specyfikacja MCP wymaga więc, aby klienci traktowali <a href="https://modelcontextprotocol.io/specification/latest/server/tools">adnotacje narzędzi jako niezaufane</a>, chyba że sam serwer jest zaufany.</p>
+<p>Specyfikacja nie narzuca jednego uniwersalnego ustawienia zaufania, dlatego dla wdrożenia potrzebujesz jawnej polityki zaufania; serwer nie może sam uczynić swoich adnotacji wiarygodnymi. Polityka ta decyduje, które metadane mogą wpływać na decyzje dotyczące uprawnień lub ponowień, a które adnotacje pozostają jedynie wskazówkami.</p>
+<h3 id="ponowienie-wywołania-zmieniającego-stan-wymaga-ochrony-przed-replay">Ponowienie wywołania zmieniającego stan wymaga ochrony przed replay</h3>
+<p><a href="/pl/blog/2026/05/26/ai-agent-runtime/">Część 5</a> wymaga trwałej tożsamości operacji dla efektów ubocznych, które mogą zostać zduplikowane przy ponowieniu. Harness decyduje, kiedy ten klucz musi przejąć tę odpowiedzialność. <code>create_test_order</code> tworzy zamówienie, ale odpowiedź HTTP zostaje utracona. Harness widzi timeout i nie może stwierdzić, czy serwer zakończył żądanie. Powtórzenie wywołania może utworzyć drugie zamówienie.</p>
+<p>Zapisz identyfikator operacji należący do aplikacji przed wysłaniem i powiąż go z zaakceptowanymi argumentami. Użyj go ponownie podczas odzyskiwania tego samego zamówienia, nawet jeśli model wygeneruje nowy identyfikator wywołania narzędzia; identyfikatory modelu zachowaj osobno do korelacji. Zmienione payloady lub wygasłe okna deduplikacji dostawcy uzgadniaj zamiast bezrefleksyjnie wysyłać żądanie ponownie. Na przykład <a href="https://docs.stripe.com/api/idempotent_requests">kontrakt Stripe</a> zezwala na usuwanie kluczy po co najmniej 24 godzinach.</p>
+<p>Wyszukiwanie statusu można ponowić, gdy usługa definiuje je jako operację tylko do odczytu. Wywołanie tworzące zasób potrzebuje klucza: klient dołącza unikalny identyfikator żądania, a usługa zwraca pierwszy wynik zamiast tworzyć kolejne zamówienie, gdy ponownie zobaczy ten identyfikator. Bez tej ochrony harness powinien sprawdzić, czy zamówienie istnieje, albo poprosić człowieka o decyzję przed kolejną próbą. AWS opisuje ten wzorzec w swoich <a href="https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/">wytycznych dotyczących idempotentnych API</a>.</p>
+<h3 id="akceptacja-wymaga-niezależnych-dowodów">Akceptacja wymaga niezależnych dowodów</h3>
+<p>Pomyślna odpowiedź <code>create_test_order</code> potwierdza jedynie, że narzędzie zwróciło dane. Nie dowodzi, że zadanie programistyczne przeszło testy. Jeśli późniejszy test przeglądarkowy zależy od przygotowanego zamówienia, harness musi zwalidować schemat odpowiedzi i mimo to uruchomić ten test przed zaakceptowaniem zmiany kodu.</p>
+<p>Niektórych kryteriów nie da się sprowadzić do kodu wyjścia. W osobnym zadaniu dotyczącym projektu wizualnego ewaluator w świeżym kontekście może porównać wyrenderowaną stronę lub diagram z pisemną rubryką — „świeży kontekst” oznacza drugą sesję modelu, która rozpoczyna się bez historii uruchomienia i odczytuje wytworzone artefakty, a nie transkrypt. Zanim pozwolisz, by jego wynik decydował o ukończeniu zadania, porównaj go z przeglądami wykonywanymi przez ludzi.</p>
+<hr>
+<h2 id="migracja-adaptera-płatności-wymaga-przekazania-pracy">Migracja adaptera płatności wymaga przekazania pracy</h2>
+<p>Ponownie zmieńmy zadanie, ale pozostańmy w fikcyjnym repozytorium sklepu. Agent musi teraz przeprowadzić migrację checkoutu z adaptera płatności v1 do v2. Praca obejmuje handler checkoutu, klienta płatności, konfigurację i testy, więc może trwać dłużej niż jedna sesja modelu — jeden ciągły odcinek kontekstu modelu, zakończony restartem albo świadomym rozpoczęciem od nowa, a nie przenoszony dalej.</p>
+<p>Zanim pierwsza sesja osiągnie limit kontekstu, zmodyfikowała kilka plików, uruchomiła lokalny sandbox płatności i pozostawiła <code>tests/payment_migration.spec.ts</code> w stanie niezaliczonym. Ten przeglądarkowy test akceptacyjny wykonuje jedną płatność przez adapter v2 i weryfikuje zapisany identyfikator dostawcy. Podsumowanie rozmowy może ukierunkować kolejną sesję modelu, ale nie zrestartuje sandboxu ani nie dowiedzie, które pliki są aktualnie zmodyfikowane.</p>
+<p>Następna sesja musi odzyskać trzy rzeczy:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Co należy odzyskać</th><th>Co obejmuje</th><th>Jak może wystąpić awaria</th></tr></thead><tbody><tr><td><strong>Historia rozmowy</strong></td><td>Wiadomości, wywołania narzędzi i zwrócone wyniki</td><td>Stare szczegóły wypierają bieżące zadanie</td></tr><tr><td><strong>Środowisko robocze</strong></td><td>Pliki, sandbox płatności i stan testów przeglądarkowych</td><td>Transkrypt twierdzi, że usługa działa, choć już się zatrzymała</td></tr><tr><td><strong>Postęp zadania</strong></td><td>Plan, ukończone testy, oczekująca akceptacja i następna akcja</td><td>Następna sesja powtarza zakończoną pracę</td></tr></tbody></table>
+<p>Kompakcja zastępuje starsze wiadomości krótszym podsumowaniem, aby bieżąca sesja mogła działać dalej. Przekazanie postępu zapisuje to, czego potrzebuje następna sesja: bieżącą gałąź, zmienione pliki, ostatnie polecenie testowe i jego wynik oraz kolejny nierozwiązany krok.</p>
+<p>Plik przekazania pracy to <a href="/pl/blog/2026/02/14/ai-agent-memory-architecture/">pamięć dokumentowa</a> dla następnej sesji modelu. Checkpoint może już zachowywać plan, ukończone kroki, wyniki i pozostałą pracę. Dodaj przekazanie, gdy te informacje są nieobecne albo nieużyteczne w następnym kontekście, i zweryfikuj pliki oraz działające usługi względem aktywnego środowiska.</p>
+<p>Jeśli stara rozmowa zawiera nieaktualne założenia, harness może rozpocząć świeżą sesję modelu z tym przekazaniem i bieżącym workspace’em. Zastąpienie uszkodzonego workera i odtworzenie jego procesów to osobne zadanie związane z odzyskiwaniem runtime’u.</p>
+<p>Mała edycja dokumentacji może nie wymagać żadnego z tych mechanizmów. Migracja płatności wymaga przekazania, jeśli zapisany stan nie przenosi użytecznego postępu zadania, ponieważ następna sesja modelu musi odtworzyć zarówno workspace, jak i status zadania.</p>
+<p>Eksperymenty Anthropic dotyczące <a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">długotrwałych agentów programistycznych</a> wykorzystywały historię git i plik postępu pomiędzy sesjami. Późniejszy <a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">raport Anthropic dotyczący projektowania harnessu</a> oddziela kompakcję od przekazania w świeżym kontekście i podaje, że przekazania zwiększają nakład orkiestracji, zużycie tokenów i czas ścienny, bez publikowania danych przypisujących te koszty samemu przekazaniu.</p>
+<hr>
+<h2 id="używaj-traceów-do-rozróżniania-trzech-awarii">Używaj trace’ów do rozróżniania trzech awarii</h2>
+<p>Poniższe trzy wiersze to ilustracyjne szkice trace’ów, a nie zmierzone uruchomienia ani dane wyjściowe dołączonego laboratorium. Każdy wiersz pokazuje inną awarię, a więc wymaga innej reakcji harnessu.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Co rejestruje trace</th><th>Co się stało</th><th>Właściwa reakcja</th></tr></thead><tbody><tr><td>Wywołanie tylko do odczytu <code>get_order_status</code> zwraca <code>503</code>; żadne wywołanie zmieniające stan nie jest w toku</td><td>Tymczasowe wyszukiwanie zakończyło się niepowodzeniem</td><td>Ponów wyszukiwanie z limitem i backoffem</td></tr><tr><td><code>create_test_order</code> przekracza timeout, a następnie wyszukiwanie statusu znajduje zamówienie <code>123</code> z kluczem idempotencji <code>checkout-42</code></td><td>Usługa utworzyła zamówienie, ale odpowiedź została utracona</td><td>Zwróć istniejące zamówienie; nie twórz kolejnego</td></tr><tr><td>Edycja i test jednostkowy przechodzą, ale trace nie zawiera wyniku <code>tests/checkout_discount.spec.ts</code> dla testowanego snapshotu</td><td>Brakuje wymaganego dowodu akceptacji</td><td>Pozostaw uruchomienie otwarte i wyślij przeglądarkowy test akceptacyjny</td></tr></tbody></table>
+<p>Awaria wyglądająca na tymczasową nie sprawia, że każde wywołanie można bezpiecznie powtórzyć. Pierwszy wiersz dotyczy wyszukiwania tylko do odczytu. Drugi dotyczy żądania zmieniającego stan, więc klucz idempotencji i status po stronie serwera decydują, czy dozwolona jest kolejna próba utworzenia. Trzeci nie jest w ogóle awarią narzędzia; harness nie zebrał jeszcze dowodu wymaganego do zaakceptowania zmiany rabatu.</p>
+<p>Transkrypt rozmowy rejestruje to, co widział model. Nie może potwierdzić, czy usługa zamówień zatwierdziła żądanie przed zniknięciem odpowiedzi. Trace może dostarczyć taki dowód tylko wtedy, gdy zawiera odpowiedni wynik serwera lub wyszukiwanie statusu; sam timeout po stronie klienta pozostawia wynik nierozstrzygnięty. Trwałe rekordy operacji i akceptacji muszą łączyć wywołanie klienta, decyzję o akceptacji, tożsamość operacji, wynik serwera lub wyszukiwanie statusu, testowany snapshot i wynik testu akceptacyjnego. Trace’y mogą ujawniać te powiązania podczas debugowania, ale nie powinny stawać się rejestrem odzyskiwania. Te pola informują harness, którą z trzech ścieżek należy obrać.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Powtarzający się objaw</th><th>Mała zmiana do wypróbowania</th><th>Co mierzyć</th></tr></thead><tbody><tr><td>Wyszukiwania tylko do odczytu kończą się przejściowymi błędami</td><td>Ograniczone ponowienie z backoffem</td><td>Współczynnik odzyskania, dodatkowe wywołania, czas ścienny</td></tr><tr><td>Wznowione sesje powtarzają ukończoną pracę</td><td>Ustrukturyzowane przekazanie postępu</td><td>Zduplikowane akcje narzędzi po wznowieniu</td></tr><tr><td>Przy ukończeniu brakuje wymaganych testów</td><td>Odrzucaj ukończenie, dopóki każdy wymagany test nie przejdzie</td><td>Zadania zaakceptowane bez wszystkich wymaganych testów</td></tr><tr><td>Wady wizualne przechodzą przez testy deterministyczne</td><td>Ewaluator w świeżym kontekście z rubryką</td><td>Wykryte wady, fałszywe odrzucenia, czas przeglądu</td></tr><tr><td>Agent edytuje pliki poza zakresem</td><td>Węższe uprawnienia narzędzi</td><td>Zablokowane wywołania i ręczne nadpisania</td></tr><tr><td>Przypomniana pamięć wypiera bieżące zadanie</td><td>Ogranicz liczbę przywoływanych faktów; uszereguj je przed wstrzyknięciem</td><td>Tokeny zużyte na przywoływanie, ukończone zadania, koszt zadania</td></tr></tbody></table>
+<p>W przypadku opcjonalnej pomocy, takiej jak wsparcie planowania, podsumowania i dodatkowi ewaluatorzy, nazwij awarię i zmierz, czy komponent zwraca poniesiony koszt. Uprawnienia, izolacja, wymagania prywatności i obowiązkowe testy akceptacyjne nadal obowiązują, nawet jeśli zwykłe zadania przechodzą bez tych mechanizmów. Testuj te ograniczenia za pomocą przypadków adwersarialnych i jawnych niezmienników; mały benchmark sukcesu nie uzasadnia ich usunięcia.</p>
+<p>Przekształcenie tych powtarzających się awarii w wersjonowany zestaw regresyjny to osobne zadanie. Opisałem je w osobnym artykule <a href="/pl/blog/2026/06/10/agent-evals-traces-to-test-suites/">Ewaluacja agenta AI w produkcji</a>.</p>
+<hr>
+<h2 id="mierz-jedną-zmianę-naraz">Mierz jedną zmianę naraz</h2>
+<p><strong>Ablation</strong> mierzy, czy komponent harnessu wywołuje oczekiwany efekt, zmieniając go lub usuwając, podczas gdy reszta eksperymentu pozostaje stała. Na przykład: czy linting edytora pomaga temu modelowi na tym zestawie zadań?</p>
+<p>Stosuj następujący protokół:</p>
+<ol>
+<li>Zamroź wersję modelu, instancje zadań, środowisko, gradera i prompty niezwiązane z testowanym komponentem.</li>
+<li>Przydziel obu wariantom taki sam łączny budżet tokenów, czasu i pieniędzy.</li>
+<li>Wybierz liczbę prób lub regułę zatrzymania przed uruchomieniem porównania.</li>
+<li>Uruchom te same instancje zadań w obu wariantach. Ponieważ wyniki modelu są zmienne, powtórz każde zadanie kilka razy.</li>
+<li>Raportuj średnią wraz z rozrzutem lub przedziałem ufności.</li>
+<li>Policz każdą rozpoczętą próbę, w tym timeouty, zatrzymania przez politykę, awarie harnessu i błędy ewaluatora.</li>
+</ol>
+<p>Sam współczynnik sukcesu może ukrywać kosztowny komponent. Co najmniej śledź zadania błędnie zaakceptowane jako ukończone, koszt i czas ścienny ukończonego zadania, błędy narzędzi, zduplikowane zamówienia, minuty przeglądu i ręczne nadpisania uprawnień. Wybierz metrykę, która odzwierciedla rzeczywisty koszt produktu. Wzrost liczby ukończonych zadań o dwa punkty to zła wymiana, jeśli podwaja kolejkę do przeglądu.</p>
+<p>Parowany eksperyment migracji płatności pozwala mierzyć przekazanie postępu. Każda para control/treatment zaczyna od tego samego commita repozytorium i zainicjalizowanego checkpointu, z tym samym modelem, zadaniem, graderem i łącznym budżetem. Jedynym przełącznikiem jest przekazanie. Główna metryka liczy zduplikowane akcje narzędzi po wznowieniu: akcja jest duplikatem, gdy jej operacja i artefakt odpowiadają krokowi, który poprzednia sesja już ukończyła.</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-07-22-harness-engineering/harness-ablation-loop.svg" alt="Parowany test ablation przekazania postępu" width="960" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-07-22-harness-engineering/harness-ablation-loop.dark.svg" alt="Parowany test ablation przekazania postępu" width="960" loading="lazy"></span></p>
+<p><a href="https://proceedings.neurips.cc/paper_files/paper/2024/file/5a7c947568c1b1328ccc5230172e1e7c-Paper-Conference.pdf">Artykuł SWE-agent</a> utrzymuje GPT-4 Turbo na stałym poziomie w 300-zadaniowym podzbiorze SWE-bench Lite i raportuje 18,0% rozwiązanych zadań dla pełnego interfejsu, w porównaniu z 11,0% dla agenta działającego wyłącznie w shellu, któremu dostarczono działającą demonstrację, oraz 7,3% dla tego samego agenta bez demonstracji. Nagłówkowa różnica 10,7 punktu jest mierzona względem baseline’u 7,3%; <a href="/pl/blog/2026/03/24/ai-agent-tool-use/">Część 3</a> omawia te same trzy liczby od strony projektowania interfejsu. Artykuł zmieniał również pojedyncze cechy interfejsu:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Zmiana interfejsu</th><th align="right">Rozwiązane</th></tr></thead><tbody><tr><td>Pełny interfejs SWE-agent (referencyjny, bez zmian)</td><td align="right">18,0%</td></tr><tr><td>Edytor bez lintingu</td><td align="right">15,0%</td></tr><tr><td>Pełny plik zamiast widoku 100 linii</td><td align="right">12,7%</td></tr><tr><td>Pełna historia obserwacji zamiast pięciu ostatnich</td><td align="right">15,0%</td></tr></tbody></table>
+<p>Liczby te dotyczą tego modelu, benchmarku i limitu $4 na zadanie. Trzy wiersze poniżej referencyjnego to użyteczne testy jednej cechy: w każdym zmieniono jedną cechę interfejsu, a model i konfiguracja ewaluacji pozostały stałe.</p>
+<p>LangChain opublikował szersze <a href="https://www.langchain.com/blog/improving-deep-agents-with-harness-engineering">porównanie ze stałym modelem dla <code>deepagents-cli</code></a>. Raportuje wzrost w Terminal-Bench 2.0 z 52,8% do 66,5% przy stałym <code>gpt-5.2-codex</code>, podczas gdy zespół zmieniał system prompt, narzędzia i middleware. Wpis łączy kilka zmian i nie podaje przedziału ufności, porównania ze stałym łącznym budżetem ani tabeli ablation dla poszczególnych zmian. Wynik ten nie pozwala ustalić, która zmiana pomogła. Nazwy modeli w tej sekcji to modele utrzymywane jako stałe przez poszczególne badania w czasie ich przeprowadzania; przenośny jest protokół, a nie lista modeli.</p>
+<p>Nowsze porównanie pokazuje, dlaczego konfiguracja API należy do zamrożonego baseline’u. W swoim <a href="https://openai.com/index/how-two-settings-tripled-our-arc-agi-3-scores/">raporcie ARC-AGI-3 z 29 lipca 2026 r.</a> OpenAI podaje, że publiczny wynik GPT-5.6 Sol wzrósł z 13,3% do 38,3%, gdy harness zachowywał rozumowanie i używał kompaktowania zamiast usuwać rozumowanie i skracać historię. Metryką jest Relative Human Action Efficiency, a nie odsetek rozwiązanych zadań. To raportowane przez dostawcę, zagregowane porównanie; nie izoluje obu ustawień ani nie ustala rozmiaru efektu w produkcji. Przy aktualizacji zapisuj API, zachowywanie rozumowania, politykę kompaktowania i budżety obok identyfikatora modelu. W przeciwnym razie pozorna regresja modelu może wynikać z braku możliwości w adapterze.</p>
+<p>Uwzględnij interwencję dostawcy w zestawie awarii. <code>misalignment_policy_violation</code> musi trafić na ścieżkę zatrzymania i przeglądu nawet po strumieniowaniu danych wyjściowych; nie jest to przypadek tymczasowy, który należy ponawiać. <a href="/pl/blog/2026/04/20/ai-agent-security/">Część 4</a> omawia zakres zależny od API. Sprawdź, czy harness zatrzymuje wysyłanie kolejnych wywołań i rejestruje już ukończone efekty.</p>
+<p><a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">Raport Anthropic dotyczący długotrwałego tworzenia aplikacji</a> to jakościowe, specyficzne dla produktu studium przypadku, a nie kontrolowany benchmark. Aplikacją jest RetroForge, narzędzie do tworzenia gier 2D w stylu retro; w Sprincie 3 ewaluator harnessu sprawdzał 27 kryteriów obejmujących edytor poziomów. Prace rozpoczęto na wcześniejszych modelach Opus, a po wydaniu Opus 4.6 zespół usuwał komponenty harnessu jeden po drugim, aby sprawdzić, które z nich nowszy model uczynił zbędnymi. Raport wskazuje, że wywołania ewaluatora stały się narzutem w zadaniach, które Opus 4.6 potrafił niezawodnie ukończyć samodzielnie, ale nadal pomagały na granicy możliwości modelu. Przykład uzasadnia ponowną walidację starego scaffolding’u po zmianie modelu; nie szacuje ogólnego rozmiaru efektu.</p>
+<hr>
+<h2 id="utrzymuj-możliwość-edycji-harnessu-po-uzasadnieniu-jego-obecności">Utrzymuj możliwość edycji harnessu po uzasadnieniu jego obecności</h2>
+<p>Ablation pomaga utrzymać harness w niewielkim rozmiarze, ale jego kod może przetrwać model, pod który go dostrojono. Żądanie takie jak „maskuj sekrety w każdej ścieżce przechwytywania” opisuje zachowanie, a nie plik. W produkcyjnym harnessie takie zachowanie może obejmować wiele etapów wykonywania i współdzielony stan. Zanim bezpiecznie je zmienisz, musisz znaleźć wszystkie miejsca implementacji — i to samo musi zrobić agent programistyczny, któremu delegujesz zadanie.</p>
+<p>Opcją na etapie badawczym jest preprint z 2026 roku autorstwa Wang et al., <a href="https://arxiv.org/pdf/2607.13285">Harness Handbook</a>, który nazywa to <em>lokalizacją zachowania</em>. Handbook buduje mapę bazy kodu harnessu zorientowaną na zachowania. Analiza statyczna, niewymagająca wywołań modelu, wyodrębnia graf programu, a następnie LLM porządkuje jego jednostki według etapów wykonywania.</p>
+<p>Maintainer lub agent programistyczny zaczyna od przeglądu systemu, otwiera odpowiedni etap wykonywania i schodzi do wpisów zakotwiczonych w kodzie źródłowym dla funkcji lub pliku. Rejestr stanu zapisuje, gdzie stan współdzielony jest zapisywany i odczytywany pomiędzy etapami. Hierarchia ta utrzymuje niewielki rozmiar przeglądu, zachowując jednocześnie ścieżkę do źródła.</p>
+<p>Aktualność to osobna reguła. Mapa jest pomocą nawigacyjną; zachowanie ustala aktualny kod źródłowy. Każdy locator musi rozwiązywać się względem aktywnego repozytorium. Handbook zamraża nieaktualne wpisy zamiast zgadywać, a każda niepusta różnica synchronizuje ponownie wpisy, na które wpływa.</p>
+<p>Diagram kompresuje pętlę modyfikacji: żądanie dotyczące wyłącznie zachowania schodzi przez poziomy handbooka, każdy kandydat na locator jest weryfikowany względem aktywnego repozytorium przed zapisaniem planu, a każda zastosowana różnica synchronizuje mapę.</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-07-22-harness-engineering/harness-behavior-localization.svg" alt="Przekierowanie zmiany zachowania przez harness handbook" width="1120" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-07-22-harness-engineering/harness-behavior-localization.dark.svg" alt="Przekierowanie zmiany zachowania przez harness handbook" width="1120" loading="lazy"></span></p>
+<p><a href="https://arxiv.org/pdf/2607.13285">Ewaluacja Handbook</a> porównuje dopasowane warianty po 30 żądań na repozytorium. Nie dowodzi równości łącznych budżetów, nie obejmuje powtarzanych stochastycznych prób ani estymat niepewności, a raportowane porównania wykluczają brakujące wyniki i błędy plannera. Ilustruje zatem część powyższego protokołu, a nie jego całość. Obejmuje dwa harnessy open source: Terminus-2 (sześć plików Python) i monorepo Codex (2267 plików Rust). W każdym przypadku planner tylko do odczytu, zasilany przez DeepSeek-V4-Pro, badał repozytorium bezpośrednio albo korzystał z routingu przez handbook. Żądania, repozytorium, uprawnienia narzędzi i dekodowanie były identyczne w obu wariantach. Trzech judge’y (GPT-5.5, Opus 4.8, DeepSeek-V4-Pro) oceniało każdy plan edycji pod względem lokalizacji, kontroli zakresu i rozumowania — należy zauważyć, że jeden z judge’y jest tym samym modelem, który tworzył plany. Zwycięstwo oznacza, że wynik jakości w skali 0–100 jednego wariantu przewyższył wynik drugiego o co najmniej trzy punkty; w przeciwnym razie porównanie judge–żądanie uznawano za remis. Raportowany współczynnik to liczba zwycięstw podzielona przez prawidłowe porównania judge–żądanie:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Harness</th><th align="right">Współczynnik zwycięstw baseline’u</th><th align="right">Współczynnik zwycięstw z handbookiem</th><th align="right">Tokeny plannera</th></tr></thead><tbody><tr><td>Terminus-2 (6 plików)</td><td align="right">26,7%</td><td align="right">45,6%</td><td align="right">−8,6%</td></tr><tr><td>Monorepo Codex (2267 plików)</td><td align="right">28,3%</td><td align="right">38,3%</td><td align="right">−12,7%</td></tr></tbody></table>
+<p>Planner wspomagany handbookiem wygrywał częściej i używał mniej tokenów plannera w obu repozytoriach. Wynik należy interpretować wraz z warunkami: trzech judge’y LLM oceniało plany edycji utworzone przez jeden model plannera dla dwóch harnessów. Badanie oceniało plany, a nie wykonane różnice ani wskaźniki defektów w produkcji.</p>
+<hr>
+<h2 id="wypróbuj-metodę-w-dołączonym-laboratorium">Wypróbuj metodę w dołączonym laboratorium</h2>
+<p>Projekt <a href="https://github.com/slavadubrov/harness-demo/tree/517353f3a47541d66099983170fe90812b6ef23b">harness-demo z commitem <code>517353f3</code></a> to małe, deterministyczne ćwiczenie obejmujące 12 ogólnych zadań syntetycznych dotyczących zmian w kodzie, takich jak <code>fix-parser-edge-case</code>, <code>split-large-module</code> i <code>wire-browser-test</code>. Nie implementuje fikcyjnego repozytorium sklepu.</p>
+<p>Każdy fixture zadania deklaruje poziom trudności oraz cztery warunki logiczne: niestabilne narzędzie, utracony postęp, pominiętą lukę implementacyjną i niejednoznaczne ukończenie. Symulator wyprowadza piąty warunek dla trudnych zadań, które wymagają również pliku postępu: bez <code>context_reset</code> kompaktowanie zachowuje nieaktualne założenia. Deterministyczny grader oznacza zadanie jako zaliczone tylko wtedy, gdy wybrana konfiguracja obsłuży każdy mający zastosowanie warunek. Nie jest uruchamiany żaden model ani zewnętrzna usługa.</p>
+<p>Polecenia odpowiadają na różne pytania:</p>
+<ul>
+<li><code>make check</code> uruchamia Ruff i siedem testów jednostkowych, w tym walidator odrzucający każdą parę ablation, która zmienia więcej niż jeden komponent.</li>
+<li><code>make run</code> wyświetla skumulowaną macierz dydaktyczną, a następnie pięć prawidłowych porównań leave-one-component-out.</li>
+<li><code>make failures</code> podaje nieobsłużony warunek dla każdego nieudanego zadania. Pełny harness powinien zakończyć się wynikiem <code>all synthetic tasks pass</code>.</li>
+</ul>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">make</span><span style="color:#A5D6FF"> check</span></span>
+<span class="line"><span style="color:#FFA657">make</span><span style="color:#A5D6FF"> run</span></span>
+<span class="line"><span style="color:#FFA657">make</span><span style="color:#A5D6FF"> failures</span></span></code></pre>
+<p>Sekcja przyczynowa <code>make run</code> wygląda następująco:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="text"><code><span class="line"><span>component                 control  treatment  delta</span></span>
+<span class="line"><span>retry_policy              8/12     12/12       +4</span></span>
+<span class="line"><span>progress_handoff          7/12     12/12       +5</span></span>
+<span class="line"><span>evaluator                 8/12     12/12       +4</span></span>
+<span class="line"><span>fail_closed_acceptance    7/12     12/12       +5</span></span>
+<span class="line"><span>context_reset            10/12     12/12       +2</span></span></code></pre>
+<p>W każdym wierszu control to pełna konfiguracja z usuniętym jednym komponentem; treatment przywraca wyłącznie ten komponent. Wcześniejsza macierz skumulowana jest przydatna jako orientacja, ale niektóre jej sąsiednie wiersze dodają jednocześnie kilka komponentów i dlatego nie pozwalają zidentyfikować przyczyny.</p>
+<p>Laboratorium waliduje każdą zadeklarowaną parę przed jej uruchomieniem. Testy regresyjne obejmują również celowo nieprawidłową parę, która jednocześnie zmienia politykę ponowień i ewaluator; walidator ją odrzuca.</p>
+<p>Laboratorium porównuje wszystkie pięć pól komponentów podczas walidacji pary. Ten uruchamialny fragment pokazuje tę samą ochronę dla jednej prawidłowej pary przekazania postępu:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> dataclasses </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> dataclass, fields</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#D2A8FF">@dataclass</span><span style="color:#E6EDF3">(</span><span style="color:#FFA657">frozen</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">True</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#FF7B72">class</span><span style="color:#FFA657"> Config</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#E6EDF3">    progress_handoff: </span><span style="color:#79C0FF">bool</span><span style="color:#FF7B72"> =</span><span style="color:#79C0FF"> False</span></span>
+<span class="line"><span style="color:#E6EDF3">    evaluator: </span><span style="color:#79C0FF">bool</span><span style="color:#FF7B72"> =</span><span style="color:#79C0FF"> False</span></span>
+<span class="line"><span style="color:#E6EDF3">    retry_policy: </span><span style="color:#79C0FF">bool</span><span style="color:#FF7B72"> =</span><span style="color:#79C0FF"> False</span></span>
+<span class="line"><span style="color:#E6EDF3">    fail_closed_acceptance: </span><span style="color:#79C0FF">bool</span><span style="color:#FF7B72"> =</span><span style="color:#79C0FF"> False</span></span>
+<span class="line"><span style="color:#E6EDF3">    context_reset: </span><span style="color:#79C0FF">bool</span><span style="color:#FF7B72"> =</span><span style="color:#79C0FF"> False</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">def</span><span style="color:#D2A8FF"> changed_components</span><span style="color:#E6EDF3">(control: Config, treatment: Config) -> tuple[</span><span style="color:#79C0FF">str</span><span style="color:#E6EDF3">, </span><span style="color:#79C0FF">...</span><span style="color:#E6EDF3">]:</span></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#79C0FF"> tuple</span><span style="color:#E6EDF3">(</span></span>
+<span class="line"><span style="color:#E6EDF3">        field.name</span></span>
+<span class="line"><span style="color:#FF7B72">        for</span><span style="color:#E6EDF3"> field </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> fields(control)</span></span>
+<span class="line"><span style="color:#FF7B72">        if</span><span style="color:#79C0FF"> getattr</span><span style="color:#E6EDF3">(control, field.name) </span><span style="color:#FF7B72">!=</span><span style="color:#79C0FF"> getattr</span><span style="color:#E6EDF3">(treatment, field.name)</span></span>
+<span class="line"><span style="color:#E6EDF3">    )</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">control </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> Config(</span><span style="color:#FFA657">progress_handoff</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">False</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">evaluator</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">True</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">retry_policy</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">True</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">treatment </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> Config(</span><span style="color:#FFA657">progress_handoff</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">True</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">evaluator</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">True</span><span style="color:#E6EDF3">, </span><span style="color:#FFA657">retry_policy</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">True</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#FF7B72">assert</span><span style="color:#E6EDF3"> changed_components(control, treatment) </span><span style="color:#FF7B72">==</span><span style="color:#E6EDF3"> (</span><span style="color:#A5D6FF">"progress_handoff"</span><span style="color:#E6EDF3">,)</span></span></code></pre>
+<hr>
+<h2 id="którą-warstwę-otworzyć-gdy-uruchomienie-się-nie-powiedzie">Którą warstwę otworzyć, gdy uruchomienie się nie powiedzie</h2>
+<p>Seria wychodziła od pętli rozumowania na zewnątrz. Zacznij od pierwszej zaobserwowanej awarii, a następnie zbadaj komponent odpowiedzialny za daną funkcję. Uruchomienie może obejmować więcej niż jeden komponent:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Co zrobiło uruchomienie</th><th>Gdzie znajduje się poprawka</th><th align="right">Część</th></tr></thead><tbody><tr><td>Wybrało słaby następny krok mimo właściwych informacji dostępnych przed nim</td><td>Pętla rozumowania lub model</td><td align="right">1</td></tr><tr><td>Powtarzało pracę albo utraciło decyzję podjętą godzinę wcześniej</td><td>Składanie kontekstu i przekazywanie pracy</td><td align="right">2</td></tr><tr><td>Nie potrafiło wyrazić potrzebnej akcji albo błędnie odczytało zwrócony wynik</td><td>Kontrakt narzędzia</td><td align="right">3</td></tr><tr><td>Zrobiło coś, do czego w ogóle nie powinno mieć dostępu</td><td>Reguły uprawnień</td><td align="right">4</td></tr><tr><td>Utraciło wszystko po śmierci workera w trakcie wywołania</td><td>Sesja, checkpoint, sandbox</td><td align="right">5</td></tr><tr><td>Ogłosiło sukces przy nieukończonej pracy</td><td>Testy akceptacyjne i trace’y</td><td align="right">6</td></tr></tbody></table>
+<p>Cztery wiersze wskazują kod harnessu, natomiast wiersz 5 wskazuje runtime. Instrukcje mogą wpływać na zachowanie, ale nie zastąpią kontroli uprawnień, trwałego checkpointu ani testu akceptacyjnego.</p>
+<hr>
+<h2 id="zacznij-od-jednej-pętli-i-jednego-testu-akceptacyjnego">Zacznij od jednej pętli i jednego testu akceptacyjnego</h2>
+<p>Zacząłbym harness agenta programistycznego od jednego kompetentnego modelu, instrukcji repozytorium, kilku wąskich narzędzi, sandboxu i jednego jawnego testu akceptacyjnego. Rejestrowałbym wywołania narzędzi, wyniki, koszty i ten końcowy test w jednym trace, aby pierwsze użyteczne awarie były widoczne bez odtwarzania ich z logów terminala i transkryptów rozmów. To proponowany baseline, a nie dowód z wdrożonego systemu.</p>
+<p>Następnie dodawaj tylko to, co uzasadnia trace. Rejestruj, kto utrzymuje każdy komponent, ile tokenów lub sekund dodaje oraz jaki test regresyjny uzasadniłby jego usunięcie po aktualizacji modelu.</p>
+<p>Sześć miesięcy później osoba, która zobaczy <code>progress_handoff=True</code>, powinna móc znaleźć trace’y awarii uzasadniające jego obecność oraz przypadki regresyjne, które nadal go utrzymują. Trace’y wyjaśniają, dlaczego komponent istnieje; aktualna mapa zachowania wyjaśnia, gdzie go zmienić.</p>
+<p>Jeśli trafiłeś tutaj z wyszukiwarki, pięć poprzednich artykułów zbudowało system wokół pętli rozumowania:</p>
+<ol>
+<li>Pętla wybiera następny krok.</li>
+<li>Pamięć dostarcza kontekst, a rzeczywisty magazyn checkpointów Postgres zachowuje go.</li>
+<li>Kontrakty narzędzi definiują akcje i struktury wyników, które mogą odczytać późniejsze kontrole.</li>
+<li>Bezpieczeństwo dodaje hook odmowy i walidator stop-hooka. W przykładzie oba pozostają szkicami, ale wyznaczają punkty kontroli.</li>
+<li>Runtime utrzymuje proces aktywny pomiędzy sesjami i awariami.</li>
+</ol>
+<p>Seria dodała również opcjonalną powierzchnię serwera MCP i węzeł ewaluatora, który sprawdza szkic raportu, zanim zobaczy go człowiek. Przekierowanie workera przez proxy przechowujące poświadczenia pozostaje proponowanym rozszerzeniem. To zwykłe elementy kodu wokół wywołania modelu. Router jest kodem harnessu z tego samego powodu: wybiera wzorzec rozumowania, zanim rozpocznie się pętla rozumowania.</p>
+<p>W przypadku następnego opcjonalnego komponentu pomocniczego zachowaj razem trace awarii, regułę akceptacji i porównanie z wyłączonym komponentem. Pomiń go, jeśli nie potrafisz wskazać jego korzyści. Wymagane ograniczenia bezpieczeństwa i akceptacji nie zależą od tego porównania.</p>
+<hr>
+<h2 id="referencje">Referencje</h2>
+<ul>
+<li>OpenAI, <em><a href="https://openai.com/index/unrolling-the-codex-agent-loop/">Unrolling the Codex agent loop</a></em>.</li>
+<li>OpenAI, <em><a href="https://openai.com/index/harness-engineering/">Harness engineering: leveraging Codex in an agent-first world</a></em>.</li>
+<li>Lopopolo, <em><a href="https://github.com/lopopolo/harness-engineering">Harness engineering: anthology, field guide, and agent context bundle</a></em>.</li>
+<li>Anthropic Engineering, <em><a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">Effective harnesses for long-running agents</a></em>.</li>
+<li>Anthropic Engineering, <em><a href="https://www.anthropic.com/engineering/harness-design-long-running-apps">Harness design for long-running application development</a></em>.</li>
+<li>LangChain, <em><a href="https://www.langchain.com/blog/improving-deep-agents-with-harness-engineering">Improving Deep Agents with harness engineering</a></em>.</li>
+<li>Yang et al., <em><a href="https://proceedings.neurips.cc/paper_files/paper/2024/file/5a7c947568c1b1328ccc5230172e1e7c-Paper-Conference.pdf">SWE-agent: Agent-Computer Interfaces Enable Automated Software Engineering</a></em>.</li>
+<li>Wang et al., <em><a href="https://arxiv.org/pdf/2607.13285">Harness Handbook: Making Evolving Agent Harnesses Readable, Navigable, and Editable</a></em>, arXiv:2607.13285, 2026.</li>
+<li>AWS, <em><a href="https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/">Making retries safe with idempotent APIs</a></em>.</li>
+<li>Model Context Protocol, <em><a href="https://modelcontextprotocol.io/specification/latest/server/tools">Tools specification</a></em>.</li>
+<li><a href="https://github.com/slavadubrov/market-analyst-agent"><strong>Market Analyst Agent Repository</strong></a></li>
+</ul>
+<hr>
+<p><em>The Market Analyst Agent code is on <a href="https://github.com/slavadubrov/market-analyst-agent">GitHub</a>.</em></p>  </article> </div> </main> <footer class="site-footer"> <p> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="28" height="26" alt="" aria-hidden="true" loading="lazy" decoding="async"> <span data-footer-tagline>Systemy AI w środowisku produkcyjnym, ewaluacja, bezpieczeństwo i doskonalenie na podstawie wyników.</span> </p> <nav class="footer-locales" aria-label="Język"> <a href="/blog/2026/07/22/ai-agent-harness-engineering/" hreflang="en" lang="en">English</a><a href="/de/blog/2026/07/22/ai-agent-harness-engineering/" hreflang="de" lang="de">Deutsch</a><a href="/ru/blog/2026/07/22/ai-agent-harness-engineering/" hreflang="ru" lang="ru">Русский</a><a href="/es/blog/2026/07/22/ai-agent-harness-engineering/" hreflang="es" lang="es">Español</a><a href="/pt/blog/2026/07/22/ai-agent-harness-engineering/" hreflang="pt" lang="pt">Português</a><a href="/fr/blog/2026/07/22/ai-agent-harness-engineering/" hreflang="fr" lang="fr">Français</a><a href="/nl/blog/2026/07/22/ai-agent-harness-engineering/" hreflang="nl" lang="nl">Nederlands</a> </nav> <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>(function(){const copyLabel = "Kopiuj";
+const copiedLabel = "Skopiowano";
+
+      document.querySelector(".theme-toggle")?.addEventListener("click", () => {
+        const root = document.documentElement;
+        const next = root.dataset.themeEffective === "dark" ? "light" : "dark";
+        root.dataset.theme = next;
+        root.dataset.themeEffective = next;
+        localStorage.setItem("theme", next);
+      });
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (event) => {
+        if (localStorage.getItem("theme")) return;
+        document.documentElement.dataset.themeEffective = event.matches ? "dark" : "light";
+      });
+      document.querySelector("#locale-select")?.addEventListener("change", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLSelectElement && target.value) location.assign(target.value);
+      });
+      document.querySelectorAll("pre").forEach((pre) => {
+        if (pre.closest(".mermaid-diagram")) return;
+        const code = pre.textContent || "";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-code";
+        button.textContent = copyLabel;
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(code);
+          button.textContent = copiedLabel;
+          setTimeout(() => { button.textContent = copyLabel; }, 1500);
+        });
+        pre.append(button);
+      });
+    })();</script> </body> </html>

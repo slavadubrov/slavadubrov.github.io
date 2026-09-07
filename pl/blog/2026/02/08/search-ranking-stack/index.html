@@ -1,0 +1,774 @@
+<!DOCTYPE html><html lang="pl"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><script>
+      (() => {
+        const stored = localStorage.getItem("theme");
+        const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const effective = stored === "light" || stored === "dark" ? stored : systemDark ? "dark" : "light";
+        document.documentElement.dataset.themeEffective = effective;
+        if (stored === "light" || stored === "dark") document.documentElement.dataset.theme = stored;
+      })();
+    </script><script async src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5"></script><script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        window.dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", "G-T51K83ENZ5");
+    </script><title>Stos rankingu wyszukiwania: BM25, embeddings i reranking</title><meta name="description" content="Jak zbudować stos rankingu wyszukiwania z użyciem BM25, gęstych embeddings, hybrydowego RRF, rerankingu cross-encoderem oraz listwise rerankingu z użyciem LLM na zbiorze Amazon ESCI."><link rel="canonical" href="https://slavadubrov.com/pl/blog/2026/02/08/search-ranking-stack/"><link rel="alternate" hreflang="de" href="https://slavadubrov.com/de/blog/2026/02/08/search-ranking-stack/"><link rel="alternate" hreflang="en" href="https://slavadubrov.com/blog/2026/02/08/search-ranking-stack/"><link rel="alternate" hreflang="es" href="https://slavadubrov.com/es/blog/2026/02/08/search-ranking-stack/"><link rel="alternate" hreflang="fr" href="https://slavadubrov.com/fr/blog/2026/02/08/search-ranking-stack/"><link rel="alternate" hreflang="nl" href="https://slavadubrov.com/nl/blog/2026/02/08/search-ranking-stack/"><link rel="alternate" hreflang="pl" href="https://slavadubrov.com/pl/blog/2026/02/08/search-ranking-stack/"><link rel="alternate" hreflang="pt" href="https://slavadubrov.com/pt/blog/2026/02/08/search-ranking-stack/"><link rel="alternate" hreflang="ru" href="https://slavadubrov.com/ru/blog/2026/02/08/search-ranking-stack/"><link rel="alternate" hreflang="x-default" href="https://slavadubrov.com/blog/2026/02/08/search-ranking-stack/"><meta property="og:type" content="article"><meta property="og:title" content="Stos rankingu wyszukiwania: BM25, embeddings i reranking"><meta property="og:description" content="Jak zbudować stos rankingu wyszukiwania z użyciem BM25, gęstych embeddings, hybrydowego RRF, rerankingu cross-encoderem oraz listwise rerankingu z użyciem LLM na zbiorze Amazon ESCI."><meta property="og:url" content="https://slavadubrov.com/pl/blog/2026/02/08/search-ranking-stack/"><meta property="og:image" content="https://slavadubrov.com/assets/og-image.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:type" content="image/png"><meta property="og:image:alt" content="Edge of Context — Praktyczna inżynieria AI"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Stos rankingu wyszukiwania: BM25, embeddings i reranking"><meta name="twitter:description" content="Jak zbudować stos rankingu wyszukiwania z użyciem BM25, gęstych embeddings, hybrydowego RRF, rerankingu cross-encoderem oraz listwise rerankingu z użyciem LLM na zbiorze Amazon ESCI."><meta name="twitter:image" content="https://slavadubrov.com/assets/og-image.png"><meta name="twitter:image:alt" content="Edge of Context — Praktyczna inżynieria AI"><meta property="article:published_time" content="2026-02-08"><meta property="article:modified_time" content="2026-07-15"><link rel="icon" href="/assets/favicon-eoc.svg" type="image/svg+xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"><link href="/pagefind/pagefind-component-ui.css" rel="stylesheet"><script src="/pagefind/pagefind-component-ui.js" type="module"></script><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Stos rankingu wyszukiwania: BM25, embeddings i reranking","description":"Jak zbudować stos rankingu wyszukiwania z użyciem BM25, gęstych embeddings, hybrydowego RRF, rerankingu cross-encoderem oraz listwise rerankingu z użyciem LLM na zbiorze Amazon ESCI.","url":"https://slavadubrov.com/pl/blog/2026/02/08/search-ranking-stack/","image":"https://slavadubrov.com/assets/og-image.png","datePublished":"2026-02-08","dateModified":"2026-07-15","author":{"@type":"Person","name":"Viacheslav Dubrov","url":"https://slavadubrov.com/pl/about/"}}</script><link rel="stylesheet" href="/_astro/BaseLayout.DWWCKfJJ.css"></head> <body> <a class="skip-link" href="#main-content">Przejdź do treści</a> <header class="site-header"> <a class="brand" data-home-link href="/pl/" aria-label="Strona główna Slavy Dubrova"> <svg class="brand-mark" viewBox="0 0 64 64" width="36" height="36" aria-hidden="true" focusable="false" data-astro-cid-77qc4tpx> <rect class="brand-mark__frame" x="8.5" y="8.5" width="47" height="47" rx="11" stroke-width="5" data-astro-cid-77qc4tpx></rect> <line class="brand-mark__edge" x1="42" y1="8.5" x2="42" y2="55.5" stroke-width="5" data-astro-cid-77qc4tpx></line> <g class="brand-mark__token" data-astro-cid-77qc4tpx> <circle cx="16.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="20" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="16.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="32" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="16.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="25.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> <circle cx="34.5" cy="44" r="4.2" data-astro-cid-77qc4tpx></circle> </g> </svg> <span class="brand-lockup"> <span class="brand-primary">Slava Dubrov</span> <span class="brand-publication">Edge of Context</span> </span> </a> <nav aria-label="Nawigacja główna"> <ul> <li> <a data-nav="work" href="/pl/work/">Projekty</a> </li><li> <a data-nav="labs" href="/pl/labs/">Laboratorium</a> </li><li> <a data-nav="blog" href="/pl/blog/" aria-current="page">Blog</a> </li><li> <a data-nav="about" href="/pl/about/">O mnie</a> </li> </ul> </nav> <div class="header-actions"> <nav class="header-social" aria-label="Profile społecznościowe"> <a href="https://www.linkedin.com/in/slavadubrov" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" title="LinkedIn"> <svg class="social-icon" data-social-icon="fontawesome-brands-linkedin" viewBox="0 0 448 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3C448 46.5 433.6 32 416 32zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"></path></svg> </a><a href="https://slavadubrov.substack.com/" target="_blank" rel="noopener noreferrer" aria-label="Substack" title="Substack"> <svg class="social-icon" data-social-icon="simple-substack" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"></path></svg> </a><a href="https://www.tiktok.com/@edge.of.context" target="_blank" rel="noopener noreferrer" aria-label="TikTok" title="TikTok"> <svg class="social-icon" data-social-icon="fontawesome-brands-tiktok" viewBox="0 0 448 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M448 209.9a210.1 210.1 0 0 1-122.8-39.2v178.7A162.6 162.6 0 1 1 185 188.3v89.9a74.6 74.6 0 1 0 52.2 71.2V0h88a121.2 121.2 0 0 0 1.9 22.2 122.2 122.2 0 0 0 53.9 80.2 121.4 121.4 0 0 0 67 20.1v87.4z"></path></svg> </a><a href="https://github.com/slavadubrov" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub"> <svg class="social-icon" data-social-icon="fontawesome-brands-github" viewBox="0 0 496 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"></path></svg> </a><a href="/feed_rss_created.xml" target="_blank" rel="noopener noreferrer" aria-label="Kanał RSS" title="Kanał RSS"> <svg class="social-icon" data-social-icon="material-rss" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6.18 15.64a2.18 2.18 0 1 0 0 4.36 2.18 2.18 0 0 0 0-4.36zM4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83C19.56 11.4 12.6 4.44 4 4.44zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z"></path></svg> </a> </nav> <button class="theme-toggle" type="button" aria-label="Zmień motyw kolorystyczny" title="Zmień motyw kolorystyczny"> <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"> <circle cx="12" cy="12" r="4"></circle> <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path> </svg> <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"> <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path> </svg> </button> <pagefind-modal-trigger data-search-label="true">Szukaj</pagefind-modal-trigger> <label class="locale-switcher"> <span class="visually-hidden">Język</span> <select id="locale-select"> <option value="/de/blog/2026/02/08/search-ranking-stack/">Deutsch</option><option value="/blog/2026/02/08/search-ranking-stack/">English</option><option value="/es/blog/2026/02/08/search-ranking-stack/">Español</option><option value="/fr/blog/2026/02/08/search-ranking-stack/">Français</option><option value="/nl/blog/2026/02/08/search-ranking-stack/">Nederlands</option><option value="/pl/blog/2026/02/08/search-ranking-stack/" selected>Polski</option><option value="/pt/blog/2026/02/08/search-ranking-stack/">Português</option><option value="/ru/blog/2026/02/08/search-ranking-stack/">Русский</option> </select> </label> </div> </header> <main id="main-content" tabindex="-1"> <div class="article-shell has-toc"> <nav class="toc" aria-label="Na tej stronie"> <p class="eyebrow">Na tej stronie</p> <ol> <li> <a href="#dobieraj-etapy-do-rodzaju-błędu">Dobieraj etapy do rodzaju błędu</a> </li><li> <a href="#jak-do-tego-doszliśmy">Jak do tego doszliśmy</a> </li><li class="is-sub"> <a href="#bm25-i-retrieval-leksykalny">BM25 i retrieval leksykalny</a> </li><li class="is-sub"> <a href="#dense-retrieval-i-embeddings">Dense retrieval i embeddings</a> </li><li class="is-sub"> <a href="#cross-encodery-i-llm">Cross-encodery i LLM</a> </li><li> <a href="#wieloetapowy-lejek">Wieloetapowy lejek</a> </li><li> <a href="#demo-pipeline-z-pięciu-etapów">Demo: pipeline z pięciu etapów</a> </li><li class="is-sub"> <a href="#szybki-start">Szybki start</a> </li><li class="is-sub"> <a href="#zbiór-danych-i-próbkowanie-amazon-esci">Zbiór danych i próbkowanie: Amazon ESCI</a> </li><li> <a href="#retrieval-wyszukiwanie-hybrydowe">Retrieval: wyszukiwanie hybrydowe</a> </li><li class="is-sub"> <a href="#bm25-baseline-leksykalny">BM25: baseline leksykalny</a> </li><li class="is-sub"> <a href="#retrieval-dense-bi-encoderem">Retrieval dense bi-encoderem</a> </li><li class="is-sub"> <a href="#dlaczego-testować-retrieval-hybrydowy">Dlaczego testować retrieval hybrydowy</a> </li><li class="is-sub"> <a href="#reciprocal-rank-fusion-rrf">Reciprocal rank fusion (RRF)</a> </li><li> <a href="#reranking-cross-encoderem">Reranking cross-encoderem</a> </li><li class="is-sub"> <a href="#interakcja-na-poziomie-tokenów">Interakcja na poziomie tokenów</a> </li><li class="is-sub"> <a href="#jak-trenowane-są-cross-encodery">Jak trenowane są cross-encodery</a> </li><li class="is-sub"> <a href="#kompromis-między-szybkością-a-jakością">Kompromis między szybkością a jakością</a> </li><li> <a href="#listwise-reranking-z-użyciem-llm">Listwise reranking z użyciem LLM</a> </li><li class="is-sub"> <a href="#prompt-listwise">Prompt listwise</a> </li><li class="is-sub"> <a href="#trzy-tryby-wykonania">Trzy tryby wykonania</a> </li><li class="is-sub"> <a href="#parsowanie-i-fallback">Parsowanie i fallback</a> </li><li> <a href="#wyniki-z-tej-próbki-esci">Wyniki z tej próbki ESCI</a> </li><li class="is-sub"> <a href="#najważniejsze-obserwacje">Najważniejsze obserwacje</a> </li><li> <a href="#ewaluacja-mierzenie-tego-co-istotne">Ewaluacja: mierzenie tego, co istotne</a> </li><li class="is-sub"> <a href="#ndcg10-metryka-główna">NDCG@10 (metryka główna)</a> </li><li class="is-sub"> <a href="#mrr-pierwszy-wynik-complement-lub-wyższy">MRR (pierwszy wynik Complement lub wyższy)</a> </li><li class="is-sub"> <a href="#recall100-pokrycie-retrieval">Recall@100 (pokrycie retrieval)</a> </li><li> <a href="#indexing-dense-vectors-beyond-the-demo">Indeksowanie gęstych wektorów poza demem</a> </li><li class="is-sub"> <a href="#hnsw-hierarchical-navigable-small-world">HNSW (hierarchical navigable small world)</a> </li><li class="is-sub"> <a href="#ivf-inverted-file">IVF (inverted file)</a> </li><li> <a href="#opcjonalne-rozszerzenia-po-podstawowym-pipeline">Opcjonalne rozszerzenia po podstawowym pipeline</a> </li><li class="is-sub"> <a href="#rozumienie-zapytań">Rozumienie zapytań</a> </li><li class="is-sub"> <a href="#etykietowanie-trafności-wspomagane-przez-llm">Etykietowanie trafności wspomagane przez LLM</a> </li><li class="is-sub"> <a href="#knowledge-distillation">Knowledge distillation</a> </li><li class="is-sub"> <a href="#personalizacja-i-position-bias">Personalizacja i position bias</a> </li><li class="is-sub"> <a href="#adaptacja-domenowa-za-pomocą-zapytań-syntetycznych">Adaptacja domenowa za pomocą zapytań syntetycznych</a> </li><li> <a href="#sekwencja-eksperymentów">Sekwencja eksperymentów</a> </li><li> <a href="#kierunki-badawcze-do-osobnej-ewaluacji">Kierunki badawcze do osobnej ewaluacji</a> </li><li class="is-sub"> <a href="#rerankery-oparte-na-rozumowaniu">Rerankery oparte na rozumowaniu</a> </li><li class="is-sub"> <a href="#wyszukiwanie-agentowe">Wyszukiwanie agentowe</a> </li><li> <a href="#najważniejsze-wnioski">Najważniejsze wnioski</a> </li><li> <a href="#referencje">Referencje</a> </li><li class="is-sub"> <a href="#publikacje">Publikacje</a> </li><li class="is-sub"> <a href="#zbiory-danych-i-benchmarki">Zbiory danych i benchmarki</a> </li><li class="is-sub"> <a href="#modele-użyte-w-demie">Modele użyte w demie</a> </li><li class="is-sub"> <a href="#narzędzia-i-platformy">Narzędzia i platformy</a> </li><li class="is-sub"> <a href="#referencje-branżowe">Referencje branżowe</a> </li><li class="is-sub"> <a href="#projekt-demonstracyjny">Projekt demonstracyjny</a> </li> </ol> </nav> <script>
+  (() => {
+    const links = new Map(
+      [...document.querySelectorAll(".toc a")].map((link) => [link.hash.slice(1), link]),
+    );
+    if (!links.size || !window.IntersectionObserver) return;
+    const visible = new Set();
+    const mark = () => {
+      let current;
+      for (const id of links.keys()) if (visible.has(id)) { current = id; break; }
+      for (const [id, link] of links) {
+        if (id === current) link.setAttribute("aria-current", "true");
+        else link.removeAttribute("aria-current");
+      }
+    };
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) visible.add(entry.target.id);
+          else visible.delete(entry.target.id);
+        }
+        mark();
+      },
+      { rootMargin: "-15% 0px -70% 0px" },
+    );
+    for (const id of links.keys()) {
+      const heading = document.getElementById(id);
+      if (heading) observer.observe(heading);
+    }
+  })();
+</script> <article class="prose" data-pagefind-body> <h1>Stos rankingu wyszukiwania: BM25, embeddings i reranking</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-02-08">2026-02-08</time>  · Zaktualizowano <time datetime="2026-07-15">2026-07-15</time>  · 24 min · Systemy wyszukiwania i przetwarzania języka </p> </div> </div> <!-- automated-translation-notice:start -->
+<blockquote>
+<p><strong>Tłumaczenie automatyczne</strong>
+Ten artykuł został automatycznie przetłumaczony z angielskiego oryginału.</p>
+</blockquote>
+<!-- automated-translation-notice:end -->
+<p>Wyszukiwanie musi uwzględniać zarówno intencję dokładną, jak i semantyczną. Zapytanie „wireless headphones” powinno dopasowywać te słowa, ale ostateczna kolejność może również zależeć od jakości produktu, preferencji użytkownika i dostępności. Żadna pojedyncza metoda rankingu nie radzi sobie dobrze ze wszystkimi tymi sygnałami.</p>
+<p>W tym artykule budujemy stos etapami: wyszukiwanie BM25, gęste embeddings, Reciprocal Rank Fusion, reranking cross-encoderem i na końcu listwise ranking z użyciem LLM. <a href="https://github.com/slavadubrov/search-ranking-stack">Repozytorium demonstracyjne</a> zawiera działający kod dla poszczególnych etapów na próbkowanym wycinku danych wyszukiwania produktów Amazon ESCI.</p>
+<!-- more -->
+<aside class="tldr">
+<p class="eyebrow">TL;DR</p>
+<p>Buduj wyszukiwanie jako zestaw mierzonych etapów. Zacznij od BM25, dodaj dense retrieval, gdy poprawia recall dla Twoich zapytań, wykonuj fuzję tylko wtedy, gdy oba retrievery popełniają komplementarne błędy, a reranking stosuj wyłącznie do zbioru kandydatów mieszczącego się w budżecie opóźnienia. Zarejestrowane poniżej wyniki sprzed etapu LLM są przykładem opracowanym na nieodłożonym wycinku ESCI. Porównanie LLM w demie ma wyłącznie charakter ilustracyjny, ponieważ parser nie sprawdza zwróconego rankingu; nie stanowi ono dowodu, że każdy produkcyjny stos wymaga internetowego LLM.</p>
+</aside>
+<p>Krótki przewodnik po wyborze etapów znajdziesz w sekcji <a href="/pl/blog/fast-answers/search-ranking-stack/">BM25 vs Embeddings vs Rerankers</a>.</p>
+<hr>
+<h2 id="dobieraj-etapy-do-rodzaju-błędu">Dobieraj etapy do rodzaju błędu</h2>
+<p>Produkcyjny stos ma postać lejka, ale właściwy lejek zależy od zapytania i powierzchni biznesowej.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Przypadek użycia</th><th>Proponowany stos początkowy</th><th>Co zweryfikować</th></tr></thead><tbody><tr><td>Wyszukiwanie produktów</td><td>BM25 + dense retrieval + RRF + cross-encoder</td><td>Recall atrybutów, zamienniki, opóźnienie, ograniczenia biznesowe</td></tr><tr><td>Wyszukiwanie w dokumentacji</td><td>Hybrid retrieval + cross-encoder</td><td>Dokładne identyfikatory, pytania semantyczne, filtry wersji</td></tr><tr><td>Odciążanie wsparcia</td><td>Hybrid retrieval + kontrole cytowań</td><td>Recall wyszukiwania, grounding, abstention</td></tr><tr><td>Marketplace lub ogłoszenia</td><td>Filtry leksykalne + dense retrieval + business reranker</td><td>Dostępność, aktualność, zgodność z zasadami, różnorodność sprzedawców</td></tr><tr><td>Mały korpus wewnętrzny</td><td>Bazowy BM25, następnie reranker</td><td>Czy rozbieżność słownictwa uzasadnia indeks gęsty</td></tr><tr><td>Wyszukiwanie prawne lub medyczne o wysokiej stawce</td><td>Retrieval skupiony na recallu plus weryfikacja ekspercka</td><td>Pokrycie, proweniencja, skalibrowane abstention</td></tr></tbody></table>
+<p>Zacznij od BM25 jako baseline’u. Dodaj dense retrieval, gdy rozbieżność słownictwa obniża recall. Dodaj cross-encoder, gdy na pierwszej stronie znajdują się właściwi kandydaci, ale w złej kolejności. Dodaj LLM dopiero wtedy, gdy możesz zaakceptować opóźnienie i potrafisz ewaluować decyzje rankingowe.</p>
+<h2 id="jak-do-tego-doszliśmy">Jak do tego doszliśmy</h2>
+<p>Stos łatwiej zrozumieć jako trzy warstwy. Retrieval leksykalny wyszukuje dokładne terminy, dense retrieval niweluje luki w słownictwie, a rerankery szczegółowo porównują najlepszych kandydatów.</p>
+<h3 id="bm25-i-retrieval-leksykalny">BM25 i retrieval leksykalny</h3>
+<p>Przez dekady domyślną metodą był <a href="https://en.wikipedia.org/wiki/Okapi_BM25">BM25</a>. To model probabilistyczny, który ocenia dokumenty na podstawie częstości terminów zapytania w dokumencie, z normalizacją względem długości dokumentu i inverse document frequency (IDF).</p>
+<p>BM25 jest skuteczny, gdy intencję wyrażają dosłowne terminy: kody błędów, SKU produktów, nazwy i identyfikatory API. Jego głównym ograniczeniem jest <strong>rozbieżność słownictwa</strong>. Zapytanie „cheap laptop” może nie znaleźć dokumentu o „budget notebook computer”, jeśli zaindeksowany tekst nie zapewnia przejścia między tymi wyrażeniami.</p>
+<p>Mimo to BM25 stanowi solidny baseline. <a href="https://eval.ai/web/challenges/challenge-page/1897/leaderboard/4475">Ranking BEIR</a> podaje średnią wartość nDCG@10 równą 0.429 dla 18 zbiorów danych dla swojego uruchomienia <code>BM25 multifield</code>. <a href="https://castorini.github.io/pyserini/2cr/beir.html">Reprodukcja Pyserini</a> wykorzystuje wielopolowy indeks Lucene z <code>contents=1.0</code> i <code>title=1.0</code>, przeszukiwany za pomocą <code>--bm25</code>. Nie jest to implementacja <code>rank_bm25</code> z tego dema, oparta na zwykłej tokenizacji białymi znakami. BM25 również <a href="https://arxiv.org/abs/2407.07790">przewyższa niektóre modele neuronowe</a> w zadaniach retrieval argumentacyjnego, takich jak <a href="https://webis.de/events/touche-20/">Touche-2020</a>.</p>
+<h3 id="dense-retrieval-i-embeddings">Dense retrieval i embeddings</h3>
+<p>Enkodery w stylu BERT uczyniły <strong>dense retrieval</strong> praktycznym. Mapują zapytania i dokumenty do wspólnej przestrzeni wektorowej, a następnie szeregują kandydatów za pomocą funkcji podobieństwa, takiej jak podobieństwo cosinusowe lub iloczyn skalarny.</p>
+<p>Architektura <strong>bi-encodera</strong> (lub „two-tower”) przetwarza zapytanie i dokument niezależnie przez osobne wieże enkodera, tworząc embeddings o stałej długości. Wektory dokumentów można obliczyć z wyprzedzeniem i zaindeksować offline, a następnie szybko wyszukiwać za pomocą algorytmów Approximate Nearest Neighbor (ANN). Dzięki temu „cheap laptop” i „budget notebook” trafiają blisko siebie w przestrzeni wektorowej.</p>
+<p>Niektóre bi-encodery wykorzystują <strong>architekturę Siamese</strong>, jak w <a href="https://arxiv.org/abs/1908.10084">Sentence-BERT</a>, gdzie obie strony współdzielą wagi. Inne używają osobnych wież zapytania i dokumentu. Pooling, rozmiar wektora, funkcja podobieństwa i cel treningowy są wyborami dotyczącymi modelu, a nie właściwościami każdego dense retrievera.</p>
+<p>Modele te są trenowane za pomocą <strong>contrastive learning</strong>, zwykle z funkcją straty <a href="https://arxiv.org/abs/1807.03748">InfoNCE</a>. Dla batcha par (query, positive_document) cel maksymalizuje <code>sim(query, positive_doc)</code>, jednocześnie minimalizując <code>sim(query, negative_docs)</code>. Negatywy pochodzą z pozytywów innych zapytań w tym samym batchu (in-batch negatives). Parametr temperatury <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>τ</mi></mrow><annotation encoding="application/x-tex">\tau</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal" style="margin-right:0.1132em;">τ</span></span></span></span> określa, jak zdecydowanie model musi rozdzielić te dwa przypadki.</p>
+<p>Dane treningowe często mają większe znaczenie niż wymiar embeddings. Modele retrieval uczą się na parach query-positive oraz starannie dobranych <strong>hard negatives</strong>: wiarygodnych, lecz nieistotnych dokumentach. W dalszej części dotyczącej treningu pokazujemy, jak <a href="https://arxiv.org/abs/2210.11773">SimANS</a> unika zarówno trywialnych negatywów, jak i prawdopodobnych false negatives.</p>
+<p>Kosztem jest wąskie gardło reprezentacji. Bi-encodery kompresują całą semantyczną subtelność do pojedynczego wektora o stałym rozmiarze, dlatego często pomijają drobnoziarniste interakcje między konkretnymi terminami zapytania a konkretną treścią dokumentu.</p>
+<h3 id="cross-encodery-i-llm">Cross-encodery i LLM</h3>
+<p><strong>Cross-encodery</strong> (<a href="https://arxiv.org/abs/1901.04085">Nogueira &#x26; Cho, 2019</a>) przekazują zapytanie i dokument razem do Transformera jako połączoną sekwencję (<code>[CLS] Query [SEP] Document</code>), dzięki czemu każdy token zapytania może kierować uwagę na każdy token dokumentu przez pełną self-attention. Ta głęboka interakcja wychwytuje niuanse pomijane przez niezależne kodowanie.</p>
+<p><strong>LLM reranking</strong> wykorzystuje model sterowany promptem do jednoczesnego porównania kilku kandydatów. <a href="https://arxiv.org/abs/2304.09542">RankGPT</a> wykazał dobre wyniki zero-shot listwise z GPT-4 na ocenianych benchmarkach, ale stabilność wyjścia, koszt i dopasowanie do domeny nadal wymagają osobnych testów.</p>
+<p>Tych wyników nie można obliczyć z wyprzedzeniem dla dowolnych zapytań, dlatego reranking umieszcza się po etapie retrieval. Ta asymetria kosztów uzasadnia wieloetapowy lejek.</p>
+<hr>
+<h2 id="wieloetapowy-lejek">Wieloetapowy lejek</h2>
+<p>Uruchamianie kosztownego cross-encodera lub LLM dla milionów dokumentów nie jest wykonalne, dlatego współczesne stosy wyszukiwania używają lejka. Każdy etap zmniejsza pulę kandydatów, podczas gdy rośnie złożoność modelu.</p>
+<p>Tani retriever nie zapewnia również końcowej precyzji, dlatego lejek wykorzystuje każdy model tylko tam, gdzie jego koszt jest uzasadniony.</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/multi_stage_funnel.svg" alt="Wieloetapowy lejek rankingu" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/multi_stage_funnel.dark.svg" alt="Wieloetapowy lejek rankingu" loading="lazy"></span></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Etap</th><th>Skala wejścia</th><th>Główny cel</th><th>Typowe metody</th><th>Pomiar wyjściowy</th></tr></thead><tbody><tr><td><strong>Retrieval</strong></td><td>Korpus lub indeks</td><td>Recall kandydatów</td><td>BM25, bi-encodery</td><td>Recall przy odcięciu kandydatów</td></tr><tr><td><strong>Pre-ranking</strong></td><td>Duży zbiór kandydatów</td><td>Tanie filtrowanie</td><td>Lekkie modele, reguły</td><td>Zachowany recall na milisekundę</td></tr><tr><td><strong>Full ranking</strong></td><td>Krótka lista</td><td>Jakość czołówki</td><td>Cross-encodery, LLM</td><td>NDCG/MRR, opóźnienie, koszt</td></tr><tr><td><strong>Blending</strong></td><td>Końcowe listy rankingowe lub sloty</td><td>Ograniczenia i miks</td><td>Reguły, ranking wielokryterialny</td><td>Polityka, różnorodność, guardrails biznesowe</td></tr></tbody></table>
+<p>Retrieval wyznacza górną granicę, a reranking optymalizuje wynik w jej obrębie. Jeśli istotny dokument nie przejdzie etapu retrieval, żaden późniejszy model nie będzie w stanie go odzyskać.</p>
+<hr>
+<h2 id="demo-pipeline-z-pięciu-etapów">Demo: pipeline z pięciu etapów</h2>
+<p>Aby to zilustrować, zbudowałem demo <a href="https://github.com/slavadubrov/search-ranking-stack">search-ranking-stack</a>, które uruchamia pięcioetapowy pipeline na benchmarku wyszukiwania produktów <a href="https://github.com/amazon-science/esci-data">Amazon ESCI</a>. Każdy etap jest mierzony niezależnie, dzięki czemu można zobaczyć, skąd rzeczywiście biorą się przyrosty jakości.</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/demo_architecture.svg" alt="Architektura pipeline’u demonstracyjnego" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/demo_architecture.dark.svg" alt="Architektura pipeline’u demonstracyjnego" loading="lazy"></span></p>
+<p>Pipeline:</p>
+<ol>
+<li><strong>Rzadki retrieval BM25</strong> — baseline leksykalny (<code>rank_bm25</code>)</li>
+<li><strong>Retrieval dense bi-encoderem</strong> — semantyczne generowanie kandydatów (<code>all-MiniLM-L6-v2</code>)</li>
+<li><strong>Hybrydowa fuzja RRF</strong> — fuzja wyników rzadkich i gęstych na podstawie pozycji</li>
+<li><strong>Reranking cross-encoderem</strong> — parowe oceny trafności (<code>ms-marco-MiniLM-L-12-v2</code>)</li>
+<li><strong>Listwise reranking z użyciem LLM</strong> — porównanie shortlisty za pomocą promptu (Ollama, API lub model lokalny)</li>
+</ol>
+<p>Kroki 1–3 to etap <strong>retrieval</strong> lejka (maksymalizacja recallu); kroki 4–5 to etap <strong>full ranking</strong> (maksymalizacja precision). Demo pomija pre-ranking i blending. Przy około 8500 dokumentach można przekazywać wszystkie wyniki hybrydowe bezpośrednio do rerankingu.</p>
+<h3 id="szybki-start">Szybki start</h3>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">git</span><span style="color:#A5D6FF"> clone</span><span style="color:#A5D6FF"> https://github.com/slavadubrov/search-ranking-stack.git</span></span>
+<span class="line"><span style="color:#79C0FF">cd</span><span style="color:#A5D6FF"> search-ranking-stack</span></span>
+<span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> sync</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Download and sample ESCI dataset (~2.5GB download, ~5MB sample)</span></span>
+<span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> run</span><span style="color:#A5D6FF"> download-data</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Run the full pipeline (without LLM reranking)</span></span>
+<span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> run</span><span style="color:#A5D6FF"> run-all</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Run with LLM reranking via Ollama</span></span>
+<span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> run</span><span style="color:#A5D6FF"> run-all</span><span style="color:#79C0FF"> --llm-mode</span><span style="color:#A5D6FF"> ollama</span></span></code></pre>
+<h3 id="zbiór-danych-i-próbkowanie-amazon-esci">Zbiór danych i próbkowanie: Amazon ESCI</h3>
+<p>Demo korzysta ze zbioru <strong>Amazon Shopping Queries Dataset</strong> (ESCI) z <a href="https://github.com/amazon-science/esci-data">KDD Cup 2022</a> — realistycznego benchmarku wyszukiwania produktów z czteropoziomowymi etykietami stopnia trafności:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Etykieta</th><th>Gain</th><th>Znaczenie</th><th>Przykład (Query: „wireless headphones”)</th></tr></thead><tbody><tr><td><strong>Exact (E)</strong></td><td>3</td><td>Spełnia wszystkie wymagania zapytania</td><td>Sony WH-1000XM5 Wireless Headphones</td></tr><tr><td><strong>Substitute (S)</strong></td><td>2</td><td>Funkcjonalna alternatywa</td><td>Słuchawki przewodowe z adapterem Bluetooth</td></tr><tr><td><strong>Complement (C)</strong></td><td>1</td><td>Powiązany, użyteczny produkt</td><td>Etui na słuchawki</td></tr><tr><td><strong>Irrelevant (I)</strong></td><td>0</td><td>Brak istotnej relacji</td><td>Kabel do ładowania USB</td></tr></tbody></table>
+<p>Stopniowana trafność jest istotna, ponieważ pozwala używać <strong>NDCG</strong> (Normalized Discounted Cumulative Gain), które odróżnia ranking „idealny” od „wystarczającego”. Metryki binarne oceniłyby oba tak samo.</p>
+<p>Użyłem próbki <code>small_version</code> z dema: około 500 zapytań, 8500 produktów i 12 000 ocen. Downloader odczytuje pojedynczy split <code>train</code> z <code>tasksource/esci</code>, filtruje angielski locale <code>us</code> i <code>small_version == 1</code>, a następnie za pomocą seeda 42 losuje bez powtórzeń do 500 unikalnych identyfikatorów zapytań. Korpus zawiera unikalne produkty z wybranych wierszy ocen. Nie jest to split held-out ani niezależny korpus. Próbka jest wystarczająco mała, by uruchomić ją na laptopie, ale zbyt mała i zbyt specyficzna domenowo, by uzasadniać produkcyjny ranking. Użyj jej do odtworzenia etapów i analizy trybów błędów; decyzje wdrożeniowe podejmuj na podstawie reprezentatywnych zapytań held-out.</p>
+<hr>
+<h2 id="retrieval-wyszukiwanie-hybrydowe">Retrieval: wyszukiwanie hybrydowe</h2>
+<p>Zadaniem warstwy retrieval jest maksymalizacja recallu: wprowadzenie do zbioru kandydatów jak największej liczby istotnych dokumentów.</p>
+<h3 id="bm25-baseline-leksykalny">BM25: baseline leksykalny</h3>
+<p>BM25 ocenia dokumenty na podstawie nakładania się terminów z zapytaniem, z nasyceniem częstości terminów i normalizacją długości dokumentu:</p>
+<span class="katex-display" tabindex="0"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>BM25</mtext><mo stretchy="false">(</mo><mi>q</mi><mo separator="true">,</mo><mi>d</mi><mo stretchy="false">)</mo><mo>=</mo><munder><mo>∑</mo><mrow><mi>t</mi><mo>∈</mo><mi>q</mi></mrow></munder><mtext>IDF</mtext><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo><mo>⋅</mo><mfrac><mrow><mi>t</mi><mi>f</mi><mo stretchy="false">(</mo><mi>t</mi><mo separator="true">,</mo><mi>d</mi><mo stretchy="false">)</mo><mo>⋅</mo><mo stretchy="false">(</mo><msub><mi>k</mi><mn>1</mn></msub><mo>+</mo><mn>1</mn><mo stretchy="false">)</mo></mrow><mrow><mi>t</mi><mi>f</mi><mo stretchy="false">(</mo><mi>t</mi><mo separator="true">,</mo><mi>d</mi><mo stretchy="false">)</mo><mo>+</mo><msub><mi>k</mi><mn>1</mn></msub><mo>⋅</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>b</mi><mo>+</mo><mi>b</mi><mo>⋅</mo><mi mathvariant="normal">∣</mi><mi>d</mi><mi mathvariant="normal">∣</mi><mi mathvariant="normal">/</mi><mtext>avgdl</mtext><mo stretchy="false">)</mo></mrow></mfrac></mrow><annotation encoding="application/x-tex">\text{BM25}(q, d) = \sum_{t \in q} \text{IDF}(t) \cdot \frac{tf(t,d) \cdot (k_1 + 1)}{tf(t,d) + k_1 \cdot (1 - b + b \cdot |d|/\text{avgdl})}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord text"><span class="mord">BM25</span></span><span class="mopen">(</span><span class="mord mathnormal" style="margin-right:0.0359em;">q</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">d</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:2.4361em;vertical-align:-1.3861em;"></span><span class="mop op-limits"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.05em;"><span style="top:-1.9em;margin-left:0em;"><span class="pstrut" style="height:3.05em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">t</span><span class="mrel mtight">∈</span><span class="mord mathnormal mtight" style="margin-right:0.0359em;">q</span></span></span></span><span style="top:-3.05em;"><span class="pstrut" style="height:3.05em;"></span><span><span class="mop op-symbol large-op">∑</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:1.3861em;"><span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord">IDF</span></span><span class="mopen">(</span><span class="mord mathnormal">t</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:2.363em;vertical-align:-0.936em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.427em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord mathnormal">t</span><span class="mord mathnormal" style="margin-right:0.1076em;">f</span><span class="mopen">(</span><span class="mord mathnormal">t</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">d</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0315em;">k</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3011em;"><span style="top:-2.55em;margin-left:-0.0315em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">1</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mopen">(</span><span class="mord">1</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord mathnormal">b</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord mathnormal">b</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord">∣</span><span class="mord mathnormal">d</span><span class="mord">∣/</span><span class="mord text"><span class="mord">avgdl</span></span><span class="mclose">)</span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord mathnormal">t</span><span class="mord mathnormal" style="margin-right:0.1076em;">f</span><span class="mopen">(</span><span class="mord mathnormal">t</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">d</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mopen">(</span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0315em;">k</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3011em;"><span style="top:-2.55em;margin-left:-0.0315em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">1</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord">1</span><span class="mclose">)</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.936em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span></span></span></span></span>
+<p>Gdzie <a href="https://en.wikipedia.org/wiki/Okapi_BM25"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mtext>IDF</mtext><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">\text{IDF}(t)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord text"><span class="mord">IDF</span></span><span class="mopen">(</span><span class="mord mathnormal">t</span><span class="mclose">)</span></span></span></span></a> to inverse document frequency terminu <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>t</mi></mrow><annotation encoding="application/x-tex">t</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6151em;"></span><span class="mord mathnormal">t</span></span></span></span>, <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>t</mi><mi>f</mi><mo stretchy="false">(</mo><mi>t</mi><mo separator="true">,</mo><mi>d</mi><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">tf(t,d)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal">t</span><span class="mord mathnormal" style="margin-right:0.1076em;">f</span><span class="mopen">(</span><span class="mord mathnormal">t</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">d</span><span class="mclose">)</span></span></span></span> to częstość terminu w dokumencie <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>d</mi></mrow><annotation encoding="application/x-tex">d</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">d</span></span></span></span>, <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">∣</mi><mi>d</mi><mi mathvariant="normal">∣</mi></mrow><annotation encoding="application/x-tex">|d|</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">∣</span><span class="mord mathnormal">d</span><span class="mord">∣</span></span></span></span> to długość dokumentu, a <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mtext>avgdl</mtext></mrow><annotation encoding="application/x-tex">\text{avgdl}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord text"><span class="mord">avgdl</span></span></span></span></span> to średnia długość dokumentu w korpusie. Znaczenie mają dwa parametry: <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>k</mi><mn>1</mn></msub></mrow><annotation encoding="application/x-tex">k_1</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8444em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0315em;">k</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3011em;"><span style="top:-2.55em;margin-left:-0.0315em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">1</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span> (zwykle 1,2–2,0) steruje nasyceniem TF — tym, jak szybko kolejne powtórzenia terminu przestają wnosić wartość — a <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>b</mi></mrow><annotation encoding="application/x-tex">b</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">b</span></span></span></span> (zwykle 0,75) steruje normalizacją długości dokumentu.</p>
+<p>Implementacja jest krótka. Zwykła tokenizacja białymi znakami z <code>rank_bm25</code>:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># src/search_ranking_stack/stages/s01_bm25.py</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> rank_bm25 </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> BM25Okapi</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">def</span><span style="color:#D2A8FF"> run_bm25</span><span style="color:#E6EDF3">(data: ESCIData, top_k: </span><span style="color:#79C0FF">int</span><span style="color:#FF7B72"> =</span><span style="color:#79C0FF"> 100</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#E6EDF3">    doc_ids </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> list</span><span style="color:#E6EDF3">(data.corpus.keys())</span></span>
+<span class="line"><span style="color:#E6EDF3">    tokenized_corpus </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> [text.lower().split() </span><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> text </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> data.corpus.values()]</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">    bm25 </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> BM25Okapi(tokenized_corpus)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">    results </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {}</span></span>
+<span class="line"><span style="color:#FF7B72">    for</span><span style="color:#E6EDF3"> query_id, query_text </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> data.queries.items():</span></span>
+<span class="line"><span style="color:#E6EDF3">        scores </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> bm25.get_scores(query_text.lower().split())</span></span>
+<span class="line"><span style="color:#E6EDF3">        top_indices </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> np.argsort(scores)[::</span><span style="color:#FF7B72">-</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">][:top_k]</span></span>
+<span class="line"><span style="color:#E6EDF3">        results[query_id] </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {doc_ids[idx]: </span><span style="color:#79C0FF">float</span><span style="color:#E6EDF3">(scores[idx]) </span><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> idx </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> top_indices}</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> results</span></span></code></pre>
+<p>BM25 osiąga Recall@100 równy <strong>0,741</strong> — 74% istotnych produktów pojawia się gdzieś w pierwszej setce. To dobry wynik jak na metodę czysto leksykalną, ale 26% istotnych elementów pozostaje niewidocznych dla wszystkich kolejnych etapów.</p>
+<h3 id="retrieval-dense-bi-encoderem">Retrieval dense bi-encoderem</h3>
+<p>Bi-encoder niezależnie mapuje zapytania i dokumenty do wspólnej przestrzeni embeddings:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># src/search_ranking_stack/stages/s02_dense.py</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> sentence_transformers </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> SentenceTransformer</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">model </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> SentenceTransformer(</span><span style="color:#A5D6FF">"sentence-transformers/all-MiniLM-L6-v2"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># Encode corpus once, cache to disk</span></span>
+<span class="line"><span style="color:#E6EDF3">corpus_embeddings </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> model.encode(</span></span>
+<span class="line"><span style="color:#E6EDF3">    doc_texts,</span></span>
+<span class="line"><span style="color:#FFA657">    batch_size</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">128</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#FFA657">    normalize_embeddings</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">True</span><span style="color:#E6EDF3">,  </span><span style="color:#8B949E"># Cosine sim = dot product</span></span>
+<span class="line"><span style="color:#FFA657">    convert_to_numpy</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">True</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E"># At query time: encode query, compute dot product</span></span>
+<span class="line"><span style="color:#E6EDF3">query_embeddings </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> model.encode(query_texts, </span><span style="color:#FFA657">normalize_embeddings</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">True</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">similarity_matrix </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> np.dot(query_embeddings, corpus_embeddings.T)</span></span></code></pre>
+<p>Dla znormalizowanych embeddings podobieństwo cosinusowe redukuje się do iloczynu skalarnego. Demo oblicza pełną macierz query-by-corpus, ponieważ 8500 dokumentów mieści się bez problemu w pamięci; produkcyjny korpus zwykle korzystałby z indeksu approximate-nearest-neighbor. W tej próbce <code>all-MiniLM-L6-v2</code> zwiększa Recall@100 z <strong>0,741</strong> do <strong>0,825</strong>.</p>
+<h4 id="jak-bi-encodery-uczą-się-dobrych-reprezentacji">Jak bi-encodery uczą się dobrych reprezentacji</h4>
+<p>Trening bi-encodera zwykle przebiega w <strong>dwóch fazach</strong>. Najpierw model jest pretrenowany na zbiorach Natural Language Inference (NLI) i Semantic Textual Similarity (STS), które uczą go ogólnego rozumienia semantycznego. Na tym etapie model uczy się, że „a cat sits on a mat” i „a feline rests on a rug” powinny mieć podobne embeddings. Następnie jest dostrajany na danych specyficznych dla retrieval, takich jak MS MARCO, gdzie uczy się, że zapytanie wyszukiwawcze i odpowiedni fragment powinny znajdować się bliżej siebie niż zapytanie i nieistotne fragmenty.</p>
+<p>Druga faza zależy od <strong>hard negative mining</strong>. Losowe negatywy, na przykład dokument o gotowaniu sparowany z zapytaniem o słuchawki, są trywialnie łatwe do rozróżnienia, więc model niewiele się z nich uczy. Zamiast tego używa się bieżącego modelu do znalezienia dokumentów, które szereguje wysoko, ale które w rzeczywistości nie są istotne.</p>
+<p>Podejście <strong><a href="https://arxiv.org/abs/2210.11773">SimANS</a></strong> (Simple Ambiguous Negatives Sampling) formalizuje ten proces. Najpierw szeregujemy wszystkie dokumenty za pomocą bieżącego bi-encodera, a następnie wykluczamy łatwe negatywy, które są zbyt nisko w rankingu, by model mógł się z nich uczyć, oraz potencjalne false negatives, które są tak wysoko, że mogą być istotne, lecz nie zostały oznaczone. Pozostałe dokumenty ze środkowego zakresu niosą najwięcej sygnału treningowego.</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># What a training triplet looks like after hard negative mining</span></span>
+<span class="line"><span style="color:#E6EDF3">training_triplet </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#A5D6FF">    "query"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"wireless noise canceling headphones"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#A5D6FF">    "positive"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"Sony WH-1000XM5 Wireless Noise Cancelling Headphones"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#A5D6FF">    "negative"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"Sony headphone replacement ear pads"</span><span style="color:#E6EDF3">,  </span><span style="color:#8B949E"># Hard negative: same brand, related product, but wrong intent</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span>
+<span class="line"><span style="color:#8B949E"># The bi-encoder must learn that "ear pads" is NOT what the user wants,</span></span>
+<span class="line"><span style="color:#8B949E"># even though it shares many tokens with the positive document.</span></span></code></pre>
+<p>Funkcja straty kontrastowej (InfoNCE) spina te elementy. Dla każdego zapytania <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>q</mi></mrow><annotation encoding="application/x-tex">q</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.0359em;">q</span></span></span></span> z pozytywnym dokumentem <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>d</mi><mo>+</mo></msup></mrow><annotation encoding="application/x-tex">d^+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.7713em;"></span><span class="mord"><span class="mord mathnormal">d</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.7713em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mbin mtight">+</span></span></span></span></span></span></span></span></span></span></span> i zbiorem dokumentów negatywnych <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">{</mo><msubsup><mi>d</mi><mn>1</mn><mo>−</mo></msubsup><mo separator="true">,</mo><mo>…</mo><mo separator="true">,</mo><msubsup><mi>d</mi><mi>n</mi><mo>−</mo></msubsup><mo stretchy="false">}</mo></mrow><annotation encoding="application/x-tex">\{d^-_1, \ldots, d^-_n\}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1.0778em;vertical-align:-0.2663em;"></span><span class="mopen">{</span><span class="mord"><span class="mord mathnormal">d</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.8115em;"><span style="top:-2.4337em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">1</span></span></span><span style="top:-3.1031em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mbin mtight">−</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2663em;"><span></span></span></span></span></span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="minner">…</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathnormal">d</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.7713em;"><span style="top:-2.453em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">n</span></span></span><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mbin mtight">−</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.247em;"><span></span></span></span></span></span></span><span class="mclose">}</span></span></span></span>:</p>
+<span class="katex-display" tabindex="0"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi mathvariant="script">L</mi><mo>=</mo><mo>−</mo><mi>log</mi><mo>⁡</mo><mfrac><msup><mi>e</mi><mrow><mtext>sim</mtext><mo stretchy="false">(</mo><mi>q</mi><mo separator="true">,</mo><msup><mi>d</mi><mo>+</mo></msup><mo stretchy="false">)</mo><mi mathvariant="normal">/</mi><mi>τ</mi></mrow></msup><mrow><msup><mi>e</mi><mrow><mtext>sim</mtext><mo stretchy="false">(</mo><mi>q</mi><mo separator="true">,</mo><msup><mi>d</mi><mo>+</mo></msup><mo stretchy="false">)</mo><mi mathvariant="normal">/</mi><mi>τ</mi></mrow></msup><mo>+</mo><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><msup><mi>e</mi><mrow><mtext>sim</mtext><mo stretchy="false">(</mo><mi>q</mi><mo separator="true">,</mo><msubsup><mi>d</mi><mi>i</mi><mo>−</mo></msubsup><mo stretchy="false">)</mo><mi mathvariant="normal">/</mi><mi>τ</mi></mrow></msup></mrow></mfrac></mrow><annotation encoding="application/x-tex">\mathcal{L} = -\log \frac{e^{\text{sim}(q, d^+) / \tau}}{e^{\text{sim}(q, d^+) / \tau} + \sum_{i=1}^{n} e^{\text{sim}(q, d^-_i) / \tau}}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathcal">L</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:2.7311em;vertical-align:-1.0978em;"></span><span class="mord">−</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mop">lo<span style="margin-right:0.0139em;">g</span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.6334em;"><span style="top:-2.202em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord"><span class="mord mathnormal">e</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.814em;"><span style="top:-2.989em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">sim</span></span><span class="mopen mtight">(</span><span class="mord mathnormal mtight" style="margin-right:0.0359em;">q</span><span class="mpunct mtight">,</span><span class="mord mtight"><span class="mord mathnormal mtight">d</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.7027em;"><span style="top:-2.786em;margin-right:0.0714em;"><span class="pstrut" style="height:2.5em;"></span><span class="sizing reset-size3 size1 mtight"><span class="mbin mtight">+</span></span></span></span></span></span></span></span><span class="mclose mtight">)</span><span class="mord mtight">/</span><span class="mord mathnormal mtight" style="margin-right:0.1132em;">τ</span></span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mop"><span class="mop op-symbol small-op" style="position:relative;top:0em;">∑</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.8043em;"><span style="top:-2.4003em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">i</span><span class="mrel mtight">=</span><span class="mord mtight">1</span></span></span></span><span style="top:-3.2029em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">n</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2997em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathnormal">e</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.908em;"><span style="top:-3.0333em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">sim</span></span><span class="mopen mtight">(</span><span class="mord mathnormal mtight" style="margin-right:0.0359em;">q</span><span class="mpunct mtight">,</span><span class="mord mtight"><span class="mord mathnormal mtight">d</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.821em;"><span style="top:-2.1777em;margin-left:0em;margin-right:0.0714em;"><span class="pstrut" style="height:2.5em;"></span><span class="sizing reset-size3 size1 mtight"><span class="mord mathnormal mtight">i</span></span></span><span style="top:-2.9043em;margin-right:0.0714em;"><span class="pstrut" style="height:2.5em;"></span><span class="sizing reset-size3 size1 mtight"><span class="mbin mtight">−</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.3223em;"><span></span></span></span></span></span></span><span class="mclose mtight">)</span><span class="mord mtight">/</span><span class="mord mathnormal mtight" style="margin-right:0.1132em;">τ</span></span></span></span></span></span></span></span></span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord"><span class="mord mathnormal">e</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.9564em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">sim</span></span><span class="mopen mtight">(</span><span class="mord mathnormal mtight" style="margin-right:0.0359em;">q</span><span class="mpunct mtight">,</span><span class="mord mtight"><span class="mord mathnormal mtight">d</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8477em;"><span style="top:-2.931em;margin-right:0.0714em;"><span class="pstrut" style="height:2.5em;"></span><span class="sizing reset-size3 size1 mtight"><span class="mbin mtight">+</span></span></span></span></span></span></span></span><span class="mclose mtight">)</span><span class="mord mtight">/</span><span class="mord mathnormal mtight" style="margin-right:0.1132em;">τ</span></span></span></span></span></span></span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:1.0978em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span></span></span></span></span>
+<p>Gdzie <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mtext>sim</mtext><mo stretchy="false">(</mo><mi>q</mi><mo separator="true">,</mo><mi>d</mi><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">\text{sim}(q, d)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord text"><span class="mord">sim</span></span><span class="mopen">(</span><span class="mord mathnormal" style="margin-right:0.0359em;">q</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">d</span><span class="mclose">)</span></span></span></span> to podobieństwo cosinusowe między embeddings zapytania i dokumentu, a <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>τ</mi></mrow><annotation encoding="application/x-tex">\tau</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal" style="margin-right:0.1132em;">τ</span></span></span></span> to parametr temperatury (zwykle 0,05–0,1). Niższe wartości zwiększają wrażliwość straty na hard negatives. To zasadniczo <a href="https://arxiv.org/abs/1807.03748">softmax cross-entropy</a>: zwiększ podobieństwo pary pozytywnej względem wszystkich negatywów. Gdy <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>τ</mi></mrow><annotation encoding="application/x-tex">\tau</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal" style="margin-right:0.1132em;">τ</span></span></span></span> jest małe, nawet niewielkie różnice podobieństwa generują duże gradienty, co wymusza na modelu bardziej szczegółowe rozróżnienia.</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/bi_encoder_training_pipeline.svg" alt="Pipeline treningu bi-encodera" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/bi_encoder_training_pipeline.dark.svg" alt="Pipeline treningu bi-encodera" loading="lazy"></span></p>
+<h4 id="udostępnianie-embeddings-bi-encodera-na-dużą-skalę">Udostępnianie embeddings bi-encodera na dużą skalę</h4>
+<p>Architektoniczną zaletą bi-encodera jest <strong>podział offline/online</strong>. Embeddings dokumentów są obliczane podczas indeksowania i przechowywane w indeksie wektorowym. W czasie zapytania system koduje zapytanie i przeszukuje zapisane wektory. Opóźnienie zależy od enkodera, sprzętu, indeksu, filtrów i docelowego recallu, dlatego oba kroki należy profilować osobno.</p>
+<p>W demie obliczenia są umiarkowane: 8500 dokumentów <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>×</mo></mrow><annotation encoding="application/x-tex">\times</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="mord">×</span></span></span></span> 384 wymiary <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>×</mo></mrow><annotation encoding="application/x-tex">\times</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="mord">×</span></span></span></span> 4 bajty na float = około 13 MB embeddings. Przy skali produkcyjnej liczby przestają być umiarkowane: 1 miliard dokumentów z embeddings o 768 wymiarach wymaga około 3 TiB przestrzeni. Wtedy przydają się kwantyzacja (kompresja 32-bitowych floatów do 8-bitowych liczb całkowitych), <a href="https://ieeexplore.ieee.org/document/5432202">product quantization</a> (dekompozycja wektorów na podprzestrzenie) oraz indeksy wspierane przez SSD, takie jak <a href="https://proceedings.neurips.cc/paper/2019/hash/09853c7fb1d3f8ee67a61b6bf4a7f8e6-Abstract.html">DiskANN</a>. Sekcja <a href="#indexing-dense-vectors-beyond-the-demo">indeksowania dense-vector</a> omawia algorytmy indeksowania.</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/bi_encoder_serving_pipeline.svg" alt="Pipeline udostępniania bi-encodera" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/bi_encoder_serving_pipeline.dark.svg" alt="Pipeline udostępniania bi-encodera" loading="lazy"></span></p>
+<h3 id="dlaczego-testować-retrieval-hybrydowy">Dlaczego testować retrieval hybrydowy</h3>
+<p>Obie metody często zawodzą w różny sposób. BM25 dobrze sprawdza się w przypadku nazw własnych, SKU produktów i kodów błędów. Dense retrieval może odzyskać wyniki przy rozbieżności słownictwa, na przykład między „cheap laptop” a „budget notebook computer”. To, czy fuzja pomoże, zależy od tego, jak często takie komplementarne przypadki występują w docelowym zbiorze zapytań.</p>
+<p>Typowym kolejnym eksperymentem jest <strong>hybrid search</strong>: uruchomienie obu metod retrieval, a następnie połączenie ich rankingów.</p>
+<h3 id="reciprocal-rank-fusion-rrf">Reciprocal rank fusion (RRF)</h3>
+<p>BM25 i dense retrieval generują wyniki o różnych znaczeniach i skalach. Liniowa kombinacja wymaga więc kalibracji i walidacji za każdym razem, gdy zmieniają się retrievery lub korpus.</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/hybrid_search_rrf.svg" alt="Wyszukiwanie hybrydowe z RRF" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/hybrid_search_rrf.dark.svg" alt="Wyszukiwanie hybrydowe z RRF" loading="lazy"></span></p>
+<p><a href="https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf">Reciprocal Rank Fusion</a> (Cormack et al., 2009) całkowicie pomija surowe wyniki i wykorzystuje wyłącznie pozycję w rankingu:</p>
+<span class="katex-display" tabindex="0"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>RRF</mtext><mo stretchy="false">(</mo><mi>d</mi><mo stretchy="false">)</mo><mo>=</mo><munder><mo>∑</mo><mrow><mi>r</mi><mo>∈</mo><mtext>Rankings</mtext></mrow></munder><mfrac><mn>1</mn><mrow><mi>k</mi><mo>+</mo><mtext>rank</mtext><mo stretchy="false">(</mo><mi>d</mi><mo separator="true">,</mo><mi>r</mi><mo stretchy="false">)</mo></mrow></mfrac></mrow><annotation encoding="application/x-tex">\text{RRF}(d) = \sum_{r \in \text{Rankings}} \frac{1}{k + \text{rank}(d, r)}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord text"><span class="mord">RRF</span></span><span class="mopen">(</span><span class="mord mathnormal">d</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:2.7597em;vertical-align:-1.4382em;"></span><span class="mop op-limits"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.05em;"><span style="top:-1.8479em;margin-left:0em;"><span class="pstrut" style="height:3.05em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mrel mtight">∈</span><span class="mord text mtight"><span class="mord mtight">Rankings</span></span></span></span></span><span style="top:-3.05em;"><span class="pstrut" style="height:3.05em;"></span><span><span class="mop op-symbol large-op">∑</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:1.4382em;"><span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.3214em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0315em;">k</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord text"><span class="mord">rank</span></span><span class="mopen">(</span><span class="mord mathnormal">d</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal" style="margin-right:0.0278em;">r</span><span class="mclose">)</span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">1</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.936em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span></span></span></span></span>
+<p>W tym wzorze <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi></mrow><annotation encoding="application/x-tex">k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.0315em;">k</span></span></span></span> jest stałą wygładzającą; 60 to często używana wartość początkowa. RRF premiuje elementy zajmujące wysokie pozycje na wielu listach wejściowych, bez porównywania ich surowych wyników. Unika kalibracji skali wyników, ale wartości odcięcia retrieval, wagi i <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi></mrow><annotation encoding="application/x-tex">k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.0315em;">k</span></span></span></span> nadal wymagają ewaluacji.</p>
+<p>Implementacja:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># src/search_ranking_stack/stages/s03_hybrid_rrf.py</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">def</span><span style="color:#D2A8FF"> reciprocal_rank_fusion</span><span style="color:#E6EDF3">(ranked_lists, k</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">60</span><span style="color:#E6EDF3">, top_k</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">100</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#E6EDF3">    fused_results </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {}</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    for</span><span style="color:#E6EDF3"> query_id </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> all_query_ids:</span></span>
+<span class="line"><span style="color:#E6EDF3">        rrf_scores </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> defaultdict(</span><span style="color:#79C0FF">float</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">        for</span><span style="color:#E6EDF3"> results </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> ranked_lists:</span></span>
+<span class="line"><span style="color:#E6EDF3">            sorted_docs </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> sorted</span><span style="color:#E6EDF3">(results[query_id].items(),</span></span>
+<span class="line"><span style="color:#FFA657">                                 key</span><span style="color:#FF7B72">=lambda</span><span style="color:#E6EDF3"> x: x[</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">], </span><span style="color:#FFA657">reverse</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">True</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">            for</span><span style="color:#E6EDF3"> rank, (doc_id, _score) </span><span style="color:#FF7B72">in</span><span style="color:#79C0FF"> enumerate</span><span style="color:#E6EDF3">(sorted_docs, </span><span style="color:#FFA657">start</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#E6EDF3">                rrf_scores[doc_id] </span><span style="color:#FF7B72">+=</span><span style="color:#79C0FF"> 1.0</span><span style="color:#FF7B72"> /</span><span style="color:#E6EDF3"> (k </span><span style="color:#FF7B72">+</span><span style="color:#E6EDF3"> rank)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">        sorted_rrf </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> sorted</span><span style="color:#E6EDF3">(rrf_scores.items(),</span></span>
+<span class="line"><span style="color:#FFA657">                            key</span><span style="color:#FF7B72">=lambda</span><span style="color:#E6EDF3"> x: x[</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">], </span><span style="color:#FFA657">reverse</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">True</span><span style="color:#E6EDF3">)[:top_k]</span></span>
+<span class="line"><span style="color:#E6EDF3">        fused_results[query_id] </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> dict</span><span style="color:#E6EDF3">(sorted_rrf)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> fused_results</span></span></code></pre>
+<p>Hybrid RRF osiąga <strong>Recall@100 równy 0,842</strong> oraz <strong>NDCG@10 równe 0,628</strong> — więcej niż BM25 (0,585) i Dense (0,611) użyte osobno. Dokument musi zajmować wysoką pozycję tylko w <em>jednej</em> metodzie, aby przetrwać fuzję.</p>
+<hr>
+<h2 id="reranking-cross-encoderem">Reranking cross-encoderem</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Dodałem cross-encoder, ponieważ czołowe wyniki wyglądały źle. Kolejność się poprawiła. Recall@100 się nie zmienił, ponieważ reranker może jedynie uporządkować to, co wcześniej przekazał mu retrieval.</p>
+</div></aside>
+<p>Przy 100 hybrydowych kandydatach na zapytanie można pozwolić sobie na droższy model. Cross-encoder przetwarza zapytanie i dokument <strong>razem</strong> przez pojedynczy Transformer, z pełnym cross-attention między wszystkimi tokenami.</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/bi_encoder_vs_cross_encoder.svg" alt="Bi-encoder a cross-encoder" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/bi_encoder_vs_cross_encoder.dark.svg" alt="Bi-encoder a cross-encoder" loading="lazy"></span></p>
+<h3 id="interakcja-na-poziomie-tokenów">Interakcja na poziomie tokenów</h3>
+<p>Różnica tkwi w <strong>macierzy attention</strong>. W bi-encoderze attention ma strukturę blokowo-diagonalną: tokeny zapytania zwracają uwagę wyłącznie na inne tokeny zapytania, a tokeny dokumentu wyłącznie na inne tokeny dokumentu. Obie reprezentacje nigdy nie spotykają się na poziomie tokenów — przecinają się dopiero na końcu, przez iloczyn skalarny. Cross-encoder oblicza <strong>pełną macierz attention</strong>, w której każdy token zapytania zwraca uwagę na każdy token dokumentu i odwrotnie. To cross-attention umożliwia głęboką interakcję na poziomie tokenów.</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/cross_encoder_architecture.svg" alt="Architektura attention cross-encodera" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/cross_encoder_architecture.dark.svg" alt="Architektura attention cross-encodera" loading="lazy"></span></p>
+<p>W bi-encoderze zapytanie „apple” jest kodowane, zanim zobaczony zostanie jakikolwiek dokument. Cross-encoder widzi zapytanie i kandydata razem, więc może wykorzystać ich relację na poziomie tokenów. Może to pomóc w przypadkach takich jak:</p>
+<ul>
+<li><strong>Negacja:</strong> „headphones that are <em>not</em> wireless”. Pooled embedding może nadać negacji zbyt małą wagę, podczas gdy wspólne kodowanie zapewnia modelowi bezpośrednią interakcję zapytania z dokumentem. To hipoteza, którą należy zweryfikować na odpowiednio dobranym wycinku, a nie gwarancja.</li>
+<li><strong>Ograniczenie:</strong> „laptop under $500”. Wspólne kodowanie może powiązać ograniczenie z ceną w tekście produktu, choć bezpieczniejsze są strukturalne filtry ceny, jeśli dane pole jest dostępne.</li>
+</ul>
+<p>Wejście cross-encodera ma format <code>[CLS] query tokens [SEP] document tokens [SEP]</code>. <code>[CLS]</code> to token klasyfikacyjny, którego końcowy stan ukryty jest przekazywany przez liniową głowicę w celu wygenerowania pojedynczego wyniku trafności. Embeddings segmentów rozróżniają tokeny zapytania od tokenów dokumentu, a <code>[SEP]</code> oznacza granicę między segmentami.</p>
+<h3 id="jak-trenowane-są-cross-encodery">Jak trenowane są cross-encodery</h3>
+<p>Cross-encodery mogą uczyć się na przykładach <code>(query, document, relevance_label)</code> z celami pointwise, pairwise lub listwise. Poniższy przykład pointwise używa pojedynczej etykiety trafności; nie jest to jedyny możliwy projekt treningu.</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># Cross-encoder training data format</span></span>
+<span class="line"><span style="color:#E6EDF3">training_example </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#A5D6FF">    "query"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"wireless headphones"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#A5D6FF">    "document"</span><span style="color:#E6EDF3">: </span><span style="color:#A5D6FF">"Sony WH-1000XM5 Wireless Headphones"</span><span style="color:#E6EDF3">,</span></span>
+<span class="line"><span style="color:#A5D6FF">    "label"</span><span style="color:#E6EDF3">: </span><span style="color:#79C0FF">1.0</span><span style="color:#E6EDF3">,  </span><span style="color:#8B949E"># Relevant</span></span>
+<span class="line"><span style="color:#E6EDF3">}</span></span>
+<span class="line"><span style="color:#8B949E"># Forward pass: [CLS] hidden state → Linear layer → sigmoid → score</span></span>
+<span class="line"><span style="color:#8B949E"># Loss: binary cross-entropy between predicted score and label</span></span></code></pre>
+<p>Typowy klasyfikator mapuje końcową reprezentację <code>[CLS]</code> na wynik. Etykiety binarne mogą używać binary cross-entropy; stopniowana trafność może wykorzystywać straty regresyjne, porządkowe, pairwise lub listwise. Wybieraj na podstawie metryk rankingowych na zbiorze held-out, zamiast zakładać, że jeden cel jest uniwersalnie lepszy.</p>
+<p><a href="https://link.springer.com/chapter/10.1007/978-3-030-99736-6_44">Hard negative mining ma jeszcze większe znaczenie w cross-encoderach</a> niż w bi-encoderach. Cross-encodery są kosztowne w treningu — każdy przykład treningowy wymaga pełnego forward pass przez połączoną sekwencję — dlatego nie można marnować obliczeń na trywialnie łatwe negatywy. Praktyczny przepis: użyj bi-encodera do pobrania top-K kandydatów dla każdego zapytania treningowego, a następnie wybierz hard negatives z określonych zakresów pozycji (np. 10–100). Otrzymasz w ten sposób przykłady, w których odróżnienie wyników istotnych od nieistotnych rzeczywiście wymaga głębokiej interakcji na poziomie tokenów.</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># src/search_ranking_stack/stages/s04_cross_encoder.py</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">from</span><span style="color:#E6EDF3"> sentence_transformers </span><span style="color:#FF7B72">import</span><span style="color:#E6EDF3"> CrossEncoder</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">model </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> CrossEncoder(</span><span style="color:#A5D6FF">"cross-encoder/ms-marco-MiniLM-L-12-v2"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">def</span><span style="color:#D2A8FF"> run_cross_encoder</span><span style="color:#E6EDF3">(data, hybrid_results, top_k_rerank</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">50</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#E6EDF3">    reranked_results </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {}</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    for</span><span style="color:#E6EDF3"> query_id, query_text </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> data.queries.items():</span></span>
+<span class="line"><span style="color:#E6EDF3">        candidates </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> list</span><span style="color:#E6EDF3">(hybrid_results[query_id].items())[:top_k_rerank]</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">        # Form (query, document) pairs for joint encoding</span></span>
+<span class="line"><span style="color:#E6EDF3">        pairs </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> []</span></span>
+<span class="line"><span style="color:#E6EDF3">        doc_ids </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> []</span></span>
+<span class="line"><span style="color:#FF7B72">        for</span><span style="color:#E6EDF3"> doc_id, _ </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> candidates:</span></span>
+<span class="line"><span style="color:#E6EDF3">            doc_text </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> data.corpus.get(doc_id, </span><span style="color:#A5D6FF">""</span><span style="color:#E6EDF3">)[:</span><span style="color:#79C0FF">2048</span><span style="color:#E6EDF3">]</span></span>
+<span class="line"><span style="color:#E6EDF3">            pairs.append([query_text, doc_text])</span></span>
+<span class="line"><span style="color:#E6EDF3">            doc_ids.append(doc_id)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">        # Score all pairs with full cross-attention</span></span>
+<span class="line"><span style="color:#E6EDF3">        scores </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> model.predict(pairs, </span><span style="color:#FFA657">batch_size</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">64</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">        # Rerank by cross-encoder score</span></span>
+<span class="line"><span style="color:#E6EDF3">        scored_docs </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> sorted</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">zip</span><span style="color:#E6EDF3">(doc_ids, scores),</span></span>
+<span class="line"><span style="color:#FFA657">                             key</span><span style="color:#FF7B72">=lambda</span><span style="color:#E6EDF3"> x: x[</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">], </span><span style="color:#FFA657">reverse</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">True</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"><span style="color:#E6EDF3">        reranked </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> {</span></span>
+<span class="line"><span style="color:#E6EDF3">            doc_id: </span><span style="color:#79C0FF">float</span><span style="color:#E6EDF3">(score) </span><span style="color:#FF7B72">for</span><span style="color:#E6EDF3"> doc_id, score </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> scored_docs</span></span>
+<span class="line"><span style="color:#E6EDF3">        }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">        # Keep original hybrid candidates at ranks 51--100 for Recall@100.</span></span>
+<span class="line"><span style="color:#FF7B72">        for</span><span style="color:#E6EDF3"> doc_id, score </span><span style="color:#FF7B72">in</span><span style="color:#79C0FF"> list</span><span style="color:#E6EDF3">(hybrid_results[query_id].items())[top_k_rerank:</span><span style="color:#79C0FF">100</span><span style="color:#E6EDF3">]:</span></span>
+<span class="line"><span style="color:#FF7B72">            if</span><span style="color:#E6EDF3"> doc_id </span><span style="color:#FF7B72">not</span><span style="color:#FF7B72"> in</span><span style="color:#E6EDF3"> reranked:</span></span>
+<span class="line"><span style="color:#E6EDF3">                reranked[doc_id] </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> float</span><span style="color:#E6EDF3">(score) </span><span style="color:#FF7B72">*</span><span style="color:#79C0FF"> 0.01</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">        reranked_results[query_id] </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> reranked</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> reranked_results</span></span></code></pre>
+<p>W zarejestrowanym uruchomieniu dema <code>ms-marco-MiniLM-L-12-v2</code> rerankuje 50 kandydatów na zapytanie i zwiększa NDCG@10 z <strong>0,628</strong> do <strong>0,645</strong>. Zmierz opóźnienie na sprzęcie wdrożeniowym; na wynik wpływają model, długość sekwencji, rozmiar batcha i runtime.</p>
+<h3 id="kompromis-między-szybkością-a-jakością">Kompromis między szybkością a jakością</h3>
+<p>Dlaczego nie używać cross-encoderów do wszystkiego? Ponieważ <strong>nie można obliczyć ich wyników z wyprzedzeniem</strong>. Embeddings dokumentów bi-encodera są niezależne od zapytania, więc oblicza się je raz i przechowuje. Wynik cross-encodera zależy jednocześnie od zapytania i dokumentu. Wynik trafności dla pary „wireless headphones” i produktu Sony wynika z pełnego cross-attention między tymi konkretnymi tokenami. Nie można go cache’ować ani ponownie wykorzystać dla innego zapytania.</p>
+<p>Bi-encoder potrzebuje jednego kodowania zapytania oraz wyszukiwania wektorowego po wstępnie obliczonych embeddings dokumentów. Cross-encoder ocenia każdą parę zapytanie–dokument na shortliście, a koszt rośnie zarówno wraz z liczbą kandydatów, jak i długością sekwencji. Batching pomaga, ale ocenianie 100 000 kandydatów nadal jest niewłaściwym punktem pracy; najpierw wykonaj retrieval i zmierz największy rozmiar shortlisty spełniający cele jakościowe i opóźnieniowe.</p>
+<p>W demie <strong>Recall@100 pozostaje na poziomie 0,842 przez etap cross-encodera</strong>. Reranking może zmieniać kolejność wyników, ale nie może dodawać dokumentów. Retrieval wyznacza górną granicę.</p>
+<hr>
+<h2 id="listwise-reranking-z-użyciem-llm">Listwise reranking z użyciem LLM</h2>
+<aside class="byte-aside"><img src="/assets/byte/byte-focused.png" width="64" height="79" alt="" loading="lazy" decoding="async"><div>
+<p class="eyebrow">Byte says</p>
+<p>Zaufałem pierwszemu rankingowi LLM bez sprawdzenia parsowania. Model pominął kilka identyfikatorów dokumentów, a moja logika dopełniania po cichu uzupełniła braki. Oceniałem własny fallback.</p>
+</div></aside>
+<p>Końcowy etap dema wykorzystuje LLM do <strong>listwise</strong> rerankingu. Zamiast niezależnie oceniać każdy dokument, model widzi top 10 i zwraca uporządkowaną listę. Zainspirowany <a href="https://arxiv.org/abs/2304.09542">RankGPT</a> prompt explicite wymusza porównanie względne, ale wprowadza też limity kontekstu, position bias, błędy parsowania i zmienność między uruchomieniami.</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/llm_reranking_approaches.svg" alt="Podejścia do rerankingu z użyciem LLM" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/llm_reranking_approaches.dark.svg" alt="Podejścia do rerankingu z użyciem LLM" loading="lazy"></span></p>
+<h3 id="prompt-listwise">Prompt listwise</h3>
+<p>Szablon promptu prosi LLM o uwzględnienie hierarchii trafności ESCI:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#8B949E"># src/search_ranking_stack/stages/s05_llm_rerank.py</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">def</span><span style="color:#D2A8FF"> _create_listwise_prompt</span><span style="color:#E6EDF3">(query, documents, max_words</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">200</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#E6EDF3">    n </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> len</span><span style="color:#E6EDF3">(documents)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">    doc_texts </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> []</span></span>
+<span class="line"><span style="color:#FF7B72">    for</span><span style="color:#E6EDF3"> i, (doc_id, doc_text) </span><span style="color:#FF7B72">in</span><span style="color:#79C0FF"> enumerate</span><span style="color:#E6EDF3">(documents, </span><span style="color:#FFA657">start</span><span style="color:#FF7B72">=</span><span style="color:#79C0FF">1</span><span style="color:#E6EDF3">):</span></span>
+<span class="line"><span style="color:#E6EDF3">        words </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> doc_text.split()[:max_words]</span></span>
+<span class="line"><span style="color:#E6EDF3">        doc_texts.append(</span><span style="color:#FF7B72">f</span><span style="color:#A5D6FF">"[</span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">i</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">] </span><span style="color:#FF7B72">{</span><span style="color:#A5D6FF">' '</span><span style="color:#E6EDF3">.join(words)</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">"</span><span style="color:#E6EDF3">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> (</span></span>
+<span class="line"><span style="color:#FF7B72">        f</span><span style="color:#A5D6FF">"I will provide you with </span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">n</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF"> product listings, each indicated by "</span></span>
+<span class="line"><span style="color:#FF7B72">        f</span><span style="color:#A5D6FF">"a numerical identifier [1] to [</span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">n</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">]. Rank the products based on "</span></span>
+<span class="line"><span style="color:#FF7B72">        f</span><span style="color:#A5D6FF">'their relevance to the search query: "</span><span style="color:#FF7B72">{</span><span style="color:#E6EDF3">query</span><span style="color:#FF7B72">}</span><span style="color:#A5D6FF">"</span><span style="color:#FF7B72">\n\n</span><span style="color:#A5D6FF">'</span></span>
+<span class="line"><span style="color:#A5D6FF">        "Consider:</span><span style="color:#FF7B72">\n</span><span style="color:#A5D6FF">"</span></span>
+<span class="line"><span style="color:#A5D6FF">        "- Exact matches should rank highest</span><span style="color:#FF7B72">\n</span><span style="color:#A5D6FF">"</span></span>
+<span class="line"><span style="color:#A5D6FF">        "- Substitutes should rank above complements</span><span style="color:#FF7B72">\n</span><span style="color:#A5D6FF">"</span></span>
+<span class="line"><span style="color:#A5D6FF">        "- Irrelevant products should rank lowest</span><span style="color:#FF7B72">\n\n</span><span style="color:#A5D6FF">"</span></span>
+<span class="line"><span style="color:#FF7B72">        f</span><span style="color:#A5D6FF">"</span><span style="color:#FF7B72">{</span><span style="color:#79C0FF">chr</span><span style="color:#E6EDF3">(</span><span style="color:#79C0FF">10</span><span style="color:#E6EDF3">).join(doc_texts)</span><span style="color:#FF7B72">}\n\n</span><span style="color:#A5D6FF">"</span></span>
+<span class="line"><span style="color:#A5D6FF">        "Output ONLY a comma-separated list of identifiers: [3], [1], [2], ...</span><span style="color:#FF7B72">\n</span><span style="color:#A5D6FF">"</span></span>
+<span class="line"><span style="color:#A5D6FF">        "Do not explain your reasoning."</span></span>
+<span class="line"><span style="color:#E6EDF3">    )</span></span></code></pre>
+<h3 id="trzy-tryby-wykonania">Trzy tryby wykonania</h3>
+<p>Demo obsługuje trzy backendy dla rerankingu LLM:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Tryb</th><th>Model</th><th>Sposób uruchomienia</th></tr></thead><tbody><tr><td><code>ollama</code></td><td><code>llama3.2:3b</code> (konfigurowalny)</td><td>Lokalnie przez API Ollama</td></tr><tr><td><code>api</code></td><td><code>claude-haiku-4-5-20251001</code></td><td>Anthropic API</td></tr><tr><td><code>local</code></td><td><code>Qwen/Qwen2.5-1.5B-Instruct</code></td><td>HuggingFace Transformers</td></tr></tbody></table>
+<h3 id="parsowanie-i-fallback">Parsowanie i fallback</h3>
+<p>Nie ma gwarancji, że wyjście LLM będzie zgodne z żądanym schematem, dlatego znaczenie mają parsowanie i ścieżka fallback:</p>
+<pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF7B72">def</span><span style="color:#D2A8FF"> _parse_ranking</span><span style="color:#E6EDF3">(output: </span><span style="color:#79C0FF">str</span><span style="color:#E6EDF3">, n: </span><span style="color:#79C0FF">int</span><span style="color:#E6EDF3">) -> list[</span><span style="color:#79C0FF">int</span><span style="color:#E6EDF3">] </span><span style="color:#FF7B72">|</span><span style="color:#79C0FF"> None</span><span style="color:#E6EDF3">:</span></span>
+<span class="line"><span style="color:#A5D6FF">    """Parse LLM output to extract ranking order."""</span></span>
+<span class="line"><span style="color:#E6EDF3">    matches </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> re.findall(</span><span style="color:#FF7B72">r</span><span style="color:#A5D6FF">"</span><span style="color:#7EE787;font-weight:bold">\[</span><span style="color:#79C0FF">(\d</span><span style="color:#FF7B72">+</span><span style="color:#79C0FF">)</span><span style="color:#7EE787;font-weight:bold">\]</span><span style="color:#A5D6FF">"</span><span style="color:#E6EDF3">, output)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    if</span><span style="color:#FF7B72"> not</span><span style="color:#E6EDF3"> matches:</span></span>
+<span class="line"><span style="color:#FF7B72">        return</span><span style="color:#79C0FF"> None</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E6EDF3">    positions </span><span style="color:#FF7B72">=</span><span style="color:#E6EDF3"> [</span><span style="color:#79C0FF">int</span><span style="color:#E6EDF3">(m) </span><span style="color:#FF7B72">-</span><span style="color:#79C0FF"> 1</span><span style="color:#FF7B72"> for</span><span style="color:#E6EDF3"> m </span><span style="color:#FF7B72">in</span><span style="color:#E6EDF3"> matches]</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#8B949E">    # Pad with remaining positions if LLM returned partial output</span></span>
+<span class="line"><span style="color:#FF7B72">    if</span><span style="color:#79C0FF"> len</span><span style="color:#E6EDF3">(positions) </span><span style="color:#FF7B72">&#x3C;</span><span style="color:#E6EDF3"> n:</span></span>
+<span class="line"><span style="color:#E6EDF3">        seen </span><span style="color:#FF7B72">=</span><span style="color:#79C0FF"> set</span><span style="color:#E6EDF3">(positions)</span></span>
+<span class="line"><span style="color:#FF7B72">        for</span><span style="color:#E6EDF3"> i </span><span style="color:#FF7B72">in</span><span style="color:#79C0FF"> range</span><span style="color:#E6EDF3">(n):</span></span>
+<span class="line"><span style="color:#FF7B72">            if</span><span style="color:#E6EDF3"> i </span><span style="color:#FF7B72">not</span><span style="color:#FF7B72"> in</span><span style="color:#E6EDF3"> seen:</span></span>
+<span class="line"><span style="color:#E6EDF3">                positions.append(i)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> positions[:n]</span></span></code></pre>
+<p>Jeśli parsowanie całkowicie się nie powiedzie, demo wraca do kolejności cross-encodera. Produkcyjny parser powinien również odrzucać identyfikatory spoza zakresu i duplikaty, dopisywać pominiętych kandydatów w ich wcześniejszej kolejności, logować błąd oraz porównywać odsetek fallbacków z progiem wymaganym przed uruchomieniem.</p>
+<hr>
+<h2 id="wyniki-z-tej-próbki-esci">Wyniki z tej próbki ESCI</h2>
+<p>Zarejestrowane wyniki sprzed etapu LLM wykorzystują <code>small_version</code> z dema: angielski <code>us</code>
+locale po filtrze <code>small_version == 1</code>, z maksymalnie 500 identyfikatorami zapytań próbkowanymi
+bez powtórzeń za pomocą seeda 42 oraz korpusem zbudowanym na podstawie ocenionych produktów.
+Wartości <code>MRR</code> wykorzystują binarną regułę ewaluatora dema <code>relevance > 0</code>: wynik
+Complement, Substitute lub Exact jest uznawany za istotny, natomiast wynik
+Irrelevant — nie. <code>recip_rank</code> ocenia każdą zwróconą listę kandydatów,
+zawierającą do 100 kandydatów; nie jest to MRR@10.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Etap</th><th>NDCG@10</th><th>MRR</th><th>Recall@100</th><th>Różnica NDCG</th></tr></thead><tbody><tr><td>BM25</td><td>0,585</td><td>0,812</td><td>0,741</td><td>—</td></tr><tr><td>Dense Bi-Encoder</td><td>0,611</td><td>0,808</td><td>0,825</td><td>+0,026</td></tr><tr><td>Hybrid (RRF)</td><td>0,628</td><td>0,834</td><td>0,842</td><td>+0,017</td></tr><tr><td>+ Cross-Encoder</td><td>0,645</td><td>0,860</td><td>0,842</td><td>+0,017</td></tr></tbody></table>
+<h3 id="najważniejsze-obserwacje">Najważniejsze obserwacje</h3>
+<p><strong>Hybrid search przewyższa każdą z metod używaną osobno.</strong> NDCG RRF (0,628) jest wyższe niż zarówno BM25 (0,585), jak i Dense (0,611). Obie metody mogą zawodzić dla różnych zapytań, a ich połączenie odzyskuje dokumenty pomijane przez każdą z nich osobno.</p>
+<p><strong>Recall jest ustalany na etapie retrieval.</strong> Recall@100 pozostaje na poziomie 0,842 przez etap cross-encodera. Rerankery zmieniają kolejność, ale nie dodają dokumentów. Jeśli chcesz zwiększyć recall, popraw warstwę retrieval. Wartości MRR powyżej wykorzystują tę samą regułę co całe demo: Complement lub wyżej oznacza wynik istotny.</p>
+<p><strong>Wynik LLM nie jest raportowany.</strong> Parser akceptuje duplikaty i identyfikatory spoza zakresu, a następnie ścieżka dopełniania może po cichu zmienić listę kandydatów. Wcześniejsze porównanie LLM ma więc charakter ilustracyjny, a nie audytowalny. Uruchom je ponownie ze ścisłą walidacją identyfikatorów, logowaniem fallbacków, wielokrotnymi uruchomieniami, pomiarami opóźnienia i kosztu oraz na zbiorze domenowym held-out, zanim przypiszesz jakikolwiek przyrost rerankerowi.</p>
+<p>Repozytorium towarzyszące jest przydatne do konfiguracji i pracy z kodem, ale jego README nadal raportuje niepoprawną wartość <code>+ LLM Reranker</code> NDCG@10 równą 0,717. Do czasu przeprowadzenia audytowalnej ewaluacji LLM w repozytorium za wiarygodne należy uznawać tabelę wyników sprzed LLM z tego artykułu oraz opisane powyżej zastrzeżenie dotyczące LLM.</p>
+<p><strong>Dense retrieval przewyższa BM25 w tej próbce.</strong> Przeanalizuj wycinki zapytań, zanim przypiszesz przyczynę. Rozbieżność słownictwa jest jednym z możliwych czynników, ale wpływ mają również konstrukcja próbki, tokenizer, domena treningowa modelu i pola korpusu.</p>
+<hr>
+<h2 id="ewaluacja-mierzenie-tego-co-istotne">Ewaluacja: mierzenie tego, co istotne</h2>
+<p>Demo wykorzystuje trzy metryki, z których każda patrzy na ranking z innej perspektywy:</p>
+<h3 id="ndcg10-metryka-główna">NDCG@10 (metryka główna)</h3>
+<p><strong>Normalized Discounted Cumulative Gain</strong> mierzy jakość rankingu top 10 z użyciem stopniowanej trafności. Premiowane jest umieszczanie wysoce istotnych dokumentów wysoko, z logarytmicznym obniżaniem wagi wraz z pozycją:</p>
+<span class="katex-display" tabindex="0"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>DCG@k</mtext><mo>=</mo><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>k</mi></munderover><mfrac><mrow><msup><mn>2</mn><mrow><mi>r</mi><mi>e</mi><msub><mi>l</mi><mi>i</mi></msub></mrow></msup><mo>−</mo><mn>1</mn></mrow><mrow><msub><mrow><mi>log</mi><mo>⁡</mo></mrow><mn>2</mn></msub><mo stretchy="false">(</mo><mi>i</mi><mo>+</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></mfrac><mspace width="2em"></mspace><mtext>NDCG@k</mtext><mo>=</mo><mfrac><mtext>DCG@k</mtext><mtext>IDCG@k</mtext></mfrac></mrow><annotation encoding="application/x-tex">\text{DCG@k} = \sum_{i=1}^{k} \frac{2^{rel_i} - 1}{\log_2(i + 1)} \qquad \text{NDCG@k} = \frac{\text{DCG@k}}{\text{IDCG@k}}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord text"><span class="mord">DCG@k</span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:3.1138em;vertical-align:-1.2777em;"></span><span class="mop op-limits"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.8361em;"><span style="top:-1.8723em;margin-left:0em;"><span class="pstrut" style="height:3.05em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">i</span><span class="mrel mtight">=</span><span class="mord mtight">1</span></span></span></span><span style="top:-3.05em;"><span class="pstrut" style="height:3.05em;"></span><span><span class="mop op-symbol large-op">∑</span></span></span><span style="top:-4.3em;margin-left:0em;"><span class="pstrut" style="height:3.05em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0315em;">k</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:1.2777em;"><span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.5261em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mop"><span class="mop">lo<span style="margin-right:0.0139em;">g</span></span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.207em;"><span style="top:-2.4559em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2441em;"><span></span></span></span></span></span></span><span class="mopen">(</span><span class="mord mathnormal">i</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord">1</span><span class="mclose">)</span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8491em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0278em;">r</span><span class="mord mathnormal mtight">e</span><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0197em;">l</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3281em;"><span style="top:-2.357em;margin-left:-0.0197em;margin-right:0.0714em;"><span class="pstrut" style="height:2.5em;"></span><span class="sizing reset-size3 size1 mtight"><span class="mord mathnormal mtight">i</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.143em;"><span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord">1</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.936em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mspace" style="margin-right:2em;"></span><span class="mord text"><span class="mord">NDCG@k</span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:2.0574em;vertical-align:-0.686em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.3714em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord text"><span class="mord">IDCG@k</span></span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord text"><span class="mord">DCG@k</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.686em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span></span></span></span></span>
+<p>Spośród tych trzech metryk NDCG jako jedyna w pełni wykorzystuje czteropoziomową stopniowaną trafność ESCI. System, który umieszcza wynik Exact na pozycji 1, otrzymuje wyższą ocenę niż system, który umieszcza tam Substitute. Dlatego jest to tutaj główna metryka.</p>
+<h3 id="mrr-pierwszy-wynik-complement-lub-wyższy">MRR (pierwszy wynik Complement lub wyższy)</h3>
+<p><strong>Mean Reciprocal Rank</strong> wykorzystuje pozycję pierwszego wyniku uznanego za istotny. W tym demie ewaluator przekazuje stopniowane qrels ESCI do <code>pytrec_eval</code> i stosuje <code>recip_rank</code> do każdej zwróconej listy zawierającej do 100 kandydatów, więc <code>relevance > 0</code> jest progiem binarnym: Complement (1), Substitute (2) i Exact (3) są istotne. Irrelevant (0) nie jest. Istotny wynik na pozycji 1 daje reciprocal rank 1,0; na pozycji 3 — 0,333. Jest to MRR dla zwróconych list kandydatów, a nie MRR@10.</p>
+<h3 id="recall100-pokrycie-retrieval">Recall@100 (pokrycie retrieval)</h3>
+<p>Recall mierzy, jaka część ocenionych istotnych dokumentów pojawia się w pierwszej setce. Jest to metryka górnej granicy zbioru kandydatów dla ocenianych etykiet: reranker nie może dodać dokumentu pominiętego przez retrieval, a niekompletne oceny mogą powodować niepewność co do obserwowanej granicy.</p>
+<hr>
+<h2 id="indexing-dense-vectors-beyond-the-demo">Indeksowanie gęstych wektorów poza demem</h2>
+<p>Gęste embeddings stają się użyteczne na dużą skalę dopiero po zastosowaniu indeksu Approximate Nearest Neighbor (ANN). Demo wykorzystuje brute-force cosine similarity (co jest odpowiednie przy około 8500 dokumentach), ale systemy produkcyjne potrzebują wyspecjalizowanych indeksów.</p>
+<h3 id="hnsw-hierarchical-navigable-small-world">HNSW (hierarchical navigable small world)</h3>
+<p><a href="https://arxiv.org/abs/1603.09320">HNSW</a> buduje graf wielowarstwowy: rzadkie warstwy górne umożliwiają szeroką nawigację, a gęstsze warstwy dolne doprecyzowują sąsiedztwo. <code>M</code> steruje spójnością grafu, natomiast <code>efSearch</code> wymienia koszt wyszukiwania na recall. Użyteczne wartości zależą od wymiaru, rozkładu odległości, filtrów, implementacji i docelowego recallu.</p>
+<p>Aktualizacje i usuwanie danych są kwestią operacyjną, ponieważ indeksy grafowe mogą wymagać naprawy w tle. Zachowanie zależy od bazy danych. Na przykład <a href="https://github.com/qdrant/qdrant/issues/7147">issue w Qdrant</a> opisuje pogorszenie jakości wyszukiwania filtrowanego w konfiguracji HNSW dla wielu tenantów. Raport podaje średnią precision@100 równą 0,597 ± 0,0541 z filtrem <code>library_id</code>, podczas gdy wyszukiwanie dokładne osiągnęło 100% recall w dalszej analizie. Zmiana <code>payload_m</code> wymusiła przebudowę, która przywróciła jakość wyszukiwania filtrowanego. Raport dotyczy filtrów tenantów, konfiguracji HNSW i wymuszonej przebudowy indeksu HNSW, a nie obciążenia z dużą liczbą usunięć. Odtwórz docelowy wzorzec zmian danych i uwzględnij w ewaluacji zachowanie podczas compaction oraz rebuildów.</p>
+<h3 id="ivf-inverted-file">IVF (inverted file)</h3>
+<p>Indeksy IVF dzielą przestrzeń wektorową na klastry, a następnie przeszukują klastry <code>nprobe</code> najbliższe zapytaniu. Mogą zapewniać użyteczny kompromis między pamięcią, czasem budowania i recall, szczególnie w połączeniu z kompresją. Semantyka aktualizacji i wydajność zależą od implementacji, a nie wyłącznie od rodziny indeksu.</p>
+<p>Przy ekstremalnej skali <strong><a href="https://arxiv.org/abs/2405.12497">IVF_RaBitQ</a></strong> (Gao &#x26; Long, SIGMOD 2024) kompresuje wektory zmiennoprzecinkowe do reprezentacji jednobitowych. W przestrzeni o wysokim wymiarze znak współrzędnej (+/−) niesie wystarczająco dużo informacji kątowej do obliczania podobieństwa.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table tabindex="0"><thead><tr><th>Wymiar</th><th>Graf HNSW</th><th>Klastry IVF</th></tr></thead><tbody><tr><td>Sterowanie zapytaniem</td><td><code>efSearch</code></td><td><code>nprobe</code></td></tr><tr><td>Sterowanie budowaniem</td><td>Spójność i beam konstrukcyjny</td><td>Liczba klastrów i próbka treningowa</td></tr><tr><td>Profil pamięci</td><td>Krawędzie grafu plus wektory</td><td>Centroidy, listy i zapisane wektory</td></tr><tr><td>Zachowanie przy aktualizacjach</td><td>Naprawa/czyszczenie zależne od bazy</td><td>Utrzymanie list zależne od bazy</td></tr><tr><td>Ewaluacja za pomocą</td><td>Krzywa recall–opóźnienie–pamięć–churn</td><td>Krzywa recall–opóźnienie–pamięć–churn</td></tr></tbody></table>
+<p>W jednym <a href="https://www.uber.com/blog/evolution-and-scale-of-ubers-delivery-search-platform/">studium przypadku wyszukiwania dostaw Uber</a> zmniejszenie parametru wyszukiwania na poziomie sharda z 1200 do 200 skróciło raportowane opóźnienie o 34% i obniżyło użycie CPU o 17%, przy niewielkiej zmierzonej utracie recallu. Uniwersalna lekcja brzmi: dostrajaj krzywą recall–koszt na ruchu zbliżonym do produkcyjnego, zamiast kopiować wartość 200.</p>
+<hr>
+<h2 id="opcjonalne-rozszerzenia-po-podstawowym-pipeline">Opcjonalne rozszerzenia po podstawowym pipeline</h2>
+<p>Gdy retrieval i reranking mają osobne pomiary, łatwiej oceniać kolejne rozszerzenia bez zaciemniania podstawowego pipeline’u.</p>
+<h3 id="rozumienie-zapytań">Rozumienie zapytań</h3>
+<p>Rozszerzanie i przepisywanie zapytań może niwelować rozbieżność słownictwa przed retrieval. <a href="https://arxiv.org/abs/2303.07678">Query2doc</a> generował pseudo-dokumenty i raportował wzrosty BM25 w eksperymentach MS MARCO. Rozszerzanie może również wprowadzać błędną intencję, dlatego porównuj recall i precision na wycinkach zapytań niejednoznacznych, nawigacyjnych i zawierających dokładne identyfikatory.</p>
+<p>Praktyczne wzorce obejmują rozwijanie skrótów, wzbogacanie encji, dekompozycję podzapytań dla rozumowania wieloetapowego oraz <strong><a href="https://arxiv.org/abs/2402.03367">RAG-Fusion</a></strong> — generowanie wielu wariantów zapytania i łączenie wyników za pomocą RRF.</p>
+<h3 id="etykietowanie-trafności-wspomagane-przez-llm">Etykietowanie trafności wspomagane przez LLM</h3>
+<p>LLM mogą tworzyć robocze etykiety trafności, gdy brakuje ocen ludzkich. <a href="https://arxiv.org/abs/2305.13233">TALEC</a> oraz <a href="https://arxiv.org/abs/2410.17152">prace Pinterest nad etykietowaniem trafności</a> przedstawiają dwa ocenione projekty. Etykieta LLM nadal jest wynikiem modelu: kalibruj ją względem zaślepionych ocen ludzkich, analizuj wycinki rozbieżności i utrzymuj ludzki zbiór gold do testów regresyjnych.</p>
+<p>Przydatne mechanizmy kontrolne obejmują:</p>
+<ul>
+<li>rubric z konkretnymi granicami trafności i przykładami;</li>
+<li>zaślepioną kalibrację ludzką oraz okresowe ponowne kontrole;</li>
+<li>losowanie kolejności i powtarzane oceny dla niestabilnych przypadków;</li>
+<li>panele modeli, gdy ich dodatkowy koszt poprawia zgodność; oraz</li>
+<li>jawne kontrole position bias i biasu tendencji centralnej.</li>
+</ul>
+<h3 id="knowledge-distillation">Knowledge distillation</h3>
+<p>Gdy nauczyciel LLM zapewnia dodatkową wartość, ale nie spełnia ograniczeń serwowania, jedną z opcji jest destylacja:</p>
+<ol>
+<li>Użyj wydajnego LLM (nauczyciela) do rerankingu tysięcy zapytań treningowych</li>
+<li>Wytrenuj mały, szybki cross-encoder (ucznia, około 100–200M parametrów), aby naśladował rozkład rankingu LLM</li>
+<li>Porównaj ucznia zarówno z nauczycielem, jak i baseline’em pod względem jakości, kalibracji i kosztu serwowania</li>
+</ol>
+<p><a href="https://arxiv.org/abs/2401.06910">InRanker</a> destyluje MonoT5-3B do modeli o 60M i 220M parametrów — redukcja rozmiaru 50× przy konkurencyjnej wydajności. Podejście <a href="https://arxiv.org/abs/2312.02969">Rank-Without-GPT</a> tworzy otwarte listwise rerankery 7B, które dzięki fine-tuningowi QLoRA osiągają 97% skuteczności GPT-4.</p>
+<p>Opublikowane wyniki kompresji są punktami wyjścia, a nie oczekiwanymi współczynnikami produkcyjnymi. Destylacja może odziedziczyć biasy nauczyciela i pogorszyć jakość na rzadkich wycinkach zapytań, dlatego należy zachować oryginalne oceny trafności w pętli ewaluacji.</p>
+<hr>
+<h3 id="personalizacja-i-position-bias">Personalizacja i position bias</h3>
+<p>Ogólna trafność ma swoje ograniczenia. Wyszukiwanie „apple” powinno zwracać iPhone’y entuzjaście technologii, a przepisy z jabłkami osobie przeglądającej treści kulinarne.</p>
+<p>Typowa architektura retrieval dla personalizacji wykorzystuje <strong>model two-tower embeddings</strong>: wieża zapytania koduje zapytanie i kontekst użytkownika, a wieża elementu koduje elementy i metadane. Podział offline/online wspiera retrieval approximate-nearest-neighbor; jego opóźnienie nadal zależy od enkodera, indeksu, filtrów i systemu serwowania.</p>
+<p><a href="https://dl.acm.org/doi/10.1145/3219819.3219885">Embeddings ofert Airbnb</a>, <a href="https://arxiv.org/abs/2404.16260">OmniSearchSage</a> firmy Pinterest oraz <a href="https://www.uber.com/blog/innovative-recommendation-applications-using-two-tower-embeddings/">systemy two-tower Ubera</a> pokazują różne projekty produkcyjne. Ich skala i raportowane wzrosty dotyczą tych konkretnych systemów; przenośnym wzorcem jest offline’owa wieża elementów oraz online’owa wieża zapytania/użytkownika.</p>
+<p>Dane kliknięć zawierają bias pozycji i ekspozycji. <a href="https://dl.acm.org/doi/10.1145/3298689.3347033">PAL</a> jest jednym z podejść do debiasingu: używa pozycji podczas treningu, a następnie utrzymuje ją stałą podczas serwowania. Nie jest to uniwersalne rozwiązanie; dla innego produktu bardziej odpowiednie mogą być randomizowane interwencje, metody inverse-propensity i ewaluacja kontrfaktyczna.</p>
+<hr>
+<h3 id="adaptacja-domenowa-za-pomocą-zapytań-syntetycznych">Adaptacja domenowa za pomocą zapytań syntetycznych</h3>
+<p>Częstym błędem w strategii wyszukiwania jest założenie, że model wytrenowany na ogólnych danych webowych, takich jak MS MARCO, będzie dobrze działał w wyspecjalizowanej domenie. To <strong>problem out-of-domain (OOD)</strong>.</p>
+<p>LLM mogą zmniejszyć, ale nie wyeliminować, wąskie gardło związane z oznaczonymi danymi za pomocą <strong>Generative Pseudo-Labeling</strong> (<a href="https://arxiv.org/abs/2112.07577">GPL</a>, <a href="https://arxiv.org/abs/2202.05144">InPars</a>):</p>
+<ol>
+<li>Weź domenowy korpus dokumentów</li>
+<li>Poproś LLM: „Generate a search query that this document would answer”</li>
+<li>Użyj syntetycznych par (query, document) do dostrojenia retrievera i rerankera</li>
+</ol>
+<p>Pary syntetyczne mogą pomóc, gdy brakuje rzeczywistych zapytań, ale odzwierciedlają generator i prompt. Usuń duplikaty, odfiltruj nieprawdopodobne zapytania i waliduj wyniki na rzeczywistym ruchu held-out.</p>
+<h2 id="sekwencja-eksperymentów">Sekwencja eksperymentów</h2>
+<p>Dodawaj złożoność tylko wtedy, gdy poprzedni etap ujawni zmierzony problem:</p>
+<p><span class="mermaid-light"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/maturity_path.svg" alt="Praktyczna ścieżka dojrzałości" loading="lazy"></span><span class="mermaid-dark"><img src="/pl/blog/assets/2026-02-08-search-ranking-stack/maturity_path.dark.svg" alt="Praktyczna ścieżka dojrzałości" loading="lazy"></span></p>
+<p><strong>Krok 1 (baseline):</strong> zaimplementuj BM25 lub bieżący system leksykalny i zbuduj oceniony zbiór zapytań. Rejestruj recall, NDCG, opóźnienie i wycinki błędów.</p>
+<p><strong>Krok 2 (recall kandydatów):</strong> testuj dense retrieval i fuzję tylko wtedy, gdy baseline pomija istotne dokumenty. Dostrajaj odcięcie kandydatów względem recallu i kosztu.</p>
+<p><strong>Krok 3 (precision rankingu):</strong> dodaj cross-encoder, jeśli właściwi kandydaci istnieją, ale pojawiają się w złej kolejności. Wybierz rozmiar shortlisty na podstawie krzywej jakości i opóźnienia.</p>
+<p><strong>Krok 4 (dopasowanie do domeny):</strong> dostrajaj lub destyluj model dopiero wtedy, gdy modele ogólne wykazują stabilne, specyficzne dla domeny błędy. Trzymaj rzeczywiste oceny held-out oddzielnie od syntetycznych danych treningowych.</p>
+<p><strong>Krok 5 (opcjonalna kosztowna warstwa):</strong> testuj listwise lub oparte na rozumowaniu reranking dopiero wtedy, gdy jego przyrost jakości utrzymuje się w powtarzanych uruchomieniach i uzasadnia dodatkowe opóźnienie, koszt, wymagania prywatności oraz złożoność fallbacków.</p>
+<hr>
+<h2 id="kierunki-badawcze-do-osobnej-ewaluacji">Kierunki badawcze do osobnej ewaluacji</h2>
+<p>Rerankery oparte na rozumowaniu i agenci wykorzystujący wyszukiwanie są obiecujący, ale odpowiadają na inne pytania niż pięcioetapowe demo wyszukiwania produktów.</p>
+<h3 id="rerankery-oparte-na-rozumowaniu">Rerankery oparte na rozumowaniu</h3>
+<p><a href="https://arxiv.org/abs/2502.18418">Rank1</a> trenuje rerankery z trace’ami rozumowania i raportuje dobre wyniki na benchmarku <a href="https://arxiv.org/abs/2407.12883">BRIGHT</a>. Dowody te dotyczą retrieval wymagającego rozumowania, a nie są bezpośrednią prognozą dla wyszukiwania produktów ESCI.</p>
+<p>W wyszukiwaniu prawnym lub naukowym porównuj rerankery oparte na rozumowaniu z silnymi baseline’ami cross-encoderowymi i listwise pod względem ocen eksperckich, cytowań, opóźnienia i spójności błędów.</p>
+<h3 id="wyszukiwanie-agentowe">Wyszukiwanie agentowe</h3>
+<p><a href="https://arxiv.org/abs/2501.05366">Search-o1</a> bada model, który wykonuje dodatkowe wyszukiwania podczas odpowiadania na pytania wieloetapowe. To problem orkiestracji — generowania zapytań, warunku zakończenia, wykorzystania dowodów i ewaluacji odpowiedzi — a nie kolejny etap rerankingu. Oceniaj go pod kątem poprawności zadania końcowego i wsparcia cytowaniami, a nie wyłącznie metryk retrieval.</p>
+<hr>
+<h2 id="najważniejsze-wnioski">Najważniejsze wnioski</h2>
+<ol>
+<li>
+<p><strong>Traktuj stos jako sekwencję eksperymentów.</strong> Ustal baseline leksykalny i oceniony zbiór zapytań przed dodaniem dense retrieval, fuzji lub rerankingu.</p>
+</li>
+<li>
+<p><strong>Mierz recall kandydatów oddzielnie od precision rankingu.</strong> W tej próbce ESCI Recall@100 osiąga 0,842 po fuzji i pozostaje na tym poziomie przez oba etapy rerankingu.</p>
+</li>
+<li>
+<p><strong>Używaj retrieval hybrydowego, gdy błędy są komplementarne.</strong> RRF poprawił zarówno Recall@100, jak i NDCG@10 w demie, ale inny korpus może nie uzasadniać utrzymywania dwóch indeksów.</p>
+</li>
+<li>
+<p><strong>Dodaj cross-encoder, gdy shortlista jest właściwa, ale kolejność błędna.</strong> Liczbę kandydatów wybieraj na podstawie zmierzonej krzywej jakości i opóźnienia.</p>
+</li>
+<li>
+<p><strong>Traktuj reranking LLM jako opcjonalny końcowy eksperyment.</strong> Bieżące porównanie LLM w demie ma charakter ilustracyjny, ponieważ parser nie sprawdza kompletnej permutacji identyfikatorów kandydatów. Ścisłe parsowanie, logowane fallbacki, powtarzane uruchomienia i koszt powinny zostać uwzględnione w ewaluacji przed zaraportowaniem przyrostu.</p>
+</li>
+<li>
+<p><strong>Rozdzielaj typy dowodów.</strong> Wynik z publikacji, studium przypadku dostawcy, demo uruchomione na laptopie i produkcyjny test A/B odpowiadają na różne pytania.</p>
+</li>
+</ol>
+<p>Kompletny kod pipeline’u znajduje się w <a href="https://github.com/slavadubrov/search-ranking-stack">repozytorium towarzyszącym</a>. Sklonuj je, aby odtworzyć etapy sprzed LLM lub przetestować inne modele i parametry; nie traktuj nieaktualnego wiersza LLM jako wyniku.</p>
+<h2 id="referencje">Referencje</h2>
+<h3 id="publikacje">Publikacje</h3>
+<ul>
+<li><a href="https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf">Reciprocal Rank Fusion</a> — Cormack et al., 2009</li>
+<li><a href="https://arxiv.org/abs/2304.09542">RankGPT: LLMs as Zero-Shot Listwise Rerankers</a> — Sun et al., EMNLP 2023 Outstanding Paper</li>
+<li><a href="https://arxiv.org/abs/2502.18418">Rank1: Reasoning-Based Reranking</a> — Weller et al., COLM 2025</li>
+<li><a href="https://arxiv.org/abs/2405.04141">SCaLR: Self-Calibrated Listwise Reranking</a> — Self-calibrating listwise reranking framework</li>
+<li><a href="https://arxiv.org/abs/2402.12871">GCCP: Global-Consistent Comparative Pointwise</a> — Addressing calibration in pointwise LLM ranking</li>
+<li><a href="https://arxiv.org/abs/2405.07920">Rank-DistiLLM: Knowledge Distillation for Reranking</a> — Schlatt et al., ECIR 2025</li>
+<li><a href="https://arxiv.org/abs/2303.07678">Query2doc: LLM Query Expansion</a> — Wang et al., EMNLP 2023</li>
+<li><a href="https://arxiv.org/abs/2112.07577">GPL: Generative Pseudo Labeling</a> — Domain adaptation for dense retrieval</li>
+<li><a href="https://arxiv.org/abs/2401.06910">InRanker: Distilled Reranker</a> — 50x size reduction with competitive performance</li>
+<li><a href="https://arxiv.org/abs/2501.05366">Search-o1: Agentic Retrieval</a> — EMNLP 2025</li>
+<li><a href="https://arxiv.org/abs/2305.13233">TALEC: LLM-as-a-Judge for Search</a> — Evaluation framework</li>
+<li><a href="https://arxiv.org/abs/2104.08663">BEIR Benchmark</a> — Thakur et al., NeurIPS 2021</li>
+<li><a href="https://eval.ai/web/challenges/challenge-page/1897/leaderboard/4475">BEIR Leaderboard</a> — <code>BM25 multifield</code> baseline and 18-dataset aggregate</li>
+<li><a href="https://arxiv.org/abs/1908.10084">Sentence-BERT</a> — Reimers &#x26; Gurevych, EMNLP 2019</li>
+<li><a href="https://arxiv.org/abs/1807.03748">InfoNCE / CPC</a> — van den Oord et al., 2018</li>
+<li><a href="https://arxiv.org/abs/2210.11773">SimANS: Hard Negative Sampling</a> — Zhou et al., EMNLP 2022</li>
+<li><a href="https://arxiv.org/abs/1901.04085">Passage Reranking with BERT</a> — Nogueira &#x26; Cho, 2019</li>
+<li><a href="https://arxiv.org/abs/1603.09320">HNSW</a> — Malkov &#x26; Yashunin, 2016</li>
+<li><a href="https://proceedings.neurips.cc/paper/2019/hash/09853c7fb1d3f8ee67a61b6bf4a7f8e6-Abstract.html">DiskANN</a> — Subramanya et al., NeurIPS 2019</li>
+<li><a href="https://arxiv.org/abs/2405.12497">RaBitQ</a> — Gao &#x26; Long, SIGMOD 2024</li>
+<li><a href="https://arxiv.org/abs/2404.18796">Replacing Judges with Juries</a> — Verga et al., 2024</li>
+<li><a href="https://arxiv.org/abs/2402.03367">RAG-Fusion</a> — Rackauckas, 2024</li>
+<li><a href="https://arxiv.org/abs/2202.05144">InPars</a> — Bonifacio et al., SIGIR 2022</li>
+<li><a href="https://arxiv.org/abs/2407.12883">BRIGHT Benchmark</a> — Su et al., ICLR 2025</li>
+<li><a href="https://arxiv.org/abs/2312.02969">Rank-without-GPT</a> — Zhang et al., ECIR 2025</li>
+<li><a href="https://arxiv.org/abs/2410.17152">Pinterest LLM Search Relevance</a> — Wang et al., 2024</li>
+<li><a href="https://arxiv.org/abs/2404.16260">OmniSearchSage</a> — Agarwal et al., WWW 2024</li>
+<li><a href="https://dl.acm.org/doi/10.1145/3298689.3347033">PAL: Position-bias Aware Learning</a> — Guo et al., RecSys 2019</li>
+</ul>
+<h3 id="zbiory-danych-i-benchmarki">Zbiory danych i benchmarki</h3>
+<ul>
+<li><a href="https://github.com/amazon-science/esci-data">Amazon ESCI: Shopping Queries Dataset</a> — KDD Cup 2022</li>
+<li><a href="https://github.com/beir-cellar/beir">BEIR: Benchmarking IR</a> — Heterogeneous benchmark for zero-shot evaluation</li>
+<li><a href="https://huggingface.co/spaces/mteb/leaderboard">MTEB: Massive Text Embedding Benchmark</a> — Embedding model leaderboard</li>
+<li><a href="https://arxiv.org/abs/2206.06588">ESCI Paper</a> — Reddy et al., 2022</li>
+</ul>
+<h3 id="modele-użyte-w-demie">Modele użyte w demie</h3>
+<ul>
+<li><a href="https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2">all-MiniLM-L6-v2</a> — bi-encoder z 22M parametrów</li>
+<li><a href="https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-12-v2">ms-marco-MiniLM-L-12-v2</a> — cross-encoder z 33M parametrów</li>
+<li><a href="https://www.sbert.net/">Sentence-Transformers</a> — framework modeli neural retrieval</li>
+</ul>
+<h3 id="narzędzia-i-platformy">Narzędzia i platformy</h3>
+<ul>
+<li><a href="https://github.com/dorianbrown/rank_bm25">rank_bm25</a> — implementacja BM25 w Pythonie</li>
+<li><a href="https://castorini.github.io/pyserini/2cr/beir.html">Pyserini BEIR Reproductions</a> — <code>bm25-multifield</code> polecenia indeksowania i ewaluacji</li>
+<li><a href="https://github.com/cvangysel/pytrec_eval">pytrec_eval</a> — toolkit ewaluacyjny TREC</li>
+<li><a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/retrievers.html">Elasticsearch</a> — wyszukiwanie hybrydowe z Retrievers API</li>
+<li><a href="https://vespa.ai/">Vespa</a> — zunifikowany silnik wyszukiwania i rekomendacji</li>
+<li><a href="https://weaviate.io/">Weaviate</a> — wektorowa baza danych z wyszukiwaniem hybrydowym</li>
+<li><a href="https://qdrant.tech/">Qdrant</a> — wektorowa baza danych z zapytaniami wieloetapowymi</li>
+</ul>
+<h3 id="referencje-branżowe">Referencje branżowe</h3>
+<ul>
+<li><a href="https://dl.acm.org/doi/10.1145/3219819.3219885">Airbnb Listing Embeddings</a> — Grbovic &#x26; Cheng, KDD 2018</li>
+<li><a href="https://www.uber.com/blog/evolution-and-scale-of-ubers-delivery-search-platform/">Uber Delivery Search</a> — Uber Engineering, 2025</li>
+<li><a href="https://www.uber.com/blog/innovative-recommendation-applications-using-two-tower-embeddings/">Uber Two-Tower Embeddings</a> — Uber Engineering, 2023</li>
+<li><a href="https://www.elastic.co/search-labs/blog/elastic-semantic-reranker-part-2">Elastic Rerank</a> — Elastic, 2024</li>
+</ul>
+<h3 id="projekt-demonstracyjny">Projekt demonstracyjny</h3>
+<ul>
+<li><a href="https://github.com/slavadubrov/search-ranking-stack">search-ranking-stack</a> — działające demo zawierające cały kod z tego artykułu</li>
+</ul>  </article> </div> </main> <footer class="site-footer"> <p> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="28" height="26" alt="" aria-hidden="true" loading="lazy" decoding="async"> <span data-footer-tagline>Systemy AI w środowisku produkcyjnym, ewaluacja, bezpieczeństwo i doskonalenie na podstawie wyników.</span> </p> <nav class="footer-locales" aria-label="Język"> <a href="/blog/2026/02/08/search-ranking-stack/" hreflang="en" lang="en">English</a><a href="/de/blog/2026/02/08/search-ranking-stack/" hreflang="de" lang="de">Deutsch</a><a href="/ru/blog/2026/02/08/search-ranking-stack/" hreflang="ru" lang="ru">Русский</a><a href="/es/blog/2026/02/08/search-ranking-stack/" hreflang="es" lang="es">Español</a><a href="/pt/blog/2026/02/08/search-ranking-stack/" hreflang="pt" lang="pt">Português</a><a href="/fr/blog/2026/02/08/search-ranking-stack/" hreflang="fr" lang="fr">Français</a><a href="/nl/blog/2026/02/08/search-ranking-stack/" hreflang="nl" lang="nl">Nederlands</a> </nav> <p><a href="/feed_rss_created.xml">RSS</a> · <a href="https://github.com/slavadubrov">GitHub</a></p> </footer> <pagefind-modal></pagefind-modal> <script>(function(){const copyLabel = "Kopiuj";
+const copiedLabel = "Skopiowano";
+
+      document.querySelector(".theme-toggle")?.addEventListener("click", () => {
+        const root = document.documentElement;
+        const next = root.dataset.themeEffective === "dark" ? "light" : "dark";
+        root.dataset.theme = next;
+        root.dataset.themeEffective = next;
+        localStorage.setItem("theme", next);
+      });
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (event) => {
+        if (localStorage.getItem("theme")) return;
+        document.documentElement.dataset.themeEffective = event.matches ? "dark" : "light";
+      });
+      document.querySelector("#locale-select")?.addEventListener("change", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLSelectElement && target.value) location.assign(target.value);
+      });
+      document.querySelectorAll("pre").forEach((pre) => {
+        if (pre.closest(".mermaid-diagram")) return;
+        const code = pre.textContent || "";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-code";
+        button.textContent = copyLabel;
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(code);
+          button.textContent = copiedLabel;
+          setTimeout(() => { button.textContent = copyLabel; }, 1500);
+        });
+        pre.append(button);
+      });
+    })();</script> </body> </html>
