@@ -43,10 +43,10 @@
       if (heading) observer.observe(heading);
     }
   })();
-</script> <article class="prose" data-pagefind-body> <h1>Search Ranking Stack: BM25, Embeddings, and Reranking</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-02-08">2026-02-08</time>  · Updated <time datetime="2026-09-12">2026-09-12</time>  · 26 min · Retrieval and Language Systems </p> </div> </div> <p>This guide is for Python engineers building or improving a search ranking pipeline. It explains how BM25, dense embeddings, rank fusion, and rerankers work together, and how to measure whether search needs better candidates or a better order.</p>
+</script> <article class="prose" data-pagefind-body> <h1>Search Ranking Stack: BM25, Embeddings, and Reranking</h1>  <div class="byline"> <img class="byte-avatar" src="/assets/byte/byte-calm.png" width="40" height="37" alt aria-hidden="true" loading="lazy" decoding="async"> <div> <p class="byline-name">Viacheslav Dubrov</p> <p class="article-meta"> <time datetime="2026-02-08">2026-02-08</time>  · Updated <time datetime="2026-09-12">2026-09-12</time>  · 25 min · Retrieval and Language Systems </p> </div> </div> <p>This guide is for Python engineers building or improving a search ranking pipeline. It explains how BM25, dense embeddings, rank fusion, and rerankers work together, and how to measure whether search needs better candidates or a better order.</p>
 <p>A search for “cheap laptop” can miss a product described as a “budget notebook computer.” A different failure puts a headphone carrying case above the headphones themselves. The first problem needs better candidates; the second needs a better order. The <a href="https://github.com/slavadubrov/search-ranking-stack">companion demo repository</a> illustrates retrieval and reranking on a sampled slice of Amazon ESCI product-search data.</p>
 <!-- more -->
-<p>The recorded retrieval results below come from a non-held-out ESCI sample. The cross-encoder score merge and LLM parser have defects, so their stored numbers do not establish reranking gains. The corrected cross-encoder excerpt shows how to preserve the intended order; it has not produced a new benchmark run.</p>
+<p>The recorded retrieval results below come from a non-held-out ESCI sample. The cross-encoder score merge and LLM parser have defects, so their stored numbers do not establish reranking gains.</p>
 <p>For a compact stage-selection guide, see <a href="/blog/fast-answers/search-ranking-stack/">BM25 vs Embeddings vs Rerankers</a>. The <a href="#an-experiment-sequence">experiment sequence</a> later in this article connects each stage to a measurement.</p>
 <h2 id="how-we-got-here">How we got here</h2>
 <p>The stack is easier to understand as three layers. Lexical retrieval finds exact terms, dense retrieval closes vocabulary gaps, and rerankers compare the strongest candidates in detail.</p>
@@ -126,18 +126,13 @@
 </ol>
 <p>Steps 1—3 are the <strong>retrieval</strong> stage of the funnel (maximize recall); steps 4—5 are the <strong>full ranking</strong> stage (maximize precision). The demo skips pre-ranking and blending. The cross-encoder scores the first 50 hybrid candidates and retains the remaining candidates up to 100; the LLM sees the first 10.</p>
 <h3 id="quick-start">Quick start</h3>
-<p>Before running <code>run-all</code>, the companion checkout needs two corrections. Set <code>CROSS_ENCODER_MODEL</code> in <code>src/search_ranking_stack/config.py</code> to <code>cross-encoder/ms-marco-MiniLM-L12-v2</code>. Replace the mixed-score merge in <code>src/search_ranking_stack/stages/s04_cross_encoder.py</code> with the head-plus-tail rank scoring shown in <a href="#cross-encoder-reranking">the corrected excerpt</a>. The snippet is an illustrative replacement, not a patch already shipped in that repository. Save new results separately from its historical metrics.</p>
 <pre class="astro-code github-dark-default" style="background-color:#0d1117;color:#e6edf3; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#FFA657">git</span><span style="color:#A5D6FF"> clone</span><span style="color:#A5D6FF"> https://github.com/slavadubrov/search-ranking-stack.git</span></span>
 <span class="line"><span style="color:#79C0FF">cd</span><span style="color:#A5D6FF"> search-ranking-stack</span></span>
 <span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> sync</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#8B949E"># Download and sample ESCI dataset (~2.5GB download, ~5MB sample)</span></span>
 <span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> run</span><span style="color:#A5D6FF"> download-data</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#8B949E"># After applying the two corrections above, run without LLM reranking</span></span>
-<span class="line"><span style="color:#FFA657">uv</span><span style="color:#A5D6FF"> run</span><span style="color:#A5D6FF"> run-all</span></span>
 <span class="line"></span></code></pre>
-<p>For the optional local LLM experiment, the command is <code>uv run run-all --llm-mode ollama</code>. Repair the <a href="#parsing-and-fallback">parser and fallback</a> first; the current output is not a quality comparison.</p>
 <h3 id="dataset-and-sampling-amazon-esci">Dataset and sampling: Amazon ESCI</h3>
 <p>The demo uses the <strong>Amazon Shopping Queries Dataset</strong> (ESCI) from <a href="https://github.com/amazon-science/esci-data">KDD Cup 2022</a> — a real product search benchmark with four-level graded relevance labels:</p>
 
@@ -352,7 +347,7 @@
 <span class="line"></span>
 <span class="line"><span style="color:#FF7B72">    return</span><span style="color:#E6EDF3"> reranked_results</span></span></code></pre>
 <p>The <a href="https://huggingface.co/cross-encoder/ms-marco-MiniLM-L12-v2">model card</a> shows that cross-encoder scores can be negative. The old companion code appends positive RRF scores multiplied by 0.01, so an unscored tail document can sort above a negatively scored head document. The excerpt instead builds the intended order and assigns strictly decreasing scores. These are rank scores for evaluation, not calibrated relevance estimates.</p>
-<p>The stored cross-encoder output reports NDCG@10 <strong>0.645</strong>, compared with hybrid <strong>0.628</strong>, but it came from the flawed merge. It does not measure the corrected shortlist procedure. Rerun before attributing a gain; also measure latency on the deployment hardware with the chosen sequence length, batch size, and runtime.</p>
+<p>The stored cross-encoder output reports NDCG@10 <strong>0.645</strong>, compared with hybrid <strong>0.628</strong>, but it came from the flawed merge. It does not measure the corrected shortlist procedure.</p>
 <h3 id="the-speed-quality-tradeoff">The speed-quality tradeoff</h3>
 <p>Why not use cross-encoders for everything? Because <strong>you cannot pre-compute the scores</strong>. Bi-encoder document embeddings are query-independent, so you compute them once and store them. A cross-encoder’s output depends on both the query <em>and</em> the document together. The relevance score for “wireless headphones” paired with a Sony product comes from the joint self-attention between those specific tokens. You can cache a repeated query-document pair, but its score cannot be reused for a different query.</p>
 <p>A bi-encoder needs one query encoding plus a vector search over pre-computed document embeddings. A cross-encoder scores every query-document pair in the shortlist, with cost that grows with both candidate count and sequence length. Batching helps, but scoring 100,000 candidates is still the wrong operating point; retrieve first and benchmark the largest shortlist that meets the quality and latency targets.</p>
@@ -492,7 +487,7 @@ list, which contains up to 100 candidates; it is not MRR@10.</p>
 <h3 id="what-the-recorded-results-support">What the recorded results support</h3>
 <p><strong>Hybrid search beats either method on its own.</strong> RRF NDCG (0.628) tops both BM25 (0.585) and Dense (0.611). The two methods can fail on different queries, and combining them recovers documents that either one alone would miss.</p>
 <p><strong>Recall is set at retrieval.</strong> Recall@100 stays flat at 0.842 through the cross-encoder stage. Rerankers reorder, they don’t add documents. If you want higher recall, fix the retrieval layer. The MRR values above use the same demo-wide rule: Complement or higher is relevant.</p>
-<p><strong>The LLM result is not reported.</strong> The parser accepts duplicate and out-of-range identifiers, then its padding path can silently alter the candidate list. The previous LLM comparison is therefore illustrative, not an auditable result. Rerun it with strict identifier validation, logged fallback behavior, repeated runs, latency and cost measurements, and a held-out domain set before attributing any gain to the reranker.</p>
+<p><strong>The LLM result is not reported.</strong> The parser accepts duplicate and out-of-range identifiers, then its padding path can silently alter the candidate list. The previous LLM comparison is therefore illustrative, not an auditable result.</p>
 <p>The companion repository is useful for setup and code, but its README still reports the invalid <code>+ LLM Reranker</code> NDCG@10 of 0.717. Its cross-encoder row also comes from the flawed merge. Neither reranking row establishes the gain from the intended algorithm; the three retrieval rows remain historical sample results, without an immutable per-query run record.</p>
 <p><strong>Dense retrieval beats BM25 on this sample.</strong> Inspect query slices before assigning the cause. Vocabulary mismatch is one plausible driver, but the sample construction, tokenizer, model training domain, and corpus fields also affect the comparison.</p>
 <hr>
@@ -616,7 +611,6 @@ list, which contains up to 100 candidates; it is not MRR@10.</p>
 <h3 id="agentic-search">Agentic search</h3>
 <p><a href="https://arxiv.org/abs/2501.05366">Search-o1</a> studies a model that issues additional searches during multi-hop question answering. This is an orchestration problem — query generation, stopping, evidence use, and answer evaluation — not another reranking stage. Evaluate it with end-task correctness and citation support, not only retrieval metrics.</p>
 <hr>
-<p>The <a href="https://github.com/slavadubrov/search-ranking-stack">companion repository</a> supplies the pipeline and stored metrics. Apply the quick-start corrections, preserve candidate IDs, and save a new per-query run before comparing rerankers. The next useful result is a corrected cross-encoder measurement on held-out queries.</p>
 <h2 id="references">References</h2>
 <h3 id="papers">Papers</h3>
 <ul>
