@@ -1,12 +1,19 @@
 <!DOCTYPE html><html lang="en"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><script>
       (() => {
-        const stored = localStorage.getItem("theme");
-        const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        const effective = stored === "light" || stored === "dark" ? stored : systemDark ? "dark" : "light";
+        // The toggle stores an override only while it disagrees with the OS; once the
+        // OS catches up (e.g. macOS "Auto" turning dark at sunset) the override expires.
+        localStorage.removeItem("theme"); // legacy key: pinned forever by the old toggle
+        const system = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        let stored = localStorage.getItem("theme-override");
+        if (stored !== (system === "dark" ? "light" : "dark")) {
+          localStorage.removeItem("theme-override");
+          stored = null;
+        }
+        const effective = stored || system;
         document.documentElement.dataset.themeEffective = effective;
         // Pagefind's search UI ships its own dark palette behind this attribute.
         document.documentElement.dataset.pfTheme = effective;
-        if (stored === "light" || stored === "dark") document.documentElement.dataset.theme = stored;
+        if (stored) document.documentElement.dataset.theme = stored;
       })();
     </script><script async src="https://www.googletagmanager.com/gtag/js?id=G-T51K83ENZ5"></script><script>
       window.dataLayer = window.dataLayer || [];
@@ -50,16 +57,25 @@ const copiedLabel = "Copied";
       document.querySelector(".theme-toggle")?.addEventListener("click", () => {
         const root = document.documentElement;
         const next = root.dataset.themeEffective === "dark" ? "light" : "dark";
-        root.dataset.theme = next;
+        const system = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         root.dataset.themeEffective = next;
         root.dataset.pfTheme = next;
-        localStorage.setItem("theme", next);
+        if (next === system) {
+          delete root.dataset.theme;
+          localStorage.removeItem("theme-override");
+        } else {
+          root.dataset.theme = next;
+          localStorage.setItem("theme-override", next);
+        }
       });
+      // An OS flip always lands on the overridden value, so it ends the override.
       window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (event) => {
-        if (localStorage.getItem("theme")) return;
+        const root = document.documentElement;
         const effective = event.matches ? "dark" : "light";
-        document.documentElement.dataset.themeEffective = effective;
-        document.documentElement.dataset.pfTheme = effective;
+        localStorage.removeItem("theme-override");
+        delete root.dataset.theme;
+        root.dataset.themeEffective = effective;
+        root.dataset.pfTheme = effective;
       });
       document.querySelector("#locale-select")?.addEventListener("change", (event) => {
         const target = event.target;
